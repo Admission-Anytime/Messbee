@@ -1,0 +1,1 @@
+import{Z as o,r as e}from"./index-PODOxm4l.js";const{isValidElement:a}=o;function s(t){return t&&a(t)&&t.type===e.Fragment}function c(t,n,r){return a(t)?e.cloneElement(t,typeof r=="function"?r(t.props||{}):r):n}function u(t,n){return c(t,t,n)}export{s as a,u as c,a as i};
