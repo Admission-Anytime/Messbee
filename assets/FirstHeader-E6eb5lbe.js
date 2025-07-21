@@ -1,0 +1,1 @@
+import{j as s}from"./index-PODOxm4l.js";const r=()=>s.jsx("div",{className:"first-heading",children:s.jsx("a",{className:"sub-heading",href:"#",children:"Welcome to MessBee- A powerful WhatsApp Business platform to grow your Business."})});export{r as F};

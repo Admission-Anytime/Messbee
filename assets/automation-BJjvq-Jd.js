@@ -1,0 +1,1 @@
+import{j as s}from"./index-PODOxm4l.js";import{M as a}from"./MainSidebar-2f4DlzJx.js";import{F as r}from"./FirstHeader-E6eb5lbe.js";import{M as i}from"./MainHeading-uozonLWC.js";import"./YellowButton-Z4OD0MhU.js";const d=()=>s.jsxs("div",{className:"main",children:[s.jsx(a,{}),s.jsxs("div",{className:"body",children:[s.jsx(r,{}),s.jsx(i,{})]})]});export{d as default};
