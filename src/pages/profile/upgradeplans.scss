@@ -1,0 +1,65 @@
+@import "../../styles/mixin";
+
+#main-body {
+  width: 100%;
+  height: calc(100vh - 72px);
+  @include displayFlex(center, normal, 0rem);
+  flex-direction: column;
+}
+.heading {
+  margin: 0.5rem;
+  h2 {
+    padding: 0.5rem 5rem;
+    font-family: Arial;
+    font-size: 2.5rem;
+    text-align: center;
+    line-height: 110%;
+  }
+  p {
+    text-align: center;
+  }
+}
+
+.togglebox {
+  @include displayFlex(center, space-between, 0.4rem);
+  font-weight: 600;
+}
+.plans-body {
+  @include displayFlex(center, space-between, 1rem);
+  margin-top: 0.5rem;
+}
+.plans-container {
+  padding: 1rem;
+  margin: 10px 0;
+  border: 1px solid $clr-heading;
+  border-radius: 10px;
+  width: 250px;
+  .plans-heading {
+    font-weight: 600;
+  }
+  .plans-body {
+    font-size: 12px;
+    height: 54px;
+  }
+  .plans-button {
+    margin: 0 0 20px 0;
+  }
+  .plans-price {
+    font-size: 30px;
+    font-weight: 600;
+    padding: 10px 0px;
+    span {
+      font-size: 14px;
+      font-weight: 400;
+    }
+  }
+  .footer-icon {
+    width: 220px;
+    padding: 5px 0;
+    @include displayFlex(normal, normal, 10px);
+    p {
+      font-size: 12px;
+      font-weight: 500;
+    }
+  }
+}

@@ -1,0 +1,13 @@
+@import "/src/styles/mixin";
+
+.first-heading{
+  background-color: $clr-darkYellow;
+  width: 100%;
+  height: 1.5rem;
+  @include displayFlex(center,center,0);
+}
+.sub-heading{
+  margin: 0 10px;
+  @include text(0.7rem,500,$clr-darkBrown);
+  @include textCut
+}

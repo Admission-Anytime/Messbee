@@ -1,0 +1,61 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,800;1,500;1,600&display=swap");
+
+:root {
+  font-family: Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
+}
+
+$clr-PrimaryBrand: #ba2525;
+$clr-darkBrown: #610404;
+$clr-heading: #27241d;
+$clr-subheading: #423d33;
+$clr-background: #faf9f7;
+$clr-white: #faf9f7;
+$clr-darkYellow: #f0b429;
+$clr-lightYellow: #fadb5f;
+$clr-lightHeading: #423d33;
+
+$fw-larg: 600;
+$fs-larg: 1.2rem;
+
+$fw-normal: 400;
+$fs-normal: 1.2rem;
+
+%heading {
+  font-weight: $fw-larg;
+  color: $clr-white;
+  font-size: $fs-larg;
+}
+
+@mixin text($size, $weight, $color) {
+  color: $color;
+  font-family: Poppins;
+  font-size: $size;
+  font-style: normal;
+  font-weight: $weight;
+  line-height: normal;
+}
+
+@mixin displayFlex($top, $horizontal, $gap) {
+  display: flex;
+  align-items: $top;
+  justify-content: $horizontal;
+  gap: $gap;
+}
+
+@mixin textCut {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+@mixin button($padding, $borderRadius, $color) {
+  display: flex;
+  background-color: $color;
+  padding: $padding;
+  border-radius: $borderRadius;
+}
+
+%hr {
+  border-top: 1px solid #32323275;
+  border-bottom: none;
+}

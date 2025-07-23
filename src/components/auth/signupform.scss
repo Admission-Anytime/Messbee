@@ -1,0 +1,39 @@
+@import "../../styles/mixin";
+.phoneinput {
+  border-radius: 8px;
+  background-color: rgba(225, 255, 238, 0.137);
+}
+input {
+  margin: 3px 0;
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(123, 152, 158, 0.621);
+  background-color: rgba(225, 255, 238, 0.137);
+  -webkit-transition: 0.5s;
+  transition: 0.5s;
+  outline: none;
+}
+label {
+  font-size: 0.8rem;
+  color: $clr-subheading;
+}
+input:focus {
+  border: 1px solid rgba(105, 126, 130, 0.923);
+}
+
+button {
+  margin-top: 1rem;
+  width: 100%;
+}
+
+.google {
+  @include displayFlex(center, normal, 10rem);
+  border: 1px solid #423d33b6;
+  border-radius: 50px;
+  cursor: pointer;
+  img {
+    padding-left: 10px;
+    padding-top: 6px;
+  }
+}

@@ -1,0 +1,29 @@
+@import "./mixin";
+
+:root {
+  font-family: Poppins, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+a {
+  text-decoration: none;
+  // color: black;
+}
+
+// ::-webkit-scrollbar{
+//   width: 0.2em;
+// }
+// ::-webkit-scrollbar-track{
+//   background-color: #BA2525;
+// }
+// ::-webkit-scrollbar-thumb{
+//     background: #F0B429;
+//     // border-radius: 1em;
+// }

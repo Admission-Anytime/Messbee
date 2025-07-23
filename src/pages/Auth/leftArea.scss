@@ -1,0 +1,48 @@
+@import "../../styles/mixin";
+
+.loginContainer {
+  height: 100%;
+  padding-top: 1rem;
+  @include displayFlex(center, space-between, 0);
+  flex-direction: column;
+}
+.top {
+  @include displayFlex(center, center, 0);
+}
+.infoBox {
+  @include displayFlex(normal, normal, 1rem);
+  color: $clr-background;
+  h4 {
+    font-weight: 500;
+    font-size: 14px;
+  }
+  p {
+    font-weight: 300;
+    font-size: 10px;
+  }
+}
+
+.bottom {
+  @include displayFlex(normal, normal, 1rem);
+  flex-direction: column;
+  padding: 0 6rem;
+}
+
+.mid {
+  @include displayFlex(center, center, 0rem);
+  flex-direction: column;
+
+  color: $clr-background;
+  h3 {
+    font-size: 20px;
+    font-weight: 400;
+  }
+  p {
+    font-size: 20px;
+    font-weight: 400;
+  }
+}
+
+.laptop {
+  width: 400px;
+}

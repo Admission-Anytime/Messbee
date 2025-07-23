@@ -1,0 +1,98 @@
+@import "./mixin";
+.main {
+  display: flex;
+  width: 100%;
+}
+.body-dashboard {
+  width: 100vw;
+  // height: 100%;
+  background-color: $clr-background;
+}
+.main-container {
+  margin: 1rem 1rem;
+  border: 0.4px solid $clr-heading;
+  border-radius: 0.3rem;
+  // background-color: blue;
+}
+
+.feature-heading {
+  @extend %heading;
+  color: $clr-heading;
+  margin: 1rem 1.5rem;
+
+  p {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.625rem;
+  }
+  hr {
+    border-color: $clr-heading;
+    border-width: 0.5px;
+  }
+}
+.content {
+  @include displayFlex(top, space-between, 0);
+  margin: 1rem;
+  height: 21rem;
+  overflow-y: hidden;
+
+  .left {
+    padding: 0.5rem;
+    overflow-y: auto;
+    @include displayFlex(normal, normal, 0.5rem);
+    flex-direction: column;
+  }
+}
+
+.center {
+  padding: 0.5rem;
+}
+
+.list {
+  margin-top: 1rem;
+}
+.listItem {
+  @include displayFlex(normal, space-between, 0);
+  // flex-direction: column;
+}
+.bottom-container {
+  margin: 1rem 1rem;
+  border: 0.4px solid $clr-heading;
+  border-radius: 0.3rem;
+  .payment-container {
+    @include displayFlex(center, space-between, 0);
+  }
+  .pisa {
+    margin: 1rem 1.5rem;
+    text-align: center;
+  }
+  hr {
+    margin: 0rem 1.5rem;
+  }
+  .offer-container {
+    margin: 1rem 1.5rem;
+    @include displayFlex(center, space-between, 0);
+  }
+  .button {
+    cursor: pointer;
+    @include displayFlex(center, space-between, 1rem);
+    @include button(0.6rem 1rem, 5rem, #02af9b);
+    color: $clr-white;
+    transform: scale(0);
+    animation: animate 0.6s linear infinite;
+  }
+  .button:hover {
+    background-color: #02af9bc9;
+  }
+  @keyframes ripple-animation {
+    0% {
+      width: 0px;
+      height: 0px;
+    }
+    100% {
+      width: 50px;
+      height: 50px;
+    }
+  }
+}

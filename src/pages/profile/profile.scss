@@ -1,0 +1,74 @@
+@import "../../styles/mixin";
+.main {
+  display: flex;
+  width: 100%;
+}
+.body-profile {
+  width: 100vw;
+  background-color: $clr-background;
+}
+
+#user-profile {
+  margin: 1rem;
+  width: 50%;
+  border-radius: 10px;
+  padding: 1rem;
+  height: 10rem;
+  border: 1px solid #32323275;
+}
+#business-profile {
+  // width: 100%;
+
+  @include displayFlex(flex-start, space-between, 0);
+  margin: 1rem;
+  border-radius: 10px;
+  padding: 1rem;
+  // height: 15rem;
+  border: 1px solid #32323275;
+}
+
+#edit-profile {
+  @include displayFlex(center, normal, 2rem);
+
+  #img {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background-color: blue;
+  }
+  #name-data {
+    margin-bottom: 10px;
+    @include displayFlex(center, space-between, 2rem);
+  }
+  #last-seen-box {
+    @include displayFlex(center, space-between, 2rem);
+    font-size: small;
+  }
+
+  #waba-option {
+    margin-top: 10px;
+    @include displayFlex(center, space-between, 2rem);
+    p {
+      font-weight: 700;
+      color: $clr-subheading;
+    }
+  }
+}
+.pi-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.pi-heading {
+  font-weight: 500;
+  margin-bottom: 10px;
+
+  color: $clr-subheading;
+}
+.pi-subheading {
+  font-weight: 500;
+  font-size: 14px;
+  color: $clr-subheading;
+}
