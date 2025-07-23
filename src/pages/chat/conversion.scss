@@ -1,0 +1,36 @@
+@import "../../styles/mixin";
+
+#conversion-container {
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+.ca-header {
+  width: 100%;
+  height: 72px;
+  padding: 0.5rem;
+  @include displayFlex(center, space-between, 0);
+}
+.ca-body {
+  width: 100%;
+  flex: 1;
+}
+.ca-footer {
+  width: 100%;
+  // height: 140px;
+  padding: 2rem;
+  @include displayFlex(center, space-between, 20px);
+
+  form {
+    width: 100%;
+    @include displayFlex(center, space-between, 0);
+  }
+}
+input {
+  @include displayFlex(center, normal, 1rem);
+  border: 1px solid $clr-lightHeading;
+  border-radius: 6px;
+  width: 83%;
+  padding: 8px;
+  font-size: 18px;
+}

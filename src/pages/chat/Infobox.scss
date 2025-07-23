@@ -1,0 +1,18 @@
+@import "../../styles/mixin";
+
+.info-container {
+  width: 18rem;
+  height: 100vh;
+  border-right: 1px solid #32323275;
+  // background-color: rgba(0, 0, 255, 0.192);
+
+  #heading {
+    @include displayFlex(center, normal, 0);
+    padding-left: 20px;
+    height: 72px;
+    @extend %heading;
+    color: $clr-heading;
+  }
+}
+
+//menu

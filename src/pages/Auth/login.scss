@@ -1,0 +1,35 @@
+@import "../../styles/mixin";
+
+.authContainer {
+  @include displayFlex(normal, normal, 0);
+  height: calc(100vh - 24px);
+}
+.leftArea {
+  width: 50%;
+  height: 100%;
+  background-color: black;
+  background-image: url("../../assets/Frame\ 289323.svg");
+  background-size: cover;
+  background-repeat: no-repeat;
+  overflow: hidden;
+}
+.horizontal-line-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin: 20px 5px;
+}
+
+.line {
+  width: 100%;
+  border-top: 0.5px solid $clr-lightHeading; /* Adjust the color and style as needed */
+}
+
+.text {
+  position: absolute;
+  font-size: 10px;
+  background-color: #fff; /* Adjust background color as needed */
+  padding: 0 20px; /* Adjust padding as needed */
+  z-index: 1;
+}

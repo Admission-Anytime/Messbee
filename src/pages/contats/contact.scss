@@ -1,0 +1,32 @@
+@import "../../styles/mixin";
+.main {
+  display: flex;
+  width: 100%;
+}
+.body {
+  width: 100%;
+}
+.contact-heading {
+  width: 100%;
+  height: 60px;
+  // position: fixed;
+  background-color: $clr-white;
+}
+h2 {
+  @extend %heading;
+  color: $clr-heading;
+}
+
+.contact-search {
+  width: 40rem;
+  @include displayFlex(center, normal, 1rem) // margin-right: 80px;
+;
+}
+.contact-heading {
+  @include displayFlex(center, space-between, 0);
+  padding: 1rem 3rem;
+}
+.contact-table {
+  width: 100%;
+  padding: 0.5rem;
+}

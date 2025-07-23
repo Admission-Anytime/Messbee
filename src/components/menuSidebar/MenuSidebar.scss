@@ -1,0 +1,35 @@
+@import "../../styles/mixin";
+
+.menu-container {
+  width: 15rem;
+  height: 100vh;
+  border-right: 1px solid #32323275;
+  display: block;
+  z-index: 2;
+  transition: transform 0.3s ease-in-out;
+  // background-color: rgba(0, 0, 255, 0.192);
+
+  .heading {
+    padding: 1rem;
+    @extend %heading;
+    color: $clr-heading;
+  }
+
+  hr {
+    @extend %hr;
+    border-bottom: none;
+  }
+}
+
+.sliderbarBody {
+  background: linear-gradient(0deg, #3358f4, #1d8cf8);
+  height: 100vh;
+  overflow: hidden;
+}
+.unOrderList {
+  position: relative;
+  list-style: none;
+  padding: 0;
+  display: block;
+  transition: all 0.5s ease;
+}

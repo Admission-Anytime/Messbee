@@ -1,0 +1,38 @@
+@import "../../styles/mixin";
+.main {
+  display: flex;
+  width: 100%;
+
+  // min-height: 100vh;
+}
+.body-analytic {
+  width: 100%;
+  overflow-y: auto;
+}
+#content-heading {
+  padding: 1rem 3rem;
+  width: 100%;
+  height: 60px;
+  background-color: $clr-white;
+  @include displayFlex(center, space-between, 0);
+
+  #heading {
+    font-weight: $fw-larg;
+    color: $clr-white;
+    font-size: $fs-larg;
+    color: $clr-heading;
+  }
+  #heading-group {
+    @include displayFlex(center, space-between, 1rem);
+  }
+
+  #date-group {
+    @include displayFlex(center, normal, 1rem);
+  }
+}
+
+// #analytic-bar {
+//   width: 90vw;
+//   height: 50vh;
+//   // background-color: blue;
+// }

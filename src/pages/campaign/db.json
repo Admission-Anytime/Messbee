@@ -1,0 +1,34 @@
+{
+  "user": [
+    {
+      "id": "1",
+      "message": "campaigns",
+      "createdBy": "Admins",
+      "count": "50",
+      "createdOn": "date",
+      "completedOn": "date",
+      "scheduledOn": "date",
+      "status": "completed"
+    },
+    {
+      "id": "3",
+      "message": "campaigns",
+      "createdBy": "Admins",
+      "count": "50",
+      "createdOn": "date",
+      "completedOn": "date",
+      "scheduledOn": "date",
+      "status": "completed"
+    },
+    {
+      "id": "5",
+      "message": "campaigns",
+      "createdBy": "Admins",
+      "count": "50",
+      "createdOn": "date",
+      "completedOn": "date",
+      "scheduledOn": "date",
+      "status": "pending"
+    }
+  ]
+}

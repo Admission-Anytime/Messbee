@@ -1,0 +1,64 @@
+@import '/src/styles/mixin';
+
+.mainSideBar{
+  @include displayFlex(center,space-between,1.2rem);
+  min-width: 5rem;
+  height: 100vh;
+  // position: relative;
+  overflow-y: scroll;
+  padding: 0.5rem ;
+  background-color: $clr-white; 
+  flex-wrap: nowrap;
+  flex-direction: column;
+  box-shadow: 2px 0px 10px 0px rgba(0, 0, 0, 0.05);
+  border-right: 0.2px solid  #27241d4e;
+  position: sticky;
+  top: 0;
+  &::-webkit-scrollbar{
+    display: none;
+  }
+
+}
+.logo{
+  width: 3.7rem;
+  cursor: pointer;
+  overflow: hidden;
+}
+.profile{
+  // overflow: hidden;
+  @include displayFlex(center,center,0);
+  width: 3.2rem;
+  height: 3.2rem;
+  background-color: #BA2525;
+  border-radius: 50%;
+  position: relative;
+  text-align: center;
+  cursor: pointer;
+  p{
+    @include displayFlex(center,center,0);
+    @include text(1.2rem,800,$clr-white);
+    width: 3.2rem;
+    height:3.2rem;
+  }
+}
+.menuContener{
+  @include displayFlex(center,center,0);
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.menuContener1{
+  @include displayFlex(center,center,0.2rem);
+  margin-top: 2rem;
+  flex-direction: column;
+}
+
+@media only screen and (max-width: 600px) {
+  .mainSideBar{
+   overflow: hidden;  
+   min-width: 5rem;
+   justify-content:flex-start;
+  //  min-height: 900px;
+  //  height: 100dvh;
+   
+  }
+}
