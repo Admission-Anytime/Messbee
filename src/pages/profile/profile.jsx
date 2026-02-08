@@ -1,73 +1,68 @@
-import MainSidebar from "../../components/mainsidebar/MainSidebar";
-import FirstHeader from "../../components/header/FirstHeader";
-import MainHeading from "../../components/header/MainHeading";
-import "./profile.scss";
-import SecondrySidebar from "../../components/mainsidebar/secondrysidebar/SecondrySidebar";
+import React from "react";
 import { Outlet } from "react-router-dom";
-import {
-  AppstoreOutlined,
-  UserOutlined,
-  LogoutOutlined,
-  PartitionOutlined,
-  DollarOutlined,
-  // eslint-disable-next-line no-unused-vars
-  CrownOutlined,
-} from "@ant-design/icons";
+import { 
+  UserIcon, 
+  BuildingOfficeIcon, 
+  CreditCardIcon, 
+  ArrowRightOnRectangleIcon 
+} from "@heroicons/react/24/outline";
 
-const profile = () => {
+// ✅ FIXED IMPORT: Points to your secondary sidebar
+import SecondrySidebar from "../../components/mainsidebar/secondrysidebar/SecondrySidebar"; 
+
+// ❌ REMOVED: MainSidebar (Fixes double sidebar)
+// ❌ REMOVED: SCSS (Using Tailwind)
+
+const PROFILE_MENU_ITEMS = [
+  {
+    id: "info",
+    label: "Profile Information",
+    icon: <UserIcon className="w-5 h-5" />,
+    children: [
+      { label: "User Profile", path: "/admin/profile/info" },
+      { label: "Business Profile", path: "/admin/profile/business" },
+    ]
+  },
+  {
+    id: "plan",
+    label: "Plan & Subscription",
+    icon: <CreditCardIcon className="w-5 h-5" />,
+    children: [
+      { label: "Upgrade Plan", path: "/admin/plan" },
+      { label: "Billing History", path: "/admin/plan/billing" },
+    ]
+  },
+  {
+    id: "logout",
+    label: "Log Out",
+    path: "/login",
+    icon: <ArrowRightOnRectangleIcon className="w-5 h-5" />
+  }
+];
+
+const Profile = () => {
   return (
-    <div className="main">
-      <MainSidebar />
-      <SecondrySidebar
-        heading="Profile"
-        items={items}
-        customNavigate={`/admin/profile/`}
-      />
-      <div className="body-profile">
-        <FirstHeader />
-        <MainHeading />
-        <Outlet />
+    // Layout Container
+    <div className="flex w-full h-full bg-slate-50 font-['Urbanist'] overflow-hidden">
+      
+      {/* LEFT: Secondary Sidebar */}
+      <div className="h-full shrink-0 border-r border-slate-200 bg-white">
+         <SecondrySidebar 
+            title="Profile" 
+            menuItems={PROFILE_MENU_ITEMS} 
+         />
       </div>
+
+      {/* RIGHT: Content Area */}
+      <div className="flex-1 overflow-y-auto p-6 lg:p-10">
+        <div className="max-w-5xl mx-auto">
+           {/* This is where UserProfile or BusinessProfile will appear */}
+           <Outlet />
+        </div>
+      </div>
+
     </div>
   );
 };
 
-export default profile;
-
-function getItem(label, key, icon, children, type) {
-  return {
-    key,
-    icon,
-    children,
-    label,
-    type,
-  };
-}
-const items = [
-  getItem(
-    "Profile Information",
-    "sub1",
-    null,
-    [
-      getItem("User Profile", "user/:id", <UserOutlined />),
-      getItem(
-        "Business Profile",
-        "business-profile/:id",
-        <PartitionOutlined />
-      ),
-    ],
-    "group"
-  ),
-  getItem(
-    "Plan & Subscription",
-    "P&S",
-    null,
-    [
-      getItem("Upgrade Plan", "upgrade-plans", <AppstoreOutlined />),
-      getItem("Add-Ons Plans", "active-plans", <DollarOutlined />),
-      // getItem("Active Plans", "active-plans", <CrownOutlined />),
-    ],
-    "group"
-  ),
-  getItem("Log Out", "log-out", <LogoutOutlined />),
-];
+export default Profile;
