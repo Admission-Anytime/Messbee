@@ -202,6 +202,40 @@ function App() {
             {/* Catch-all for legacy routes */}
             <Route path="/admin/profile/user/:id" element={<UserProfile />} />
 
+            {/* --- MISSING CUSTOMER ROUTES --- */}
+            <Route path="/admin/contacts/crm" element={<div className="p-10 font-bold text-2xl text-slate-700">CRM Pipeline Page</div>} />
+            {/* Fix: Sidebar uses 'quick-replies' (plural), App uses 'quick-reply' */}
+            <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
+
+
+            {/* --- MISSING CAMPAIGN ROUTES --- */}
+            {/* Fix: Sidebar uses '/admin/campaigns/templates' */}
+            <Route path="/admin/campaigns/templates" element={<Templates />} />
+            <Route path="/admin/campaigns/bulk" element={<div className="p-10 font-bold text-2xl text-slate-700">Bulk Send Page</div>} />
+
+
+            {/* --- MISSING MAIN MENU ROUTES --- */}
+            <Route path="/admin/business" element={<div className="p-10 font-bold text-2xl text-slate-700">Business Management Page</div>} />
+            <Route path="/admin/reports" element={<div className="p-10 font-bold text-2xl text-slate-700">Reports & Analytics Page</div>} />
+            <Route path="/admin/alerts" element={<div className="p-10 font-bold text-2xl text-slate-700">System Alerts Page</div>} />
+
+
+            {/* --- MISSING INTEGRATION ROUTES --- */}
+            {/* Mapping Sidebar paths to existing components or new placeholders */}
+            <Route path="/admin/integration/api" element={<DevApi />} />
+            <Route path="/admin/integration/apps" element={<div className="p-10 font-bold text-2xl text-slate-700">App Connect Page</div>} />
+
+
+            {/* --- MISSING ACCOUNT ROUTES --- */}
+            <Route path="/admin/account/admin" element={<div className="p-10 font-bold text-2xl text-slate-700">Admin Users Page</div>} />
+            <Route path="/admin/account/settings" element={<div className="p-10 font-bold text-2xl text-slate-700">Account Settings Page</div>} />
+            
+            {/* Mapping Sidebar 'My Account' to your existing UserProfile */}
+            <Route path="/admin/account/profile" element={<UserProfile />} />
+            
+            {/* Mapping Sidebar 'My Plan' to your existing Plan page */}
+            <Route path="/admin/account/plan" element={<ActivePlans />} />
+
 
           </Route>
 

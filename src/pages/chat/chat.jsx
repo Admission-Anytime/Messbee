@@ -4,14 +4,14 @@ import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
 
-// --- 1. CRM DATA SOURCE ---
+// --- CRM DATA SOURCE ---
 const CRM_DATABASE = [
-  { id: 1, name: "Abhyan Morkal", whatsapp: "+911234567001", status: "pending", email: "abhyan@gmail.com", type: "inbox" },
-  { id: 2, name: "Rahul Verma", whatsapp: "+919876543210", status: "deactive", email: "rahul@gmail.com", type: "blocked" },
-  { id: 3, name: "Aditi Singh", whatsapp: "+919988776655", status: "active", email: "aditi@test.com", type: "starred" },
-  { id: 4, name: "Priya Sharma", whatsapp: "+918877665544", status: "active", email: "priya@demo.com", type: "inbox" },
-  { id: 5, name: "Amit Kumar", whatsapp: "+917766554433", status: "active", email: "amit@test.com", type: "unassigned" },
-  { id: 6, name: "Sneha Gupta", whatsapp: "+916655443322", status: "deactive", email: "sneha@gmail.com", type: "inbox" },
+  { id: 1, name: "Abhyan Morkal", whatsapp: "+911234567001", status: "open", type: "inbox", timer: "04:30:00", tags: ["Hot Lead", "Urgent"] },
+  { id: 2, name: "Rahul Verma", whatsapp: "+919876543210", status: "closed", type: "blocked", timer: null, tags: ["Closed"] },
+  { id: 3, name: "Aditi Singh", whatsapp: "+919988776655", status: "open", type: "starred", timer: "23:15:00", tags: ["New"] },
+  { id: 4, name: "Priya Sharma", whatsapp: "+918877665544", status: "open", type: "inbox", timer: "01:05:00", tags: ["Follow-up"] },
+  { id: 5, name: "Amit Kumar", whatsapp: "+917766554433", status: "unassigned", type: "unassigned", timer: null, tags: [] },
+  { id: 6, name: "Sneha Gupta", whatsapp: "+916655443322", status: "archived", type: "inbox", timer: null, tags: ["Archived"] },
 ];
 
 const loadChatsFromCRM = () => {
@@ -22,10 +22,10 @@ const loadChatsFromCRM = () => {
     avatar: `https://ui-avatars.com/api/?name=${contact.name.replace(" ", "+")}&background=random&color=fff`,
     lastMsg: contact.status === "pending" ? "Inquiry about course details." : "Can you send the brochure?",
     time: "10:30 AM",
-    unread: contact.status === "pending" ? 1 : 0,
+    unread: contact.status === "open" ? 1 : 0,
     messages: [
-        { id: 1, text: "Hello!", sender: "me", time: "10:00 AM" },
-        { id: 2, text: "I want to know about the course.", sender: "them", time: "10:30 AM" }
+        { id: 1, text: "Hello!", sender: "me", time: "10:00 AM", type: "text" },
+        { id: 2, text: "I want to know about the course.", sender: "them", time: "10:30 AM", type: "text" }
     ]
   }));
 };
@@ -34,28 +34,33 @@ const Chat = () => {
   const [chats, setChats] = useState(loadChatsFromCRM());
   const [activeChatId, setActiveChatId] = useState(chats[0]?.id);
   const [showProfile, setShowProfile] = useState(false);
-  const [activeFilter, setActiveFilter] = useState("All Chat"); // Default Filter
+  const [activeFolder, setActiveFolder] = useState("All Chat"); 
+  const [activeTab, setActiveTab] = useState("All"); 
 
   const activeChat = chats.find((c) => c.id === activeChatId);
 
   // --- FILTER LOGIC ---
   const filteredChats = useMemo(() => {
-    switch (activeFilter) {
-      case "Unassigned": return chats.filter(c => c.type === "unassigned");
-      case "Pinned Chats": return chats.filter(c => c.type === "starred");
-      case "Blocked Chats": return chats.filter(c => c.type === "blocked");
-      case "My Chat": return chats.filter(c => c.status === "online"); // Dummy logic for "My Chat"
-      default: return chats; // "All Chat"
-    }
-  }, [chats, activeFilter]);
+    let result = chats;
+    if (activeTab === "My Chat") result = result.filter(c => c.status === "open"); 
+    if (activeTab === "Unassigned") result = result.filter(c => c.status === "unassigned");
+    if (activeTab === "Open") result = result.filter(c => c.status === "open");
+    if (activeTab === "Closed") result = result.filter(c => c.status === "closed");
+    if (activeTab === "Archived") result = result.filter(c => c.status === "archived");
 
-  // --- ACTIONS ---
+    if (activeFolder === "Blocked Chats") result = result.filter(c => c.type === "blocked");
+    if (activeFolder === "Pinned Chats") result = result.filter(c => c.type === "starred");
+
+    return result;
+  }, [chats, activeFolder, activeTab]);
+
   const handleSendMessage = (text) => {
     const newMsg = {
       id: Date.now(),
       text: text,
       sender: "me",
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      type: "text"
     };
     setChats(prev => prev.map(chat => chat.id === activeChatId ? { ...chat, messages: [...chat.messages, newMsg], lastMsg: text, time: "Just now" } : chat));
   };
@@ -81,8 +86,6 @@ const Chat = () => {
 
   return (
     <div className="flex w-full h-full bg-white font-['Urbanist'] overflow-hidden">
-      
-      {/* Scrollbar Style */}
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
@@ -90,17 +93,19 @@ const Chat = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
       `}</style>
 
-      {/* 1. INFOBOX (Filters) */}
-      <div className="hidden md:flex w-64 flex-col border-r border-slate-200 h-full bg-white shrink-0">
-        <Infobox activeFilter={activeFilter} onFilterSelect={setActiveFilter} />
+      {/* 1. INFOBOX (Filters) - ✅ REMOVED 'w-64' so it can shrink */}
+      <div className="hidden md:flex flex-col border-r border-slate-200 h-full bg-white shrink-0">
+        <Infobox activeFilter={activeFolder} onFilterSelect={setActiveFolder} />
       </div>
 
       {/* 2. CONTACT LIST */}
-      <div className={`w-full md:w-80 lg:w-96 flex flex-col border-r border-slate-200 h-full bg-slate-50 shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-80 lg:w-[350px] flex flex-col border-r border-slate-200 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
         <ContactCard 
           chats={filteredChats} 
           activeChatId={activeChatId} 
           onChatSelect={(id) => { setActiveChatId(id); setShowProfile(false); }} 
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
         />
       </div>
 
@@ -120,7 +125,6 @@ const Chat = () => {
                 />
              </div>
              
-             {/* Profile Sidebar Slide-in */}
              {showProfile && (
                 <div className="w-80 border-l border-slate-200 bg-white h-full shrink-0 hidden xl:block animate-in slide-in-from-right duration-300">
                     <UserProfilePanel data={activeChat} onClose={() => setShowProfile(false)} />
@@ -129,9 +133,6 @@ const Chat = () => {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
-             <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-             </div>
              <p className="font-semibold text-slate-500">Select a conversation</p>
           </div>
         )}
