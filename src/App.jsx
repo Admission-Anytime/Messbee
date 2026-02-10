@@ -3,6 +3,8 @@ import Loading from "./components/Loading";
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import ProtectedRoute from "../routes/protectedRoute";
+// import "index.css";
+
 
 const Introduction = lazy(() => import("./pages/help/introduction"));
 const Login = lazy(() => import("./pages/Auth/Login"));
