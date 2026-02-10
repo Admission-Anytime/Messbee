@@ -1,29 +1,32 @@
 import MainSidebar from "../../components/mainsidebar/MainSidebar";
 import FirstHeader from "../../components/header/FirstHeader";
 import MainHeading from "../../components/header/MainHeading";
-import "./profile.scss";
 import SecondrySidebar from "../../components/mainsidebar/secondrysidebar/SecondrySidebar";
 import { Outlet } from "react-router-dom";
+
 import {
   AppstoreOutlined,
   UserOutlined,
   LogoutOutlined,
   PartitionOutlined,
   DollarOutlined,
-  // eslint-disable-next-line no-unused-vars
-  CrownOutlined,
 } from "@ant-design/icons";
 
-const profile = () => {
+const Profile = () => {
   return (
-    <div className="main">
+    <div className="flex w-full min-h-screen">
+      {/* MAIN SIDEBAR */}
       <MainSidebar />
+
+      {/* SECONDARY SIDEBAR */}
       <SecondrySidebar
         heading="Profile"
         items={items}
         customNavigate={`/admin/profile/`}
       />
-      <div className="body-profile">
+
+      {/* MAIN CONTENT AREA */}
+      <div className="flex-1 bg-[#fafafa] pl-6 pt-4">
         <FirstHeader />
         <MainHeading />
         <Outlet />
@@ -32,7 +35,7 @@ const profile = () => {
   );
 };
 
-export default profile;
+export default Profile;
 
 function getItem(label, key, icon, children, type) {
   return {
@@ -43,6 +46,7 @@ function getItem(label, key, icon, children, type) {
     type,
   };
 }
+
 const items = [
   getItem(
     "Profile Information",
@@ -65,7 +69,6 @@ const items = [
     [
       getItem("Upgrade Plan", "upgrade-plans", <AppstoreOutlined />),
       getItem("Add-Ons Plans", "active-plans", <DollarOutlined />),
-      // getItem("Active Plans", "active-plans", <CrownOutlined />),
     ],
     "group"
   ),

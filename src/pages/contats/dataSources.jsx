@@ -1,10 +1,9 @@
 /* eslint-disable react/prop-types */
-import { useState } from "react";
 import icon from "../../assets/setting.svg";
-import "./TableData.scss";
-import OpenDrawer from "../../components/Drawer/Drawer";
+
 export const userColomn = [
   { field: "id", headerName: "ID", width: 70 },
+
   {
     field: "name",
     headerName: "Name",
@@ -13,11 +12,13 @@ export const userColomn = [
       return <ActionsCell row={params.row} />;
     },
   },
+
   {
     field: "whatsapp",
     headerName: "WhatsApp",
     width: 200,
   },
+
   {
     field: "status",
     headerName: "Status",
@@ -26,47 +27,52 @@ export const userColomn = [
       return <ActionStatus status={params.row.status} />;
     },
   },
+
   {
     field: "email",
     headerName: "Email",
     width: 200,
   },
+
   {
     field: "address",
     headerName: "Address",
     width: 200,
   },
+
   {
     field: "instuteName",
     headerName: "Institute Name",
     width: 200,
   },
+
   {
     field: "label",
     headerName: "Label",
     width: 100,
   },
+
   {
     field: "note",
     headerName: "Note",
     width: 300,
     renderCell: () => {
       return (
-        <div style={{ width: "100%", boder: "none" }}>
-          <form>
-            <textarea />
-          </form>
+        <div className="w-full">
+          <textarea className="w-full border rounded-md p-1 text-sm resize-none" />
         </div>
       );
     },
   },
 ];
 
+
+// ---------------- ROW DATA ---------------- //
+
 export const userRow = [
   {
     id: 1,
     name: "Abhyan Morkal",
-    path: "?hash=",
     whatsapp: "+911234567001",
     status: "pending",
     email: "xyz@gmail.com",
@@ -86,247 +92,34 @@ export const userRow = [
     label: "calling",
     note: "xyz",
   },
-  {
-    id: 3,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 4,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 5,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 6,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "deactive",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 7,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 8,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 9,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 10,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 11,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "deactive",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 12,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 13,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 14,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 15,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 16,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 17,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 18,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 19,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 20,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
 ];
 
-// eslint-disable-next-line react-refresh/only-export-components, react/prop-types
-function ActionsCell({ row }) {
-  const [open, setOpen] = useState(false);
-  const handleDrawerOpen = () => {
-    setOpen(true);
-  };
-  const onClose = () => {
-    setOpen(false);
-  };
 
+// ---------------- CELLS ---------------- //
+
+function ActionsCell({ row }) {
   return (
-    <div className="tableNameBox">
-      <div
-        onClick={handleDrawerOpen}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "50px",
-          padding: "1rem",
-          cursor: "pointer",
-        }}
-      >
-        {row.name}
-        <img
-          src={icon}
-          alt="icon"
-          style={{
-            width: "15px",
-            height: "15px",
-          }}
-        />
-      </div>
-      <OpenDrawer
-        title="Add Contact"
-        onClose={onClose}
-        open={open}
-      ></OpenDrawer>
+    <div className="flex items-center justify-between px-2 w-full">
+      <span className="text-sm">{row.name}</span>
+
+      <img
+        src={icon}
+        alt="icon"
+        className="w-[15px] h-[15px]"
+      />
     </div>
   );
 }
 
-function ActionStatus(status) {
-  return <div className={`status${status.status}`}>{status.status}</div>;
+function ActionStatus({ status }) {
+  const base = "px-2 py-[2px] rounded text-xs font-medium";
+
+  const color =
+    status === "active"
+      ? "bg-green-200 text-green-800"
+      : status === "pending"
+      ? "bg-yellow-200 text-yellow-800"
+      : "bg-red-200 text-red-800";
+
+  return <div className={`${base} ${color}`}>{status}</div>;
 }

@@ -1,60 +1,180 @@
-import "./MainSidebar.scss";
+import { Bell } from "lucide-react";
+import { useState } from "react";
+import NotificationPanel from "../notifications/NotificationPanel";
+
 import { Link, useLocation } from "react-router-dom";
 import IconFrame from "../iconfram/IconFram";
 import logo from "../../assets/logo.svg";
-import icon from "./assets/Chat.svg";
-import contacts from "./assets/contacts.svg";
-import campaign from "./assets/campaign.svg";
-import automatin from "./assets/automation.svg";
-import analytic from "./assets/analys.svg";
-import setting from "./assets/Setting.svg";
-import help from "./assets/help.svg";
+import {
+  MessageCircle,
+  Users,
+  Megaphone,
+  BarChart3,
+  Settings,
+  HelpCircle,
+} from "lucide-react";
 
 const MainSidebar = () => {
   const profileName = "AB";
   const location = useLocation();
+
+  const [openNotification, setOpenNotification] = useState(false);
+
+  // 🔥 EXTENDED DUMMY DATA
+  const [notifications, setNotifications] = useState([
+    {
+      id: 1,
+      title: "Mentioned by Admin",
+      desc: "@AB check campaign status",
+      time: "Just now",
+      read: false,
+      mention: true,
+    },
+    {
+      id: 2,
+      title: "New Lead Assigned",
+      desc: "You got a new contact",
+      time: "5 min ago",
+      read: false,
+      mention: false,
+    },
+    {
+      id: 3,
+      title: "Campaign Approved",
+      desc: "WhatsApp blast activated",
+      time: "20 min ago",
+      read: false,
+      mention: false,
+    },
+    {
+      id: 4,
+      title: "Payment Successful",
+      desc: "₹999 credited to wallet",
+      time: "1 hour ago",
+      read: true,
+      mention: false,
+    },
+    {
+      id: 5,
+      title: "Mention in Group",
+      desc: "@AB please review stats",
+      time: "Yesterday",
+      read: true,
+      mention: true,
+    },
+    {
+      id: 6,
+      title: "Automation Triggered",
+      desc: "Welcome flow sent",
+      time: "2 days ago",
+      read: true,
+      mention: false,
+    },
+    {
+      id: 7,
+      title: "Subscription Expiring",
+      desc: "Renew in 2 days",
+      time: "3 days ago",
+      read: false,
+      mention: false,
+    },
+    {
+      id: 8,
+      title: "Template Approved",
+      desc: "Marketing template live",
+      time: "Last week",
+      read: true,
+      mention: false,
+    },
+  ]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAllRead = () => {
+    setNotifications((prev) =>
+      prev.map((n) => ({ ...n, read: true }))
+    );
+  };
+
+  const markSingleRead = (id) => {
+    setNotifications((prev) =>
+      prev.map((n) =>
+        n.id === id ? { ...n, read: true } : n
+      )
+    );
+  };
+
   return (
-    <div className="mainSideBar">
-      <Link to="/" location={location}>
-        <img className="logo" src={logo} />
-      </Link>
-      <Link to="/admin/profile/user/:id" location={location}>
-        <div className="profile">
-          <p>{profileName}</p>
-        </div>
-      </Link>
-      <div className="menuContener">
-        <Link to="/admin/chat" location={location}>
-          <IconFrame
-            title="Chat"
-            src={icon}
-            alt={"chat icon"}
-            url={"/admin/chat"}
-          />
-        </Link>
-        <Link to="/admin/contact" location={location}>
-          <IconFrame title="Contacts" src={contacts} alt={"chat icon"} />
-        </Link>
-        <Link to="/admin/campaign" location={location}>
-          <IconFrame title="Campaign" src={campaign} alt={"chat icon"} />
-        </Link>
-        <Link to="/admin/automation" location={location}>
-          <IconFrame title="Automation" src={automatin} alt={"chat icon"} />
-        </Link>
-      </div>
-      <div className="menuContener1">
-        <Link to="/admin/analytic" location={location}>
-          <IconFrame title="Analytics" src={analytic} alt={"chat icon"} />
+    <>
+      <NotificationPanel
+        open={openNotification}
+        onClose={() => setOpenNotification(false)}
+        data={notifications}
+        markAllRead={markAllRead}
+        markSingleRead={markSingleRead}
+        unreadCount={unreadCount}
+      />
+
+      {/* SIDEBAR */}
+      <div className="w-[90px] bg-white h-screen flex flex-col items-center py-4 border-r">
+
+        <Link to="/" location={location}>
+          <img src={logo} className="w-10 mb-6" />
         </Link>
 
-        <Link to="/admin/setting" location={location}>
-          <IconFrame title="Settings" src={setting} alt={"chat icon"} />
+        <Link to="/admin/profile/user/:id">
+          <div className="w-10 h-10 bg-red-600 text-white rounded-full flex items-center justify-center font-bold mb-4">
+            {profileName}
+          </div>
         </Link>
-        <Link to="/admin/help/introduction" location={location}>
-          <IconFrame title="Help" src={help} alt={"chat icon"} />
-        </Link>
+
+        {/* 🔔 Bell */}
+        <div
+          onClick={() => setOpenNotification(true)}
+          className="relative cursor-pointer mb-6 hover:text-red-600"
+        >
+          <Bell size={22} />
+
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[10px] px-1.5 rounded-full">
+              {unreadCount}
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-col gap-6">
+          <Link to="/admin/chat">
+            <IconFrame title="Chat" icon={MessageCircle} />
+          </Link>
+
+          <Link to="/admin/contact">
+            <IconFrame title="Contacts" icon={Users} />
+          </Link>
+
+          <Link to="/admin/campaign">
+            <IconFrame title="Campaign" icon={Megaphone} />
+          </Link>
+
+          <Link to="/admin/automation">
+            <IconFrame title="Automation" icon={BarChart3} />
+          </Link>
+        </div>
+
+        <div className="flex flex-col gap-6 mt-auto mb-4">
+          <Link to="/admin/analytic">
+            <IconFrame title="Analytics" icon={BarChart3} />
+          </Link>
+
+          <Link to="/admin/setting">
+            <IconFrame title="Settings" icon={Settings} />
+          </Link>
+
+          <Link to="/admin/help/introduction">
+            <IconFrame title="Help" icon={HelpCircle} />
+          </Link>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 
