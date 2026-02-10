@@ -1,12 +1,11 @@
 import React, { useState } from "react";
-import "./button.scss";
 import ButtonIcon from "../../assets/svgicon/rupess.svg";
 
 const Button = ({ title }) => {
   const [ripple, setRipple] = useState({});
 
   const handleClick = (event) => {
-    const rect = event.target.getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
     const size = Math.max(rect.width, rect.height);
     const x = event.clientX - rect.left - size / 2;
     const y = event.clientY - rect.top - size / 2;
@@ -22,15 +21,25 @@ const Button = ({ title }) => {
     });
 
     setTimeout(() => {
-      setRipple({ ...ripple, active: false });
-    }, 600); // Adjust the duration of the ripple effect
+      setRipple({ active: false });
+    }, 600);
   };
+
   return (
-    <div className="button-container">
-      <button className="ripple-button" onClick={handleClick}>
-        <img src={ButtonIcon} alt="" />
+    <div className="flex justify-center items-center">
+      <button
+        onClick={handleClick}
+        className="relative flex items-center gap-2 rounded-full bg-[#02af9b] text-white font-semibold px-4 py-2 text-sm overflow-hidden cursor-pointer hover:bg-[#029d8c] transition-all duration-200"
+      >
+        <img src={ButtonIcon} alt="" className="w-4 h-4" />
         {title}
-        {ripple.active && <div className="ripple" style={ripple.style}></div>}
+
+        {ripple.active && (
+          <span
+            className="absolute rounded-full bg-white/70 animate-ripple"
+            style={ripple.style}
+          />
+        )}
       </button>
     </div>
   );
