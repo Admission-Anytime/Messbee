@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import Infobox from "./Infobox";
+// Infobox import removed
 import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
@@ -34,7 +34,6 @@ const Chat = () => {
   const [chats, setChats] = useState(loadChatsFromCRM());
   const [activeChatId, setActiveChatId] = useState(chats[0]?.id);
   const [showProfile, setShowProfile] = useState(false);
-  const [activeFolder, setActiveFolder] = useState("All Chat"); 
   const [activeTab, setActiveTab] = useState("All"); 
 
   const activeChat = chats.find((c) => c.id === activeChatId);
@@ -48,11 +47,8 @@ const Chat = () => {
     if (activeTab === "Closed") result = result.filter(c => c.status === "closed");
     if (activeTab === "Archived") result = result.filter(c => c.status === "archived");
 
-    if (activeFolder === "Blocked Chats") result = result.filter(c => c.type === "blocked");
-    if (activeFolder === "Pinned Chats") result = result.filter(c => c.type === "starred");
-
     return result;
-  }, [chats, activeFolder, activeTab]);
+  }, [chats, activeTab]);
 
   const handleSendMessage = (text) => {
     const newMsg = {
@@ -93,12 +89,7 @@ const Chat = () => {
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
       `}</style>
 
-      {/* 1. INFOBOX (Filters) - ✅ REMOVED 'w-64' so it can shrink */}
-      <div className="hidden md:flex flex-col border-r border-slate-200 h-full bg-white shrink-0">
-        <Infobox activeFilter={activeFolder} onFilterSelect={setActiveFolder} />
-      </div>
-
-      {/* 2. CONTACT LIST */}
+      {/* 1. CONTACT LIST (Moved to first position) */}
       <div className={`w-full md:w-80 lg:w-[350px] flex flex-col border-r border-slate-200 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
         <ContactCard 
           chats={filteredChats} 
@@ -109,7 +100,7 @@ const Chat = () => {
         />
       </div>
 
-      {/* 3. CONVERSION + PROFILE */}
+      {/* 2. CONVERSION + PROFILE */}
       <div className={`flex-1 flex flex-col h-full bg-[#efeae2] relative min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <div className="flex h-full w-full relative">
