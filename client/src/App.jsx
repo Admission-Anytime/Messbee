@@ -1,6 +1,8 @@
 import { Suspense, lazy } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
 import ProtectedRoute from "../routes/protectedRoute";
 
@@ -72,6 +74,18 @@ function App() {
         },
       }}
     >
+      <ToastContainer
+        position="top-right"
+        autoClose={3000}
+        hideProgressBar={false}
+        newestOnTop={false}
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        theme="light"
+      />
       {/* Suspense only for Auth pages now */}
       <Suspense fallback={<Loading />}>
         <Routes>
