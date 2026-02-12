@@ -1,332 +1,143 @@
 /* eslint-disable react/prop-types */
 import { useState } from "react";
 import icon from "../../assets/setting.svg";
-import "./TableData.scss";
 import OpenDrawer from "../../components/Drawer/Drawer";
+
+/* ------------------ COLUMNS ------------------ */
+
 export const userColomn = [
-  { field: "id", headerName: "ID", width: 70 },
+  {
+    field: "id",
+    headerName: "ID",
+    flex: 0.4,
+    minWidth: 60,
+  },
+
   {
     field: "name",
     headerName: "Name",
-    width: 200,
-    renderCell: (params) => {
-      return <ActionsCell row={params.row} />;
-    },
+    flex: 1,
+    minWidth: 140,
+    renderCell: (params) => <ActionsCell row={params.row} />,
   },
+
   {
     field: "whatsapp",
     headerName: "WhatsApp",
-    width: 200,
+    flex: 1,
+    minWidth: 140,
   },
+
   {
     field: "status",
     headerName: "Status",
-    width: 100,
-    renderCell: (params) => {
-      return <ActionStatus status={params.row.status} />;
-    },
+    flex: 0.6,
+    minWidth: 90,
+    renderCell: (params) => <ActionStatus status={params.row.status} />,
   },
+
   {
     field: "email",
     headerName: "Email",
-    width: 200,
+    flex: 1.2,
+    minWidth: 170,
   },
+
   {
     field: "address",
     headerName: "Address",
-    width: 200,
+    flex: 1,
+    minWidth: 140,
   },
+
   {
     field: "instuteName",
     headerName: "Institute Name",
-    width: 200,
+    flex: 1.2,
+    minWidth: 170,
   },
+
   {
     field: "label",
     headerName: "Label",
-    width: 100,
+    flex: 0.6,
+    minWidth: 90,
   },
+
   {
     field: "note",
     headerName: "Note",
-    width: 300,
-    renderCell: () => {
-      return (
-        <div style={{ width: "100%", boder: "none" }}>
-          <form>
-            <textarea />
-          </form>
-        </div>
-      );
-    },
+    flex: 1,
+    minWidth: 160,
+    renderCell: () => (
+      <textarea
+        className="w-full resize-none rounded-md border border-slate-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-yellow-400"
+        rows={1}
+      />
+    ),
   },
 ];
 
-export const userRow = [
-  {
-    id: 1,
-    name: "Abhyan Morkal",
-    path: "?hash=",
-    whatsapp: "+911234567001",
-    status: "pending",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 2,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "deactive",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 3,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 4,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 5,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 6,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "deactive",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 7,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 8,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 9,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 10,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 11,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "deactive",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 12,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 13,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 14,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 15,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 16,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 17,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 18,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 19,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-  {
-    id: 20,
-    name: "Abhyan Morkal",
-    whatsapp: "+911234567001",
-    status: "active",
-    email: "xyz@gmail.com",
-    address: "xyz",
-    instuteName: "xyz University",
-    label: "calling",
-    note: "xyz",
-  },
-];
+/* ------------------ ROWS (AUTO GENERATED) ------------------ */
 
-// eslint-disable-next-line react-refresh/only-export-components, react/prop-types
+export const userRow = Array.from({ length: 30 }).map((_, i) => ({
+  id: i + 1,
+  name: "Abhyan Morkal",
+  whatsapp: "+911234567001",
+  status: ["active", "pending", "deactive"][i % 3],
+  email: "xyz@gmail.com",
+  address: "xyz",
+  instuteName: "xyz University",
+  label: "calling",
+  note: "",
+}));
+
+/* ------------------ NAME CELL ------------------ */
+
 function ActionsCell({ row }) {
   const [open, setOpen] = useState(false);
-  const handleDrawerOpen = () => {
-    setOpen(true);
-  };
-  const onClose = () => {
-    setOpen(false);
-  };
 
   return (
-    <div className="tableNameBox">
-      <div
-        onClick={handleDrawerOpen}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "50px",
-          padding: "1rem",
-          cursor: "pointer",
-        }}
+    <div className="flex items-center gap-2 px-1">
+      <span
+        onClick={() => setOpen(true)}
+        className="cursor-pointer truncate font-medium"
       >
         {row.name}
-        <img
-          src={icon}
-          alt="icon"
-          style={{
-            width: "15px",
-            height: "15px",
-          }}
-        />
-      </div>
+      </span>
+
+      <img
+        src={icon}
+        alt="icon"
+        className="h-4 w-4 cursor-pointer opacity-70"
+        onClick={() => setOpen(true)}
+      />
+
       <OpenDrawer
         title="Add Contact"
-        onClose={onClose}
+        onClose={() => setOpen(false)}
         open={open}
-      ></OpenDrawer>
+      />
     </div>
   );
 }
 
-function ActionStatus(status) {
-  return <div className={`status${status.status}`}>{status.status}</div>;
+/* ------------------ STATUS BADGE ------------------ */
+
+function ActionStatus({ status }) {
+  const map = {
+    active: "bg-green-200 text-green-800",
+    pending: "bg-yellow-200 text-yellow-800",
+    deactive: "bg-red-200 text-red-800",
+  };
+
+  return (
+    <span
+      className={`rounded-md px-2 py-[2px] text-xs font-medium ${
+        map[status] || "bg-slate-200"
+      }`}
+    >
+      {status}
+    </span>
+  );
 }
