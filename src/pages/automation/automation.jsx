@@ -1,21 +1,9 @@
 import React from "react";
-// ❌ REMOVED: import MainSidebar from "../../components/mainsidebar/MainSidebar";
-import FirstHeader from "../../components/header/FirstHeader";
-import MainHeading from "../../components/header/MainHeading";
 
 const Automation = () => {
   return (
-    // ✅ CHANGED: Standard Tailwind container that fills the Outlet space
     <div className="w-full h-full flex flex-col overflow-hidden bg-slate-50 font-['Urbanist']">
       
-      {/* ❌ REMOVED: <MainSidebar /> */}
-
-      {/* --- HEADERS (Fixed at Top) --- */}
-      <div className="shrink-0 z-20 shadow-sm bg-white">
-        <FirstHeader />
-        <MainHeading />
-      </div>
-
       {/* --- MAIN CONTENT AREA --- */}
       <div className="flex-1 overflow-auto p-6">
         
