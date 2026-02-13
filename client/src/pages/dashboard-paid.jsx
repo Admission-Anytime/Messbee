@@ -1,181 +1,263 @@
-import React from "react";
-import FirstHeader from "../components/header/FirstHeader";
-import MainHeading from "../components/header/MainHeading";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
-import { 
-  BellAlertIcon, 
-  ServerIcon, 
-  CreditCardIcon
-} from "@heroicons/react/24/outline";
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom"; 
+// 1. Import Ant Design components
+import { DatePicker, ConfigProvider } from "antd"; 
+import dayjs from "dayjs"; 
 
-// --- PROFESSIONAL DATA ---
-const notificationLog = [
-  { type: "info", title: "API Usage Update", body: "WhatsApp Official API v2.4 is now live. Check documentation.", date: "Today, 09:00 AM" },
-  { type: "alert", title: "Scheduled Maintenance", body: "System maintenance on Sunday (12:00 AM - 02:00 AM).", date: "Yesterday" },
-  { type: "success", title: "Team Roles Enabled", body: "You can now assign 'Manager' and 'Analyst' roles.", date: "Feb 10" },
-  { type: "info", title: "Analytics Module", body: "New dashboard widgets are available in Reports.", date: "Feb 08" },
-  { type: "info", title: "Billing Cycle", body: "Your next billing cycle starts on the 1st of March.", date: "Feb 05" },
-];
+import { 
+  ArrowPathIcon, 
+  WalletIcon, 
+  BookOpenIcon, 
+  PlayCircleIcon, 
+  LifebuoyIcon,
+  TicketIcon,
+  LightBulbIcon,
+  // CalendarIcon removed (DatePicker has its own)
+} from "@heroicons/react/24/outline";
+import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
 function Dashboard() {
+  const navigate = useNavigate();
+  const [isSyncing, setIsSyncing] = useState(false);
+  
+  // --- 1. DATE STATE (Using Day.js for Ant Design) ---
+  const [selectedDate, setSelectedDate] = useState(dayjs()); // Default to Today
+  const [dateString, setDateString] = useState(dayjs().format("YYYY-MM-DD"));
+
+  const [performanceData, setPerformanceData] = useState({
+    chats: 217,
+    unread: 31,
+    open: 71,
+    failed: 0,
+    free: 13,
+    agents: 4
+  });
+
+  // --- 2. HANDLE DATE CHANGE ---
+  const handleDateChange = (date, dateString) => {
+    setSelectedDate(date);
+    setDateString(dateString);
+    setIsSyncing(true);
+
+    // Simulate API call delay and data update
+    setTimeout(() => {
+      setPerformanceData({
+        chats: Math.floor(Math.random() * 500) + 100,
+        unread: Math.floor(Math.random() * 50),
+        open: Math.floor(Math.random() * 100),
+        failed: Math.floor(Math.random() * 5),
+        free: Math.floor(Math.random() * 20),
+        agents: 4
+      });
+      setIsSyncing(false);
+    }, 800);
+  };
+
+  const handleSyncData = () => {
+    setIsSyncing(true);
+    setTimeout(() => { setIsSyncing(false); }, 2000);
+  };
+
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] font-['Urbanist'] overflow-hidden">
+    <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 h-full font-['Urbanist']">
       
-      {/* --- HEADER --- */}
-      <div className="shrink-0 z-20 bg-white border-b border-gray-200 shadow-sm">
-          <FirstHeader />
-          <MainHeading />
+      {/* 1. TOP PROFILE CARD */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+            <div className="flex items-center gap-4">
+               <div className="w-16 h-16 bg-gradient-to-br from-teal-100 to-teal-50 rounded-xl border border-teal-100 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+               </div>
+               <div>
+                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                     Admission Anytime 
+                     <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200">Official API</span>
+                  </h2>
+                  <p className="text-sm text-slate-500 font-medium">+91 1202611111</p>
+               </div>
+            </div>
+            <div className="flex gap-3">
+               <button onClick={() => navigate('/admin/profile/business')} className="px-4 py-2 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
+                  Update Profile
+               </button>
+               <button onClick={handleSyncData} disabled={isSyncing} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-70">
+                  <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? "animate-spin text-blue-600" : ""}`} /> 
+                  {isSyncing ? "Syncing..." : "Sync Data"}
+               </button>
+            </div>
+         </div>
+
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-100">
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Message Limit Tier</p>
+               <p className="text-xl font-bold text-slate-800">10,000 <span className="text-sm font-medium text-slate-400">/ day</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
+               <p className="text-xl font-bold text-emerald-500 flex items-center gap-2">
+                  High <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+               </p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
+               <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                  Connected <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+               </p>
+            </div>
+         </div>
       </div>
-      
-      {/* --- SCROLLABLE WORKSPACE --- */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
-        <div className="max-w-[1600px] mx-auto flex flex-col gap-6">
-          
-          {/* ==================== TOP ROW: GRID SYSTEM ==================== */}
-          {/* Mobile: 1 Col | Tablet: 2 Cols | Desktop: 3 Cols */}
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+
+      {/* 2. BALANCE & SUBSCRIPTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between relative overflow-hidden">
+            <div className="absolute top-6 right-6 text-slate-300"><WalletIcon className="w-6 h-6" /></div>
+            <div>
+               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
+               <div className="flex items-baseline gap-2 mb-1">
+                  <h3 className="text-3xl font-black text-slate-900">₹618.51</h3>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
+               </div>
+               <p className="text-xs text-slate-400">Estimated 14 days of usage remaining based on current volume.</p>
+            </div>
+            <div className="flex gap-3 mt-8">
+               <button onClick={() => navigate('/admin/plan/billing')} className="flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Add Credit</button>
+               <button onClick={() => navigate('/admin/plan/billing')} className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Statement</button>
+            </div>
+         </div>
+
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
+            <div className="flex justify-between items-start mb-2">
+               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Subscription</p>
+               <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">ENTERPRISE PLAN</span>
+            </div>
+            <div>
+               <h3 className="text-3xl font-black text-slate-900 mb-1">76 Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
+               <p className="text-xs text-slate-400 mb-4">Next billing cycle starts April 28, 2026.</p>
+               <div className="h-1.5 w-full bg-slate-100 rounded-full mb-6 overflow-hidden">
+                  <div className="h-full bg-slate-800 w-[60%] rounded-full"></div>
+               </div>
+            </div>
+            <button onClick={() => navigate('/admin/plan/overview')} className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Manage Subscription</button>
+         </div>
+      </div>
+
+      {/* 3. PERFORMANCE CARD (Updated with Ant Design DatePicker) */}
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+         
+         {/* Header Row */}
+         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+            <div>
+               <h3 className="text-lg font-bold text-slate-900">Performance Overview</h3>
+               <p className="text-xs text-slate-400">
+                 Showing data for: <span className="font-semibold text-slate-600">{dateString === dayjs().format("YYYY-MM-DD") ? "Today" : dateString}</span>
+               </p>
+            </div>
             
-            {/* --- PANEL 1: SYSTEM NOTIFICATIONS --- */}
-            {/* Spans 1 column normally. On large tablets/small laptops, it height matches others */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col overflow-hidden h-[400px] xl:h-[450px]">
-              <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <BellAlertIcon className="w-5 h-5 text-slate-500" />
-                  System Notifications
-                </h3>
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Log</span>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-                <div className="flex flex-col">
-                  {notificationLog.map((item, index) => (
-                    <div key={index} className="p-3 hover:bg-slate-50 rounded-lg transition-colors border-b border-gray-50 last:border-0 cursor-default group">
-                      <div className="flex justify-between items-start mb-1">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${
-                          item.type === 'alert' ? 'bg-amber-50 text-amber-700 border-amber-100' : 
-                          item.type === 'success' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 
-                          'bg-blue-50 text-blue-700 border-blue-100'
-                        }`}>
-                          {item.type === 'alert' ? 'Maintenance' : item.type === 'success' ? 'Feature' : 'Update'}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium">{item.date}</span>
-                      </div>
-                      <h4 className="text-sm font-bold text-slate-700 mt-1">{item.title}</h4>
-                      <p className="text-xs text-slate-500 leading-relaxed mt-0.5 line-clamp-2">
-                        {item.body}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* --- PANEL 2: RESOURCE UTILIZATION --- */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex flex-col h-[400px] xl:h-[450px]">
-              <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                  <ServerIcon className="w-5 h-5 text-slate-500" />
-                  Resource Utilization
-                </h3>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                  <span className="text-xs font-bold text-emerald-700">Online</span>
-                </div>
-              </div>
-              
-              <div className="p-6 flex flex-col justify-center flex-1 gap-6">
-                
-                {/* Tier Usage Widget */}
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-100 shadow-inner">
-                   <div className="flex justify-between items-end mb-3">
-                      <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Tier Usage (Dec)</p>
-                        <p className="text-lg font-black text-slate-800">5 <span className="text-sm font-medium text-slate-400">/ 1000 msgs</span></p>
-                      </div>
-                      <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded shadow-sm border border-slate-100">0.5% Used</span>
-                   </div>
-                   <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                      <div className="h-full bg-slate-800 w-[1%] rounded-full transition-all duration-1000"></div>
-                   </div>
-                </div>
-
-                {/* KPI Grid */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                     <p className="text-xs text-slate-400 font-medium mb-1">Unread Chats</p>
-                     <p className="text-xl font-bold text-slate-700">0</p>
-                  </div>
-                  <div className="p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                     <p className="text-xs text-slate-400 font-medium mb-1">Unassigned</p>
-                     <p className="text-xl font-bold text-slate-700">0</p>
-                  </div>
-                  <div className="p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                     <p className="text-xs text-slate-400 font-medium mb-1">Active Agents</p>
-                     <p className="text-xl font-bold text-emerald-600">2</p>
-                  </div>
-                  <div className="p-3 rounded-lg border border-slate-100 hover:border-blue-200 hover:bg-blue-50/30 transition-colors">
-                     <p className="text-xs text-slate-400 font-medium mb-1">Campaigns</p>
-                     <p className="text-xl font-bold text-slate-700">0</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* --- PANEL 3: CALENDAR --- */}
-            {/* Tablet: Spans 2 cols to fill row. Desktop: 1 col */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm flex items-center justify-center p-4 md:col-span-2 xl:col-span-1 h-[400px] xl:h-[450px]">
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <DateCalendar 
-                    views={['day']} 
-                    showDaysOutsideCurrentMonth
-                    sx={{
-                      width: '100%',
-                      maxWidth: '350px', // Prevents it from getting too huge on tablets
-                      '& .MuiPickersCalendarHeader-root': { marginTop: '0px' },
-                      '& .MuiTypography-root': { fontWeight: '700', fontSize: '0.9rem', fontFamily: 'Urbanist' },
-                      '& .MuiPickersDay-root': { fontFamily: 'Urbanist', fontSize: '0.9rem', fontWeight: '600' },
-                      '& .MuiPickersDay-root.Mui-selected': { backgroundColor: '#1e293b !important' },
-                      '& .MuiPickersDay-today': { borderColor: '#1e293b !important' }
-                    }}
+            <div className="flex items-center gap-3">
+               
+               {/* --- CUSTOMIZED GREEN DATE PICKER --- */}
+               <ConfigProvider
+                 theme={{
+                    token: {
+                        colorPrimary: '#10B981', // ✅ MINT/GREEN Color (Emerald-500)
+                        borderRadius: 6,
+                        fontFamily: 'Urbanist',
+                        colorBgContainer: '#F8FAFC', // Slate-50 bg for input
+                        colorBorder: '#E2E8F0', // Slate-200 border
+                    },
+                    components: {
+                        DatePicker: {
+                            activeBorderColor: '#10B981',
+                            hoverBorderColor: '#34D399',
+                            activeShadow: '0 0 0 2px rgba(16, 185, 129, 0.1)', // Green shadow
+                        }
+                    }
+                 }}
+               >
+                  <DatePicker 
+                     value={selectedDate} 
+                     onChange={handleDateChange}
+                     format="MMMM DD, YYYY" // Looks nicer: "February 26, 2026"
+                     allowClear={false}
+                     className="w-full sm:w-[220px] h-10 font-medium shadow-sm hover:bg-white transition-all"
                   />
-                </LocalizationProvider>
+               </ConfigProvider>
+
+               <button onClick={handleSyncData} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+                  <ArrowPathIcon className={`w-5 h-5 ${isSyncing ? "animate-spin text-[#10B981]" : ""}`} />
+               </button>
             </div>
+         </div>
 
-          </div>
-
-          {/* ==================== BOTTOM ROW: WCC WALLET ==================== */}
-          <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm p-5 md:p-8 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
-             
-             {/* Text Section */}
-             <div className="flex items-start gap-4">
-                <div className="p-3 bg-teal-50 text-teal-600 rounded-lg border border-teal-100 hidden sm:block shrink-0">
-                  <CreditCardIcon className="w-8 h-8" />
-                </div>
-                <div>
-                  <h3 className="text-xl font-bold text-slate-800">Business Wallet (WCC)</h3>
-                  <p className="text-sm text-slate-500 mt-1 max-w-lg">
-                    Manage your conversation credits. Low balance may affect automated campaigns.
-                  </p>
-                </div>
-             </div>
-
-             {/* Balance & Action Section - Wraps on small screens */}
-             <div className="flex flex-wrap items-center gap-4 sm:gap-8 w-full lg:w-auto bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <div className="flex-1 lg:text-right min-w-[120px]">
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Current Balance</p>
-                   <p className="text-2xl font-black text-slate-800">₹10,000<span className="text-lg text-slate-400">.00</span></p>
-                </div>
-                <div className="hidden sm:block h-10 w-px bg-slate-200 mx-2"></div>
-                <button className="flex-1 sm:flex-none bg-[#ba2525] hover:bg-[#a01f1f] text-white px-6 py-3 rounded-lg text-sm font-bold shadow-md shadow-red-100 transition-all active:scale-95 whitespace-nowrap">
-                   + Add Funds
-                </button>
-             </div>
-
-          </div>
-
-        </div>
+         {/* Stats Grid */}
+         <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 transition-opacity duration-300 ${isSyncing ? "opacity-50" : "opacity-100"}`}>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Chats</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.chats} <span className="text-xs font-bold text-emerald-500">↗ 12%</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Unread</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.unread} <span className="text-xs font-bold text-amber-500">↘ 5%</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Open Cases</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.open} <span className="text-xs font-bold text-slate-400">~ 0%</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Failed</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.failed} <span className="text-xs font-bold text-emerald-500">↘ 0%</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Free Tier</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.free} <span className="text-xs font-medium text-slate-400">/ 1k</span></p>
+            </div>
+            <div>
+               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Agents</p>
+               <p className="text-2xl font-black text-slate-800">{performanceData.agents} <span className="text-xs font-bold text-emerald-500 uppercase">Active</span></p>
+            </div>
+         </div>
       </div>
+
+      {/* 4. HELP & RESOURCES */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+         <div onClick={() => navigate('/admin/help/docs')} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-blue-200 transition-colors cursor-pointer group">
+            <div>
+               <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><BookOpenIcon className="w-6 h-6" /></div>
+               <h4 className="font-bold text-slate-800 mb-2">Technical Documentation</h4>
+               <p className="text-sm text-slate-500 leading-relaxed">Access our comprehensive API references and integration SDKs.</p>
+            </div>
+            <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Browse Docs <span className="ml-2">→</span></div>
+         </div>
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group">
+            <div>
+               <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><PlayCircleIcon className="w-6 h-6" /></div>
+               <h4 className="font-bold text-slate-800 mb-2">Video Tutorials</h4>
+               <p className="text-sm text-slate-500 leading-relaxed">Quick walkthroughs for common workflows and configurations.</p>
+            </div>
+            <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Watch Lessons <span className="ml-2">→</span></div>
+         </div>
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
+            <div>
+               <div className="flex items-center gap-2 mb-3"><LifebuoyIcon className="w-5 h-5 text-slate-700" /><h4 className="font-bold text-slate-800">Need Assistance?</h4></div>
+               <p className="text-sm text-slate-500 leading-relaxed mb-6">Our technical support engineers are available Monday to Friday for integration assistance.</p>
+            </div>
+            <div className="space-y-3">
+               <button onClick={() => navigate('/admin/help/support')} className="w-full py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm flex items-center justify-center gap-2"><TicketIcon className="w-4 h-4" /> Open Support Ticket</button>
+               <button className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"><LightBulbIcon className="w-4 h-4" /> Request Feature</button>
+            </div>
+         </div>
+      </div>
+
+      {/* 5. FOOTER */}
+      <div className="mt-auto pt-10 pb-4 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 font-medium border-t border-slate-100">
+         <p>&copy; 2024 whatsapp API Platform. All rights reserved @ MessBee.</p>
+         <div className="flex gap-6 mt-4 md:mt-0">
+            <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
+            <a href="#" className="hover:text-slate-600 transition-colors">Terms of Service</a>
+            <a href="#" className="hover:text-slate-600 transition-colors">API Status</a>
+         </div>
+      </div>
+
     </div>
   );
 }
