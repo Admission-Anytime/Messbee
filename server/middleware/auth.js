@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
 exports.protect = async (req, res, next) => {
+  
   let token;
 
   if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
@@ -26,6 +27,8 @@ exports.protect = async (req, res, next) => {
       });
     }
 
+
+
     next();
   } catch (error) {
     return res.status(401).json({
@@ -33,7 +36,10 @@ exports.protect = async (req, res, next) => {
       message: 'Not authorized to access this route'
     });
   }
+
 };
+
+
 
 exports.authorize = (...roles) => {
   return (req, res, next) => {
