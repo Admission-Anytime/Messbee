@@ -90,7 +90,6 @@ const MENU_ITEMS = [
   }
 ];
 
-// Helper to find the active item object
 const findMenuItem = (title) => {
   for (const group of MENU_ITEMS) {
     const found = group.items.find(item => item.title === title);
@@ -116,7 +115,7 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              onFloatingToggle(item.title, e); // Pass Event for calculation
+              onFloatingToggle(item.title, e); 
             }}
             className={`w-full flex justify-center items-center py-3 rounded-lg transition-colors cursor-pointer relative ${isChildActive || isFloatingOpen ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`}
             title={item.title}
@@ -205,10 +204,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
   const searchInputRef = useRef(null); 
   const location = useLocation();
 
-  // --- FLOATING MENU STATE ---
   const [activeFloating, setActiveFloating] = useState(null);
-  
-  // ✅ Store dynamic style object instead of just Top position
   const [floatingStyle, setFloatingStyle] = useState({ top: 0, left: '80px' }); 
 
   const isActive = (path) => location.pathname === path;
@@ -229,7 +225,6 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
     }, 100);
   };
 
-  // ✅ SMART TOGGLE: Checks viewport space
   const handleFloatingToggle = (title, e) => {
     if (activeFloating === title) {
       setActiveFloating(null);
@@ -238,17 +233,16 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       const windowHeight = window.innerHeight;
       const spaceBelow = windowHeight - rect.top;
 
-      // If space below is less than 350px, open upwards
       if (spaceBelow < 350) {
          setFloatingStyle({ 
-            left: '75px', // Slightly closer to sidebar
-            bottom: (windowHeight - rect.bottom) + 'px', // Align with bottom of icon
+            left: '75px', 
+            bottom: (windowHeight - rect.bottom) + 'px', 
             top: 'auto' 
          });
       } else {
          setFloatingStyle({ 
             left: '75px', 
-            top: rect.top + 'px', // Align with top of icon
+            top: rect.top + 'px', 
             bottom: 'auto' 
          });
       }
@@ -277,16 +271,14 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         }
       `}</style>
 
-      {/* --- BACKDROP --- */}
       {activeFloating && !isOpen && (
         <div className="fixed inset-0 z-[9990] bg-transparent" onClick={() => setActiveFloating(null)}></div>
       )}
 
-      {/* --- SMART FLOATING MENU --- */}
       {activeFloating && !isOpen && activeItemData && (
         <div 
           className="fixed w-60 bg-white shadow-[0_5px_30px_-5px_rgba(0,0,0,0.2)] rounded-xl border border-slate-100 p-2 z-[9999] animate-fade-in origin-left"
-          style={floatingStyle} // ✅ Applied Dynamic Position
+          style={floatingStyle}
         >
            <div className="px-4 py-3 border-b border-slate-50 mb-2 bg-slate-50/50 rounded-t-lg flex justify-between items-center">
               <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeItemData.title}</span>
@@ -311,18 +303,19 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         </div>
       )}
 
-      {/* --- SIDEBAR --- */}
       <div 
         className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0
         ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"} 
         `}
       >
         
-        {/* 1. SEARCH & TOGGLE */}
+        {/* 1. SEARCH & TOGGLE (Responsive Fix) */}
         <div className={`mt-5 mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
+           
+           {/* ✅ Conditional Rendering: Show Input ONLY when expanded */}
            {isOpen ? (
-             <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all">
-                <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2" />
+             <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
+                <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
                 <input 
                   ref={searchInputRef}
                   type="text" 
@@ -333,11 +326,22 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                 />
              </div>
            ) : (
-             <button onClick={handleCollapsedSearchClick} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Click to Search">
+             // ✅ Collapsed Mode: Just the Icon Button
+             <button 
+                onClick={handleCollapsedSearchClick} 
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" 
+                title="Click to Search"
+             >
                 <Icon icon="feather:search" className="w-5 h-5" />
              </button>
            )}
-           <button onClick={() => setIsOpen(!isOpen)} className="p-2 rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:block">
+
+           {/* Hamburger Toggle (Visible on Desktop) */}
+           <button 
+             onClick={() => setIsOpen(!isOpen)} 
+             className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0"
+             title={isOpen ? "Collapse" : "Expand"}
+           >
              <Bars3Icon className="w-6 h-6" />
            </button>
         </div>
@@ -354,8 +358,6 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                   isExpanded={isOpen} 
                   openSubmenu={openSubmenu}     
                   onToggle={handleSubmenuToggle} 
-                  
-                  // Pass floating props
                   activeFloating={activeFloating}
                   onFloatingToggle={handleFloatingToggle}
                 />

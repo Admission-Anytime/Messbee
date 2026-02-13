@@ -7,8 +7,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // ✅ Set Poppins as the default sans font
-        sans: ['Poppins', 'sans-serif'],
+        // ✅ Sets Urbanist as the default font for the whole app
+        sans: ['Urbanist', 'Inter', 'system-ui', 'sans-serif'],
+        
+        // Optional: Keep 'tight' if you use it specifically
+        tight: ['Inter Tight', 'sans-serif'],
       },
       colors: {
         primary: "#ba2525", 

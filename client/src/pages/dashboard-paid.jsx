@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom"; 
-// 1. Import Ant Design components
 import { DatePicker, ConfigProvider } from "antd"; 
 import dayjs from "dayjs"; 
 
@@ -12,7 +11,6 @@ import {
   LifebuoyIcon,
   TicketIcon,
   LightBulbIcon,
-  // CalendarIcon removed (DatePicker has its own)
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
@@ -20,8 +18,8 @@ function Dashboard() {
   const navigate = useNavigate();
   const [isSyncing, setIsSyncing] = useState(false);
   
-  // --- 1. DATE STATE (Using Day.js for Ant Design) ---
-  const [selectedDate, setSelectedDate] = useState(dayjs()); // Default to Today
+  // --- DATE STATE ---
+  const [selectedDate, setSelectedDate] = useState(dayjs()); 
   const [dateString, setDateString] = useState(dayjs().format("YYYY-MM-DD"));
 
   const [performanceData, setPerformanceData] = useState({
@@ -33,13 +31,11 @@ function Dashboard() {
     agents: 4
   });
 
-  // --- 2. HANDLE DATE CHANGE ---
   const handleDateChange = (date, dateString) => {
     setSelectedDate(date);
     setDateString(dateString);
     setIsSyncing(true);
 
-    // Simulate API call delay and data update
     setTimeout(() => {
       setPerformanceData({
         chats: Math.floor(Math.random() * 500) + 100,
@@ -63,31 +59,37 @@ function Dashboard() {
       
       {/* 1. TOP PROFILE CARD */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
-         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-            <div className="flex items-center gap-4">
-               <div className="w-16 h-16 bg-gradient-to-br from-teal-100 to-teal-50 rounded-xl border border-teal-100 flex items-center justify-center">
+         {/* Header Section: Flex Wrap added for responsiveness */}
+         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 mb-8">
+            
+            {/* User Info */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full lg:w-auto">
+               <div className="w-16 h-16 bg-gradient-to-br from-teal-100 to-teal-50 rounded-xl border border-teal-100 flex items-center justify-center shrink-0">
                   <svg className="w-8 h-8 text-teal-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
                </div>
                <div>
-                  <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <h2 className="text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
                      Admission Anytime 
-                     <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200">Official API</span>
+                     <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">Official API</span>
                   </h2>
                   <p className="text-sm text-slate-500 font-medium">+91 1202611111</p>
                </div>
             </div>
-            <div className="flex gap-3">
-               <button onClick={() => navigate('/admin/profile/business')} className="px-4 py-2 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">
+
+            {/* Action Buttons: Stack on mobile, row on desktop */}
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+               <button onClick={() => navigate('/admin/profile/business')} className="w-full sm:w-auto px-5 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">
                   Update Profile
                </button>
-               <button onClick={handleSyncData} disabled={isSyncing} className="px-4 py-2 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2 disabled:opacity-70">
+               <button onClick={handleSyncData} disabled={isSyncing} className="w-full sm:w-auto px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-70">
                   <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? "animate-spin text-blue-600" : ""}`} /> 
                   {isSyncing ? "Syncing..." : "Sync Data"}
                </button>
             </div>
          </div>
 
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-gray-100">
+         {/* Stats Grid: Better spacing for small screens */}
+         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-gray-100">
             <div>
                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Message Limit Tier</p>
                <p className="text-xl font-bold text-slate-800">10,000 <span className="text-sm font-medium text-slate-400">/ day</span></p>
@@ -108,32 +110,35 @@ function Dashboard() {
       </div>
 
       {/* 2. BALANCE & SUBSCRIPTION */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between relative overflow-hidden">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+         
+         {/* Card 1: Balance */}
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between relative overflow-hidden h-full">
             <div className="absolute top-6 right-6 text-slate-300"><WalletIcon className="w-6 h-6" /></div>
             <div>
                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
-               <div className="flex items-baseline gap-2 mb-1">
+               <div className="flex flex-wrap items-baseline gap-2 mb-1">
                   <h3 className="text-3xl font-black text-slate-900">₹618.51</h3>
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
                </div>
-               <p className="text-xs text-slate-400">Estimated 14 days of usage remaining based on current volume.</p>
+               <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
             </div>
-            <div className="flex gap-3 mt-8">
-               <button onClick={() => navigate('/admin/plan/billing')} className="flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm">Add Credit</button>
-               <button onClick={() => navigate('/admin/plan/billing')} className="px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Statement</button>
+            <div className="flex flex-col sm:flex-row gap-3 mt-8">
+               <button onClick={() => navigate('/admin/plan/billing')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add Credit</button>
+               <button onClick={() => navigate('/admin/plan/billing')} className="w-full sm:w-auto px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors text-center">Statement</button>
             </div>
          </div>
 
-         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
-            <div className="flex justify-between items-start mb-2">
-               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Active Subscription</p>
-               <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">ENTERPRISE PLAN</span>
+         {/* Card 2: Subscription */}
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between h-full">
+            <div className="flex flex-wrap justify-between items-start mb-4 gap-2">
+               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Active Subscription</p>
+               <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">ENTERPRISE PLAN</span>
             </div>
-            <div>
+            <div className="mb-6">
                <h3 className="text-3xl font-black text-slate-900 mb-1">76 Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
                <p className="text-xs text-slate-400 mb-4">Next billing cycle starts April 28, 2026.</p>
-               <div className="h-1.5 w-full bg-slate-100 rounded-full mb-6 overflow-hidden">
+               <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
                   <div className="h-full bg-slate-800 w-[60%] rounded-full"></div>
                </div>
             </div>
@@ -141,35 +146,33 @@ function Dashboard() {
          </div>
       </div>
 
-      {/* 3. PERFORMANCE CARD (Updated with Ant Design DatePicker) */}
+      {/* 3. PERFORMANCE CARD */}
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
          
-         {/* Header Row */}
-         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+         {/* Header Row: Wrap on mobile */}
+         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <div>
                <h3 className="text-lg font-bold text-slate-900">Performance Overview</h3>
-               <p className="text-xs text-slate-400">
+               <p className="text-xs text-slate-400 mt-1">
                  Showing data for: <span className="font-semibold text-slate-600">{dateString === dayjs().format("YYYY-MM-DD") ? "Today" : dateString}</span>
                </p>
             </div>
             
-            <div className="flex items-center gap-3">
-               
-               {/* --- CUSTOMIZED GREEN DATE PICKER --- */}
+            <div className="flex w-full md:w-auto items-center gap-3">
                <ConfigProvider
                  theme={{
                     token: {
-                        colorPrimary: '#10B981', // ✅ MINT/GREEN Color (Emerald-500)
+                        colorPrimary: '#10B981', 
                         borderRadius: 6,
                         fontFamily: 'Urbanist',
-                        colorBgContainer: '#F8FAFC', // Slate-50 bg for input
-                        colorBorder: '#E2E8F0', // Slate-200 border
+                        colorBgContainer: '#F8FAFC', 
+                        colorBorder: '#E2E8F0', 
                     },
                     components: {
                         DatePicker: {
                             activeBorderColor: '#10B981',
                             hoverBorderColor: '#34D399',
-                            activeShadow: '0 0 0 2px rgba(16, 185, 129, 0.1)', // Green shadow
+                            activeShadow: '0 0 0 2px rgba(16, 185, 129, 0.1)', 
                         }
                     }
                  }}
@@ -177,20 +180,20 @@ function Dashboard() {
                   <DatePicker 
                      value={selectedDate} 
                      onChange={handleDateChange}
-                     format="MMMM DD, YYYY" // Looks nicer: "February 26, 2026"
+                     format="MMMM DD, YYYY" 
                      allowClear={false}
-                     className="w-full sm:w-[220px] h-10 font-medium shadow-sm hover:bg-white transition-all"
+                     className="w-full md:w-[240px] h-10 font-medium shadow-sm hover:bg-white transition-all"
                   />
                </ConfigProvider>
 
-               <button onClick={handleSyncData} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
+               <button onClick={handleSyncData} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors shrink-0">
                   <ArrowPathIcon className={`w-5 h-5 ${isSyncing ? "animate-spin text-[#10B981]" : ""}`} />
                </button>
             </div>
          </div>
 
-         {/* Stats Grid */}
-         <div className={`grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-6 transition-opacity duration-300 ${isSyncing ? "opacity-50" : "opacity-100"}`}>
+         {/* Stats Grid: Responsive Columns */}
+         <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 transition-opacity duration-300 ${isSyncing ? "opacity-50" : "opacity-100"}`}>
             <div>
                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Chats</p>
                <p className="text-2xl font-black text-slate-800">{performanceData.chats} <span className="text-xs font-bold text-emerald-500">↗ 12%</span></p>
@@ -218,9 +221,9 @@ function Dashboard() {
          </div>
       </div>
 
-      {/* 4. HELP & RESOURCES */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-         <div onClick={() => navigate('/admin/help/docs')} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-blue-200 transition-colors cursor-pointer group">
+      {/* 4. HELP & RESOURCES: Stack on mobile */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+         <div onClick={() => navigate('/admin/help/docs')} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-blue-200 transition-colors cursor-pointer group h-full">
             <div>
                <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><BookOpenIcon className="w-6 h-6" /></div>
                <h4 className="font-bold text-slate-800 mb-2">Technical Documentation</h4>
@@ -228,7 +231,7 @@ function Dashboard() {
             </div>
             <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Browse Docs <span className="ml-2">→</span></div>
          </div>
-         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group">
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group h-full">
             <div>
                <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><PlayCircleIcon className="w-6 h-6" /></div>
                <h4 className="font-bold text-slate-800 mb-2">Video Tutorials</h4>
@@ -236,12 +239,12 @@ function Dashboard() {
             </div>
             <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Watch Lessons <span className="ml-2">→</span></div>
          </div>
-         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between">
+         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between h-full">
             <div>
                <div className="flex items-center gap-2 mb-3"><LifebuoyIcon className="w-5 h-5 text-slate-700" /><h4 className="font-bold text-slate-800">Need Assistance?</h4></div>
                <p className="text-sm text-slate-500 leading-relaxed mb-6">Our technical support engineers are available Monday to Friday for integration assistance.</p>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-3 mt-auto">
                <button onClick={() => navigate('/admin/help/support')} className="w-full py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm flex items-center justify-center gap-2"><TicketIcon className="w-4 h-4" /> Open Support Ticket</button>
                <button className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"><LightBulbIcon className="w-4 h-4" /> Request Feature</button>
             </div>
@@ -249,9 +252,9 @@ function Dashboard() {
       </div>
 
       {/* 5. FOOTER */}
-      <div className="mt-auto pt-10 pb-4 flex flex-col md:flex-row justify-between items-center text-xs text-slate-400 font-medium border-t border-slate-100">
+      <div className="mt-auto pt-10 pb-4 flex flex-col-reverse md:flex-row justify-between items-center text-xs text-slate-400 font-medium border-t border-slate-100 gap-4">
          <p>&copy; 2024 whatsapp API Platform. All rights reserved @ MessBee.</p>
-         <div className="flex gap-6 mt-4 md:mt-0">
+         <div className="flex gap-6">
             <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
             <a href="#" className="hover:text-slate-600 transition-colors">Terms of Service</a>
             <a href="#" className="hover:text-slate-600 transition-colors">API Status</a>
