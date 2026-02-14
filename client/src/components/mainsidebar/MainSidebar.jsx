@@ -7,7 +7,7 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 const MENU_ITEMS = [
   {
     items: [
-      { title: "Dashboard", path: "/admin/dashboard", icon: "feather:grid" },
+      { title: "Home", path: "/admin/dashboard", icon: "feather:grid" },
       { title: "Alert", path: "/admin/notifications", icon: "feather:bell", badge: "2" },
       { title: "Chats", path: "/admin/chat", icon: "feather:message-circle", badge: "10+" },
       { 
