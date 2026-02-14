@@ -16,12 +16,16 @@ const Registration = lazy(() => import("./pages/Auth/Registration"));
 
 // --- MAIN PAGES ---
 import Dashboard from "./pages/dashboard-paid";
+import NotificationPage from './pages/Notification/NotificationPage';
 import Chat from "./pages/chat/chat";
-import Contact from "./pages/contats/contact";
 import Campaign from "./pages/campaign/campaign";
 import CreateCampaign from "./pages/campaign/CreateCampaign";
 import Automation from "./pages/automation/automation";
 import Analytic from "./pages/analytic/analytic";
+
+// --- CONTACTS (Updated to match your folder 'contats') ---
+import Contact from "./pages/contats/contact"; 
+import StatusPage from "./pages/contats/Status/StatusPage"; 
 
 // --- SETTINGS & SUB-PAGES ---
 import Wapi from "./pages/setting/Wapi";
@@ -30,7 +34,6 @@ import Templates from "./pages/setting/Templates";
 import TemplatesGallery from "./pages/setting/TamplatesGallery";
 import Label from "./pages/setting/Label";
 import CustomField from "./pages/setting/CustomField";
-import Status from "./pages/setting/Status";
 import QuickReply from "./pages/setting/QuickReply";
 import DevApi from "./pages/setting/DevApi";
 
@@ -52,29 +55,23 @@ const NotFound = () => {
   );
 };
 
-// --- UPDATED LAYOUT WRAPPER ---
+// --- LAYOUT WRAPPER ---
 const AppLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      
-      {/* 1. HEADER (Fixed at Top, Height 85px) */}
+      {/* HEADER */}
       <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
          <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
       </div>
 
-      {/* 2. BODY (Sidebar + Page Content) */}
+      {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
-        
-        {/* SIDEBAR */}
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
-
-        {/* CONTENT AREA */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
            <Outlet />
         </div>
-
       </div>
     </div>
   );
@@ -90,19 +87,23 @@ function App() {
         },
       }}
     >
-      <ToastContainer
+      {/* ✅ UPDATED TOAST CONTAINER */}
+      <ToastContainer 
         position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop={false}
-        closeOnClick
+        autoClose={4000}
+        hideProgressBar={true}
+        newestOnTop={true}
+        closeOnClick={false}
         rtl={false}
         pauseOnFocusLoss
         draggable
         pauseOnHover
         theme="light"
+        // This removes the default white box styling so our CustomToast looks perfect
+        toastClassName="!bg-transparent !shadow-none !p-0 !min-h-0 !mb-4"
+        bodyClassName="!m-0 !p-0"
       />
-      {/* Suspense only for Auth pages now */}
+      
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route path="/login" element={<Login />} />
@@ -115,19 +116,19 @@ function App() {
             <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
             
             {/* 2. Notifications */}
-            <Route path="/admin/notifications" element={<div className="p-10 text-xl font-bold text-slate-700">Notifications</div>} />
+            <Route path="/admin/notifications" element={<NotificationPage />} />
 
             {/* 3. Chat */}
             <Route path="/admin/chat" element={<Chat />} />
 
             {/* 4. Contacts & CRM */}
-            <Route path="/admin/contact" element={<Contact />} /> 
+            <Route path="/admin/contacts" element={<Contact />} /> 
             <Route path="/admin/contacts/list" element={<Contact />} /> 
             <Route path="/admin/contacts/labels" element={<Label />} />
             <Route path="/admin/contacts/fields" element={<CustomField />} />
             <Route path="/admin/contacts/quick-reply" element={<QuickReply />} />
             <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
-            <Route path="/admin/contacts/status" element={<Status />} />
+            <Route path="/admin/contacts/status" element={<StatusPage />} />
             <Route path="/admin/contacts/crm" element={<div className="p-10 text-xl font-bold text-slate-700">CRM Pipeline</div>} />
 
             {/* 5. Templates */}
@@ -141,7 +142,7 @@ function App() {
             <Route path="/admin/campaign/create" element={<CreateCampaign />} />
             <Route path="/admin/campaigns/bulk" element={<div className="p-10 text-xl font-bold text-slate-700">Bulk Send</div>} />
 
-            {/* 7. Commerce (New) */}
+            {/* 7. Commerce */}
             <Route path="/admin/commerce/payments" element={<div className="p-10 text-xl font-bold text-slate-700">Payment List</div>} />
             <Route path="/admin/commerce/products" element={<div className="p-10 text-xl font-bold text-slate-700">Product List</div>} />
 
@@ -167,7 +168,7 @@ function App() {
             <Route path="/admin/settings/whatsapp" element={<Wapi />} />
             <Route path="/admin/settings/media" element={<Media />} />
 
-            {/* 12. Plan & Pricing (Expanded) */}
+            {/* 12. Plan & Pricing */}
             <Route path="/admin/plan/overview" element={<div className="p-10 text-xl font-bold text-slate-700">Plan Overview</div>} />
             <Route path="/admin/plan/billing" element={<ActivePlans />} />
             <Route path="/admin/plan/upgrade" element={<div className="p-10 text-xl font-bold text-slate-700">Upgrade Plan</div>} />
