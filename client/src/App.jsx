@@ -1,4 +1,4 @@
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useState } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
@@ -6,15 +6,15 @@ import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
 import ProtectedRoute from "../routes/protectedRoute";
 
-// --- 1. LAYOUT & SIDEBAR ---
+// --- LAYOUT COMPONENTS ---
 import MainSidebar from "./components/mainsidebar/MainSidebar"; 
+import MainHeading from "./components/header/MainHeading"; 
 
-// --- 2. AUTH PAGES (Keep Lazy to speed up initial site load) ---
+// --- AUTH PAGES ---
 const Login = lazy(() => import("./pages/Auth/Login"));
 const Registration = lazy(() => import("./pages/Auth/Registration"));
 
-// --- 3. MAIN PAGES (STANDARD IMPORTS - No Loading Flicker) ---
-// We import these directly so they are ready instantly.
+// --- MAIN PAGES ---
 import Dashboard from "./pages/dashboard-paid";
 import Chat from "./pages/chat/chat";
 import Contact from "./pages/contats/contact";
@@ -23,7 +23,7 @@ import CreateCampaign from "./pages/campaign/CreateCampaign";
 import Automation from "./pages/automation/automation";
 import Analytic from "./pages/analytic/analytic";
 
-// --- 4. SETTINGS & SUB-PAGES (STANDARD IMPORTS) ---
+// --- SETTINGS & SUB-PAGES ---
 import Wapi from "./pages/setting/Wapi";
 import Media from "./pages/setting/Media";
 import Templates from "./pages/setting/Templates";
@@ -34,7 +34,7 @@ import Status from "./pages/setting/Status";
 import QuickReply from "./pages/setting/QuickReply";
 import DevApi from "./pages/setting/DevApi";
 
-// --- 5. PROFILE & PLAN (STANDARD IMPORTS) ---
+// --- PROFILE & PLAN ---
 import UserProfile from "./pages/profile/UserProfile";
 import BusinessProfile from "./pages/profile/BusinessProfile";
 import ActivePlans from "./pages/profile/ActivePlans"; 
@@ -52,13 +52,29 @@ const NotFound = () => {
   );
 };
 
-// --- LAYOUT WRAPPER ---
+// --- UPDATED LAYOUT WRAPPER ---
 const AppLayout = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
-    <div className="flex w-full min-h-screen bg-[#faf9f7] font-['Urbanist']">
-      <MainSidebar />
-      <div className="flex-1 overflow-auto h-screen relative">
-        <Outlet />
+    <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
+      
+      {/* 1. HEADER (Fixed at Top, Height 85px) */}
+      <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
+         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+      </div>
+
+      {/* 2. BODY (Sidebar + Page Content) */}
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
+        
+        {/* SIDEBAR */}
+        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+
+        {/* CONTENT AREA */}
+        <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
+           <Outlet />
+        </div>
+
       </div>
     </div>
   );
@@ -89,21 +105,22 @@ function App() {
       {/* Suspense only for Auth pages now */}
       <Suspense fallback={<Loading />}>
         <Routes>
-          {/* --- PUBLIC ROUTES --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Registration />} />
 
-          {/* --- PROTECTED ROUTES --- */}
           <Route element={<ProtectedRoute Component={AppLayout} />}>
             
             {/* 1. Dashboard */}
             <Route path="/" element={<Dashboard />} />
             <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
+            
+            {/* 2. Notifications */}
+            <Route path="/admin/notifications" element={<div className="p-10 text-xl font-bold text-slate-700">Notifications</div>} />
 
-            {/* 2. Chat */}
+            {/* 3. Chat */}
             <Route path="/admin/chat" element={<Chat />} />
 
-            {/* 3. Contacts & CRM */}
+            {/* 4. Contacts & CRM */}
             <Route path="/admin/contact" element={<Contact />} /> 
             <Route path="/admin/contacts/list" element={<Contact />} /> 
             <Route path="/admin/contacts/labels" element={<Label />} />
@@ -111,56 +128,69 @@ function App() {
             <Route path="/admin/contacts/quick-reply" element={<QuickReply />} />
             <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
             <Route path="/admin/contacts/status" element={<Status />} />
-            <Route path="/admin/contacts/crm" element={<div className="p-10 font-bold text-2xl text-slate-700">CRM Pipeline Page</div>} />
+            <Route path="/admin/contacts/crm" element={<div className="p-10 text-xl font-bold text-slate-700">CRM Pipeline</div>} />
 
-            {/* 4. Campaigns */}
+            {/* 5. Templates */}
+            <Route path="/admin/templates/list" element={<Templates />} />
+            <Route path="/admin/campaigns/templates" element={<Templates />} />
+            <Route path="/admin/templates/gallery" element={<TemplatesGallery />} />
+
+            {/* 6. Campaigns */}
             <Route path="/admin/campaign" element={<Campaign />} />
             <Route path="/admin/campaigns" element={<Campaign />} />
             <Route path="/admin/campaign/create" element={<CreateCampaign />} />
-            <Route path="/admin/campaigns/templates" element={<Templates />} />
-            <Route path="/admin/templates/list" element={<Templates />} />
-            <Route path="/admin/templates/gallery" element={<TemplatesGallery />} />
-            <Route path="/admin/campaigns/bulk" element={<div className="p-10 font-bold text-2xl text-slate-700">Bulk Send Page</div>} />
+            <Route path="/admin/campaigns/bulk" element={<div className="p-10 text-xl font-bold text-slate-700">Bulk Send</div>} />
 
-            {/* 5. Automation */}
+            {/* 7. Commerce (New) */}
+            <Route path="/admin/commerce/payments" element={<div className="p-10 text-xl font-bold text-slate-700">Payment List</div>} />
+            <Route path="/admin/commerce/products" element={<div className="p-10 text-xl font-bold text-slate-700">Product List</div>} />
+
+            {/* 8. Automation */}
             <Route path="/admin/automation" element={<Automation />} />
 
-            {/* 6. Analytics & Reports */}            
+            {/* 9. Analytics */}            
             <Route path="/admin/analytic" element={<Analytic />} />
-            <Route path="/admin/reports" element={<div className="p-10 font-bold text-2xl text-slate-700">Reports & Analytics Page</div>} />
-            <Route path="/admin/alerts" element={<div className="p-10 font-bold text-2xl text-slate-700">System Alerts Page</div>} />
-            <Route path="/admin/business" element={<div className="p-10 font-bold text-2xl text-slate-700">Business Management Page</div>} />
+            <Route path="/admin/analytic/conversation" element={<div className="p-10 text-xl font-bold text-slate-700">Conversation Analytics</div>} />
+            <Route path="/admin/analytic/messages" element={<div className="p-10 text-xl font-bold text-slate-700">Message Analytics</div>} />
+            <Route path="/admin/analytic/template" element={<div className="p-10 text-xl font-bold text-slate-700">Template Analytics</div>} />
+            <Route path="/admin/reports" element={<div className="p-10 text-xl font-bold text-slate-700">Reports</div>} />
+            <Route path="/admin/alerts" element={<div className="p-10 text-xl font-bold text-slate-700">Alerts</div>} />
+            <Route path="/admin/business" element={<div className="p-10 text-xl font-bold text-slate-700">Business Management</div>} />
 
-            {/* 7. Integrations & API */}
+            {/* 10. Integrations */}
             <Route path="/admin/api" element={<DevApi />} />
             <Route path="/admin/developer/api" element={<DevApi />} /> 
             <Route path="/admin/integration/api" element={<DevApi />} />
-            <Route path="/admin/integration/apps" element={<div className="p-10 font-bold text-2xl text-slate-700">App Connect Page</div>} />
+            <Route path="/admin/integration/apps" element={<div className="p-10 text-xl font-bold text-slate-700">App Connect</div>} />
 
-            {/* 8. Settings */}
+            {/* 11. Settings */}
             <Route path="/admin/settings/whatsapp" element={<Wapi />} />
             <Route path="/admin/settings/media" element={<Media />} />
 
-            {/* 9. Account & Plans */}
-            <Route path="/admin/plan/overview" element={<div className="p-10 font-bold text-2xl text-slate-700">Current Subscription Page</div>} />
+            {/* 12. Plan & Pricing (Expanded) */}
+            <Route path="/admin/plan/overview" element={<div className="p-10 text-xl font-bold text-slate-700">Plan Overview</div>} />
             <Route path="/admin/plan/billing" element={<ActivePlans />} />
-            <Route path="/admin/account/admin" element={<div className="p-10 font-bold text-2xl text-slate-700">Admin Users Page</div>} />
-            <Route path="/admin/account/settings" element={<div className="p-10 font-bold text-2xl text-slate-700">Account Settings Page</div>} />
+            <Route path="/admin/plan/upgrade" element={<div className="p-10 text-xl font-bold text-slate-700">Upgrade Plan</div>} />
+            <Route path="/admin/plan/addons" element={<div className="p-10 text-xl font-bold text-slate-700">Add-ons (WCC)</div>} />
+            <Route path="/admin/plan/active" element={<ActivePlans />} />
+            <Route path="/admin/plan/history" element={<div className="p-10 text-xl font-bold text-slate-700">Payment History</div>} />
+            <Route path="/admin/plan/methods" element={<div className="p-10 text-xl font-bold text-slate-700">Payment Methods</div>} />
+
+            {/* 13. Profile & Account */}
+            <Route path="/admin/account/admin" element={<div className="p-10 text-xl font-bold text-slate-700">Admin Users</div>} />
+            <Route path="/admin/account/settings" element={<div className="p-10 text-xl font-bold text-slate-700">Settings</div>} />
             <Route path="/admin/account/profile" element={<UserProfile />} />
             <Route path="/admin/account/plan" element={<ActivePlans />} />
-
-            {/* 10. Help */}
-            <Route path="/admin/help/docs" element={<div className="p-10 font-bold text-2xl text-slate-700">Documentation Page</div>} />
-            <Route path="/admin/help/support" element={<div className="p-10 font-bold text-2xl text-slate-700">Contact Support Page</div>} />
-            <Route path="/admin/help/faqs" element={<div className="p-10 font-bold text-2xl text-slate-700">FAQs Page</div>} />
-
-            {/* Legacy Profile Routes */}
             <Route path="/admin/profile/info" element={<UserProfile />} /> 
             <Route path="/admin/profile/business" element={<BusinessProfile />} />
 
+            {/* 14. Help */}
+            <Route path="/admin/help/docs" element={<div className="p-10 text-xl font-bold text-slate-700">Documentation</div>} />
+            <Route path="/admin/help/support" element={<div className="p-10 text-xl font-bold text-slate-700">Support</div>} />
+            <Route path="/admin/help/faqs" element={<div className="p-10 text-xl font-bold text-slate-700">FAQs</div>} />
+
           </Route>
 
-          {/* --- 404 Catch All --- */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

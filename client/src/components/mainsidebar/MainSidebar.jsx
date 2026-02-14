@@ -1,99 +1,159 @@
-import React, { useState, useMemo, useEffect } from "react"; 
+import React, { useState, useMemo, useRef, useEffect } from "react"; 
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify/react"; 
+import { Bars3Icon } from "@heroicons/react/24/outline"; 
 
-// Assets
-import logo from "../../assets/logo.svg"; 
-
-// --- MENU CONFIGURATION (Now with Icons for Sub-items) ---
+// --- MENU CONFIGURATION ---
 const MENU_ITEMS = [
   {
-    category: "Main",
     items: [
-      { title: "Home", path: "/admin/dashboard", icon: "feather:home" },
-      { title: "Chats", path: "/admin/chat", icon: "feather:message-circle" },
+      { title: "Home", path: "/admin/dashboard", icon: "feather:grid" },
+      { title: "Alert", path: "/admin/notifications", icon: "feather:bell", badge: "2" },
+      { title: "Chats", path: "/admin/chat", icon: "feather:message-circle", badge: "10+" },
       { 
-        title: "Customers", 
+        title: "Contacts & CRM", 
         icon: "feather:users", 
         isSubmenu: true,
         children: [
           { title: "Contacts", path: "/admin/contacts/list", icon: "feather:user" },
-          { title: "Smart Labels", path: "/admin/contacts/labels", icon: "feather:tag" },
-          { title: "Custom Fields", path: "/admin/contacts/fields", icon: "feather:list" },
-          { title: "Quick Replies", path: "/admin/contacts/quick-replies", icon: "feather:zap" },
-          { title: "Status Manager", path: "/admin/contacts/status", icon: "feather:trello" }
+          { title: "Labels", path: "/admin/contacts/labels", icon: "feather:tag" },
+          { title: "Custom fields", path: "/admin/contacts/fields", icon: "feather:list" },
+          { title: "Quick reply", path: "/admin/contacts/quick-replies", icon: "feather:message-square" },
+          { title: "Status", path: "/admin/contacts/status", icon: "feather:check-circle" }
         ]
       },
       { 
-        title: "Campaigns", 
-        icon: "feather:send", 
+        title: "Templates", 
+        icon: "feather:file-text", 
         isSubmenu: true,
         children: [
-          { title: "Template", path: "/admin/campaigns/templates", icon: "feather:layout" },
-          { title: "Bulk Send", path: "/admin/campaigns/bulk", icon: "feather:mail" }
+          { title: "Template list", path: "/admin/templates/list", icon: "feather:list" },
+          { title: "Create template", path: "/admin/campaigns/templates", icon: "feather:plus-square" },
+          { title: "Template gallery", path: "/admin/templates/gallery", icon: "feather:grid" }
+        ]
+      },
+      { title: "Campaign", path: "/admin/campaigns", icon: "feather:send" },
+      { 
+        title: "Commerce", 
+        icon: "feather:shopping-cart", 
+        isSubmenu: true,
+        children: [
+          { title: "Payment list", path: "/admin/commerce/payments", icon: "feather:dollar-sign" },
+          { title: "Product list", path: "/admin/commerce/products", icon: "feather:package" }
         ]
       },
       { title: "Automation", path: "/admin/automation", icon: "feather:cpu" },
-      { title: "Business", path: "/admin/business", icon: "feather:briefcase" },
-      { title: "Reports", path: "/admin/reports", icon: "feather:bar-chart-2" },
-      { title: "Alerts", path: "/admin/alerts", icon: "feather:alert-triangle" },
       { 
-        title: "Integrations", 
-        icon: "feather:link", 
+        title: "Analytics", 
+        icon: "feather:bar-chart-2", 
         isSubmenu: true,
         children: [
-          { title: "API Access", path: "/admin/integration/api", icon: "feather:code" },
-          { title: "App Connect", path: "/admin/integration/apps", icon: "feather:grid" }
+          { title: "Conversation analytics", path: "/admin/analytic/conversation", icon: "feather:message-circle" },
+          { title: "Messages analytics", path: "/admin/analytic/messages", icon: "feather:mail" },
+          { title: "Template analytics", path: "/admin/analytic/template", icon: "feather:layout" },
+          { title: "Campaign analytics", path: "/admin/analytic", icon: "feather:send" }
+        ]
+      },
+      { title: "Developer API", path: "/admin/developer/api", icon: "feather:code" },
+      { title: "App integration", path: "/admin/integration/apps", icon: "feather:link" },
+      { 
+        title: "Settings", 
+        icon: "feather:settings", 
+        isSubmenu: true,
+        children: [
+          { title: "WhatsApp Config", path: "/admin/settings/whatsapp", icon: "feather:smartphone" },
+          { title: "Media Settings", path: "/admin/settings/media", icon: "feather:image" }
         ]
       },
       { 
-        title: "Account", 
-        icon: "feather:user-check", 
+        title: "Plan & Pricing", 
+        icon: "feather:credit-card", 
         isSubmenu: true,
         children: [
-          { title: "Admin", path: "/admin/account/admin", icon: "feather:shield" },
-          { title: "Settings", path: "/admin/account/settings", icon: "feather:settings" },
-          { title: "My Account", path: "/admin/account/profile", icon: "feather:user" },
-          { title: "My Plan", path: "/admin/account/plan", icon: "feather:credit-card" }
+          { title: "Upgrade plan", path: "/admin/plan/upgrade", icon: "feather:arrow-up-circle" },
+          { title: "Add-ons (WCC)", path: "/admin/plan/addons", icon: "feather:plus-circle" },
+          { title: "Active plan", path: "/admin/plan/active", icon: "feather:check-square" },
+          { title: "Payment history", path: "/admin/plan/history", icon: "feather:clock" },
+          { title: "Payment methods", path: "/admin/plan/methods", icon: "feather:credit-card" }
+        ]
+      },
+      { 
+        title: "Profile", 
+        icon: "feather:briefcase", 
+        isSubmenu: true,
+        children: [
+          { title: "Profile Information", path: "/admin/account/profile", icon: "feather:user" },
+          { title: "Business Information", path: "/admin/profile/business", icon: "feather:briefcase" }
         ]
       },
     ]
   }
 ];
 
-// --- SIDEBAR ITEM COMPONENT ---
-const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, onToggle }) => {
+const findMenuItem = (title) => {
+  for (const group of MENU_ITEMS) {
+    const found = group.items.find(item => item.title === title);
+    if (found) return found;
+  }
+  return null;
+};
+
+const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
   const isOpen = openSubmenu === item.title;
+  const isFloatingOpen = activeFloating === item.title;
   const isChildActive = item.children?.some(child => isActive(child.path));
   const active = isActive(item.path);
 
-  // Styling
-  const baseClass = "group flex items-center justify-between px-5 py-3.5 text-[14px] font-medium transition-all duration-200 cursor-pointer border-l-4";
-  const activeClass = "border-black bg-gray-100 text-black"; 
-  const inactiveClass = "border-transparent text-gray-700 hover:bg-gray-50 hover:text-black";
+  const activeClass = "bg-[#EBF5F0] text-slate-900 border-l-4 border-[#10B981]";
+  const inactiveClass = "text-slate-600 hover:bg-slate-50 hover:text-black border-l-4 border-transparent";
 
+  // --- 1. COLLAPSED MODE ---
+  if (!isExpanded) {
+    if (item.isSubmenu) {
+      return (
+        <div className="relative my-1 mx-2">
+          <button 
+            onClick={(e) => {
+              e.stopPropagation();
+              onFloatingToggle(item.title, e); 
+            }}
+            className={`w-full flex justify-center items-center py-3 rounded-lg transition-colors cursor-pointer relative ${isChildActive || isFloatingOpen ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`}
+            title={item.title}
+          >
+            <Icon icon={item.icon} className="w-5 h-5" />
+            {isFloatingOpen && <span className="absolute right-1 top-1 w-1.5 h-1.5 bg-[#10B981] rounded-full"></span>}
+          </button>
+        </div>
+      );
+    }
+    return (
+      <Link 
+        to={item.path || "#"} 
+        className={`flex justify-center items-center py-3 my-1 mx-2 rounded-lg transition-colors ${active ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`}
+        title={item.title}
+      >
+        <Icon icon={item.icon} className="w-5 h-5" />
+      </Link>
+    );
+  }
+
+  // --- 2. EXPANDED MODE ---
   if (item.isSubmenu) {
     return (
-      <div className="border-b border-gray-50 last:border-0">
+      <div className="mb-1">
         <div 
-          onClick={() => isExpanded && onToggle(item.title)} 
-          className={`${baseClass} ${isChildActive ? activeClass : inactiveClass}`}
-          title={!isExpanded ? item.title : ""}
+          onClick={() => onToggle(item.title)} 
+          className={`group flex items-center justify-between px-4 py-3 cursor-pointer transition-all duration-200 ${isChildActive ? activeClass : inactiveClass}`}
         >
-          <div className="flex items-center gap-4">
-             <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${isChildActive ? "text-black" : "text-gray-500 group-hover:text-black"}`} />
-             <span className={`truncate transition-opacity duration-200 ${isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 hidden"}`}>
-                {item.title}
-             </span>
+          <div className="flex items-center gap-3 overflow-hidden">
+             <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${isChildActive ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
+             <span className="truncate text-[14px] font-medium">{item.title}</span>
           </div>
-          {isExpanded && (
-            <Icon icon="feather:chevron-down" className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
-          )}
+          <Icon icon="feather:chevron-down" className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
         </div>
         
-        {/* Submenu Area */}
-        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen && isExpanded ? "max-h-[400px] opacity-100" : "max-h-0 opacity-0"}`}>
-          <div className="bg-gray-50 py-2">
+        <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
+          <div className="bg-white py-1 space-y-0.5 border-l border-slate-100 ml-6 pl-2">
             {item.children.map((sub, idx) => {
               const isSubActive = isActive(sub.path);
               return (
@@ -101,12 +161,11 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, onToggle }) => {
                   key={idx} 
                   to={sub.path}
                   className={`
-                    flex items-center gap-3 pl-12 pr-4 py-2.5 text-[13px] font-medium transition-colors
-                    ${isSubActive ? "text-[#ba2525] font-semibold bg-gray-100" : "text-gray-500 hover:text-black hover:bg-gray-100"}
+                    flex items-center gap-3 px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors
+                    ${isSubActive ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}
                   `}
                 >
-                  {/* ✅ Submenu Icon Rendered Here */}
-                  <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isSubActive ? "text-[#ba2525]" : "text-gray-400"}`} />
+                  <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isSubActive ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
                   <span className="truncate">{sub.title}</span>
                 </Link>
               );
@@ -118,40 +177,38 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, onToggle }) => {
   }
 
   return (
-    <Link 
-      to={item.path}
-      onClick={() => onToggle(item.title)} 
-      className={`border-b border-gray-50 last:border-0 ${baseClass} ${active ? activeClass : inactiveClass}`}
-    >
-      <div className="flex items-center gap-4">
-        <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-black" : "text-gray-500 group-hover:text-black"}`} />
-        <span className={`truncate transition-opacity duration-200 ${isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 hidden"}`}>
-          {item.title}
-        </span>
-      </div>
-    </Link>
+    <div className="mb-1">
+      <Link 
+        to={item.path}
+        className={`group flex items-center px-4 py-3 transition-all duration-200 ${active ? activeClass : inactiveClass}`}
+      >
+        <div className="flex items-center gap-3 w-full overflow-hidden">
+          <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
+          <div className="flex items-center justify-between w-full">
+             <span className="truncate text-[14px] font-medium">{item.title}</span>
+             {item.badge && (
+               <span className="bg-[#00B050] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
+                 {item.badge}
+               </span>
+             )}
+          </div>
+        </div>
+      </Link>
+    </div>
   );
 };
 
-const MainSidebar = () => {
-  const [isExpanded, setIsExpanded] = useState(true);
+const MainSidebar = ({ isOpen, setIsOpen }) => {
   const [searchQuery, setSearchQuery] = useState(""); 
   const [openSubmenu, setOpenSubmenu] = useState(""); 
+  const searchInputRef = useRef(null); 
   const location = useLocation();
 
-  const isActive = (path) => location.pathname === path;
-  const toggleSidebar = () => setIsExpanded(!isExpanded);
-  const handleSubmenuToggle = (title) => setOpenSubmenu(prev => prev === title ? "" : title);
+  const [activeFloating, setActiveFloating] = useState(null);
+  const [floatingStyle, setFloatingStyle] = useState({ top: 0, left: '80px' }); 
 
-  useEffect(() => {
-    const handleResize = () => {
-      if(window.innerWidth < 1024) setIsExpanded(false);
-      else setIsExpanded(true);
-    };
-    handleResize();
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  const isActive = (path) => location.pathname === path;
+  const handleSubmenuToggle = (title) => setOpenSubmenu(prev => prev === title ? "" : title);
 
   const filteredMenuItems = useMemo(() => {
     if (!searchQuery) return MENU_ITEMS;
@@ -161,88 +218,159 @@ const MainSidebar = () => {
     })).filter(cat => cat.items.length > 0);
   }, [searchQuery]);
 
+  const handleCollapsedSearchClick = () => {
+    setIsOpen(true);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 100);
+  };
+
+  const handleFloatingToggle = (title, e) => {
+    if (activeFloating === title) {
+      setActiveFloating(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const windowHeight = window.innerHeight;
+      const spaceBelow = windowHeight - rect.top;
+
+      if (spaceBelow < 350) {
+         setFloatingStyle({ 
+            left: '75px', 
+            bottom: (windowHeight - rect.bottom) + 'px', 
+            top: 'auto' 
+         });
+      } else {
+         setFloatingStyle({ 
+            left: '75px', 
+            top: rect.top + 'px', 
+            bottom: 'auto' 
+         });
+      }
+      setActiveFloating(title);
+    }
+  };
+
+  useEffect(() => { if(isOpen) setActiveFloating(null); }, [isOpen]);
+
+  const activeItemData = useMemo(() => activeFloating ? findMenuItem(activeFloating) : null, [activeFloating]);
+
   return (
     <>
       <style>{`
-        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar { width: 3px; }
         .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
         .sidebar-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         .sidebar-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+        
+        @keyframes fade-in {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fade-in {
+          animation: fade-in 0.15s ease-out forwards;
+        }
       `}</style>
 
-      {/* SIDEBAR CONTAINER */}
+      {activeFloating && !isOpen && (
+        <div className="fixed inset-0 z-[9990] bg-transparent" onClick={() => setActiveFloating(null)}></div>
+      )}
+
+      {activeFloating && !isOpen && activeItemData && (
+        <div 
+          className="fixed w-60 bg-white shadow-[0_5px_30px_-5px_rgba(0,0,0,0.2)] rounded-xl border border-slate-100 p-2 z-[9999] animate-fade-in origin-left"
+          style={floatingStyle}
+        >
+           <div className="px-4 py-3 border-b border-slate-50 mb-2 bg-slate-50/50 rounded-t-lg flex justify-between items-center">
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeItemData.title}</span>
+              <button onClick={() => setActiveFloating(null)} className="text-slate-400 hover:text-red-500"><Icon icon="feather:x" /></button>
+           </div>
+           <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
+              {activeItemData.children.map((sub, idx) => {
+                 const isSubActive = isActive(sub.path);
+                 return (
+                   <Link 
+                     key={idx} 
+                     to={sub.path}
+                     onClick={() => setActiveFloating(null)}
+                     className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isSubActive ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}
+                   >
+                     <Icon icon={sub.icon} className={`w-4 h-4 ${isSubActive ? "text-[#10B981]" : "text-slate-400"}`} />
+                     <span className="truncate">{sub.title}</span>
+                   </Link>
+                 )
+              })}
+           </div>
+        </div>
+      )}
+
       <div 
-        className={`flex flex-col h-screen sticky top-0 bg-[#FDFDFD] border-r border-gray-200 shadow-xl z-50 font-['Urbanist'] transition-all duration-300 ease-in-out
-        ${isExpanded ? "w-[260px] min-w-[260px]" : "w-[80px] min-w-[80px]"} 
+        className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0
+        ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"} 
         `}
       >
         
-        {/* 1. HEADER */}
-        <div className={`flex items-center shrink-0 bg-[#FDFDFD] h-20 transition-all duration-300 ${isExpanded ? "justify-between px-5" : "justify-center gap-2 px-1"}`}>
+        {/* 1. SEARCH & TOGGLE (Responsive Fix) */}
+        <div className={`mt-5 mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
            
-           {/* Logo Section */}
-           <div className="flex items-center gap-3 overflow-hidden shrink-0">
-              <div className="relative w-8 h-8 flex items-center justify-center shrink-0">
-                 <img src={logo} alt="Logo" className="w-full h-full object-contain" />
-              </div>
-              <span className={`text-xl font-extrabold text-black tracking-tight whitespace-nowrap transition-all duration-200 ${isExpanded ? "opacity-100 w-auto" : "opacity-0 w-0 hidden"}`}>
-                Mess bee
-              </span>
-           </div>
-           
-           {/* Collapse Toggle */}
-           <button onClick={toggleSidebar} className="text-gray-400 hover:text-black transition-colors shrink-0 p-1 rounded-md hover:bg-gray-50">
-              <Icon 
-                icon={isExpanded ? "feather:chevron-left" : "feather:chevron-right"} 
-                className="w-5 h-5" 
-              />
-           </button>
-        </div>
-
-        {/* 2. SEARCH BAR */}
-        <div className={`mb-4 shrink-0 transition-all duration-200 ${isExpanded ? "px-4" : "px-2"}`}>
-           {isExpanded ? (
-             <div className="flex items-center bg-[#E5E7EB] rounded-md px-3 py-2.5">
-                <Icon icon="feather:search" className="w-5 h-5 text-gray-500 mr-2" />
+           {/* ✅ Conditional Rendering: Show Input ONLY when expanded */}
+           {isOpen ? (
+             <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
+                <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
                 <input 
+                  ref={searchInputRef}
                   type="text" 
                   placeholder="Search" 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-500"
+                  className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400"
                 />
-                <Icon icon="feather:help-circle" className="w-5 h-5 text-gray-500 ml-2 cursor-pointer hover:text-black" />
              </div>
            ) : (
-             <div className="flex justify-center items-center bg-[#E5E7EB] rounded-md py-2.5 cursor-pointer hover:bg-gray-200 transition-colors h-[40px]" title="Search">
-                <Icon icon="feather:search" className="w-5 h-5 text-gray-600" />
-             </div>
+             // ✅ Collapsed Mode: Just the Icon Button
+             <button 
+                onClick={handleCollapsedSearchClick} 
+                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" 
+                title="Click to Search"
+             >
+                <Icon icon="feather:search" className="w-5 h-5" />
+             </button>
            )}
+
+           {/* Hamburger Toggle (Visible on Desktop) */}
+           <button 
+             onClick={() => setIsOpen(!isOpen)} 
+             className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0"
+             title={isOpen ? "Collapse" : "Expand"}
+           >
+             <Bars3Icon className="w-6 h-6" />
+           </button>
         </div>
 
-        {/* 3. MENU ITEMS */}
-        <div className="flex-1 overflow-y-auto sidebar-scroll">
+        {/* 2. MENU LIST */}
+        <div className="flex-1 overflow-y-auto sidebar-scroll py-2">
           {filteredMenuItems.map((section, idx) => (
-            <div key={idx}>
+            <div key={idx} className="mb-4">
               {section.items.map((item, i) => (
                 <SidebarItem 
                   key={i} 
                   item={item} 
                   isActive={isActive} 
-                  isExpanded={isExpanded} 
+                  isExpanded={isOpen} 
                   openSubmenu={openSubmenu}     
                   onToggle={handleSubmenuToggle} 
+                  activeFloating={activeFloating}
+                  onFloatingToggle={handleFloatingToggle}
                 />
               ))}
             </div>
           ))}
         </div>
 
-        {/* 4. FOOTER (Logout) */}
-        <div className="border-t border-gray-200 bg-[#F9FAFB] shrink-0">
-           <button className={`w-full flex items-center px-5 py-4 text-gray-600 hover:text-red-600 hover:bg-red-50 transition-colors ${!isExpanded ? "justify-center" : ""}`}>
+        {/* 3. LOGOUT */}
+        <div className="border-t border-gray-100 bg-[#F9FAFB] shrink-0 p-2">
+           <button className={`w-full flex items-center px-3 py-3 text-slate-600 hover:text-slate-900 hover:bg-[#EBF5F0] rounded-lg transition-colors ${!isOpen ? "justify-center" : ""}`}>
               <Icon icon="feather:log-out" className="w-5 h-5 min-w-[20px]" />
-              {isExpanded && <span className="text-sm font-medium ml-3">Logout</span>}
+              {isOpen && <span className="text-sm font-medium ml-3">Logout</span>}
            </button>
         </div>
 
