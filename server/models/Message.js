@@ -1,50 +1,13 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
-const MessageSchema = new mongoose.Schema({
-  contact: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Contact',
-    required: true
+const messageSchema = mongoose.Schema(
+  {
+    chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat" },
+    text: { type: String, required: true },
+    sender: { type: String, enum: ["me", "them"], required: true }, // 'me' = admin, 'them' = user
+    time: { type: String } // e.g. "12:05 PM"
   },
-  sender: {
-    type: String,
-    enum: ['user', 'contact'],
-    required: true
-  },
-  content: {
-    type: String,
-    required: [true, 'Message content is required']
-  },
-  messageType: {
-    type: String,
-    enum: ['text', 'image', 'document', 'audio', 'video'],
-    default: 'text'
-  },
-  mediaUrl: {
-    type: String
-  },
-  status: {
-    type: String,
-    enum: ['sent', 'delivered', 'read', 'failed'],
-    default: 'sent'
-  },
-  campaign: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Campaign'
-  },
-  user: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+  { timestamps: true }
+);
 
-// Index for faster queries
-MessageSchema.index({ contact: 1, createdAt: -1 });
-MessageSchema.index({ user: 1, createdAt: -1 });
-
-module.exports = mongoose.model('Message', MessageSchema);
+module.exports = mongoose.model("Message", messageSchema);
