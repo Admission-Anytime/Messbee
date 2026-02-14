@@ -1,163 +1,194 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import axios from 'axios';
 import { 
-  Search, Plus, Type, Image as ImageIcon, 
-  Sticker, Music, Video, FileText, Link, 
-  User, Headset, ShoppingCart, Upload, X, Phone, Video as VideoIcon, CheckCircle2,
-  Pencil, Trash2, AlertCircle 
+  Plus, Type, Image as ImageIcon, 
+  Sticker, Music, Video as VideoIcon, FileText, Link, 
+  User, Upload, X, Pencil, Trash2, ExternalLink, AlertTriangle 
 } from 'lucide-react';
+import { toast } from 'react-toastify'; 
 
 const QuickReply = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Delete confirmation state
+  const [itemToDelete, setItemToDelete] = useState(null); // ID of item to delete
   const [selectedType, setSelectedType] = useState('TEXT');
   const [message, setMessage] = useState('');
   const [shortcut, setShortcut] = useState('');
-  const [showSuccessCard, setShowSuccessCard] = useState(false);
-  const [deleteIndex, setDeleteIndex] = useState(null);
+  const [buttonText, setButtonText] = useState('');
+  const [url, setUrl] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null); 
   const [editingIndex, setEditingIndex] = useState(null);
   const fileInputRef = useRef(null);
 
-  const [replies, setReplies] = useState([
-    { shortcut: '/welcome', content: 'Hello! Welcome to our service. How can ...', type: 'TEXT', color: 'bg-emerald-100 text-emerald-600' },
-    { shortcut: '/pricing', content: 'You can find our detailed pricing sheet ...', type: 'MEDIA', color: 'bg-purple-100 text-purple-600' },
-    { shortcut: '/hours', content: 'Our business hours are Mon-Fri, 9am to ...', type: 'TEXT', color: 'bg-blue-100 text-blue-600' },
-  ]);
+  const [replies, setReplies] = useState([]);
+  const [activePreview, setActivePreview] = useState(null);
 
-  // Sync Logic: Preview ke liye data decide karna
-  const previewData = isModalOpen 
-    ? { content: message, type: selectedType } 
-    : replies.length > 0 
-      ? replies[replies.length - 1] 
-      : null;
+  const API_URL = 'http://localhost:5000/api/quick-replies';
+  const BASE_URL = 'http://localhost:5000'; 
 
   useEffect(() => {
-    if (showSuccessCard) {
-      const timer = setTimeout(() => setShowSuccessCard(false), 2000);
-      return () => clearTimeout(timer);
+    fetchReplies();
+  }, []);
+
+  const fetchReplies = async () => {
+    try {
+      const response = await axios.get(API_URL);
+      const data = Array.isArray(response.data) ? response.data : [];
+      setReplies(data);
+      if (data.length > 0) setActivePreview(data[0]);
+    } catch (error) {
+      setReplies([]); 
+      toast.error("Could not connect to server");
     }
-  }, [showSuccessCard]);
+  };
 
-  const handleSave = () => {
-    const newReply = {
-      shortcut: shortcut.startsWith('/') ? shortcut : `/${shortcut || 'new'}`,
-      content: message || 'No content',
-      type: selectedType,
-      color: 'bg-blue-100 text-blue-600'
-    };
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 16 * 1024 * 1024) { 
+        toast.error("File size too large! Max 16MB.");
+        return;
+      }
+      setSelectedFile(file);
+      toast.info(`Selected: ${file.name}`);
+    }
+  };
 
-    if (editingIndex !== null) {
-      const updatedReplies = [...replies];
-      updatedReplies[editingIndex] = newReply;
-      setReplies(updatedReplies);
-    } else {
-      setReplies([...replies, newReply]);
+  // Open confirmation card instead of window.confirm
+  const openDeleteConfirmation = (e, id) => {
+    e.stopPropagation();
+    setItemToDelete(id);
+    setIsDeleteModalOpen(true);
+  };
+
+  //  Final Delete Logic
+  const handleConfirmDelete = async () => {
+    try {
+      await axios.delete(`${API_URL}/${itemToDelete}`);
+      toast.success("Deleted successfully!"); // Toaster message
+      fetchReplies();
+      if (activePreview?._id === itemToDelete) setActivePreview(null);
+      setIsDeleteModalOpen(false);
+      setItemToDelete(null);
+    } catch (error) {
+      toast.error("Error deleting reply");
+    }
+  };
+
+  const getPreviewImage = () => {
+    if (isModalOpen && selectedFile) {
+      return URL.createObjectURL(selectedFile);
+    }
+    if (activePreview?.mediaUrl) {
+      return `${BASE_URL}${activePreview.mediaUrl}`;
+    }
+    return null;
+  };
+
+  const previewData = isModalOpen 
+    ? { content: message, type: selectedType, buttonText, url } 
+    : activePreview;
+
+  const handleSave = async () => {
+    const formData = new FormData();
+    formData.append('shortcut', shortcut.startsWith('/') ? shortcut : `/${shortcut || 'new'}`);
+    formData.append('content', message || '');
+    formData.append('type', selectedType);
+    formData.append('buttonText', buttonText);
+    formData.append('url', url);
+    
+    if (selectedFile) {
+      formData.append('file', selectedFile);
     }
 
+    try {
+      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      
+      if (editingIndex !== null) {
+        const id = replies[editingIndex]._id;
+        await axios.put(`${API_URL}/${id}`, formData, config);
+        toast.success("Updated Successfully!");
+      } else {
+        await axios.post(API_URL, formData, config);
+        toast.success("Saved Successfully!"); 
+      }
+      fetchReplies();
+      closeModal();
+    } catch (error) {
+      const errorMsg = error.response?.data?.message || "Error saving data";
+      toast.error(errorMsg);
+    }
+  };
+
+  const closeModal = () => {
     setIsModalOpen(false);
-    setShowSuccessCard(true);
     resetForm();
-  };
-
-  const handleEdit = (index) => {
-    const item = replies[index];
-    setShortcut(item.shortcut.replace('/', ''));
-    setMessage(item.content);
-    setSelectedType(item.type);
-    setEditingIndex(index);
-    setIsModalOpen(true);
-  };
-
-  const confirmDelete = () => {
-    const updatedReplies = replies.filter((_, i) => i !== deleteIndex);
-    setReplies(updatedReplies);
-    setDeleteIndex(null);
-    setShowSuccessCard(true);
   };
 
   const resetForm = () => {
     setMessage('');
     setShortcut('');
     setSelectedType('TEXT');
+    setButtonText('');
+    setUrl('');
+    setSelectedFile(null);
     setEditingIndex(null);
   };
 
-  const addVariable = (variable) => {
-    setMessage(prev => prev + ` {{${variable}}}`);
+  const handleEdit = (e, index) => {
+    e.stopPropagation(); 
+    const item = replies[index];
+    setShortcut(item.shortcut.replace('/', ''));
+    setMessage(item.content);
+    setSelectedType(item.type);
+    setButtonText(item.buttonText || '');
+    setUrl(item.url || '');
+    setEditingIndex(index);
+    setIsModalOpen(true);
   };
 
   return (
-    <div className="flex h-screen w-full font-sans relative overflow-hidden bg-white text-slate-700">
+    <div className="flex h-screen w-full font-sans bg-white text-slate-700 overflow-hidden">
       
-      {/* SUCCESS MODAL */}
-      {showSuccessCard && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/20 backdrop-blur-[2px] animate-in fade-in duration-300">
-          <div className="bg-white border-emerald-100 border shadow-2xl rounded-3xl p-8 flex flex-col items-center gap-4 min-w-[320px] transform animate-in zoom-in duration-300">
-            <div className="bg-emerald-500 p-4 rounded-full text-white shadow-xl shadow-emerald-200 animate-bounce">
-              <CheckCircle2 size={40} />
-            </div>
-            <div className="text-center">
-              <h4 className="text-xl font-bold text-slate-800">Saved Successfully!</h4>
-              <p className="text-sm text-gray-500 mt-1">Your quick reply is now active.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION */}
-      {deleteIndex !== null && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white border-red-100 border shadow-2xl rounded-3xl p-8 flex flex-col items-center max-w-sm w-full mx-4 transform animate-in zoom-in duration-200">
-            <div className="bg-red-100 p-4 rounded-full text-red-600 mb-4">
-              <AlertCircle size={48} />
-            </div>
-            <h4 className="text-xl font-bold mb-2 text-slate-800">Are you sure?</h4>
-            <p className="text-center text-gray-500 text-sm mb-8">This action cannot be undone. This quick reply will be permanently removed.</p>
-            <div className="flex w-full gap-3">
-              <button onClick={() => setDeleteIndex(null)} className="flex-1 py-3 rounded-xl font-bold text-sm transition-colors bg-gray-100 text-gray-600 hover:bg-gray-200">Cancel</button>
-              <button onClick={confirmDelete} className="flex-1 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-red-200 transition-all active:scale-95">Yes, Delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* LEFT DASHBOARD */}
-      <div className="flex-1 flex flex-col border-r border-gray-200">
-        <div className="p-6 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-slate-800">Quick Replies</h1>
-          <div className="flex items-center gap-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input type="text" placeholder="Search quick replies..." className="pl-10 pr-4 py-2 border rounded-lg w-80 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 border-gray-200" />
-            </div>
-            <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg font-medium transition-all active:scale-95">
-              <Plus className="w-5 h-5" /> Create Quick Reply
-            </button>
-          </div>
+      <div className="flex-1 flex flex-col min-w-0 border-r border-gray-100">
+        <div className="p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <h1 className="text-xl md:text-2xl font-bold text-slate-800">Quick Replies</h1>
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
+            <Plus size={20} /> Create Quick Reply
+          </button>
         </div>
 
-        <div className="px-6 overflow-auto">
-          <table className="w-full text-left">
+        <div className="px-6 flex-1 overflow-auto">
+          <table className="w-full text-left border-separate border-spacing-y-2">
             <thead>
-              <tr className="text-xs font-semibold uppercase tracking-wider border-b text-gray-400 border-gray-100">
-                <th className="pb-4 w-1/4">Shortcut</th>
-                <th className="pb-4 w-1/2">Message Content</th>
-                <th className="pb-4">Type</th>
-                <th className="pb-4">Actions</th>
+              <tr className="text-[11px] font-bold uppercase text-gray-400 tracking-wider">
+                <th className="px-4 pb-2">Shortcut</th>
+                <th className="px-4 pb-2">Message Content</th>
+                <th className="px-4 pb-2">Type</th>
+                <th className="px-4 pb-2 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {replies.map((reply, idx) => (
-                <tr key={idx} className="group transition-colors hover:bg-slate-50">
-                  <td className="py-4">
-                    <span className={`px-3 py-1 rounded-md text-sm font-medium ${reply.color}`}>{reply.shortcut}</span>
+                <tr 
+                  key={reply._id || idx} 
+                  onClick={() => setActivePreview(reply)}
+                  className={`group cursor-pointer transition-all ${activePreview === reply ? 'bg-emerald-50/60 shadow-sm' : 'hover:bg-slate-50'}`}
+                >
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">{reply.shortcut}</span>
                   </td>
-                  <td className="py-4 text-sm text-gray-600">{reply.content}</td>
-                  <td className="py-4">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${reply.type === 'TEXT' ? 'text-blue-500 border-blue-200 bg-blue-50' : 'text-purple-500 border-purple-200 bg-purple-50'}`}>{reply.type}</span>
+                  <td className="px-4 py-4">
+                    <p className="text-sm text-gray-600 truncate max-w-[200px] md:max-w-xs">{reply.content || "Media Only"}</p>
                   </td>
-                  <td className="py-4">
-                    <div className="flex items-center gap-3">
-                      <button onClick={() => handleEdit(idx)} className="text-gray-400 hover:text-emerald-500 transition-colors"><Pencil size={18} /></button>
-                      <button onClick={() => setDeleteIndex(idx)} className="text-gray-400 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                  <td className="px-4 py-4">
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md border border-blue-200 bg-blue-50 text-blue-500 uppercase">{reply.type}</span>
+                  </td>
+                  <td className="px-4 py-4 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button onClick={(e) => handleEdit(e, idx)} className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"><Pencil size={16} /></button>
+                      {/*  Trigger Confirmation Card */}
+                      <button onClick={(e) => openDeleteConfirmation(e, reply._id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -167,124 +198,175 @@ const QuickReply = () => {
         </div>
       </div>
 
-      {/* RIGHT PREVIEW - SYNCED LOGIC */}
-      <div className="w-[400px] flex flex-col items-center justify-center p-8 border-l bg-slate-50 border-gray-100">
-        <div className="relative w-[280px] h-[580px] bg-black rounded-[3rem] border-[8px] border-slate-800 shadow-2xl overflow-hidden">
-          <div className="h-full w-full bg-[#e5ddd5] flex flex-col">
-            <div className="bg-[#075e54] p-4 pt-8 flex items-center gap-3 text-white">
-              <div className="w-8 h-8 rounded-full bg-gray-300 overflow-hidden">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="avatar" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs font-bold leading-tight">Preview Chat</p>
-                <p className="text-[10px] opacity-80">online</p>
-              </div>
-              <div className="flex gap-3"><VideoIcon className="w-4 h-4" /><Phone className="w-4 h-4" /></div>
+      {/* PREVIEW SIDEBAR */}
+      <div className="hidden lg:flex w-[380px] xl:w-[450px] bg-slate-50 flex-col items-center justify-center p-10">
+         <div className="relative w-[280px] h-[580px] bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden scale-90 xl:scale-100 transition-transform">
+            <div className="h-full w-full bg-[#f0f2f5] flex flex-col">
+                <div className="bg-[#00a884] p-4 pt-10 flex items-center gap-3 text-white">
+                  <User size={24} className="bg-white/20 rounded-full p-1"/>
+                  <div className="flex-1"><p className="text-xs font-bold">Preview Chat</p></div>
+                </div>
+                <div className="flex-1 p-4 space-y-4">
+                   {previewData && (
+                     <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
+                        {previewData.type !== 'TEXT' && (
+                          <div className="mb-2 min-h-32 bg-slate-100 rounded-lg overflow-hidden flex flex-col items-center justify-center border border-slate-200">
+                            {getPreviewImage() ? (
+                                <img src={getPreviewImage()} alt="preview" className="w-full h-full object-cover" />
+                            ) : (
+                                <>
+                                    <ImageIcon size={24} className="text-slate-300" />
+                                    <span className="text-[9px] mt-1 uppercase font-bold text-slate-400">{previewData.type} Placeholder</span>
+                                </>
+                            )}
+                          </div>
+                        )}
+                        <p className="whitespace-pre-wrap leading-relaxed">{previewData.content}</p>
+                        {previewData.buttonText && (
+                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center text-blue-500 font-bold gap-1">
+                            <ExternalLink size={12} /> {previewData.buttonText}
+                          </div>
+                        )}
+                     </div>
+                   )}
+                </div>
             </div>
+         </div>
+      </div>
+
+      {/* ✅ DELETE CONFIRMATION CARD (MODAL) */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle size={32} />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Confirm Delete</h3>
+            <p className="text-sm text-slate-500 mb-6">Are you sure you want to remove this quick reply? This action cannot be undone.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-400 hover:bg-slate-50 transition-all">Cancel</button>
+              <button onClick={handleConfirmDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-200 transition-all active:scale-95">Yes, Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE/EDIT MODAL AREA */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[100vh] sm:max-h-[90vh]">
             
-            <div className="flex-1 p-3 space-y-4 overflow-y-auto">
-              <div className="bg-white p-2 rounded-lg text-[11px] max-w-[80%] shadow-sm text-slate-800">
-                Hi, I have a quick question about your services!
-                <p className="text-[9px] text-right text-gray-400 mt-1">10:02 AM</p>
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-800">Create Multi-Format Quick Reply</h2>
+                <p className="text-xs text-gray-400 font-medium">Configure your automated response and content.</p>
+              </div>
+              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={22} /></button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+              {/* Type Selection */}
+              <div>
+                <label className="text-sm font-bold text-slate-700 mb-4 block">Response Type</label>
+                <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                  {[
+                    { id: 'TEXT', label: 'TEXT', icon: <Type size={18}/> },
+                    { id: 'IMAGE', label: 'IMAGE', icon: <ImageIcon size={18}/> },
+                    { id: 'STICKER', label: 'STICKER', icon: <Sticker size={18}/> },
+                    { id: 'AUDIO', label: 'AUDIO', icon: <Music size={18}/> },
+                    { id: 'VIDEO', label: 'VIDEO', icon: <VideoIcon size={18}/> },
+                    { id: 'FILE', label: 'FILE', icon: <FileText size={18}/> },
+                    { id: 'CTA URL', label: 'CTA URL', icon: <Link size={18}/> }
+                  ].map((type) => (
+                    <button 
+                      key={type.id} 
+                      onClick={() => { setSelectedType(type.id); setSelectedFile(null); }}
+                      className={`flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-2xl border-2 transition-all ${selectedType === type.id ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}
+                    >
+                      {type.icon}
+                      <span className="text-[9px] font-black mt-1 uppercase">{type.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {previewData ? (
-                <div key={replies.length} className="bg-[#dcf8c6] p-2 rounded-lg text-[11px] max-w-[80%] ml-auto shadow-sm break-words text-slate-800 animate-in slide-in-from-right-2 duration-300">
-                  {previewData.type !== 'TEXT' && (
-                     <div className="mb-2 p-3 bg-black/5 rounded-md flex flex-col items-center justify-center border border-black/5">
-                        {previewData.type === 'IMAGE' && <ImageIcon size={24} className="text-gray-500" />}
-                        {previewData.type === 'STICKER' && <Sticker size={24} className="text-gray-500" />}
-                        {previewData.type === 'AUDIO' && <Music size={24} className="text-gray-500" />}
-                        {previewData.type === 'VIDEO' && <Video size={24} className="text-gray-500" />}
-                        {previewData.type === 'FILE' && <FileText size={24} className="text-gray-500" />}
-                        <span className="text-[8px] mt-1 font-bold text-gray-400">{previewData.type} ATTACHMENT</span>
-                     </div>
-                  )}
-                  <span className="whitespace-pre-wrap">{previewData.content || "Hello! Welcome to our service..."}</span>
-                  <p className="text-[9px] text-right text-gray-400 mt-1 flex items-center justify-end gap-0.5">
-                    10:02 AM <CheckCircle2 size={8} className="text-blue-400" />
-                  </p>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center opacity-40">
-                  <div className="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center mb-2">
-                    <Type className="text-gray-400" size={20}/>
+              {/* Shortcut & CTA Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-bold text-slate-700 mb-2 block">Shortcut</label>
+                  <div className="relative group">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 font-bold group-focus-within:text-emerald-500">/</span>
+                    <input type="text" value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="welcome" className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm" />
                   </div>
-                  <p className="text-[10px] text-gray-500">No active quick replies</p>
+                </div>
+                
+                {(selectedType === 'CTA URL' || selectedType === 'IMAGE') && (
+                  <>
+                    <div>
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">Button Text (Optional)</label>
+                      <input type="text" value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="e.g. Visit" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none text-sm" />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="text-sm font-bold text-slate-700 mb-2 block">URL (Optional)</label>
+                      <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none text-sm" />
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Message Content Area */}
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="text-sm font-bold text-slate-700">Message Content</label>
+                  <span className="text-[10px] font-bold text-gray-300">{message.length} / 4096</span>
+                </div>
+                <div className="flex gap-2 mb-3">
+                  {['customer_name', 'agent_name', 'order_id'].map((v) => (
+                    <button key={v} onClick={() => setMessage(p => p + ` {{${v}}}`)} className="px-3 py-1.5 border border-gray-100 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-emerald-500 transition-colors">
+                      <span className="text-emerald-500 mr-1">{"{"}</span>{v}<span className="text-emerald-500 ml-1">{"}"}</span>
+                    </button>
+                  ))}
+                </div>
+                <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows="5" className="w-full px-4 py-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm resize-none" placeholder="Type message..."></textarea>
+              </div>
+
+              {/* Media Upload Area */}
+              {selectedType !== 'TEXT' && (
+                <div>
+                  <label className="text-sm font-bold text-slate-700 mb-2 block">Media Upload</label>
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    onChange={handleFileChange} 
+                    className="hidden" 
+                    accept={selectedType === 'IMAGE' ? 'image/*' : selectedType === 'AUDIO' ? 'audio/*' : selectedType === 'VIDEO' ? 'video/*' : '*/*'}
+                  />
+                  <div 
+                    onClick={() => fileInputRef.current.click()}
+                    className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 hover:bg-emerald-50/30 transition-all cursor-pointer group ${selectedFile ? 'border-emerald-400 bg-emerald-50/50 shadow-inner' : 'border-gray-200 hover:border-emerald-200'}`}
+                  >
+                    <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-emerald-500 mb-3 transition-transform group-active:scale-90">
+                      <Upload size={24} />
+                    </div>
+                    <p className="text-xs font-bold text-slate-600 text-center">
+                      {selectedFile ? (
+                        <span className="text-emerald-600">Selected: {selectedFile.name}</span>
+                      ) : (
+                        <>Drag and drop your file here, or <span className="text-emerald-500 underline">browse</span></>
+                      )}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-black tracking-widest">
+                      Max 16MB
+                    </p>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="p-2 bg-gray-50 flex items-center gap-2">
-              <div className="flex-1 bg-white rounded-full px-3 py-1.5 text-[11px] text-gray-400 border border-gray-200">Message</div>
-            </div>
-          </div>
-        </div>
-        <p className="mt-6 text-slate-500 font-semibold text-sm tracking-wide">Real-time Preview</p>
-      </div>
-
-      {/* CREATE/EDIT MODAL */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 border bg-white border-emerald-100">
-            <div className="p-6 border-b flex justify-between items-center border-gray-100">
-              <div>
-                <h2 className="text-xl font-bold text-slate-800">{editingIndex !== null ? 'Edit Quick Reply' : 'Create Multi-Format Quick Reply'}</h2>
-                <p className="text-sm text-gray-500">Configure your automated response type and content.</p>
-              </div>
-              <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="text-gray-400 hover:text-red-500 transition-colors"><X className="w-6 h-6" /></button>
-            </div>
-
-            <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
-              <div>
-                <label className="text-sm font-semibold mb-3 block">Response Type</label>
-                <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                  {[{ icon: <Type />, label: 'TEXT' }, { icon: <ImageIcon />, label: 'IMAGE' }, { icon: <Sticker />, label: 'STICKER' }, { icon: <Music />, label: 'AUDIO' }, { icon: <Video />, label: 'VIDEO' }, { icon: <FileText />, label: 'FILE' }, { icon: <Link />, label: 'CTA URL' }].map((item, i) => (
-                    <button key={i} onClick={() => setSelectedType(item.label)} className={`flex flex-col items-center justify-center min-w-[75px] h-20 rounded-xl border-2 transition-all ${selectedType === item.label ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-100 text-gray-400'}`}>
-                      {React.cloneElement(item.icon, { size: 20 })}
-                      <span className="text-[10px] font-bold mt-2">{item.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold mb-2 block">Shortcut</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-bold">/</span>
-                  <input type="text" value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="welcome" className="w-full pl-8 pr-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-slate-50 border-gray-200" />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between mb-2">
-                  <label className="text-sm font-semibold">Message Content</label>
-                  <span className="text-[10px] text-gray-400">{message.length} / 4096</span>
-                </div>
-                <div className="flex gap-2 mb-3">
-                  {['customer_name', 'agent_name', 'order_id'].map((v) => (
-                    <button key={v} onClick={() => addVariable(v)} className="flex items-center gap-1.5 px-3 py-1.5 border rounded-lg text-xs font-medium transition-all bg-white border-gray-200 hover:bg-emerald-50">
-                      {v === 'order_id' ? <ShoppingCart size={14}/> : v === 'agent_name' ? <Headset size={14}/> : <User size={14}/>} {`{{${v}}}`}
-                    </button>
-                  ))}
-                </div>
-                <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows="4" placeholder="Type your message here..." className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none bg-slate-50 border-gray-200"></textarea>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold mb-2 block">Media Upload</label>
-                <div onClick={() => fileInputRef.current.click()} className="border-2 border-dashed rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer border-gray-200 bg-slate-50/50 hover:bg-emerald-50/30">
-                  <Upload className="text-emerald-500 mb-4" />
-                  <p className="text-sm">Drag and drop or <span className="text-emerald-500 font-semibold underline">browse</span></p>
-                </div>
-                <input type="file" ref={fileInputRef} className="hidden" />
-              </div>
-            </div>
-
-            <div className="p-4 border-t flex justify-end gap-3 bg-slate-50/30 border-gray-100">
-              <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="px-6 py-2 text-sm font-bold text-slate-600 hover:bg-slate-200 rounded-lg">Cancel</button>
-              <button onClick={handleSave} className="px-6 py-2 text-sm font-bold text-white bg-emerald-500 hover:bg-emerald-600 rounded-lg shadow-md transition-all active:scale-95">
-                {editingIndex !== null ? 'Update Quick Reply' : 'Save Quick Reply'}
+            <div className="p-6 border-t border-gray-100 flex justify-end items-center gap-4 bg-white">
+              <button onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
+              <button onClick={handleSave} className="px-8 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95">
+                {editingIndex !== null ? 'Update Quick Reply' : 'Save'}
               </button>
             </div>
           </div>
