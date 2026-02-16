@@ -10,6 +10,13 @@ import {
   ChevronRightIcon,
   ChevronLeftIcon,
 } from "@heroicons/react/24/outline";
+import { toast } from "react-toastify";
+import {
+  createCustomFieldApi,
+  updateCustomFieldApi,
+  deleteCustomFieldApi,
+  listCustomFieldsApi,
+} from "../../services/CustomfieldApi";
 
 const slugifyKey = (value) =>
   value
@@ -20,132 +27,92 @@ const slugifyKey = (value) =>
     .replace(/_+/g, "_");
 
 const FIELD_TYPES = ["Text", "Number", "Date"];
-const ITEMS_PER_PAGE = 8; // Number of items to show per page
+const ITEMS_PER_PAGE = 8;
 
 const CustomFieldsSection = () => {
-  const [fields, setFields] = useState([
-    {
-      name: "Institute Name",
-      description: "Primary institute of the lead",
-      type: "Text",
-      key: "college_name",
-      createdBy: { name: "Anil Kumar Atri", initials: "AK" },
-      isActive: true,
-    },
-    {
-      name: "Email",
-      description: "Email id of contact",
-      type: "Text",
-      key: "email_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Address",
-      description: "Address of contact",
-      type: "Text",
-      key: "address_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Notes",
-      description: "Notes for contact",
-      type: "Text",
-      key: "notes_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Additional Phone number",
-      description: "Alternate phone number of c...",
-      type: "Text",
-      key: "additional_phone_number_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "GSTN",
-      description: "GSTN of contact",
-      type: "Text",
-      key: "gstn_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Creation Date",
-      description: "The date when the lead was...",
-      type: "Date",
-      key: "created_at",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Order Value",
-      description: "Total monetary value of the ...",
-      type: "Number",
-      key: "order_value",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Company Size",
-      description: "Total employees in the comp...",
-      type: "Number",
-      key: "emp_count",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-  ]);
 
-  // ===== Pagination state =====
+  const [fields, setFields] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Calculate pagination values
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchFields = async () => {
+      try {
+        const res = await listCustomFieldsApi();
+        const list = res.data?.data || [];
+
+        if (mounted) setFields(list);
+      } catch (err) {
+        if (mounted) {
+          toast.error(err?.response?.data?.message || "Failed to load custom fields");
+        }
+      }
+    };
+
+    fetchFields();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   const totalPages = Math.ceil(fields.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const currentFields = fields.slice(startIndex, endIndex);
 
-  // Reset to page 1 when fields change significantly
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) {
       setCurrentPage(totalPages);
     }
+    if (totalPages === 0 && currentPage !== 1) setCurrentPage(1);
   }, [fields.length, currentPage, totalPages]);
 
-  // Pagination handlers
   const goToNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
-    }
+    if (currentPage < totalPages) setCurrentPage((prev) => prev + 1);
   };
 
   const goToPreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-    }
+    if (currentPage > 1) setCurrentPage((prev) => prev - 1);
   };
 
   const goToPage = (pageNumber) => {
-    if (pageNumber >= 1 && pageNumber <= totalPages) {
-      setCurrentPage(pageNumber);
-    }
+    if (pageNumber >= 1 && pageNumber <= totalPages) setCurrentPage(pageNumber);
   };
 
-  // ===== Delete modal =====
+
+  // Delete handlers
   const [deleteIndex, setDeleteIndex] = useState(null);
   const fieldToDelete = deleteIndex !== null ? fields[deleteIndex] : null;
 
   const openDeleteModal = (index) => setDeleteIndex(index);
   const closeDeleteModal = () => setDeleteIndex(null);
-  const confirmDelete = () => {
+
+  const confirmDelete = async () => {
     if (deleteIndex === null) return;
-    setFields((prev) => prev.filter((_, i) => i !== deleteIndex));
-    setDeleteIndex(null);
+
+    const deleting = fields[deleteIndex];
+    const id = deleting?._id;
+
+    if (!id) {
+      toast.error("Missing field id");
+      return;
+    }
+
+    try {
+      await deleteCustomFieldApi(id);
+
+      setFields((prev) => prev.filter((f) => f._id !== id));
+      setDeleteIndex(null);
+
+      toast.success(`Custom field "${deleting?.name ?? "Field"}" deleted successfully`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Delete failed");
+    }
   };
 
-  // ===== Create modal =====
+  
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -154,7 +121,6 @@ const CustomFieldsSection = () => {
     description: "",
   });
 
-  // ===== Edit modal =====
   const [editIndex, setEditIndex] = useState(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -181,7 +147,6 @@ const CustomFieldsSection = () => {
     setEditIndex(null);
   };
 
-  // auto-generate key in CREATE when typing name (editable, but auto if user didn't change)
   useEffect(() => {
     setForm((prev) => {
       const autoKey = slugifyKey(prev.name || "");
@@ -190,10 +155,8 @@ const CustomFieldsSection = () => {
       if (!wasAuto) return prev;
       return { ...prev, key: nextAutoKey };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.name]);
 
-  // auto-generate key in EDIT when typing name (editable, but auto if user didn't change)
   useEffect(() => {
     if (!isEditOpen) return;
     setEditForm((prev) => {
@@ -203,7 +166,6 @@ const CustomFieldsSection = () => {
       if (!wasAuto) return prev;
       return { ...prev, key: nextAutoKey };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editForm.name, isEditOpen]);
 
   const existingKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
@@ -212,13 +174,17 @@ const CustomFieldsSection = () => {
     setForm({ name: "", type: "Text", key: "", description: "" });
     setIsCreateOpen(true);
   };
+  
   const closeCreateModal = () => setIsCreateOpen(false);
 
   const toggleActive = (index) => {
+    const currentField = fields[index];
+    if (!currentField) return;
+
+    const nextIsActive = !currentField.isActive;
+
     setFields((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, isActive: !item.isActive } : item
-      )
+      prev.map((item, i) => (i === index ? { ...item, isActive: nextIsActive } : item))
     );
   };
 
@@ -227,38 +193,46 @@ const CustomFieldsSection = () => {
     const key = slugifyKey(form.key || "");
     if (!name) return { ok: false, msg: "Field name is required." };
     if (!key) return { ok: false, msg: "Technical key is required." };
-    if (existingKeys.has(key))
-      return { ok: false, msg: "Technical key must be unique." };
+    if (existingKeys.has(key)) return { ok: false, msg: "Technical key must be unique." };
     return { ok: true, key, name };
   };
 
-
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     const v = validateCreate();
-    if (!v.ok) return;
+    if (!v.ok) {
+      toast.error(v.msg);
+      return;
+    }
 
-    const newField = {
-      name: v.name,
-      description: form.description.trim(),
-      type: form.type,
-      key: v.key,
-      createdBy: { name: "You", initials: "U" },
-      isActive: true,
-    };
+    try {
+      const payload = {
+        name: v.name,
+        type: form.type,
+        key: v.key,
+        description: form.description.trim(),
+      };
 
-    setFields((prev) => [newField, ...prev]);
-    setIsCreateOpen(false);
-    setCurrentPage(1); // Go to first page to see the new field
+      const res = await createCustomFieldApi(payload);
+      const created = res.data?.data;
+
+      setFields((prev) => [created, ...prev]);
+      setIsCreateOpen(false);
+      setCurrentPage(1);
+
+      toast.success(`Custom field "${created.name}" created`);
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Create failed");
+    }
   };
+
 
   const createError = useMemo(() => {
     const v = validateCreate();
     return v.ok ? "" : v.msg;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.name, form.key, fields]);
-  
-  // ===== EDIT validation & save =====
+  }, [form.name, form.key, existingKeys]);
+
+
   const validateEdit = () => {
     if (editIndex === null) return { ok: false, msg: "No field selected." };
 
@@ -267,7 +241,6 @@ const CustomFieldsSection = () => {
     if (!name) return { ok: false, msg: "Field name is required." };
     if (!key) return { ok: false, msg: "Technical key is required." };
 
-    // unique key check excluding the current row
     const duplicates = fields.some((f, i) => i !== editIndex && f.key === key);
     if (duplicates) return { ok: false, msg: "Technical key must be unique." };
 
@@ -278,31 +251,45 @@ const CustomFieldsSection = () => {
     if (!isEditOpen) return "";
     const v = validateEdit();
     return v.ok ? "" : v.msg;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editForm.name, editForm.key, fields, editIndex, isEditOpen]);
 
-  const handleEditSave = (e) => {
+
+//edit handler
+  const handleEditSave = async (e) => {
     e.preventDefault();
     const v = validateEdit();
-    if (!v.ok) return;
+    if (!v.ok) {
+      toast.error(v.msg);
+      return;
+    }
 
-    setFields((prev) =>
-      prev.map((f, i) =>
-        i === editIndex
-          ? {
-              ...f,
-              name: v.name,
-              key: v.key,
-              type: editForm.type,
-              description: editForm.description.trim(),
-            }
-          : f
-      )
-    );
-    closeEditModal();
+    try {
+      const id = fields[editIndex]?._id;
+      if (!id) {
+        toast.error("Missing field id");
+        return;
+      }
+
+      const payload = {
+        name: v.name,
+        type: editForm.type,
+        key: v.key,
+        description: editForm.description.trim(),
+      };
+
+      
+      const res = await updateCustomFieldApi(id, payload);
+      const updated = res.data?.data;
+
+      setFields((prev) => prev.map((f) => (f._id === updated._id ? updated : f)));
+
+      toast.success(`Custom field "${updated.name}" updated`);
+      closeEditModal();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Update failed");
+    }
   };
 
-  // ESC closes modals
   useEffect(() => {
     const onKeyDown = (e) => {
       if (e.key !== "Escape") return;
@@ -314,14 +301,28 @@ const CustomFieldsSection = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isCreateOpen, isEditOpen, deleteIndex]);
 
+  const getUserInitials = (createdBy) => {
+    if (!createdBy) return "?";
+    if (typeof createdBy === 'string') return "U";
+    
+    const name = createdBy.name || createdBy.email || "";
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2) || "U";
+  };
+
+  const getUserName = (createdBy) => {
+    if (!createdBy) return "Unknown";
+    if (typeof createdBy === 'string') return "User";
+    
+    return createdBy.name || createdBy.email || "Unknown";
+  };
+
   return (
-    <div className="flex-1 bg-gray-50 p-4 overflow-hidden">
-      <div className="bg-white rounded-lg shadow-sm">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+    <div className="flex-1 bg-gray-50 overflow-hidden flex flex-col">
+      <div className="sticky top-0 z-20 bg-gray-50 px-8 pt-8 pb-8">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-gray-900">Custom Fields</h1>
-            <button className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs">
+            <h1 className="text-2xl font-semibold text-gray-900">Custom Fields</h1>
+            <button className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs hover:bg-gray-300">
               ?
             </button>
           </div>
@@ -333,13 +334,13 @@ const CustomFieldsSection = () => {
 
             <button
               onClick={openCreateModal}
-              className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2.5 rounded-lg flex items-center gap-2 whitespace-nowrap font-medium"
             >
               <span className="text-lg">+</span>
               <span>Create Custom Fields</span>
             </button>
 
-            <button className="p-2">
+            <button className="p-2 hover:bg-gray-100 rounded-lg">
               <BellIcon className="w-5 h-5 text-gray-600" />
             </button>
 
@@ -348,185 +349,179 @@ const CustomFieldsSection = () => {
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Table - NO horizontal scroll */}
-        <div className="overflow-hidden">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="w-[25%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Description
-                </th>
-                <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Type
-                </th>
-                <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Key
-                </th>
-                <th className="w-[17%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Created By
-                </th>
-                <th className="w-[15%] px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
+      <div className="flex-1 overflow-auto px-7 pb-8">
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div>
+            <table className="w-full table-fixed">
+              <thead className="sticky top-0 z-10 bg-white">
+                <tr className="border-b border-gray-200 bg-white">
+                  <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="w-[25%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Key
+                  </th>
+                  <th className="w-[17%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Created By
+                  </th>
+                  <th className="w-[15%] px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
 
-            <tbody className="bg-white divide-y divide-gray-200">
-              {currentFields.map((field, displayIndex) => {
-                const actualIndex = startIndex + displayIndex;
-                return (
-                  <tr key={field.key} className="hover:bg-gray-50">
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>
-                        {field.name}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="text-sm text-gray-600 truncate" title={field.description}>
-                        {field.description}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <span className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded truncate inline-block max-w-full">
-                        {field.type.toLowerCase()}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>
-                        {field.key}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0">
-                          {field.createdBy.initials}
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentFields.map((field, displayIndex) => {
+                  const actualIndex = startIndex + displayIndex;
+                  return (
+                    <tr key={field._id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3">
+                        <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>
+                          {field.name}
                         </div>
-                        <span className="text-sm text-gray-900 truncate" title={field.createdBy.name}>
-                          {field.createdBy.name}
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-gray-600 truncate" title={field.description}>
+                          {field.description}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <span className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded truncate inline-block max-w-full">
+                          {field.type.toLowerCase()}
                         </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Toggle + Edit + Delete */}
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        {/* Toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(actualIndex)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 flex-shrink-0 ${
-                            field.isActive ? "bg-green-500" : "bg-gray-300"
-                          }`}
-                          aria-pressed={field.isActive}
-                          title={field.isActive ? "Active" : "Inactive"}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-                              field.isActive ? "translate-x-6" : "translate-x-1"
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>
+                          {field.key}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0">
+                            {getUserInitials(field.createdBy)}
+                          </div>
+                          <span className="text-sm text-gray-900 truncate" title={getUserName(field.createdBy)}>
+                            {getUserName(field.createdBy)}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => toggleActive(actualIndex)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 flex-shrink-0 ${
+                              field.isActive ? "bg-green-500" : "bg-gray-300"
                             }`}
-                          />
-                        </button>
+                            aria-pressed={field.isActive}
+                            title={field.isActive ? "Active" : "Inactive"}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                                field.isActive ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
 
-                        {/* Edit */}
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(actualIndex)}
-                          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
-                          title="Edit"
-                        >
-                          <PencilSquareIcon className="w-5 h-5" />
-                        </button>
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(actualIndex)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            title="Edit"
+                          >
+                            <PencilSquareIcon className="w-5 h-5" />
+                          </button>
 
-                        {/* Delete */}
-                        <button
-                          type="button"
-                          onClick={() => openDeleteModal(actualIndex)}
-                          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
-                          title="Delete"
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => openDeleteModal(actualIndex)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            title="Delete"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+
+                {fields.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
+                      No custom fields yet.
                     </td>
                   </tr>
-                );
-              })}
-
-              {fields.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
-                    No custom fields yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer with Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-          <div className="text-sm text-gray-600">
-            Showing {fields.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields.length)} of {fields.length} custom fields
+                )}
+              </tbody>
+            </table>
           </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Previous Button */}
-            <button
-              onClick={goToPreviousPage}
-              disabled={currentPage === 1}
-              className={`p-1 rounded ${
-                currentPage === 1
-                  ? "text-gray-300 cursor-not-allowed"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              }`}
-              title="Previous page"
-            >
-              <ChevronLeftIcon className="w-5 h-5" />
-            </button>
 
-            {/* Page Numbers */}
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`min-w-[32px] h-8 px-2 rounded text-sm font-medium ${
-                    currentPage === pageNum
-                      ? "bg-green-500 text-white"
-                      : "text-gray-600 hover:bg-gray-100"
-                  }`}
-                >
-                  {pageNum}
-                </button>
-              ))}
+          <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+            <div className="text-sm text-gray-600">
+              Showing {fields.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields.length)} of {fields.length} custom fields
             </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={goToPreviousPage}
+                disabled={currentPage === 1}
+                className={`p-1 rounded ${
+                  currentPage === 1
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
+                title="Previous page"
+              >
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
 
-            {/* Next Button */}
-            <button
-              onClick={goToNextPage}
-              disabled={currentPage === totalPages || totalPages === 0}
-              className={`p-1 rounded ${
-                currentPage === totalPages || totalPages === 0
-                  ? "text-gray-300 cursor-not-allowed"
-                  : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
-              }`}
-              title="Next page"
-            >
-              <ChevronRightIcon className="w-5 h-5" />
-            </button>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => goToPage(pageNum)}
+                    className={`min-w-[32px] h-8 px-2 rounded text-sm font-medium ${
+                      currentPage === pageNum
+                        ? "bg-green-500 text-white"
+                        : "text-gray-600 hover:bg-gray-100"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={goToNextPage}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className={`p-1 rounded ${
+                  currentPage === totalPages || totalPages === 0
+                    ? "text-gray-300 cursor-not-allowed"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                }`}
+                title="Next page"
+              >
+                <ChevronRightIcon className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ===== Delete Confirmation Card ===== */}
       {deleteIndex !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/30" onClick={closeDeleteModal} />
@@ -538,7 +533,7 @@ const CustomFieldsSection = () => {
                   {fieldToDelete ? (
                     <>
                       You are about to delete{" "}
-                      <span className="font-medium text-gray-900">{fieldToDelete.name}</span>. This action can't be
+                      <span className="font-medium text-gray-900">{fieldToDelete.name}</span>. This action can not be
                       undone.
                     </>
                   ) : (
@@ -573,7 +568,6 @@ const CustomFieldsSection = () => {
         </div>
       )}
 
-      {/* ===== Create Custom Field Modal  */}
       {isCreateOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/30" onClick={closeCreateModal} />
@@ -678,7 +672,6 @@ const CustomFieldsSection = () => {
         </div>
       )}
 
-      {/* ===== Edit Custom Field Modal ===== */}
       {isEditOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/30" onClick={closeEditModal} />
