@@ -1,0 +1,309 @@
+{
+  "info": {
+    "name": "Messbee API - Postman Collection",
+    "_postman_id": "messbee-api-collection",
+    "description": "Collection for testing Messbee server APIs (import into Postman). Set `{{baseUrl}}` and `{{token}}` in collection variables or in an environment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\",\n  \"phone\": \"+1234567890\",\n  \"company\": \"Acme Inc\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/register", "host": ["{{baseUrl}}"], "path": ["api","auth","register"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"password123\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": { "raw": "{{baseUrl}}/api/auth/login", "host": ["{{baseUrl}}"], "path": ["api","auth","login"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Get current user (me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/auth/me", "host": ["{{baseUrl}}"], "path": ["api","auth","me"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update details",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"Jane Doe\", \"phone\": \"+10000000000\" }", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/auth/updatedetails", "host": ["{{baseUrl}}"], "path": ["api","auth","updatedetails"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update password",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"currentPassword\": \"oldpass\", \"newPassword\": \"newpass123\" }", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/auth/updatepassword", "host": ["{{baseUrl}}"], "path": ["api","auth","updatepassword"] }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Get profile",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/users/profile", "host": ["{{baseUrl}}"], "path": ["api","users","profile"] } },
+          "response": []
+        },
+        {
+          "name": "Update profile",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"company\": \"New Co\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/users/profile", "host": ["{{baseUrl}}"], "path": ["api","users","profile"] } },
+          "response": []
+        },
+        {
+          "name": "Upload avatar",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [ { "key": "avatar", "type": "file", "src": [] } ] },
+            "url": { "raw": "{{baseUrl}}/api/users/avatar", "host": ["{{baseUrl}}"], "path": ["api","users","avatar"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update subscription",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"subscriptionPlan\": \"basic\", \"subscriptionEndDate\": \"2026-12-31T00:00:00.000Z\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/users/subscription", "host": ["{{baseUrl}}"], "path": ["api","users","subscription"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Contacts",
+      "item": [
+        {
+          "name": "List contacts",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/contacts?search=john&page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["api","contacts"], "query": [ { "key": "search", "value": "john" }, { "key": "page", "value": "1" }, { "key": "limit", "value": "20" } ] } },
+          "response": []
+        },
+        {
+          "name": "Create contact",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"name\": \"Alice\", \"phone\": \"+15551234567\", \"email\": \"alice@example.com\", \"company\": \"Acme\", \"tags\": [\"lead\"], \"notes\": \"Met at event\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/contacts", "host": ["{{baseUrl}}"], "path": ["api","contacts"] } },
+          "response": []
+        },
+        {
+          "name": "Import contacts (bulk)",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"contacts\": [ { \"name\": \"A\", \"phone\": \"+10000000001\" }, { \"name\": \"B\", \"phone\": \"+10000000002\" } ] }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/contacts/import", "host": ["{{baseUrl}}"], "path": ["api","contacts","import"] } },
+          "response": []
+        },
+        {
+          "name": "Get contact by id",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/contacts/{{contactId}}", "host": ["{{baseUrl}}"], "path": ["api","contacts","{{contactId}}"], "variable": [ { "key": "contactId", "value": "{{contactId}}" } ] } },
+          "response": []
+        },
+        {
+          "name": "Update contact",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"company\": \"Updated Co\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/contacts/{{contactId}}", "host": ["{{baseUrl}}"], "path": ["api","contacts","{{contactId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Delete contact",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{baseUrl}}/api/contacts/{{contactId}}", "host": ["{{baseUrl}}"], "path": ["api","contacts","{{contactId}}"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Campaigns",
+      "item": [
+        {
+          "name": "List campaigns",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/campaigns", "host": ["{{baseUrl}}"], "path": ["api","campaigns"] } },
+          "response": []
+        },
+        {
+          "name": "Create campaign",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"name\": \"Spring Promo\", \"messageTemplate\": \"Hello {{name}} - sale!\", \"status\": \"draft\", \"scheduledDate\": \"2026-03-01T10:00:00.000Z\", \"targetAudience\": [\"tag:lead\"] }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/campaigns", "host": ["{{baseUrl}}"], "path": ["api","campaigns"] } },
+          "response": []
+        },
+        {
+          "name": "Get campaign by id",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/campaigns/{{campaignId}}", "host": ["{{baseUrl}}"], "path": ["api","campaigns","{{campaignId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Update campaign",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"status\": \"active\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/campaigns/{{campaignId}}", "host": ["{{baseUrl}}"], "path": ["api","campaigns","{{campaignId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Delete campaign",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{baseUrl}}/api/campaigns/{{campaignId}}", "host": ["{{baseUrl}}"], "path": ["api","campaigns","{{campaignId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Update campaign stats",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"sent\": 100, \"delivered\": 95, \"read\": 80, \"replied\": 5, \"failed\": 0 }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/campaigns/{{campaignId}}/stats", "host": ["{{baseUrl}}"], "path": ["api","campaigns","{{campaignId}}","stats"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat",
+      "item": [
+        {
+          "name": "Conversations",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/chats/conversations", "host": ["{{baseUrl}}"], "path": ["api","chats","conversations"] } },
+          "response": []
+        },
+        {
+          "name": "Get messages for contact",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/chats/{{contactId}}/messages?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["api","chats","{{contactId}}","messages"], "query": [ { "key": "page", "value": "1" }, { "key": "limit", "value": "20" } ] } },
+          "response": []
+        },
+        {
+          "name": "Send message to contact",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"content\": \"Hello!\", \"messageType\": \"text\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/chats/{{contactId}}/messages", "host": ["{{baseUrl}}"], "path": ["api","chats","{{contactId}}","messages"] } },
+          "response": []
+        },
+        {
+          "name": "Mark messages as read",
+          "request": { "method": "PUT", "header": [], "url": { "raw": "{{baseUrl}}/api/chats/{{contactId}}/read", "host": ["{{baseUrl}}"], "path": ["api","chats","{{contactId}}","read"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Analytics",
+      "item": [
+        {
+          "name": "Dashboard analytics",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/analytics/dashboard?startDate=2026-01-01&endDate=2026-01-31", "host": ["{{baseUrl}}"], "path": ["api","analytics","dashboard"], "query": [ { "key": "startDate", "value": "2026-01-01" }, { "key": "endDate", "value": "2026-01-31" } ] } },
+          "response": []
+        },
+        {
+          "name": "Message analytics",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/analytics/messages?period=30d", "host": ["{{baseUrl}}"], "path": ["api","analytics","messages"], "query": [ { "key": "period", "value": "30d" } ] } },
+          "response": []
+        },
+        {
+          "name": "Campaign analytics",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/analytics/campaigns", "host": ["{{baseUrl}}"], "path": ["api","analytics","campaigns"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Automation",
+      "item": [
+        {
+          "name": "List automations",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/automation", "host": ["{{baseUrl}}"], "path": ["api","automation"] } },
+          "response": []
+        },
+        {
+          "name": "Create automation",
+          "request": { "method": "POST", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"name\": \"Auto 1\", \"trigger\": { \"type\": \"keyword\", \"value\": { \"keyword\": \"help\" } }, \"actions\": [ { \"type\": \"sendMessage\", \"params\": { \"message\": \"Thanks for contacting us\" } } ] }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/automation", "host": ["{{baseUrl}}"], "path": ["api","automation"] } },
+          "response": []
+        },
+        {
+          "name": "Get automation",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{baseUrl}}/api/automation/{{automationId}}", "host": ["{{baseUrl}}"], "path": ["api","automation","{{automationId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Update automation",
+          "request": { "method": "PUT", "header": [ { "key": "Content-Type", "value": "application/json" } ], "body": { "mode": "raw", "raw": "{ \"name\": \"Renamed Automation\" }", "options": { "raw": { "language": "json" } } }, "url": { "raw": "{{baseUrl}}/api/automation/{{automationId}}", "host": ["{{baseUrl}}"], "path": ["api","automation","{{automationId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Delete automation",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{baseUrl}}/api/automation/{{automationId}}", "host": ["{{baseUrl}}"], "path": ["api","automation","{{automationId}}"] } },
+          "response": []
+        },
+        {
+          "name": "Toggle automation",
+          "request": { "method": "PUT", "header": [], "url": { "raw": "{{baseUrl}}/api/automation/{{automationId}}/toggle", "host": ["{{baseUrl}}"], "path": ["api","automation","{{automationId}}","toggle"] } },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Custom Fields",
+      "item": [
+        {
+          "name": "Create custom field",
+          "request": {
+            "method": "POST",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"Birthday\", \"type\": \"Date\", \"workspaceId\": \"{{workspaceId}}\", \"description\": \"Customer birthday\" }", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/custom-fields/create-custom-field", "host": ["{{baseUrl}}"], "path": ["api","custom-fields","create-custom-field"] }
+          },
+          "response": []
+        },
+        {
+          "name": "Update custom field",
+          "request": {
+            "method": "PUT",
+            "header": [ { "key": "Content-Type", "value": "application/json" } ],
+            "body": { "mode": "raw", "raw": "{ \"name\": \"Birthday Updated\", \"type\": \"Date\", \"key\": \"birthday\", \"description\": \"Updated description\" }", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/custom-fields/{{customFieldId}}", "host": ["{{baseUrl}}"], "path": ["api","custom-fields","{{customFieldId}}"], "variable": [ { "key": "customFieldId", "value": "{{customFieldId}}" } ] }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete custom field",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/custom-fields/{{customFieldId}}", "host": ["{{baseUrl}}"], "path": ["api","custom-fields","{{customFieldId}}"], "variable": [ { "key": "customFieldId", "value": "{{customFieldId}}" } ] }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "contactId", "value": "", "type": "string" },
+    { "key": "campaignId", "value": "", "type": "string" },
+    { "key": "automationId", "value": "", "type": "string" },
+    { "key": "customFieldId", "value": "", "type": "string" },
+    { "key": "workspaceId", "value": "", "type": "string" }
+  ]
+}

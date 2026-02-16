@@ -7,7 +7,7 @@ const connectDB = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
 const { createServer } = require('http');
 const { initializeSocket } = require('./config/socket');
-
+const customFieldRoutes = require("./routes/customFieldsRoutes");
 // Load env vars
 dotenv.config();
 
@@ -67,6 +67,10 @@ app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
+//routes for the CustomFields
+app.use("/api/custom-fields", customFieldRoutes);
+
+
 
 // Health check
 app.get('/health', (req, res) => {
