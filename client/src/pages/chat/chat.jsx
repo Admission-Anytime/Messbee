@@ -40,19 +40,68 @@ const Chat = () => {
 
     fetchChats();
 
-    // Socket Listener for incoming messages
-    socket.on("receive_message", (newMessage) => {
+    // Socket Listeners for WhatsApp integration
+    
+    // Handle incoming messages from WhatsApp
+    socket.on("receive_message", (data) => {
+      console.log("📱 Received message:", data);
+      
       // If the message belongs to the currently open chat, append it
-      if (activeChatId === newMessage.chatId) {
-        setMessages((prev) => [...prev, newMessage]);
+      if (activeChatId === data.chatId) {
+        setMessages((prev) => [...prev, data.message]);
       }
       
       // Update the sidebar preview for ANY chat
       setChats((prevChats) => 
         prevChats.map((chat) => 
-          chat._id === newMessage.chatId 
-            ? { ...chat, lastMsg: newMessage.text, lastMsgTime: newMessage.time }
+          chat._id === data.chatId 
+            ? { 
+                ...chat, 
+                lastMsg: data.message.text, 
+                lastMsgTime: data.message.time,
+                unread: chat._id === activeChatId ? chat.unread : (chat.unread || 0) + 1
+              }
             : chat
+        )
+      );
+    });
+
+    // Handle sent message confirmation
+    socket.on("message_sent", (data) => {
+      console.log("✅ Message sent:", data);
+      
+      // Update message status in UI
+      if (activeChatId === data.chatId) {
+        setMessages((prev) => 
+          prev.map((msg) => 
+            msg.whatsappMessageId === data.message.whatsappMessageId 
+              ? { ...msg, status: data.message.status }
+              : msg
+          )
+        );
+      }
+    });
+
+    // Handle message status updates (delivered, read)
+    socket.on("message_status_update", (data) => {
+      console.log("📊 Status update:", data);
+      
+      setMessages((prev) => 
+        prev.map((msg) => 
+          msg._id === data.messageId || msg.whatsappMessageId === data.whatsappMessageId
+            ? { ...msg, status: data.status }
+            : msg
+        )
+      );
+    });
+
+    // Handle chat list updates
+    socket.on("chat_updated", (updatedChat) => {
+      console.log("🔄 Chat updated:", updatedChat);
+      
+      setChats((prevChats) => 
+        prevChats.map((chat) => 
+          chat._id === updatedChat._id ? updatedChat : chat
         )
       );
     });
@@ -73,6 +122,16 @@ const Chat = () => {
         
         // Join Socket Room
         socket.emit("join_chat", activeChatId);
+
+        // Mark messages as read
+        await axios.put(`${API_URL}/chats/${activeChatId}/read`);
+        
+        // Update unread count locally
+        setChats((prevChats) => 
+          prevChats.map((chat) => 
+            chat._id === activeChatId ? { ...chat, unread: 0 } : chat
+          )
+        );
       } catch (err) {
         console.error("Error fetching messages:", err);
       }
@@ -86,15 +145,15 @@ const Chat = () => {
   // --- 3. FILTER LOGIC ---
   const filteredChats = useMemo(() => {
     switch (activeTab) {
-      case "Mine": return chats.filter((c) => c.teamMember === "Akshay Tomar");
+      case "Mine": return chats.filter((c) => c.teamMember !== "Unassigned");
       case "Open": return chats.filter((c) => c.chatStatus === "open");
       case "Closed": return chats.filter((c) => c.chatStatus === "closed");
-      // Add other cases as needed matching your Backend Schema
+      case "WhatsApp": return chats.filter((c) => c.source === "whatsapp");
       default: return chats;
     }
   }, [chats, activeTab]);
 
-  // --- 4. SEND MESSAGE HANDLER ---
+  // --- 4. SEND MESSAGE HANDLER (Enhanced for WhatsApp) ---
   const handleSendMessage = async (text) => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     
@@ -106,21 +165,53 @@ const Chat = () => {
     };
 
     try {
-      // 1. Optimistic UI Update (Show immediately)
-      setMessages((prev) => [...prev, messageData]);
+      // 1. Optimistic UI Update (Show immediately with 'pending' status)
+      const tempMessage = { 
+        ...messageData, 
+        _id: 'temp_' + Date.now(),
+        status: 'pending',
+        createdAt: new Date()
+      };
+      setMessages((prev) => [...prev, tempMessage]);
 
       // 2. Update Sidebar Preview Immediately
-      setChats((prev) => prev.map(c => c._id === activeChatId ? { ...c, lastMsg: text, lastMsgTime: time } : c));
+      setChats((prev) => prev.map(c => 
+        c._id === activeChatId 
+          ? { ...c, lastMsg: text, lastMsgTime: time } 
+          : c
+      ));
 
-      // 3. Send to Backend (Save to DB)
-      await axios.post(`${API_URL}/message`, messageData);
+      // 3. Send to Backend (will auto-detect WhatsApp and send via WhatsApp API)
+      const response = await axios.post(`${API_URL}/message`, messageData);
 
-      // 4. Emit to Socket (So user receives it instantly if they were online)
-      socket.emit("send_message", messageData);
+      // 4. Replace temp message with real one from server
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg._id === tempMessage._id 
+            ? { ...response.data, status: response.data.status || 'sent' }
+            : msg
+        )
+      );
+
+      // 5. Emit to Socket (for multi-device sync)
+      socket.emit("send_message", {
+        chatId: activeChatId,
+        message: response.data
+      });
 
     } catch (error) {
       console.error("Failed to send message", error);
-      alert("Failed to send message");
+      
+      // Mark message as failed
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg._id === 'temp_' + Date.now() 
+            ? { ...msg, status: 'failed' }
+            : msg
+        )
+      );
+      
+      alert("Failed to send message. Please try again.");
     }
   };
 
@@ -149,15 +240,11 @@ const Chat = () => {
         {activeChat ? (
           <div className="flex h-full w-full relative">
              <div className="flex-1 h-full min-w-0 flex flex-col">
-                {/* IMPORTANT: Pass 'messages' prop to Conversion. 
-                   Ensure your Conversion component uses this prop instead of 'data.messages' 
-                */}
                 <Conversion 
-                  data={{ ...activeChat, messages: messages }} // Merge live messages into chat object
+                  data={{ ...activeChat, messages: messages }}
                   onSendMessage={handleSendMessage} 
                   onBack={() => setActiveChatId(null)} 
                   onToggleProfile={() => setShowProfile(!showProfile)}
-                  // Pass other handlers if needed (delete, clear, etc.)
                 />
              </div>
              
@@ -170,7 +257,11 @@ const Chat = () => {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-400">
+             <svg className="w-32 h-32 mb-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+             </svg>
              <p className="font-semibold text-slate-500">Select a conversation</p>
+             <p className="text-sm text-slate-400 mt-1">Choose from your WhatsApp chats</p>
           </div>
         )}
       </div>

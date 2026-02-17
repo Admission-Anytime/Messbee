@@ -67,6 +67,7 @@ app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
+app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // WhatsApp Business API routes
 
 // Health check
 app.get('/health', (req, res) => {
