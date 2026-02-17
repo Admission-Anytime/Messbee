@@ -14,7 +14,7 @@ import {
   UserPlusIcon,
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
-  XMarkIcon // ✅ Imported Close Icon
+  XMarkIcon 
 } from "@heroicons/react/24/outline"; 
 
 // --- ASSETS ---
@@ -82,23 +82,15 @@ const MainHeading = ({ onMenuClick }) => {
   });
 
   // --- LOGIC: DYNAMIC COUNTS ---
-  
-  // 1. Bell Badge: Counts ALL unread items regardless of type
   const totalUnreadCount = notifications.filter(n => n.isUnread).length;
-
-  // 2. Tab Specific Counts (Total items in that category, read or unread)
   const mentionCount = notifications.filter(n => n.type === 'mention').length;
   const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
 
   const filteredNotifications = useMemo(() => {
     switch(activeTab) {
-        case '@Mentions':
-            return notifications.filter(n => n.type === 'mention');
-        case 'System':
-            return notifications.filter(n => n.type === 'alert' || n.type === 'lead');
-        case 'All':
-        default:
-            return notifications;
+        case '@Mentions': return notifications.filter(n => n.type === 'mention');
+        case 'System': return notifications.filter(n => n.type === 'alert' || n.type === 'lead');
+        case 'All': default: return notifications;
     }
   }, [activeTab, notifications]);
 
@@ -191,7 +183,6 @@ const MainHeading = ({ onMenuClick }) => {
                  className={`p-2 rounded-full hover:bg-slate-50 hover:text-slate-800 transition-colors relative ${isNotifOpen ? 'bg-slate-50 text-slate-900' : ''}`}
               >
                  <BellIcon className="w-6 h-6" />
-                 {/* COUNTER: Counts ALL unread */}
                  {totalUnreadCount > 0 && (
                     <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white shadow-sm">
                        {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
@@ -213,17 +204,15 @@ const MainHeading = ({ onMenuClick }) => {
                                     Mark all as read
                                  </button>
                              )}
-                             {/* ✅ CLOSE BUTTON */}
                              <button onClick={() => setIsNotifOpen(false)} className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1 rounded-md transition-colors">
                                 <XMarkIcon className="w-5 h-5" />
                              </button>
                           </div>
                        </div>
                        
-                       {/* Tabs with Dynamic Counts */}
+                       {/* Tabs */}
                        <div className="flex gap-6 border-b border-gray-100 text-sm font-medium">
                           {['All', '@Mentions', 'System'].map((tab) => {
-                             // Determine count for label
                              let count = 0;
                              if(tab === 'All') count = notifications.length;
                              if(tab === '@Mentions') count = mentionCount;
@@ -277,8 +266,15 @@ const MainHeading = ({ onMenuClick }) => {
                           )}
                        </div>
                        
+                       {/* ✅ FIXED BUTTON: Closes dropdown on click */}
                        <div className="p-4 border-t border-gray-50 bg-gray-50/50">
-                          <button onClick={() => navigate('/admin/notifications')} className="w-full py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
+                          <button 
+                             onClick={() => {
+                               navigate('/admin/notifications');
+                               setIsNotifOpen(false); // <--- This closes the dropdown
+                             }} 
+                             className="w-full py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors"
+                          >
                              View all activity logs
                              <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-400" />
                           </button>
