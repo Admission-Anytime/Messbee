@@ -59,12 +59,16 @@ app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
+<<<<<<< HEAD
+app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // WhatsApp Business API routes
+=======
 app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));
 
 // ✅ NEW: Status Route Added Here
 app.use('/api/status', require('./routes/statusRoutes'));
 
 // ================== HEALTH CHECK ==================
+>>>>>>> dev
 
 // For debugging: if any of these crash, it will be detected immediately
 
