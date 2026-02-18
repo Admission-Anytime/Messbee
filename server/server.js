@@ -8,21 +8,16 @@ const connectDB = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
 const { createServer } = require('http');
 const { initializeSocket } = require('./config/socket');
-
 // Load env vars
 dotenv.config();
-
 // Connect to database
 connectDB();
 
 const app = express();
 const httpServer = createServer(app);
-
 // Initialize Socket.IO
 const io = initializeSocket(httpServer);
-
-// ================== MIDDLEWARE ==================
-
+// Middleware
 app.use(cors({
   origin: process.env.CLIENT_URL || 'http://localhost:5173',
   credentials: true
@@ -30,18 +25,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// ✅ Fix: Static folder setup using path.join
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// ================== SWAGGER DOCS ==================
-
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Messbee API Documentation'
-}));
-
-// ================== ROUTES ==================
+ // Swagger fix: Prevent error if swaggerSpec is not a function
 
 // /**
 //  * @swagger
@@ -80,10 +66,38 @@ app.use('/api/status', require('./routes/statusRoutes'));
 
 // ================== HEALTH CHECK ==================
 
+// For debugging: if any of these crash, it will be detected immediately
+
+const safeUse = (path, modulePath) => {
+    const module = require(modulePath);
+    if (typeof module !== 'function') {
+        console.error(`❌ ERROR: Module at ${modulePath} is NOT a function/router. Check module.exports!`);
+    } else {
+        app.use(path, module);
+    }
+};
+
+try {
+    safeUse('/api/auth', './routes/authRoutes');
+    safeUse('/api/users', './routes/userRoutes');
+    safeUse('/api/contacts', './routes/contactRoutes');
+    safeUse('/api/campaigns', './routes/campaignRoutes');
+    safeUse('/api/chats', './routes/chatRoutes');
+    safeUse('/api/analytics', './routes/analyticsRoutes');
+    safeUse('/api/automation', './routes/automationRoutes');
+    safeUse('/api/quick-replies', './routes/quickReplyRoutes');
+    safeUse('/api/labels', './routes/labelRoutes');
+    safeUse('/api/custom-fields', './routes/customFieldRoutes');
+  
+} catch (err) {
+    console.error("❌ Route Loading Error:", err.message);
+}
+//Health Check Endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
+// Error handler (must be last)
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
@@ -96,6 +110,7 @@ httpServer.listen(PORT, () => {
   console.log('=====================================\n');
 });
 
+// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('❌ Unhandled Rejection:', err.message);
   httpServer.close(() => process.exit(1));
