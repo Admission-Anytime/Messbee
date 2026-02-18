@@ -1,7 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
-const path = require('path'); 
+const path = require('path');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const connectDB = require('./config/database');
@@ -29,33 +29,42 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
  // Swagger fix: Prevent error if swaggerSpec is not a function
 
-if (swaggerSpec && typeof swaggerSpec === 'object' && !Array.isArray(swaggerSpec)) {
-    app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
-}
-/**
- * @swagger
- * /health:
- *   get:
- *     summary: Health check endpoint
- *     tags: [System]
- *     responses:
- *       200:
- *         description: Server is running
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 status:
- *                   type: string
- *                   example: OK
- *                 message:
- *                   type: string
- *                   example: Server is running
- */
+// /**
+//  * @swagger
+//  * /health:
+//  * get:
+//  * summary: Health check endpoint
+//  * tags: [System]
+//  * responses:
+//  * 200:
+//  * description: Server is running
+//  * content:
+//  * application/json:
+//  * schema:
+//  * type: object
+//  * properties:
+//  * status:
+//  * type: string
+//  * example: OK
+//  * message:
+//  * type: string
+//  * example: Server is running
+//  */
 
+// // Routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/users', require('./routes/userRoutes'));
+app.use('/api/contacts', require('./routes/contactRoutes'));
+app.use('/api/campaigns', require('./routes/campaignRoutes'));
+app.use('/api/chats', require('./routes/chatRoutes'));
+app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/automation', require('./routes/automationRoutes'));
+app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));
 
-// ================== ROUTES ==================
+// ✅ NEW: Status Route Added Here
+app.use('/api/status', require('./routes/statusRoutes'));
+
+// ================== HEALTH CHECK ==================
 
 // For debugging: if any of these crash, it will be detected immediately
 

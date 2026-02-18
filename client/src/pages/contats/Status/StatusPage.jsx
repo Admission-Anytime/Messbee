@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import axios from "axios"; // ✅ Import Axios
 import { 
   PlusIcon, 
   InformationCircleIcon, 
@@ -12,16 +13,13 @@ import {
   ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
 
-// Import the toast utility
+// Import your custom toast utility
 import { showToast } from "../../../utils/showToast"; 
 
 const StatusPage = () => {
   // --- STATE ---
-  // ✅ FIX: Reduced mock data to 2 items so you start UNDER the limit
-  const [statuses, setStatuses] = useState([
-    { id: 1, name: "Confirmed", description: "Lead has confirmed interest.", color: "#00B050", createdBy: "Arshlan Khan", avatar: "https://i.pravatar.cc/150?u=arshlan", isActive: true },
-    { id: 2, name: "Pending", description: "Waiting for customer reply.", color: "#F59E0B", createdBy: "System", avatar: "https://i.pravatar.cc/150?u=system", isActive: true }
-  ]);
+  const [statuses, setStatuses] = useState([]); // ✅ Start empty
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -31,14 +29,44 @@ const StatusPage = () => {
 
   const PLAN_LIMIT = 5;
   const usedCount = statuses.length;
-  // ✅ NEW: Boolean to easily check if limit is reached
   const isLimitReached = usedCount >= PLAN_LIMIT;
+
+  // --- HELPER: Get Auth Header ---
+  const getAuthConfig = () => {
+    // ⚠️ Adjust this key ('user') if you store your token differently
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = user?.token; 
+    return {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    };
+  };
+
+  // --- 1. FETCH DATA (READ) ---
+  const fetchStatuses = async () => {
+    try {
+      const config = getAuthConfig();
+      // ✅ Call Backend
+      const response = await axios.get("http://localhost:5000/api/status", config);
+      setStatuses(response.data);
+      setIsLoading(false);
+    } catch (error) {
+      console.error(error);
+      showToast.error("Error", "Failed to load statuses. Please login again.");
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStatuses();
+  }, []);
 
   // --- ACTIONS ---
   const openModal = (status = null) => {
-    // ✅ NEW: Prevent opening modal if limit reached AND we are trying to add new
+    // Prevent opening if limit reached (Frontend Check)
     if (!status && isLimitReached) {
-      showToast.error("Plan Limit Reached", "You cannot add more than 5 statuses. Please upgrade your plan.");
+      showToast.error("Plan Limit Reached", "You cannot add more than 5 statuses. Upgrade plan.");
       return;
     }
 
@@ -52,45 +80,70 @@ const StatusPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e) => {
+  // --- 2. CREATE & UPDATE ---
+  const handleSave = async (e) => {
     e.preventDefault();
-    
-    if (isEditMode) {
-      // Update existing
-      setStatuses(statuses.map(s => s.id === currentStatus.id ? { ...currentStatus } : s));
-      showToast.success("Status Updated", "The status details have been successfully saved.");
-    } else {
-      // ✅ NEW: Double check limit before saving new status
-      if (statuses.length >= PLAN_LIMIT) {
-        showToast.error("Limit Exceeded", "You have reached the maximum number of statuses.");
-        setIsModalOpen(false);
-        return;
-      }
+    const config = getAuthConfig();
 
-      // Create new
-      const newId = statuses.length > 0 ? Math.max(...statuses.map(s => s.id)) + 1 : 1;
-      const newStatus = {
-        id: newId,
-        ...currentStatus,
-        createdBy: "You",
-        avatar: "https://i.pravatar.cc/150?u=me",
-        isActive: true
-      };
-      setStatuses([...statuses, newStatus]);
-      showToast.success("Status Created", "New status has been added to your list.");
+    try {
+      if (isEditMode) {
+        // --- UPDATE (PUT) ---
+        // ✅ Uses _id because MongoDB uses underscores
+        const res = await axios.put(
+          `http://localhost:5000/api/status/${currentStatus._id}`, 
+          currentStatus, 
+          config
+        );
+        
+        // Update UI instantly
+        setStatuses(statuses.map(s => s._id === currentStatus._id ? res.data : s));
+        showToast.success("Updated", "Status details saved successfully.");
+      } else {
+        // --- CREATE (POST) ---
+        // Double check limit
+        if (statuses.length >= PLAN_LIMIT) {
+           showToast.error("Limit Exceeded", "You have reached the limit of 5 statuses.");
+           setIsModalOpen(false);
+           return;
+        }
+
+        const res = await axios.post(
+          "http://localhost:5000/api/status", 
+          currentStatus, 
+          config
+        );
+
+        // Add new status to list
+        setStatuses([...statuses, res.data]);
+        showToast.success("Created", "New status added successfully.");
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      // Handle backend errors (like duplicate names or limit reached)
+      const msg = error.response?.data?.message || "Something went wrong";
+      showToast.error("Error", msg);
     }
-    setIsModalOpen(false);
   };
 
+  // --- 3. DELETE ---
   const initiateDelete = (id) => {
     setConfirmDeleteId(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (confirmDeleteId) {
-      setStatuses(statuses.filter(s => s.id !== confirmDeleteId));
-      showToast.error("Status Deleted", "The status has been permanently removed.");
-      setConfirmDeleteId(null);
+      try {
+        const config = getAuthConfig();
+        await axios.delete(`http://localhost:5000/api/status/${confirmDeleteId}`, config);
+
+        // Remove from UI
+        setStatuses(statuses.filter(s => s._id !== confirmDeleteId));
+        showToast.error("Deleted", "Status has been permanently removed.");
+        setConfirmDeleteId(null);
+      } catch (error) {
+        const msg = error.response?.data?.message || "Delete failed";
+        showToast.error("Error", msg);
+      }
     }
   };
 
@@ -98,16 +151,20 @@ const StatusPage = () => {
     navigator.clipboard.writeText(code);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
-    showToast.success("Color Copied", `Color code ${code} copied to clipboard.`);
+    showToast.success("Copied", `Color code ${code} copied.`);
   };
+
+  // --- RENDER ---
+  if (isLoading) {
+      return <div className="p-10 text-center text-slate-500">Loading your statuses...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
       <div className="max-w-7xl mx-auto">
         
-        {/* --- STICKY HEADER --- */}
+        {/* --- HEADER --- */}
         <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
-           
            <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-900">Status</h1>
               <InformationCircleIcon className="w-5 h-5 text-slate-400 cursor-help" />
@@ -121,7 +178,6 @@ const StatusPage = () => {
 
               <button 
                 onClick={() => openModal()}
-                // ✅ NEW: Disable button visually and functionally if limit reached
                 disabled={isLimitReached}
                 className={`px-5 py-2 text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2
                   ${isLimitReached 
@@ -148,10 +204,11 @@ const StatusPage = () => {
            <div className="divide-y divide-gray-50 min-h-[300px]">
               {statuses.length > 0 ? (
                  statuses.map((status) => (
-                    <div key={status.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
+                    // ✅ KEY CHANGE: Use status._id (MongoDB ID)
+                    <div key={status._id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
                        
                        <div className="col-span-3 flex items-center gap-3">
-                          <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                          <div className={`w-2.5 h-2.5 rounded-full bg-emerald-500`}></div>
                           <span className="text-sm font-bold text-slate-800">{status.name}</span>
                        </div>
 
@@ -161,18 +218,18 @@ const StatusPage = () => {
 
                        <div className="col-span-2 flex items-center gap-3">
                           <button 
-                            onClick={() => handleCopyColor(status.color, status.id)}
+                            onClick={() => handleCopyColor(status.color, status._id)}
                             className="flex items-center gap-2 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono text-slate-500 hover:border-slate-300 transition-colors"
-                            title="Click to copy"
                           >
                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: status.color }}></div>
-                             {copiedId === status.id ? "Copied!" : status.color}
+                             {copiedId === status._id ? "Copied!" : status.color}
                           </button>
                        </div>
 
                        <div className="col-span-2 flex items-center gap-3">
-                          <img src={status.avatar} alt="" className="w-6 h-6 rounded-full" />
-                          <span className="text-sm font-semibold text-slate-700">{status.createdBy}</span>
+                          {/* Fallback avatar */}
+                          <img src={status.avatar || "https://i.pravatar.cc/150?u=default"} alt="" className="w-6 h-6 rounded-full" />
+                          <span className="text-sm font-semibold text-slate-700">{status.createdBy || "You"}</span>
                        </div>
 
                        <div className="col-span-1 flex justify-center items-center gap-2">
@@ -184,7 +241,7 @@ const StatusPage = () => {
                              <PencilSquareIcon className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => initiateDelete(status.id)}
+                            onClick={() => initiateDelete(status._id)}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete"
                           >
@@ -200,17 +257,15 @@ const StatusPage = () => {
 
            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
               <span className="text-xs font-medium text-slate-400">Showing {usedCount} of {usedCount} status</span>
-              {/* Note: Pagination is static for now */}
               <div className="flex items-center gap-1">
-                 <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled><ChevronLeftIcon className="w-4 h-4" /></button>
-                 <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled><ChevronRightIcon className="w-4 h-4" /></button>
+                 <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 bg-gray-50 opacity-50 cursor-not-allowed"><ChevronLeftIcon className="w-4 h-4" /></button>
+                 <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 bg-gray-50 opacity-50 cursor-not-allowed"><ChevronRightIcon className="w-4 h-4" /></button>
               </div>
            </div>
-
         </div>
       </div>
 
-      {/* --- ADD/EDIT MODAL --- */}
+      {/* --- MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
@@ -245,35 +300,21 @@ const StatusPage = () => {
         </div>
       )}
 
-      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {/* --- DELETE CONFIRMATION --- */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-sm rounded-2xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-              
               <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600">
                  <ExclamationTriangleIcon className="w-6 h-6" />
               </div>
-              
               <h3 className="text-lg font-bold text-slate-900">Delete Status?</h3>
               <p className="text-sm text-slate-500 mt-2 mb-6 leading-relaxed">
                  Are you sure you want to delete this status? This action cannot be undone.
               </p>
-              
               <div className="flex gap-3">
-                 <button 
-                    onClick={() => setConfirmDeleteId(null)} 
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                    onClick={confirmDelete} 
-                    className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
-                 >
-                    Delete
-                 </button>
+                 <button onClick={() => setConfirmDeleteId(null)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors">Cancel</button>
+                 <button onClick={confirmDelete} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors">Delete</button>
               </div>
-
            </div>
         </div>
       )}
