@@ -19,14 +19,31 @@ const initializeSocket = (httpServer) => {
       console.log(`👤 User ${userId} joined room`);
     });
 
-    // Handle chat messages
-    socket.on('send-message', (data) => {
-      io.to(data.recipientId).emit('receive-message', data);
+    // Join specific chat room
+    socket.on('join_chat', (chatId) => {
+      socket.join(chatId);
+      console.log(`💬 User joined chat room: ${chatId}`);
+    });
+
+    // Handle chat messages (for P2P communication)
+    socket.on('send_message', (data) => {
+      console.log('📤 Message sent:', data);
+      // Broadcast to all clients in the chat room
+      io.to(data.chatId).emit('receive_message', data);
     });
 
     // Handle typing indicator
     socket.on('typing', (data) => {
       socket.to(data.recipientId).emit('user-typing', data);
+    });
+
+    // Handle user status (online/offline)
+    socket.on('user_status', (data) => {
+      io.emit('status_update', {
+        userId: data.userId,
+        status: data.status,
+        timestamp: new Date()
+      });
     });
 
     socket.on('disconnect', () => {
