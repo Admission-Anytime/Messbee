@@ -12,8 +12,12 @@ import Loading from "./components/Loading";
 import Layout from "./components/LAYOUT/Layout";
 
 // --- AUTH PAGES ---
-const Login = lazy(() => import("./pages/Auth/Login"));
-const Registration = lazy(() => import("./pages/Auth/Registration"));
+import Login from "./pages/Auth/Login";
+import Registration from "./pages/Auth/Registration";
+const ForgotPassword = lazy(() => import("./pages/Auth/ForgotPassword"));
+const VerifyOTP = lazy(() => import("./pages/Auth/VerifyOTP"));
+const ResetPassword = lazy(() => import("./pages/Auth/ResetPassword"));
+const Onboarding = lazy(() => import("./pages/Auth/Onboarding"));
 
 // --- MAIN PAGES ---
 import Dashboard from "./pages/dashboard-paid";
@@ -89,6 +93,10 @@ function App() {
           {/* --- PUBLIC ROUTES --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Registration />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/onboarding" element={<Onboarding />} />
 
           {/* ✅ REMOVED ProtectedRoute: Anyone can view these pages now without logging in */}
           <Route element={<Layout />}>
