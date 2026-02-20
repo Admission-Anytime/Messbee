@@ -90,6 +90,13 @@ const MainHeading = ({ onMenuClick }) => {
   const mentionCount = notifications.filter(n => n.type === 'mention').length;
   const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
 
+  // --- LOGIC: LOGOUT ---
+  const handleSignOut = () => {
+    localStorage.clear(); // Clear all stored data
+    sessionStorage.clear(); // Clear session data
+    navigate("/login"); // Redirect to login page
+  };
+
   const filteredNotifications = useMemo(() => {
     switch(activeTab) {
         case '@Mentions':
@@ -163,20 +170,20 @@ const MainHeading = ({ onMenuClick }) => {
         
         <button onClick={() => navigate('/admin/developer/api')} className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">
            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
            </span>
            <div className="flex flex-col leading-none items-start">
-              <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide group-hover:text-emerald-700">API Status</span>
-              <span className="text-[10px] font-bold text-emerald-700">Online</span>
+             <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide group-hover:text-emerald-700">API Status</span>
+             <span className="text-[10px] font-bold text-emerald-700">Online</span>
            </div>
         </button>
 
         <button onClick={() => navigate('/admin/plan/billing')} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
            <WalletIcon className="w-4 h-4 text-slate-500 group-hover:text-slate-700" />
            <div className="flex flex-col leading-none items-start">
-              <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
-              <span className="text-[11px] font-bold text-slate-800">₹{userProfile.credits}</span>
+             <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
+             <span className="text-[11px] font-bold text-slate-800">₹{userProfile.credits}</span>
            </div>
         </button>
 
@@ -201,12 +208,9 @@ const MainHeading = ({ onMenuClick }) => {
 
               {isNotifOpen && (
                  <div className="absolute right-0 top-full mt-3 w-[380px] bg-white rounded-xl shadow-2xl border border-gray-100 z-[70] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
-                    
-                    {/* Header */}
                     <div className="px-5 pt-5 pb-2">
                        <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-bold text-slate-900">Notifications</h3>
-                          
                           <div className="flex items-center gap-3">
                              {totalUnreadCount > 0 && (
                                  <button onClick={markAllAsRead} className="text-xs font-bold text-emerald-600 hover:text-emerald-700 hover:underline">
@@ -242,38 +246,37 @@ const MainHeading = ({ onMenuClick }) => {
                        </div>
                     </div>
 
-                    {/* Notification List */}
                     <div className="max-h-[400px] overflow-y-auto">
                        <div className="px-5 py-2">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-2">Recently</p>
                           
                           {filteredNotifications.length === 0 ? (
-                              <div className="py-8 text-center text-slate-400 text-sm">No notifications found</div>
+                             <div className="py-8 text-center text-slate-400 text-sm">No notifications found</div>
                           ) : (
-                              <div className="space-y-4">
-                                 {filteredNotifications.map((notif) => (
-                                    <div 
-                                      key={notif.id} 
-                                      onClick={() => handleNotificationClick(notif.id)}
-                                      className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${notif.isUnread ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}
-                                    >
-                                       <div className="shrink-0 pt-1">
-                                          {renderNotifIcon(notif)}
-                                       </div>
-                                       <div className="flex-1">
-                                          <div className="flex justify-between items-start mb-0.5">
-                                             <h4 className={`text-sm font-bold transition-colors ${notif.isUnread ? 'text-slate-900' : 'text-slate-700'}`}>{notif.user}</h4>
-                                             <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap ml-2">{notif.time}</span>
-                                          </div>
-                                          <p className={`text-xs leading-relaxed mb-1.5 line-clamp-2 ${notif.isUnread ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>{notif.message}</p>
-                                          {notif.tag && (
-                                             <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200">{notif.tag}</span>
-                                          )}
-                                       </div>
-                                       {notif.isUnread && <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0"></div>}
-                                    </div>
-                                 ))}
-                              </div>
+                             <div className="space-y-4">
+                                {filteredNotifications.map((notif) => (
+                                   <div 
+                                     key={notif.id} 
+                                     onClick={() => handleNotificationClick(notif.id)}
+                                     className={`flex gap-3 group cursor-pointer p-2 rounded-lg transition-colors ${notif.isUnread ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}
+                                   >
+                                      <div className="shrink-0 pt-1">
+                                         {renderNotifIcon(notif)}
+                                      </div>
+                                      <div className="flex-1">
+                                         <div className="flex justify-between items-start mb-0.5">
+                                            <h4 className={`text-sm font-bold transition-colors ${notif.isUnread ? 'text-slate-900' : 'text-slate-700'}`}>{notif.user}</h4>
+                                            <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap ml-2">{notif.time}</span>
+                                         </div>
+                                         <p className={`text-xs leading-relaxed mb-1.5 line-clamp-2 ${notif.isUnread ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>{notif.message}</p>
+                                         {notif.tag && (
+                                            <span className="inline-block px-2 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded border border-slate-200">{notif.tag}</span>
+                                         )}
+                                      </div>
+                                      {notif.isUnread && <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0"></div>}
+                                   </div>
+                                ))}
+                             </div>
                           )}
                        </div>
                        
@@ -322,8 +325,15 @@ const MainHeading = ({ onMenuClick }) => {
                    <button onClick={() => navigate('/admin/help/docs')} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><DocumentTextIcon className="w-4 h-4" /> API Documentation</button>
                 </div>
                 <div className="h-px bg-gray-100 my-2 mx-2"></div>
+                
+                {/* ✅ UPDATED SIGN OUT BUTTON */}
                 <div className="px-2">
-                   <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"><ArrowRightOnRectangleIcon className="w-4 h-4" /> Sign Out</button>
+                   <button 
+                     onClick={handleSignOut} 
+                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
+                   >
+                     <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sign Out
+                   </button>
                 </div>
              </div>
            )}

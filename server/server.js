@@ -74,9 +74,11 @@ app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
+app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // WhatsApp Business API routes
 app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));
 
 // ================== HEALTH CHECK ==================
+
 
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });

@@ -5,11 +5,12 @@ import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
-import ProtectedRoute from "../routes/protectedRoute";
 
-// --- LAYOUT COMPONENTS ---
-import MainSidebar from "./components/mainsidebar/MainSidebar"; 
-import MainHeading from "./components/header/MainHeading"; 
+// ❌ COMMENTED OUT AUTH GUARD FOR NOW
+// import ProtectedRoute from "../routes/protectedRoute";
+
+// --- LAYOUT ---
+import Layout from "./components/LAYOUT/Layout";
 
 // --- AUTH PAGES ---
 const Login = lazy(() => import("./pages/Auth/Login"));
@@ -24,14 +25,21 @@ import CreateCampaign from "./pages/campaign/CreateCampaign";
 import Automation from "./pages/automation/automation";
 import Analytic from "./pages/analytic/analytic";
 
-// --- CONTACTS (Updated to match your folder 'contats') ---
+// --- PLAN & PRICING PAGES ---
+import UpgradePlan from "./pages/PlanPricing/UpgradePlan";
+import AddonsWCC from "./pages/PlanPricing/AddonsWCC";
+import ActivePlan from "./pages/PlanPricing/ActivePlan";
+import PaymentHistory from "./pages/PlanPricing/PaymentHistory";
+import PaymentMethods from "./pages/PlanPricing/PaymentMethods";
+
+// --- CONTACTS ---
 import Contact from "./pages/contats/contact"; 
 import StatusPage from "./pages/contats/Status/StatusPage";
 import ImportContacts from "./pages/contats/importContact"  // ← ADDED step 1
 import MapFields from "./pages/contats/mapfields";  // ← ADDED step 2
 import ReviewSummary from  "./pages/contats/reviewSummary"; // step 3
 
-// --- SETTINGS & SUB-PAGES ---
+// --- SETTINGS ---
 import Wapi from "./pages/setting/Wapi";
 import Media from "./pages/setting/Media";
 import Templates from "./pages/setting/Templates";
@@ -41,7 +49,7 @@ import CustomField from "./pages/setting/CustomField";
 import QuickReply from "./pages/setting/QuickReply";
 import DevApi from "./pages/setting/DevApi";
 
-// --- PROFILE & PLAN ---
+// --- PROFILE ---
 import UserProfile from "./pages/profile/UserProfile";
 import BusinessProfile from "./pages/profile/BusinessProfile";
 import ActivePlans from "./pages/profile/ActivePlans"; 
@@ -97,10 +105,6 @@ function App() {
         hideProgressBar={true}
         newestOnTop={true}
         closeOnClick={false}
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
         theme="light"
         toastClassName="!bg-transparent !shadow-none !p-0 !min-h-0 !mb-4"
         bodyClassName="!m-0 !p-0"
@@ -108,10 +112,12 @@ function App() {
       
       <Suspense fallback={<Loading />}>
         <Routes>
+          {/* --- PUBLIC ROUTES --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Registration />} />
 
-          <Route element={<ProtectedRoute Component={AppLayout} />}>
+          {/* ✅ REMOVED ProtectedRoute: Anyone can view these pages now without logging in */}
+          <Route element={<Layout />}>
             
             {/* 1. Dashboard */}
             <Route path="/" element={<Dashboard />} />
@@ -175,13 +181,11 @@ function App() {
             <Route path="/admin/settings/media" element={<Media />} />
 
             {/* 12. Plan & Pricing */}
-            <Route path="/admin/plan/overview" element={<div className="p-10 text-xl font-bold text-slate-700">Plan Overview</div>} />
-            <Route path="/admin/plan/billing" element={<ActivePlans />} />
-            <Route path="/admin/plan/upgrade" element={<div className="p-10 text-xl font-bold text-slate-700">Upgrade Plan</div>} />
-            <Route path="/admin/plan/addons" element={<div className="p-10 text-xl font-bold text-slate-700">Add-ons (WCC)</div>} />
-            <Route path="/admin/plan/active" element={<ActivePlans />} />
-            <Route path="/admin/plan/history" element={<div className="p-10 text-xl font-bold text-slate-700">Payment History</div>} />
-            <Route path="/admin/plan/methods" element={<div className="p-10 text-xl font-bold text-slate-700">Payment Methods</div>} />
+            <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
+            <Route path="/admin/plan/addons" element={<AddonsWCC />} />
+            <Route path="/admin/plan/active" element={<ActivePlan />} />
+            <Route path="/admin/plan/history" element={<PaymentHistory />} />
+            <Route path="/admin/plan/methods" element={<PaymentMethods />} />
 
             {/* 13. Profile & Account */}
             <Route path="/admin/account/admin" element={<div className="p-10 text-xl font-bold text-slate-700">Admin Users</div>} />
