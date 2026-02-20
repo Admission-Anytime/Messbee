@@ -19,17 +19,7 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    // Get the authentication token from localStorage (or wherever you store it)
-    // This token was saved when the user logged in
-    const token = localStorage.getItem('token'); // Adjust the key based on your auth implementation
-    
-    // If token exists, add it to the Authorization header
-    // Format: "Bearer <your-token-here>"
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    
-    return config; // Send the modified config to the backend
+    return config;
   },
   (error) => {
     // Handle request errors (e.g., network issues before request is sent)
