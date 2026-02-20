@@ -7,11 +7,8 @@ const {
   deleteCampaign,
   updateCampaignStats
 } = require('../controllers/campaignController');
-const { protect } = require('../middleware/auth');
 
 const router = express.Router();
-
-router.use(protect); // All routes require authentication
 
 /**
  * @swagger

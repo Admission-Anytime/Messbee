@@ -4,11 +4,8 @@ const {
   getMessageAnalytics,
   getCampaignAnalytics
 } = require('../controllers/analyticsController');
-const { protect } = require('../middleware/auth');
 
 const router = express.Router();
-
-router.use(protect); // All routes require authentication
 
 /**
  * @swagger
