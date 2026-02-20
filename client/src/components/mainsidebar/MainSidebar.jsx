@@ -1,9 +1,8 @@
-import React, { useState, useMemo, useRef, useEffect } from "react"; 
+import { useState, useMemo, useRef, useEffect } from "react"; 
 import { Link, useLocation } from "react-router-dom";
 import { Icon } from "@iconify/react"; 
 import { Bars3Icon } from "@heroicons/react/24/outline"; 
 
-// --- MENU CONFIGURATION ---
 const MENU_ITEMS = [
   {
     items: [
@@ -27,7 +26,7 @@ const MENU_ITEMS = [
         isSubmenu: true,
         children: [
           { title: "Template list", path: "/admin/templates/list", icon: "feather:list" },
-          { title: "Create template", path: "/admin/campaigns/templates", icon: "feather:plus-square" },
+          { title: "Create template", path: "/admin/templates/create", icon: "feather:plus-square" }, 
           { title: "Template gallery", path: "/admin/templates/gallery", icon: "feather:grid" }
         ]
       },
@@ -89,14 +88,6 @@ const MENU_ITEMS = [
   }
 ];
 
-const findMenuItem = (title) => {
-  for (const group of MENU_ITEMS) {
-    const found = group.items.find(item => item.title === title);
-    if (found) return found;
-  }
-  return null;
-};
-
 const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
   const isOpen = openSubmenu === item.title;
   const isFloatingOpen = activeFloating === item.title;
@@ -106,7 +97,6 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
   const activeClass = "bg-[#EBF5F0] text-slate-900 border-l-4 border-[#10B981]";
   const inactiveClass = "text-slate-600 hover:bg-slate-50 hover:text-black border-l-4 border-transparent";
 
-  // --- 1. COLLAPSED MODE ---
   if (!isExpanded) {
     if (item.isSubmenu) {
       return (
@@ -136,7 +126,6 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
     );
   }
 
-  // --- 2. EXPANDED MODE ---
   if (item.isSubmenu) {
     return (
       <div className="mb-1">
@@ -209,6 +198,15 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
   const isActive = (path) => location.pathname === path;
   const handleSubmenuToggle = (title) => setOpenSubmenu(prev => prev === title ? "" : title);
 
+  // Auto-open submenu based on URL
+  useEffect(() => {
+    if (location.pathname.includes('/admin/templates')) {
+      setOpenSubmenu("Templates");
+    } else if (location.pathname.includes('/admin/contacts')) {
+      setOpenSubmenu("Contacts & CRM");
+    }
+  }, [location.pathname]);
+
   const filteredMenuItems = useMemo(() => {
     if (!searchQuery) return MENU_ITEMS;
     return MENU_ITEMS.map(cat => ({
@@ -233,25 +231,15 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       const spaceBelow = windowHeight - rect.top;
 
       if (spaceBelow < 350) {
-         setFloatingStyle({ 
-            left: '75px', 
-            bottom: (windowHeight - rect.bottom) + 'px', 
-            top: 'auto' 
-         });
+         setFloatingStyle({ left: '75px', bottom: (windowHeight - rect.bottom) + 'px', top: 'auto' });
       } else {
-         setFloatingStyle({ 
-            left: '75px', 
-            top: rect.top + 'px', 
-            bottom: 'auto' 
-         });
+         setFloatingStyle({ left: '75px', top: rect.top + 'px', bottom: 'auto' });
       }
       setActiveFloating(title);
     }
   };
 
   useEffect(() => { if(isOpen) setActiveFloating(null); }, [isOpen]);
-
-  const activeItemData = useMemo(() => activeFloating ? findMenuItem(activeFloating) : null, [activeFloating]);
 
   return (
     <>
@@ -260,39 +248,25 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         .sidebar-scroll::-webkit-scrollbar-track { background: transparent; }
         .sidebar-scroll::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
         .sidebar-scroll::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
-        
-        @keyframes fade-in {
-          from { opacity: 0; transform: scale(0.95); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        .animate-fade-in {
-          animation: fade-in 0.15s ease-out forwards;
-        }
+        @keyframes fade-in { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        .animate-fade-in { animation: fade-in 0.15s ease-out forwards; }
       `}</style>
 
       {activeFloating && !isOpen && (
         <div className="fixed inset-0 z-[9990] bg-transparent" onClick={() => setActiveFloating(null)}></div>
       )}
 
-      {activeFloating && !isOpen && activeItemData && (
-        <div 
-          className="fixed w-60 bg-white shadow-[0_5px_30px_-5px_rgba(0,0,0,0.2)] rounded-xl border border-slate-100 p-2 z-[9999] animate-fade-in origin-left"
-          style={floatingStyle}
-        >
+      {activeFloating && !isOpen && (
+        <div className="fixed w-60 bg-white shadow-[0_5px_30px_-5px_rgba(0,0,0,0.2)] rounded-xl border border-slate-100 p-2 z-[9999] animate-fade-in origin-left" style={floatingStyle}>
            <div className="px-4 py-3 border-b border-slate-50 mb-2 bg-slate-50/50 rounded-t-lg flex justify-between items-center">
-              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeItemData.title}</span>
+              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeFloating}</span>
               <button onClick={() => setActiveFloating(null)} className="text-slate-400 hover:text-red-500"><Icon icon="feather:x" /></button>
            </div>
            <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
-              {activeItemData.children.map((sub, idx) => {
+              {MENU_ITEMS[0].items.find(i => i.title === activeFloating)?.children?.map((sub, idx) => {
                  const isSubActive = isActive(sub.path);
                  return (
-                   <Link 
-                     key={idx} 
-                     to={sub.path}
-                     onClick={() => setActiveFloating(null)}
-                     className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isSubActive ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}
-                   >
+                   <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isSubActive ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
                      <Icon icon={sub.icon} className={`w-4 h-4 ${isSubActive ? "text-[#10B981]" : "text-slate-400"}`} />
                      <span className="truncate">{sub.title}</span>
                    </Link>
@@ -302,77 +276,35 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         </div>
       )}
 
-      <div 
-        className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0
-        ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"} 
-        `}
-      >
-        
-        {/* 1. SEARCH & TOGGLE (Responsive Fix) */}
+      <div className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0 ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"}`}>
         <div className={`mt-5 mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
-           
-           {/* ✅ Conditional Rendering: Show Input ONLY when expanded */}
            {isOpen ? (
              <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
                 <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
-                <input 
-                  ref={searchInputRef}
-                  type="text" 
-                  placeholder="Search" 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400"
-                />
+                <input ref={searchInputRef} type="text" placeholder="Search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400" />
              </div>
            ) : (
-             // ✅ Collapsed Mode: Just the Icon Button
-             <button 
-                onClick={handleCollapsedSearchClick} 
-                className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" 
-                title="Click to Search"
-             >
-                <Icon icon="feather:search" className="w-5 h-5" />
-             </button>
+             <button onClick={handleCollapsedSearchClick} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Click to Search"><Icon icon="feather:search" className="w-5 h-5" /></button>
            )}
-
-           {/* Hamburger Toggle (Visible on Desktop) */}
-           <button 
-             onClick={() => setIsOpen(!isOpen)} 
-             className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0"
-             title={isOpen ? "Collapse" : "Expand"}
-           >
-             <Bars3Icon className="w-6 h-6" />
-           </button>
+           <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0" title={isOpen ? "Collapse" : "Expand"}><Bars3Icon className="w-6 h-6" /></button>
         </div>
 
-        {/* 2. MENU LIST */}
         <div className="flex-1 overflow-y-auto sidebar-scroll py-2">
           {filteredMenuItems.map((section, idx) => (
             <div key={idx} className="mb-4">
               {section.items.map((item, i) => (
-                <SidebarItem 
-                  key={i} 
-                  item={item} 
-                  isActive={isActive} 
-                  isExpanded={isOpen} 
-                  openSubmenu={openSubmenu}     
-                  onToggle={handleSubmenuToggle} 
-                  activeFloating={activeFloating}
-                  onFloatingToggle={handleFloatingToggle}
-                />
+                <SidebarItem key={i} item={item} isActive={isActive} isExpanded={isOpen} openSubmenu={openSubmenu} onToggle={handleSubmenuToggle} activeFloating={activeFloating} onFloatingToggle={handleFloatingToggle} />
               ))}
             </div>
           ))}
         </div>
 
-        {/* 3. LOGOUT */}
         <div className="border-t border-gray-100 bg-[#F9FAFB] shrink-0 p-2">
            <button className={`w-full flex items-center px-3 py-3 text-slate-600 hover:text-slate-900 hover:bg-[#EBF5F0] rounded-lg transition-colors ${!isOpen ? "justify-center" : ""}`}>
               <Icon icon="feather:log-out" className="w-5 h-5 min-w-[20px]" />
               {isOpen && <span className="text-sm font-medium ml-3">Logout</span>}
            </button>
         </div>
-
       </div>
     </>
   );
