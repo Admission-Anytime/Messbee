@@ -43,6 +43,7 @@ const Wapi = lazy(() => import("./pages/setting/Wapi"));
 const Media = lazy(() => import("./pages/setting/Media"));
 const Templates = lazy(() => import("./pages/setting/Templates"));
 const TemplatesGallery = lazy(() => import("./pages/setting/TamplatesGallery"));
+const CreateTemplate = lazy(() => import("./pages/setting/CreateTemplate"));
 const Label = lazy(() => import("./pages/setting/Label"));
 const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
@@ -170,6 +171,10 @@ function App() {
           <Route
             path="/admin/templates/gallery"
             element={<TemplatesGallery />}
+          />
+          <Route
+            path="/admin/templates/create"
+            element={<CreateTemplate />}
           />
           {/* 6. Campaigns */}
           <Route path="/admin/campaign" element={<Campaign />} />
