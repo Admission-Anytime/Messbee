@@ -1,10 +1,12 @@
-import { Suspense, lazy } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+
+import { Suspense, lazy, useState } from "react";
+import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
-
+import MainHeading from "./components/header/MainHeading";
+import MainSidebar from "./components/mainsidebar/MainSidebar";
 // ❌ COMMENTED OUT AUTH GUARD FOR NOW
 // import ProtectedRoute from "../routes/protectedRoute";
 
@@ -33,7 +35,10 @@ import PaymentMethods from "./pages/PlanPricing/PaymentMethods";
 
 // --- CONTACTS ---
 import Contact from "./pages/contats/contact"; 
-import StatusPage from "./pages/contats/Status/StatusPage"; 
+import StatusPage from "./pages/contats/Status/StatusPage";
+import ImportContacts from "./pages/contats/importContact"  // ← ADDED step 1
+import MapFields from "./pages/contats/mapfields";  // ← ADDED step 2
+import ReviewSummary from  "./pages/contats/reviewSummary"; // step 3
 
 // --- SETTINGS ---
 import Wapi from "./pages/setting/Wapi";
@@ -61,6 +66,28 @@ const NotFound = () => {
       </div>
     </div>
   );
+};
+
+// --- LAYOUT WRAPPER ---
+const AppLayout = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  return (
+    <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
+      {/* HEADER */}
+      <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
+        <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+      </div>
+
+      {/* BODY */}
+      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
+        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  )
 };
 
 function App() {
@@ -112,7 +139,11 @@ function App() {
             <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
             <Route path="/admin/contacts/status" element={<StatusPage />} />
             <Route path="/admin/contacts/crm" element={<div className="p-10 text-xl font-bold text-slate-700">CRM Pipeline</div>} />
-
+            {/* ── Import Contacts Route ── */}
+            <Route path="/admin/contacts/import" element={<ImportContacts />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/map" element={<MapFields />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/review" element={<ReviewSummary />} />  {/* ← ADDED */}
+            
             {/* 5. Templates */}
             <Route path="/admin/templates/list" element={<Templates />} />
             <Route path="/admin/campaigns/templates" element={<Templates />} />
