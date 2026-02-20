@@ -1,3 +1,4 @@
+
 import { Suspense, lazy, useState } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
@@ -25,7 +26,10 @@ import Analytic from "./pages/analytic/analytic";
 
 // --- CONTACTS (Updated to match your folder 'contats') ---
 import Contact from "./pages/contats/contact"; 
-import StatusPage from "./pages/contats/Status/StatusPage"; 
+import StatusPage from "./pages/contats/Status/StatusPage";
+import ImportContacts from "./pages/contats/importContact"  // ← ADDED step 1
+import MapFields from "./pages/contats/mapfields";  // ← ADDED step 2
+import ReviewSummary from  "./pages/contats/reviewSummary"; // step 3
 
 // --- SETTINGS & SUB-PAGES ---
 import Wapi from "./pages/setting/Wapi";
@@ -63,14 +67,14 @@ const AppLayout = () => {
     <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
       {/* HEADER */}
       <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
-         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
       </div>
 
       {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
-           <Outlet />
+          <Outlet />
         </div>
       </div>
     </div>
@@ -87,7 +91,6 @@ function App() {
         },
       }}
     >
-      {/* ✅ UPDATED TOAST CONTAINER */}
       <ToastContainer 
         position="top-right"
         autoClose={4000}
@@ -99,7 +102,6 @@ function App() {
         draggable
         pauseOnHover
         theme="light"
-        // This removes the default white box styling so our CustomToast looks perfect
         toastClassName="!bg-transparent !shadow-none !p-0 !min-h-0 !mb-4"
         bodyClassName="!m-0 !p-0"
       />
@@ -130,7 +132,11 @@ function App() {
             <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
             <Route path="/admin/contacts/status" element={<StatusPage />} />
             <Route path="/admin/contacts/crm" element={<div className="p-10 text-xl font-bold text-slate-700">CRM Pipeline</div>} />
-
+            {/* ── Import Contacts Route ── */}
+            <Route path="/admin/contacts/import" element={<ImportContacts />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/map" element={<MapFields />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/review" element={<ReviewSummary />} />  {/* ← ADDED */}
+            
             {/* 5. Templates */}
             <Route path="/admin/templates/list" element={<Templates />} />
             <Route path="/admin/campaigns/templates" element={<Templates />} />
