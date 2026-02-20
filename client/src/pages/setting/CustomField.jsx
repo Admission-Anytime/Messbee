@@ -10,6 +10,14 @@ import {
   ChevronRightIcon,
   ChevronLeftIcon,
 } from "@heroicons/react/24/outline";
+import {
+  getCustomFields,
+  createCustomField,
+  updateCustomField,
+  toggleCustomField,
+  deleteCustomField,
+} from "../../services/CustomfieldApi";
+import { showToast } from "../../utils/showToast";
 
 const slugifyKey = (value) =>
   value
@@ -22,84 +30,59 @@ const slugifyKey = (value) =>
 const FIELD_TYPES = ["Text", "Number", "Date"];
 const ITEMS_PER_PAGE = 8; // Number of items to show per page
 
-const CustomFieldsSection = () => {
-  const [fields, setFields] = useState([
-    {
-      name: "Institute Name",
-      description: "Primary institute of the lead",
-      type: "Text",
-      key: "college_name",
-      createdBy: { name: "Anil Kumar Atri", initials: "AK" },
-      isActive: true,
-    },
-    {
-      name: "Email",
-      description: "Email id of contact",
-      type: "Text",
-      key: "email_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Address",
-      description: "Address of contact",
-      type: "Text",
-      key: "address_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Notes",
-      description: "Notes for contact",
-      type: "Text",
-      key: "notes_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Additional Phone number",
-      description: "Alternate phone number of c...",
-      type: "Text",
-      key: "additional_phone_number_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "GSTN",
-      description: "GSTN of contact",
-      type: "Text",
-      key: "gstn_1",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Creation Date",
-      description: "The date when the lead was...",
-      type: "Date",
-      key: "created_at",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Order Value",
-      description: "Total monetary value of the ...",
-      type: "Number",
-      key: "order_value",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-    {
-      name: "Company Size",
-      description: "Total employees in the comp...",
-      type: "Number",
-      key: "emp_count",
-      createdBy: { name: "WhatsTool", initials: "WT" },
-      isActive: true,
-    },
-  ]);
+// Helper to get initials from name
+const getInitials = (name) => {
+  if (!name) return "U";
+  const parts = name.split(" ");
+  if (parts.length >= 2) {
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  }
+  return name.substring(0, 2).toUpperCase();
+};
 
+const CustomFieldsSection = () => {
+  const [fields, setFields] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
   // ===== Pagination state =====
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Fetch custom fields from backend
+  const fetchCustomFields = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await getCustomFields({ page: 1, limit: 1000 }); // Get all fields
+      
+      // Transform backend response to match frontend structure
+      const transformedFields = response.data.data.map((field) => ({
+        _id: field._id,
+        name: field.name,
+        description: field.description || "",
+        type: field.type,
+        key: field.key,
+        createdBy: {
+          name: field.createdBy?.name || "Unknown",
+          initials: getInitials(field.createdBy?.name || "Unknown"),
+        },
+        isActive: field.isActive,
+      }));
+      
+      setFields(transformedFields);
+    } catch (err) {
+      console.error("Error fetching custom fields:", err);
+      setError(err.response?.data?.message || "Failed to load custom fields");
+      showToast.error("Error", err.response?.data?.message || "Failed to load custom fields");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch fields on component mount
+  useEffect(() => {
+    fetchCustomFields();
+  }, []);
 
   // Calculate pagination values
   const totalPages = Math.ceil(fields.length / ITEMS_PER_PAGE);
@@ -139,10 +122,21 @@ const CustomFieldsSection = () => {
 
   const openDeleteModal = (index) => setDeleteIndex(index);
   const closeDeleteModal = () => setDeleteIndex(null);
-  const confirmDelete = () => {
+  
+  const confirmDelete = async () => {
     if (deleteIndex === null) return;
-    setFields((prev) => prev.filter((_, i) => i !== deleteIndex));
-    setDeleteIndex(null);
+    
+    const fieldToDelete = fields[deleteIndex];
+    
+    try {
+      await deleteCustomField(fieldToDelete._id);
+      setFields((prev) => prev.filter((_, i) => i !== deleteIndex));
+      showToast.success("Success", "Custom field deleted successfully");
+      setDeleteIndex(null);
+    } catch (err) {
+      console.error("Error deleting custom field:", err);
+      showToast.error("Error", err.response?.data?.message || "Failed to delete custom field");
+    }
   };
 
   // ===== Create modal =====
@@ -214,12 +208,21 @@ const CustomFieldsSection = () => {
   };
   const closeCreateModal = () => setIsCreateOpen(false);
 
-  const toggleActive = (index) => {
-    setFields((prev) =>
-      prev.map((item, i) =>
-        i === index ? { ...item, isActive: !item.isActive } : item
-      )
-    );
+  const toggleActive = async (index) => {
+    const field = fields[index];
+    
+    try {
+      await toggleCustomField(field._id);
+      setFields((prev) =>
+        prev.map((item, i) =>
+          i === index ? { ...item, isActive: !item.isActive } : item
+        )
+      );
+      showToast.success("Success", `Custom field ${!field.isActive ? 'activated' : 'deactivated'} successfully`);
+    } catch (err) {
+      console.error("Error toggling custom field:", err);
+      showToast.error("Error", err.response?.data?.message || "Failed to toggle custom field");
+    }
   };
 
   const validateCreate = () => {
@@ -233,23 +236,44 @@ const CustomFieldsSection = () => {
   };
 
 
-  const handleCreate = (e) => {
+  const handleCreate = async (e) => {
     e.preventDefault();
     const v = validateCreate();
     if (!v.ok) return;
 
-    const newField = {
-      name: v.name,
-      description: form.description.trim(),
-      type: form.type,
-      key: v.key,
-      createdBy: { name: "You", initials: "U" },
-      isActive: true,
-    };
+    try {
+      const payload = {
+        name: v.name,
+        description: form.description.trim(),
+        type: form.type,
+        key: v.key,
+      };
 
-    setFields((prev) => [newField, ...prev]);
-    setIsCreateOpen(false);
-    setCurrentPage(1); // Go to first page to see the new field
+      const response = await createCustomField(payload);
+      const newField = response.data.data;
+
+      // Transform to frontend structure
+      const transformedField = {
+        _id: newField._id,
+        name: newField.name,
+        description: newField.description || "",
+        type: newField.type,
+        key: newField.key,
+        createdBy: {
+          name: newField.createdBy?.name || "You",
+          initials: getInitials(newField.createdBy?.name || "You"),
+        },
+        isActive: newField.isActive,
+      };
+
+      setFields((prev) => [transformedField, ...prev]);
+      setIsCreateOpen(false);
+      setCurrentPage(1);
+      showToast.success("Success", "Custom field created successfully");
+    } catch (err) {
+      console.error("Error creating custom field:", err);
+      showToast.error("Error", err.response?.data?.message || "Failed to create custom field");
+    }
   };
 
   const createError = useMemo(() => {
@@ -281,25 +305,47 @@ const CustomFieldsSection = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editForm.name, editForm.key, fields, editIndex, isEditOpen]);
 
-  const handleEditSave = (e) => {
+  const handleEditSave = async (e) => {
     e.preventDefault();
     const v = validateEdit();
     if (!v.ok) return;
 
-    setFields((prev) =>
-      prev.map((f, i) =>
-        i === editIndex
-          ? {
-              ...f,
-              name: v.name,
-              key: v.key,
-              type: editForm.type,
-              description: editForm.description.trim(),
-            }
-          : f
-      )
-    );
-    closeEditModal();
+    const fieldToUpdate = fields[editIndex];
+
+    try {
+      const payload = {
+        name: v.name,
+        key: v.key,
+        type: editForm.type,
+        description: editForm.description.trim(),
+      };
+
+      const response = await updateCustomField(fieldToUpdate._id, payload);
+      const updatedField = response.data.data;
+
+      // Transform to frontend structure
+      const transformedField = {
+        _id: updatedField._id,
+        name: updatedField.name,
+        description: updatedField.description || "",
+        type: updatedField.type,
+        key: updatedField.key,
+        createdBy: {
+          name: updatedField.createdBy?.name || "Unknown",
+          initials: getInitials(updatedField.createdBy?.name || "Unknown"),
+        },
+        isActive: updatedField.isActive,
+      };
+
+      setFields((prev) =>
+        prev.map((f, i) => (i === editIndex ? transformedField : f))
+      );
+      closeEditModal();
+      showToast.success("Success", "Custom field updated successfully");
+    } catch (err) {
+      console.error("Error updating custom field:", err);
+      showToast.error("Error", err.response?.data?.message || "Failed to update custom field");
+    }
   };
 
   // ESC closes modals
@@ -315,7 +361,7 @@ const CustomFieldsSection = () => {
   }, [isCreateOpen, isEditOpen, deleteIndex]);
 
   return (
-    <div className="flex-1 bg-gray-50 p-4 overflow-hidden">
+    <div className="flex-1 bg-gray-50 overflow-hidden">
       <div className="bg-white rounded-lg shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
@@ -328,7 +374,7 @@ const CustomFieldsSection = () => {
 
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600 whitespace-nowrap">
-              Custom field used: {fields.length}/5
+              Custom fields: {fields.length}
             </span>
 
             <button
@@ -338,14 +384,6 @@ const CustomFieldsSection = () => {
               <span className="text-lg">+</span>
               <span>Create Custom Fields</span>
             </button>
-
-            <button className="p-2">
-              <BellIcon className="w-5 h-5 text-gray-600" />
-            </button>
-
-            <div className="w-10 h-10 rounded-full bg-orange-200 flex items-center justify-center text-orange-800 font-medium flex-shrink-0">
-              U
-            </div>
           </div>
         </div>
 
@@ -376,96 +414,105 @@ const CustomFieldsSection = () => {
             </thead>
 
             <tbody className="bg-white divide-y divide-gray-200">
-              {currentFields.map((field, displayIndex) => {
-                const actualIndex = startIndex + displayIndex;
-                return (
-                  <tr key={field.key} className="hover:bg-gray-50">
-                    <td className="px-3 py-3">
-                      <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>
-                        {field.name}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="text-sm text-gray-600 truncate" title={field.description}>
-                        {field.description}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <span className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded truncate inline-block max-w-full">
-                        {field.type.toLowerCase()}
-                      </span>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>
-                        {field.key}
-                      </div>
-                    </td>
-
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0">
-                          {field.createdBy.initials}
-                        </div>
-                        <span className="text-sm text-gray-900 truncate" title={field.createdBy.name}>
-                          {field.createdBy.name}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Toggle + Edit + Delete */}
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-1 justify-end">
-                        {/* Toggle */}
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(actualIndex)}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 flex-shrink-0 ${
-                            field.isActive ? "bg-green-500" : "bg-gray-300"
-                          }`}
-                          aria-pressed={field.isActive}
-                          title={field.isActive ? "Active" : "Inactive"}
-                        >
-                          <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
-                              field.isActive ? "translate-x-6" : "translate-x-1"
-                            }`}
-                          />
-                        </button>
-
-                        {/* Edit */}
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(actualIndex)}
-                          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
-                          title="Edit"
-                        >
-                          <PencilSquareIcon className="w-5 h-5" />
-                        </button>
-
-                        {/* Delete */}
-                        <button
-                          type="button"
-                          onClick={() => openDeleteModal(actualIndex)}
-                          className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
-                          title="Delete"
-                        >
-                          <TrashIcon className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {fields.length === 0 && (
+              {loading ? (
                 <tr>
                   <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
-                    No custom fields yet.
+                    <div className="flex items-center justify-center gap-2">
+                      <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                      <span>Loading custom fields...</span>
+                    </div>
                   </td>
                 </tr>
+              ) : fields.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
+                    No custom fields yet. Create your first custom field to get started.
+                  </td>
+                </tr>
+              ) : (
+                currentFields.map((field, displayIndex) => {
+                  const actualIndex = startIndex + displayIndex;
+                  return (
+                    <tr key={field._id || field.key} className="hover:bg-gray-50">
+                      <td className="px-3 py-3">
+                        <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>
+                          {field.name}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-gray-600 truncate" title={field.description}>
+                          {field.description}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <span className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded truncate inline-block max-w-full">
+                          {field.type.toLowerCase()}
+                        </span>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>
+                          {field.key}
+                        </div>
+                      </td>
+
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0">
+                            {field.createdBy.initials}
+                          </div>
+                          <span className="text-sm text-gray-900 truncate" title={field.createdBy.name}>
+                            {field.createdBy.name}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Toggle + Edit + Delete */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-1 justify-end">
+                          {/* Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleActive(actualIndex)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 flex-shrink-0 ${
+                              field.isActive ? "bg-green-500" : "bg-gray-300"
+                            }`}
+                            aria-pressed={field.isActive}
+                            title={field.isActive ? "Active" : "Inactive"}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                                field.isActive ? "translate-x-6" : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+
+                          {/* Edit */}
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(actualIndex)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            title="Edit"
+                          >
+                            <PencilSquareIcon className="w-5 h-5" />
+                          </button>
+
+                          {/* Delete */}
+                          <button
+                            type="button"
+                            onClick={() => openDeleteModal(actualIndex)}
+                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            title="Delete"
+                          >
+                            <TrashIcon className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

@@ -67,7 +67,6 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // Routes
 
-app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
 app.use('/api/campaigns', require('./routes/campaignRoutes'));
@@ -76,6 +75,8 @@ app.use('/api/analytics', require('./routes/analyticsRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
 app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // WhatsApp Business API routes
 app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));
+app.use('/api/custom-fields', require('./routes/customFieldRoutes'));
+app.use('/api/labels', require('./routes/labelRoutes'));
 
 // ================== HEALTH CHECK ==================
 

@@ -20,7 +20,7 @@ const Layout = () => {
         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
 
         {/* Dynamic Page Content (Middle) */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 pb-20 relative">
+        <main className="flex-1 overflow-y-auto pb-20 relative">
            {/* This <Outlet> is where Dashboard, Pricing, etc. will appear */}
            <Outlet /> 
         </main>
