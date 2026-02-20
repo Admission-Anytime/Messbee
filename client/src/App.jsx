@@ -5,7 +5,8 @@ import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
-
+import MainHeading from "./components/header/MainHeading";
+import MainSidebar from "./components/mainsidebar/MainSidebar";
 // ❌ COMMENTED OUT AUTH GUARD FOR NOW
 // import ProtectedRoute from "../routes/protectedRoute";
 
@@ -86,7 +87,7 @@ const AppLayout = () => {
         </div>
       </div>
     </div>
-  );
+  )
 };
 
 function App() {
