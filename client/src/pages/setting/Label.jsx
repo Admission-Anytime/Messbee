@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getAllLabels, createLabel, updateLabel, deleteLabel } from '../../services/LabelApi';
+import { toast } from 'react-toastify';
 
 const Label = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLabel, setEditingLabel] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   // --- DELETE MODAL STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -17,19 +20,30 @@ const Label = () => {
     '#A855F7', '#F43F5E', '#334155', '#14B8A6', '#06B6D4', '#D946EF'
   ];
 
-  const [labels, setLabels] = useState([
-    { id: 1, name: 'start first', desc: 'check', color: '#A82A00', bg: 'bg-red-100', text: 'text-red-800', creator: 'Abhyan Morkal', isSystem: false },
-    { id: 2, name: 'Hot lead', desc: 'Most eligible customer to target', color: '#E76F51', bg: 'bg-orange-100', text: 'text-orange-800', creator: 'WhatsTool', isSystem: true },
-    { id: 3, name: 'Cold lead', desc: 'Not very interest customer', color: '#219EBC', bg: 'bg-cyan-100', text: 'text-cyan-800', creator: 'WhatsTool', isSystem: true },
-    { id: 4, name: 'Warm lead', desc: 'Very interested customer', color: '#E85D04', bg: 'bg-yellow-100', text: 'text-yellow-800', creator: 'WhatsTool', isSystem: true },
-    { id: 5, name: 'Issue raised', desc: 'Issue has been raised by team', color: '#D00000', bg: 'bg-red-100', text: 'text-red-800', creator: 'WhatsTool', isSystem: true },
-    { id: 6, name: 'Resolved', desc: 'Issue resolved', color: '#6A994E', bg: 'bg-green-100', text: 'text-green-800', creator: 'WhatsTool', isSystem: true },
-    { id: 7, name: 'Payment pending', desc: 'Payment is not yet received', color: '#4361EE', bg: 'bg-blue-100', text: 'text-blue-800', creator: 'WhatsTool', isSystem: true },
-    { id: 8, name: 'Payment received', desc: 'Payment has done by the customer', color: '#4361EE', bg: 'bg-blue-100', text: 'text-blue-800', creator: 'WhatsTool', isSystem: true },
-    { id: 9, name: 'Invoice sent', desc: 'We have send the invoice', color: '#333D29', bg: 'bg-gray-200', text: 'text-gray-800', creator: 'WhatsTool', isSystem: true },
-  ]);
+  const [labels, setLabels] = useState([]);
+
+  // Fetch labels on component mount
+  useEffect(() => {
+    fetchLabels();
+  }, []);
+
+  const fetchLabels = async () => {
+    try {
+      setLoading(true);
+      const data = await getAllLabels();
+      setLabels(data);
+    } catch (error) {
+      console.error('Failed to fetch labels:', error);
+      toast.error('❌ Failed to load labels');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleOpenModal = (label = null) => {
+    if (!label && labels.length >= 5) {
+      return toast.warning('⚠️ Limit Reached: You can only create up to 5 labels');
+    }
     if (label) {
       setEditingLabel(label);
       setLabelName(label.name);
@@ -44,26 +58,55 @@ const Label = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (!labelName.trim()) return alert("Please enter a label name");
-    if (editingLabel) {
-      setLabels(labels.map(l => l.id === editingLabel.id ? { ...l, name: labelName, desc: labelDesc, color: selectedColor } : l));
-    } else {
-      const newLabel = { id: Date.now(), name: labelName, desc: labelDesc, color: selectedColor, bg: 'bg-emerald-50', text: 'text-emerald-800', creator: 'Abhyan Morkal', isSystem: false };
-      setLabels([...labels, newLabel]);
+  const handleSave = async () => {
+    if (!labelName.trim()) return toast.warning('⚠️ Please enter a label name');
+    if (labelName.length > 25) return toast.warning('⚠️ Label name cannot exceed 25 characters');
+    
+    try {
+      const labelData = {
+        name: labelName,
+        desc: labelDesc,
+        color: selectedColor,
+        bg: 'bg-emerald-50',
+        text: 'text-emerald-800',
+        creator: 'Abhyan Morkal',
+        isSystem: false
+      };
+
+      if (editingLabel) {
+        // Update existing label
+        await updateLabel(editingLabel._id, labelData);
+        await fetchLabels(); // Refresh the list
+        toast.success('✅ Label updated successfully');
+      } else {
+        // Create new label
+        await createLabel(labelData);
+        await fetchLabels(); // Refresh the list
+        toast.success('✅ Label created successfully');
+      }
+      closeModal();
+    } catch (error) {
+      console.error('Failed to save label:', error);
+      toast.error(`❌ ${error.response?.data?.message || 'Failed to save label'}`);
     }
-    closeModal();
   };
 
-  const confirmDelete = (id) => {
-    setLabelToDelete(id);
+  const confirmDelete = (label) => {
+    setLabelToDelete(label);
     setIsDeleteModalOpen(true);
   };
 
-  const executeDelete = () => {
-    setLabels(labels.filter(l => l.id !== labelToDelete));
-    setIsDeleteModalOpen(false);
-    setLabelToDelete(null);
+  const executeDelete = async () => {
+    try {
+      await deleteLabel(labelToDelete._id);
+      await fetchLabels(); // Refresh the list
+      setIsDeleteModalOpen(false);
+      setLabelToDelete(null);
+      toast.success('✅ Label deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete label:', error);
+      toast.error(`❌ ${error.response?.data?.message || 'Failed to delete label'}`);
+    }
   };
 
   const closeModal = () => {
@@ -92,53 +135,67 @@ const Label = () => {
 
       {/* Table Section - Added responsive horizontal scroll */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="bg-gray-50/50 border-b border-gray-200">
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {labels.map((label) => (
-              <tr key={label.id} className="hover:bg-gray-50/50 transition-colors">
-                <td className="px-6 py-4">
-                  <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2.5 py-1 rounded-md text-[13px] font-semibold`}>
-                    {label.name}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-gray-500 text-[13px] font-medium leading-relaxed">{label.desc}</td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2.5">
-                    <span className="w-3.5 h-3.5 rounded-full shadow-inner" style={{ backgroundColor: label.color }}></span>
-                    <span className="text-gray-400 font-mono text-[12px] uppercase tracking-tighter">{label.color}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200">
-                      {label.isSystem ? 'WT' : 'AM'}
-                    </div>
-                    <span className="text-gray-700 text-[13px] font-semibold">{label.creator}</span>
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-right">
-                  <div className="flex justify-end gap-3 text-gray-400">
-                    <button onClick={() => handleOpenModal(label)} className="hover:text-blue-500 transition-colors">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                    </button>
-                    <button onClick={() => confirmDelete(label.id)} className="hover:text-red-500 transition-colors">
-                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
-                  </div>
-                </td>
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          </div>
+        ) : labels.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            <p className="text-lg font-semibold">No labels found</p>
+            <p className="text-sm">Create your first label to get started</p>
+          </div>
+        ) : (
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-200">
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {labels.map((label) => (
+                <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="px-6 py-4">
+                    <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2.5 py-1 rounded-md text-[13px] font-semibold`}>
+                      {label.name}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-gray-500 text-[13px] font-medium leading-relaxed">{label.desc}</td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-3.5 h-3.5 rounded-full shadow-inner" style={{ backgroundColor: label.color }}></span>
+                      <span className="text-gray-400 font-mono text-[12px] uppercase tracking-tighter">{label.color}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200">
+                        {label.isSystem ? 'WT' : 'AM'}
+                      </div>
+                      <span className="text-gray-700 text-[13px] font-semibold">{label.creator}</span>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end gap-3 text-gray-400">
+                      <button onClick={() => handleOpenModal(label)} className="hover:text-blue-500 transition-colors">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                      </button>
+                      <button onClick={() => confirmDelete(label)} className="hover:text-red-500 transition-colors">
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {/* --- ADD/EDIT MODAL (RESPONSIVE) --- */}
@@ -156,7 +213,7 @@ const Label = () => {
                   <label className="text-[13px] font-bold text-gray-700">Label Name</label>
                   <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{labelName.length} / 25</span>
                 </div>
-                <input type="text" value={labelName} onChange={(e) => setLabelName(e.target.value)} placeholder="e.g. VIP Customer" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
+                <input type="text" value={labelName} onChange={(e) => setLabelName(e.target.value)} maxLength={25} placeholder="e.g. VIP Customer" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
               </div>
 
               <div>
@@ -203,7 +260,7 @@ const Label = () => {
               <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button onClick={executeDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
+              <button onClick={executeDelete} className="flex-1 or  der-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
                 Confirm
               </button>
             </div>
