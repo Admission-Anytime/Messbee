@@ -234,7 +234,7 @@ const QuickReply = () => {
          </div>
       </div>
 
-      {/* DELETE CONFIRMATION CARD (MODAL) */}
+      {/* ✅ DELETE CONFIRMATION CARD (MODAL) */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">

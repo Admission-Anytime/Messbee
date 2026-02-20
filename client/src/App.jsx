@@ -1,14 +1,17 @@
+
 import { Suspense, lazy, useState } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Loading from "./components/Loading";
-import ProtectedRoute from "../routes/protectedRoute";
+import MainHeading from "./components/header/MainHeading";
+import MainSidebar from "./components/mainsidebar/MainSidebar";
+// ❌ COMMENTED OUT AUTH GUARD FOR NOW
+// import ProtectedRoute from "../routes/protectedRoute";
 
-// --- LAYOUT COMPONENTS ---
-import MainSidebar from "./components/mainsidebar/MainSidebar"; 
-import MainHeading from "./components/header/MainHeading"; 
+// --- LAYOUT ---
+import Layout from "./components/LAYOUT/Layout";
 
 // --- AUTH PAGES ---
 const Login = lazy(() => import("./pages/Auth/Login"));
@@ -23,11 +26,21 @@ import CreateCampaign from "./pages/campaign/CreateCampaign";
 import Automation from "./pages/automation/automation";
 import Analytic from "./pages/analytic/analytic";
 
-// --- CONTACTS (Updated to match your folder 'contats') ---
-import Contact from "./pages/contats/contact"; 
-import StatusPage from "./pages/contats/Status/StatusPage"; 
+// --- PLAN & PRICING PAGES ---
+import UpgradePlan from "./pages/PlanPricing/UpgradePlan";
+import AddonsWCC from "./pages/PlanPricing/AddonsWCC";
+import ActivePlan from "./pages/PlanPricing/ActivePlan";
+import PaymentHistory from "./pages/PlanPricing/PaymentHistory";
+import PaymentMethods from "./pages/PlanPricing/PaymentMethods";
 
-// --- SETTINGS & SUB-PAGES ---
+// --- CONTACTS ---
+import Contact from "./pages/contats/contact"; 
+import StatusPage from "./pages/contats/Status/StatusPage";
+import ImportContacts from "./pages/contats/importContact"  // ← ADDED step 1
+import MapFields from "./pages/contats/mapfields";  // ← ADDED step 2
+import ReviewSummary from  "./pages/contats/reviewSummary"; // step 3
+
+// --- SETTINGS ---
 import Wapi from "./pages/setting/Wapi";
 import Media from "./pages/setting/Media";
 import Templates from "./pages/setting/Templates";
@@ -38,7 +51,7 @@ import CustomField from "./pages/setting/CustomField";
 import QuickReply from "./pages/setting/QuickReply";
 import DevApi from "./pages/setting/DevApi";
 
-// --- PROFILE & PLAN ---
+// --- PROFILE ---
 import UserProfile from "./pages/profile/UserProfile";
 import BusinessProfile from "./pages/profile/BusinessProfile";
 import ActivePlans from "./pages/profile/ActivePlans"; 
@@ -64,18 +77,18 @@ const AppLayout = () => {
     <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
       {/* HEADER */}
       <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
-         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
       </div>
 
       {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
-           <Outlet />
+          <Outlet />
         </div>
       </div>
     </div>
-  );
+  )
 };
 
 function App() {
@@ -94,10 +107,6 @@ function App() {
         hideProgressBar={true}
         newestOnTop={true}
         closeOnClick={false}
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
         theme="light"
         toastClassName="!bg-transparent !shadow-none !p-0 !min-h-0 !mb-4"
         bodyClassName="!m-0 !p-0"
@@ -105,10 +114,12 @@ function App() {
       
       <Suspense fallback={<Loading />}>
         <Routes>
+          {/* --- PUBLIC ROUTES --- */}
           <Route path="/login" element={<Login />} />
           <Route path="/signup" element={<Registration />} />
 
-          <Route element={<ProtectedRoute Component={AppLayout} />}>
+          {/* ✅ REMOVED ProtectedRoute: Anyone can view these pages now without logging in */}
+          <Route element={<Layout />}>
             
             <Route path="/" element={<Dashboard />} />
             <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
@@ -125,6 +136,12 @@ function App() {
             <Route path="/admin/contacts/crm" element={<div className="p-10 text-xl font-bold text-slate-700">CRM Pipeline</div>} />
 
             {/* 5. Templates Logic */}
+            {/* ── Import Contacts Route ── */}
+            <Route path="/admin/contacts/import" element={<ImportContacts />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/map" element={<MapFields />} />  {/* ← ADDED */}
+            <Route path="/admin/contacts/review" element={<ReviewSummary />} />  {/* ← ADDED */}
+            
+            {/* 5. Templates */}
             <Route path="/admin/templates/list" element={<Templates />} />
             <Route path="/admin/campaigns/templates" element={<Templates />} />
             <Route path="/admin/templates/gallery" element={<TemplatesGallery />} />
@@ -156,13 +173,12 @@ function App() {
             <Route path="/admin/settings/whatsapp" element={<Wapi />} />
             <Route path="/admin/settings/media" element={<Media />} />
 
-            <Route path="/admin/plan/overview" element={<div className="p-10 text-xl font-bold text-slate-700">Plan Overview</div>} />
-            <Route path="/admin/plan/billing" element={<ActivePlans />} />
-            <Route path="/admin/plan/upgrade" element={<div className="p-10 text-xl font-bold text-slate-700">Upgrade Plan</div>} />
-            <Route path="/admin/plan/addons" element={<div className="p-10 text-xl font-bold text-slate-700">Add-ons (WCC)</div>} />
-            <Route path="/admin/plan/active" element={<ActivePlans />} />
-            <Route path="/admin/plan/history" element={<div className="p-10 text-xl font-bold text-slate-700">Payment History</div>} />
-            <Route path="/admin/plan/methods" element={<div className="p-10 text-xl font-bold text-slate-700">Payment Methods</div>} />
+            {/* 12. Plan & Pricing */}
+            <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
+            <Route path="/admin/plan/addons" element={<AddonsWCC />} />
+            <Route path="/admin/plan/active" element={<ActivePlan />} />
+            <Route path="/admin/plan/history" element={<PaymentHistory />} />
+            <Route path="/admin/plan/methods" element={<PaymentMethods />} />
 
             <Route path="/admin/account/admin" element={<div className="p-10 text-xl font-bold text-slate-700">Admin Users</div>} />
             <Route path="/admin/account/settings" element={<div className="p-10 text-xl font-bold text-slate-700">Settings</div>} />

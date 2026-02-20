@@ -1,5 +1,5 @@
-import { useState, useMemo, useRef, useEffect } from "react"; 
-import { Link, useLocation } from "react-router-dom";
+import React, { useState, useMemo, useRef, useEffect } from "react"; 
+import { Link, useLocation, useNavigate } from "react-router-dom"; // ✅ useNavigate imported
 import { Icon } from "@iconify/react"; 
 import { Bars3Icon } from "@heroicons/react/24/outline"; 
 
@@ -187,6 +187,7 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
 };
 
 const MainSidebar = ({ isOpen, setIsOpen }) => {
+  const navigate = useNavigate(); // ✅ Hook for navigation
   const [searchQuery, setSearchQuery] = useState(""); 
   const [openSubmenu, setOpenSubmenu] = useState(""); 
   const searchInputRef = useRef(null); 
@@ -206,6 +207,11 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       setOpenSubmenu("Contacts & CRM");
     }
   }, [location.pathname]);
+  // ✅ LOGOUT FUNCTION
+  const handleLogout = () => {
+    localStorage.clear();
+    navigate("/login");
+  };
 
   const filteredMenuItems = useMemo(() => {
     if (!searchQuery) return MENU_ITEMS;
@@ -276,17 +282,37 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         </div>
       )}
 
-      <div className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0 ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"}`}>
+      <div 
+        className={`flex flex-col h-full bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0
+        ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"} 
+        `}
+      >
+        
+        {/* 1. SEARCH & TOGGLE */}
         <div className={`mt-5 mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
+           
            {isOpen ? (
              <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
                 <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
                 <input ref={searchInputRef} type="text" placeholder="Search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400" />
              </div>
            ) : (
-             <button onClick={handleCollapsedSearchClick} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Click to Search"><Icon icon="feather:search" className="w-5 h-5" /></button>
+             <button 
+               onClick={handleCollapsedSearchClick} 
+               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" 
+               title="Click to Search"
+             >
+                <Icon icon="feather:search" className="w-5 h-5" />
+             </button>
            )}
-           <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0" title={isOpen ? "Collapse" : "Expand"}><Bars3Icon className="w-6 h-6" /></button>
+
+           <button 
+             onClick={() => setIsOpen(!isOpen)} 
+             className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0"
+             title={isOpen ? "Collapse" : "Expand"}
+           >
+             <Bars3Icon className="w-6 h-6" />
+           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto sidebar-scroll py-2">
@@ -299,10 +325,18 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
           ))}
         </div>
 
-        <div className="border-t border-gray-100 bg-[#F9FAFB] shrink-0 p-2">
-           <button className={`w-full flex items-center px-3 py-3 text-slate-600 hover:text-slate-900 hover:bg-[#EBF5F0] rounded-lg transition-colors ${!isOpen ? "justify-center" : ""}`}>
-              <Icon icon="feather:log-out" className="w-5 h-5 min-w-[20px]" />
-              {isOpen && <span className="text-sm font-medium ml-3">Logout</span>}
+        {/* 3. LOGOUT BUTTON (Fixed) */}
+        <div className="p-2 border-t border-gray-100 mt-auto">
+           <button 
+             onClick={handleLogout}
+             className={`
+               flex items-center rounded-lg transition-colors cursor-pointer text-red-500 hover:bg-red-50
+               ${isOpen ? "px-4 py-3 gap-3 w-full" : "justify-center py-3 w-full"}
+             `}
+             title="Logout"
+           >
+             <Icon icon="feather:log-out" className="w-5 h-5 min-w-[20px]" />
+             {isOpen && <span className="font-medium text-[14px]">Logout</span>}
            </button>
         </div>
       </div>

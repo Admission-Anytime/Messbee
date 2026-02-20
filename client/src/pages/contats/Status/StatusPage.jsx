@@ -14,14 +14,10 @@ import {
 
 // Import the toast utility
 import { showToast } from "../../../utils/showToast"; 
-
 const StatusPage = () => {
-  // --- STATE ---
-  // ✅ FIX: Reduced mock data to 2 items so you start UNDER the limit
-  const [statuses, setStatuses] = useState([
-    { id: 1, name: "Confirmed", description: "Lead has confirmed interest.", color: "#00B050", createdBy: "Arshlan Khan", avatar: "https://i.pravatar.cc/150?u=arshlan", isActive: true },
-    { id: 2, name: "Pending", description: "Waiting for customer reply.", color: "#F59E0B", createdBy: "System", avatar: "https://i.pravatar.cc/150?u=system", isActive: true }
-  ]);
+   // --- STATE ---
+  const [statuses, setStatuses] = useState([]); // ✅ Start empty
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);

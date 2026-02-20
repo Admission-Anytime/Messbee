@@ -1,6 +1,7 @@
 import React from "react";
 import { CheckIcon, XMarkIcon, ExclamationTriangleIcon } from "@heroicons/react/24/solid";
 
+
 const CustomToast = ({ title, message, type, closeToast }) => {
   const isSuccess = type === "success";
 
@@ -38,4 +39,10 @@ const CustomToast = ({ title, message, type, closeToast }) => {
   );
 };
 
+
 export default CustomToast;
+
+
+
+
+
