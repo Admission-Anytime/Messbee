@@ -315,7 +315,7 @@ const CustomFieldsSection = () => {
   }, [isCreateOpen, isEditOpen, deleteIndex]);
 
   return (
-    <div className="flex-1 bg-gray-50 p-4 overflow-hidden">
+    <div className="flex-1 bg-gray-50 overflow-hidden">
       <div className="bg-white rounded-lg shadow-sm">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">

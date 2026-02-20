@@ -38,7 +38,7 @@ const QuickReply = () => {
       if (data.length > 0) setActivePreview(data[0]);
     } catch (error) {
       setReplies([]); 
-      toast.error("Could not connect to server");
+      toast.error("⚠️ Could not connect to server. Please check if backend is running.");
     }
   };
 
@@ -50,7 +50,7 @@ const QuickReply = () => {
         return;
       }
       setSelectedFile(file);
-      toast.info(`Selected: ${file.name}`);
+      toast.success(`📎 File selected: ${file.name}`);
     }
   };
 
@@ -71,7 +71,7 @@ const QuickReply = () => {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
     } catch (error) {
-      toast.error("Error deleting reply");
+      toast.error("❌ Failed to delete quick reply. Please try again.");
     }
   };
 
@@ -90,6 +90,16 @@ const QuickReply = () => {
     : activePreview;
 
   const handleSave = async () => {
+    // Validation
+    if (!shortcut.trim()) {
+      toast.warning("⚠️ Please enter a shortcut!");
+      return;
+    }
+    if (!message.trim() && !selectedFile) {
+      toast.warning("⚠️ Please add a message or select a file!");
+      return;
+    }
+
     const formData = new FormData();
     formData.append('shortcut', shortcut.startsWith('/') ? shortcut : `/${shortcut || 'new'}`);
     formData.append('content', message || '');
@@ -115,8 +125,8 @@ const QuickReply = () => {
       fetchReplies();
       closeModal();
     } catch (error) {
-      const errorMsg = error.response?.data?.message || "Error saving data";
-      toast.error(errorMsg);
+      const errorMsg = error.response?.data?.message || "Failed to save quick reply";
+      toast.error(`❌ ${errorMsg}`);
     }
   };
 
@@ -145,6 +155,7 @@ const QuickReply = () => {
     setUrl(item.url || '');
     setEditingIndex(index);
     setIsModalOpen(true);
+    toast.info(`✏️ Editing: ${item.shortcut}`);
   };
 
   return (
