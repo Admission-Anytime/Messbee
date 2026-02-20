@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { Search, Eye, ChevronDown, Check } from 'lucide-react';
+/* eslint-disable react/no-unescaped-entities */
+import { useState } from 'react';
+import { Eye, ChevronDown, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const TemplatesGallery = () => {
@@ -96,8 +97,8 @@ const TemplatesGallery = () => {
                   </div>
                   
                   <p className="text-[14px] text-[#475569] mb-8 leading-relaxed font-medium line-clamp-4 flex-1 italic">
-                    "{tpl.content.substring(0, 110)}..."
-                  </p>
+                    "{tpl.content?.substring(0, 110)}"
+                   </p>
                   
                   <button className={`w-full py-3 rounded-2xl font-bold text-[13px] transition-all duration-300 ${selectedTemplate?.id === tpl.id ? 'bg-[#10B981] text-white' : 'bg-[#F8FAFC] text-[#64748B]'}`}>
                     {selectedTemplate?.id === tpl.id ? 'Selected' : 'Use Template'}

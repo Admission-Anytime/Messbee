@@ -1,4 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from "react"; 
+/* eslint-disable react/prop-types */
+import { useState, useMemo, useRef, useEffect } from "react"; 
 import { Link, useLocation, useNavigate } from "react-router-dom"; // ✅ useNavigate imported
 import { Icon } from "@iconify/react"; 
 import { Bars3Icon } from "@heroicons/react/24/outline"; 

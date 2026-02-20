@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // 1. Router import kiya
-import { Search, Plus, RotateCw, ArrowLeft, Image as ImageIcon, Send, ChevronRight, Globe } from 'lucide-react';
+/* eslint-disable react/prop-types */
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Search, Plus, RotateCw, Image as ImageIcon} from 'lucide-react';
 
-const Templates = ({ activeTab, setActiveTab }) => {
-  const navigate = useNavigate(); // 2. Navigate hook initialize kiya
+const Templates = ({ activeTab, }) => {
+  const navigate = useNavigate();
   
   // Syncing internal view with Sidebar activeTab
   const [view, setView] = useState('list');
@@ -39,7 +40,7 @@ const Templates = ({ activeTab, setActiveTab }) => {
                 <RotateCw size={18} /> Sync
               </button>
               
-              {/* FIXED BUTTON: Ab yeh direct navigation handle karega */}
+              {/* FIXED BUTTON: Ab yeh direct navigation handle  */}
               <button 
                 onClick={() => navigate('/admin/templates/create')} 
                 className="flex items-center gap-2 bg-[#25D366] hover:bg-[#1fb855] text-white px-5 py-2.5 rounded-xl font-black transition-all shadow-md active:scale-95 text-sm"
@@ -105,7 +106,7 @@ const Templates = ({ activeTab, setActiveTab }) => {
 };
 
 // --- MOBILE PREVIEW COMPONENT ---
-const MobilePreview = ({ name, body, footer, showImage = false }) => (
+const MobilePreview = ({ name, body, showImage = false }) => (
   <div className="relative w-[280px] h-[550px] bg-[#0F172A] rounded-[3.5rem] border-[10px] border-[#1e293b] shadow-2xl overflow-hidden transform scale-95 origin-top font-sans">
     <div className="h-full bg-[#E5DDD5] pt-10">
       <div className="bg-[#075E54] p-4 flex items-center gap-3">
