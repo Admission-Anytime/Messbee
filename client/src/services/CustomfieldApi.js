@@ -1,132 +1,163 @@
 
 import axios from 'axios';
 
-// Change this based on your environment:
-// - Development: 'http://localhost:5000' (or whatever port your backend runs on)
-// ============================================================================
+// API base URL - update based on your environment
 const API_BASE_URL = 'http://localhost:5000/api/custom-fields';
-
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000, // Request timeout in milliseconds
+  timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-
-
+// Request interceptor - Add auth token if available
 apiClient.interceptors.request.use(
   (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
     return config;
   },
   (error) => {
-    // Handle request errors (e.g., network issues before request is sent)
     return Promise.reject(error);
   }
 );
 
-
+// Response interceptor - Handle errors
 apiClient.interceptors.response.use(
   (response) => {
-    // If response is successful, just return it
     return response;
   },
   (error) => {
-    // Handle common error scenarios
     if (error.response?.status === 401) {
-      // Unauthorized - token expired or invalid
-      // You might want to redirect to login page
       console.error('Unauthorized - please login again');
+      // Optionally redirect to login
       // localStorage.removeItem('token');
       // window.location.href = '/login';
     }
-    
     return Promise.reject(error);
   }
 );
 
-
-
-export const listCustomFieldsApi = async () => {
+/**
+ * Get all custom fields
+ * @param {Object} params - Query parameters
+ * @param {number} params.page - Page number
+ * @param {number} params.limit - Items per page
+ * @param {string} params.search - Search term
+ * @param {boolean} params.isActive - Filter by active status
+ * @returns {Promise} Response with custom fields list
+ */
+export const getCustomFields = async (params = {}) => {
   try {
-    // Make GET request to backend
-    // The protect middleware will verify the token from the interceptor
-    const response = await apiClient.get('/list');
-    
-    // Response structure from backend:
-    // {
-    //   success: true,
-    //   data: [
-    //     { _id: '123', name: 'Order Status', type: 'Text', key: 'order_status', ... },
-    //     { _id: '456', name: 'Priority', type: 'Number', key: 'priority', ... }
-    //   ]
-    // }
-    
-    return response; // Return the axios response object
-    
+    const response = await apiClient.get('/', { params });
+    return response;
   } catch (error) {
-    // If request fails, throw error so frontend can catch it
-    console.error('List custom fields error:', error.response?.data || error.message);
+    console.error('Get custom fields error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-
-export const createCustomFieldApi = async (payload) => {
+/**
+ * Get single custom field by ID
+ * @param {string} id - Custom field ID
+ * @returns {Promise} Response with custom field data
+ */
+export const getCustomField = async (id) => {
   try {
-    
-    
-    // Make POST request with payload in the request body
-    const response = await apiClient.post('/create', payload);
-    
-    
-    
+    const response = await apiClient.get(`/${id}`);
     return response;
-    
+  } catch (error) {
+    console.error('Get custom field error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Create a new custom field
+ * @param {Object} payload - Custom field data
+ * @param {string} payload.name - Field name
+ * @param {string} payload.key - Technical key
+ * @param {string} payload.type - Field type (Text, Number, Date)
+ * @param {string} payload.description - Field description
+ * @returns {Promise} Response with created field
+ */
+export const createCustomField = async (payload) => {
+  try {
+    const response = await apiClient.post('/', payload);
+    return response;
   } catch (error) {
     console.error('Create custom field error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-
-export const updateCustomFieldApi = async (id, payload) => {
+/**
+ * Update an existing custom field
+ * @param {string} id - Custom field ID
+ * @param {Object} payload - Updated field data
+ * @returns {Promise} Response with updated field
+ */
+export const updateCustomField = async (id, payload) => {
   try {
-  
-    
-    // Make PUT request with id in URL path and payload in body
-    // URL becomes: /api/custom-fields/update/123abc
-    const response = await apiClient.put(`/update/${id}`, payload);
-    
+    const response = await apiClient.put(`/${id}`, payload);
     return response;
-    
   } catch (error) {
     console.error('Update custom field error:', error.response?.data || error.message);
     throw error;
   }
 };
 
-export const deleteCustomFieldApi = async (id) => {
+/**
+ * Toggle custom field active status
+ * @param {string} id - Custom field ID
+ * @returns {Promise} Response with updated field
+ */
+export const toggleCustomField = async (id) => {
   try {
-    // id: MongoDB _id of the field to delete (e.g., '123abc')
-    
-    // Make DELETE request with id in URL path
-    // URL becomes: /api/custom-fields/delete/123abc
-    const response = await apiClient.delete(`/delete/${id}`);
-    
-    // Response structure from backend:
-    // {
-    //   success: true,
-    //   message: 'Custom field deleted successfully'
-    // }
-    
+    const response = await apiClient.patch(`/${id}/toggle`);
     return response;
-    
+  } catch (error) {
+    console.error('Toggle custom field error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
+ * Delete a custom field
+ * @param {string} id - Custom field ID
+ * @returns {Promise} Response confirming deletion
+ */
+export const deleteCustomField = async (id) => {
+  try {
+    const response = await apiClient.delete(`/${id}`);
+    return response;
   } catch (error) {
     console.error('Delete custom field error:', error.response?.data || error.message);
     throw error;
   }
 };
 
+/**
+ * Bulk delete custom fields
+ * @param {string[]} ids - Array of custom field IDs
+ * @returns {Promise} Response with deletion count
+ */
+export const bulkDeleteCustomFields = async (ids) => {
+  try {
+    const response = await apiClient.post('/bulk-delete', { ids });
+    return response;
+  } catch (error) {
+    console.error('Bulk delete custom fields error:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+// Legacy alias for backward compatibility
+export const listCustomFieldsApi = getCustomFields;
+export const createCustomFieldApi = createCustomField;
+export const updateCustomFieldApi = updateCustomField;
+export const deleteCustomFieldApi = deleteCustomField;
