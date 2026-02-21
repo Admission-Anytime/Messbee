@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { Suspense, lazy, useState, memo } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
@@ -5,6 +6,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import MainHeading from "./components/header/MainHeading";
 import MainSidebar from "./components/mainsidebar/MainSidebar";
+
 
 // --- INLINE LOADING ---
 const PageLoader = () => (
@@ -48,6 +50,9 @@ const Label = lazy(() => import("./pages/setting/Label"));
 const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
+const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
+const ProductList = lazy(() => import("./pages/commerce/ProductList"));
+const Inventory = lazy(() => import("./pages/commerce/Inventory"));
 
 // --- LAZY LOADED PROFILE ---
 const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
@@ -185,14 +190,9 @@ function App() {
             element={<Placeholder title="Bulk Send" />}
           />
           {/* 7. Commerce */}
-          <Route
-            path="/admin/commerce/payments"
-            element={<Placeholder title="Payment List" />}
-          />
-          <Route
-            path="/admin/commerce/products"
-            element={<Placeholder title="Product List" />}
-          />
+          <Route path="/admin/commerce/payments" element={<PaymentList />} />
+          <Route path="/admin/commerce/products" element={<ProductList />} />
+          <Route path="/admin/commerce/inventory" element={<Inventory />} />
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
           {/* 9. Analytics */}
