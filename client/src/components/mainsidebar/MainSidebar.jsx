@@ -39,7 +39,8 @@ const MENU_ITEMS = [
         isSubmenu: true,
         children: [
           { title: "Payment list", path: "/admin/commerce/payments", icon: "feather:dollar-sign" },
-          { title: "Product list", path: "/admin/commerce/products", icon: "feather:package" }
+          { title: "Product list", path: "/admin/commerce/products", icon: "feather:package" },
+          { title: "Inventory", path: "/admin/commerce/inventory", icon: "feather:archive" } // ✅ Added Inventory
         ]
       },
       { title: "Automation", path: "/admin/automation", icon: "feather:cpu" },
@@ -90,6 +91,7 @@ const MENU_ITEMS = [
   }
 ];
 
+// SidebarItem component 
 const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
   const isOpen = openSubmenu === item.title;
   const isFloatingOpen = activeFloating === item.title;
@@ -189,7 +191,7 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
 };
 
 const MainSidebar = ({ isOpen, setIsOpen }) => {
-  const navigate = useNavigate(); // ✅ Hook for navigation
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState(""); 
   const [openSubmenu, setOpenSubmenu] = useState(""); 
   const searchInputRef = useRef(null); 
@@ -201,12 +203,13 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
   const isActive = (path) => location.pathname === path;
   const handleSubmenuToggle = (title) => setOpenSubmenu(prev => prev === title ? "" : title);
 
-  // Auto-open submenu based on URL
   useEffect(() => {
     if (location.pathname.includes('/admin/templates')) {
       setOpenSubmenu("Templates");
     } else if (location.pathname.includes('/admin/contacts')) {
       setOpenSubmenu("Contacts & CRM");
+    } else if (location.pathname.includes('/admin/commerce')) {
+      setOpenSubmenu("Commerce");
     }
   }, [location.pathname]);
   // ✅ LOGOUT FUNCTION - Use Context
@@ -241,9 +244,9 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       const spaceBelow = windowHeight - rect.top;
 
       if (spaceBelow < 350) {
-         setFloatingStyle({ left: '75px', bottom: (windowHeight - rect.bottom) + 'px', top: 'auto' });
+          setFloatingStyle({ left: '75px', bottom: (windowHeight - rect.bottom) + 'px', top: 'auto' });
       } else {
-         setFloatingStyle({ left: '75px', top: rect.top + 'px', bottom: 'auto' });
+          setFloatingStyle({ left: '75px', top: rect.top + 'px', bottom: 'auto' });
       }
       setActiveFloating(title);
     }
@@ -268,21 +271,21 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
       {activeFloating && !isOpen && (
         <div className="fixed w-60 bg-white shadow-[0_5px_30px_-5px_rgba(0,0,0,0.2)] rounded-xl border border-slate-100 p-2 z-[9999] animate-fade-in origin-left" style={floatingStyle}>
-           <div className="px-4 py-3 border-b border-slate-50 mb-2 bg-slate-50/50 rounded-t-lg flex justify-between items-center">
-              <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeFloating}</span>
-              <button onClick={() => setActiveFloating(null)} className="text-slate-400 hover:text-red-500"><Icon icon="feather:x" /></button>
-           </div>
-           <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
-              {MENU_ITEMS[0].items.find(i => i.title === activeFloating)?.children?.map((sub, idx) => {
-                 const isSubActive = isActive(sub.path);
-                 return (
-                   <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isSubActive ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
-                     <Icon icon={sub.icon} className={`w-4 h-4 ${isSubActive ? "text-[#10B981]" : "text-slate-400"}`} />
-                     <span className="truncate">{sub.title}</span>
-                   </Link>
-                 )
-              })}
-           </div>
+            <div className="px-4 py-3 border-b border-slate-50 mb-2 bg-slate-50/50 rounded-t-lg flex justify-between items-center">
+               <span className="text-xs font-extrabold text-slate-500 uppercase tracking-widest">{activeFloating}</span>
+               <button onClick={() => setActiveFloating(null)} className="text-slate-400 hover:text-red-500"><Icon icon="feather:x" /></button>
+            </div>
+            <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
+               {MENU_ITEMS[0].items.find(i => i.title === activeFloating)?.children?.map((sub, idx) => {
+                  const isSubActive = isActive(sub.path);
+                  return (
+                    <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isSubActive ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
+                      <Icon icon={sub.icon} className={`w-4 h-4 ${isSubActive ? "text-[#10B981]" : "text-slate-400"}`} />
+                      <span className="truncate">{sub.title}</span>
+                    </Link>
+                  )
+               })}
+            </div>
         </div>
       )}
 
@@ -291,30 +294,18 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         ${isOpen ? "w-[260px] min-w-[260px]" : "w-[70px] min-w-[70px]"} 
         `}
       >
-        
-        {/* 1. SEARCH & TOGGLE */}
         <div className={`mt-5 mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
-           
            {isOpen ? (
              <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
                 <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
                 <input ref={searchInputRef} type="text" placeholder="Search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400" />
              </div>
            ) : (
-             <button 
-               onClick={handleCollapsedSearchClick} 
-               className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" 
-               title="Click to Search"
-             >
+             <button onClick={handleCollapsedSearchClick} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Click to Search">
                 <Icon icon="feather:search" className="w-5 h-5" />
              </button>
            )}
-
-           <button 
-             onClick={() => setIsOpen(!isOpen)} 
-             className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0"
-             title={isOpen ? "Collapse" : "Expand"}
-           >
+           <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors hidden lg:flex shrink-0" title={isOpen ? "Collapse" : "Expand"}>
              <Bars3Icon className="w-6 h-6" />
            </button>
         </div>
@@ -329,16 +320,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
           ))}
         </div>
 
-        {/* 3. LOGOUT BUTTON (Fixed) */}
         <div className="p-2 border-t border-gray-100 mt-auto">
-           <button 
-             onClick={handleLogout}
-             className={`
-               flex items-center rounded-lg transition-colors cursor-pointer text-red-500 hover:bg-red-50
-               ${isOpen ? "px-4 py-3 gap-3 w-full" : "justify-center py-3 w-full"}
-             `}
-             title="Logout"
-           >
+           <button onClick={handleLogout} className={`flex items-center rounded-lg transition-colors cursor-pointer text-red-500 hover:bg-red-50 ${isOpen ? "px-4 py-3 gap-3 w-full" : "justify-center py-3 w-full"}`} title="Logout">
              <Icon icon="feather:log-out" className="w-5 h-5 min-w-[20px]" />
              {isOpen && <span className="font-medium text-[14px]">Logout</span>}
            </button>
