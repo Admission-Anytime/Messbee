@@ -7,6 +7,10 @@ const {
     deleteLabel,
     initializeSystemLabels
 } = require('../controllers/labelController');
+const { protect } = require('../middleware/auth');
+
+// Protect all label routes
+router.use(protect);
 
 /**
  * @swagger

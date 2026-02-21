@@ -3,7 +3,11 @@ const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
+const { protect } = require('../middleware/auth');
 const router = express.Router();
+
+// Protect all chat routes
+router.use(protect);
 
 // 1. Get All Chats (Sidebar)
 router.get("/chats", async (req, res) => {

@@ -1,46 +1,7 @@
 
-import axios from 'axios';
+import axios from '../context/axios';
 
-// API base URL - update based on your environment
-const API_BASE_URL = 'http://localhost:5000/api/custom-fields';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor - Add auth token if available
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor - Handle errors
-apiClient.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      console.error('Unauthorized - please login again');
-      // Optionally redirect to login
-      // localStorage.removeItem('token');
-      // window.location.href = '/login';
-    }
-    return Promise.reject(error);
-  }
-);
+// Use centralized axios instance with cookie-based authentication
 
 /**
  * Get all custom fields
@@ -53,7 +14,7 @@ apiClient.interceptors.response.use(
  */
 export const getCustomFields = async (params = {}) => {
   try {
-    const response = await apiClient.get('/', { params });
+    const response = await axios.get('/custom-fields/', { params });
     return response;
   } catch (error) {
     console.error('Get custom fields error:', error.response?.data || error.message);
@@ -68,7 +29,7 @@ export const getCustomFields = async (params = {}) => {
  */
 export const getCustomField = async (id) => {
   try {
-    const response = await apiClient.get(`/${id}`);
+    const response = await axios.get(`/custom-fields/${id}`);
     return response;
   } catch (error) {
     console.error('Get custom field error:', error.response?.data || error.message);
@@ -87,7 +48,7 @@ export const getCustomField = async (id) => {
  */
 export const createCustomField = async (payload) => {
   try {
-    const response = await apiClient.post('/', payload);
+    const response = await axios.post('/custom-fields/', payload);
     return response;
   } catch (error) {
     console.error('Create custom field error:', error.response?.data || error.message);
@@ -103,7 +64,7 @@ export const createCustomField = async (payload) => {
  */
 export const updateCustomField = async (id, payload) => {
   try {
-    const response = await apiClient.put(`/${id}`, payload);
+    const response = await axios.put(`/custom-fields/${id}`, payload);
     return response;
   } catch (error) {
     console.error('Update custom field error:', error.response?.data || error.message);
@@ -118,7 +79,7 @@ export const updateCustomField = async (id, payload) => {
  */
 export const toggleCustomField = async (id) => {
   try {
-    const response = await apiClient.patch(`/${id}/toggle`);
+    const response = await axios.patch(`/custom-fields/${id}/toggle`);
     return response;
   } catch (error) {
     console.error('Toggle custom field error:', error.response?.data || error.message);
@@ -133,7 +94,7 @@ export const toggleCustomField = async (id) => {
  */
 export const deleteCustomField = async (id) => {
   try {
-    const response = await apiClient.delete(`/${id}`);
+    const response = await axios.delete(`/custom-fields/${id}`);
     return response;
   } catch (error) {
     console.error('Delete custom field error:', error.response?.data || error.message);
@@ -148,7 +109,7 @@ export const deleteCustomField = async (id) => {
  */
 export const bulkDeleteCustomFields = async (ids) => {
   try {
-    const response = await apiClient.post('/bulk-delete', { ids });
+    const response = await axios.post('/custom-fields/bulk-delete', { ids });
     return response;
   } catch (error) {
     console.error('Bulk delete custom fields error:', error.response?.data || error.message);

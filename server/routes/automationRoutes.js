@@ -7,8 +7,12 @@ const {
   deleteAutomation,
   toggleAutomation
 } = require('../controllers/automationController');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Protect all automation routes
+router.use(protect);
 
 /**
  * @swagger

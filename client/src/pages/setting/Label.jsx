@@ -69,7 +69,6 @@ const Label = () => {
         color: selectedColor,
         bg: 'bg-emerald-50',
         text: 'text-emerald-800',
-        creator: 'Abhyan Morkal',
         isSystem: false
       };
 

@@ -31,6 +31,11 @@ const upload = multer({
     limits: { fileSize: 16 * 1024 * 1024 } 
 });
 
+const { protect } = require('../middleware/auth');
+
+// Protect all quick reply routes
+router.use(protect);
+
 router.get('/', getQuickReplies);
 router.post('/', upload.single('file'), createQuickReply);
 router.put('/:id', upload.single('file'), updateQuickReply);

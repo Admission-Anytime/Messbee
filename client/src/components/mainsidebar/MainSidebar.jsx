@@ -1,8 +1,9 @@
 /* eslint-disable react/prop-types */
-import { useState, useMemo, useRef, useEffect } from "react"; 
+import { useState, useMemo, useRef, useEffect, useContext } from "react"; 
 import { Link, useLocation, useNavigate } from "react-router-dom"; // ✅ useNavigate imported
 import { Icon } from "@iconify/react"; 
-import { Bars3Icon } from "@heroicons/react/24/outline"; 
+import { Bars3Icon } from "@heroicons/react/24/outline";
+import { userContext } from "../../context/Context"; 
 
 const MENU_ITEMS = [
   {
@@ -208,9 +209,11 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       setOpenSubmenu("Contacts & CRM");
     }
   }, [location.pathname]);
-  // ✅ LOGOUT FUNCTION
-  const handleLogout = () => {
-    localStorage.clear();
+  // ✅ LOGOUT FUNCTION - Use Context
+  const { logoutUser } = useContext(userContext);
+  
+  const handleLogout = async () => {
+    await logoutUser(); // Clears cookies and localStorage
     navigate("/login");
   };
 

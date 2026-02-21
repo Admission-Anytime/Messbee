@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
+import { resendOTP } from "../../services/authService";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
@@ -14,6 +15,18 @@ const VerifyOTP = () => {
   
   const inputRefs = useRef([]);
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get email from navigation state
+  const email = location.state?.email || '';
+  const purpose = location.state?.purpose || 'forgot-password';
+  
+  useEffect(() => {
+    if (!email) {
+      toast.error('Email not found. Please start from forgot password page.');
+      navigate('/forgot-password');
+    }
+  }, [email, navigate]);
 
   // --- Countdown Timer Logic ---
   useEffect(() => {
@@ -67,13 +80,17 @@ const VerifyOTP = () => {
     }
   };
 
-  const handleResend = () => {
-    // Add your API logic to resend the code here
-    toast.success("A new verification code has been sent!");
-    setOtp(new Array(6).fill("")); // Clear inputs
-    setTimeLeft(60); // Reset timer to 60 seconds
-    setCanResend(false);
-    inputRefs.current[0].focus();
+  const handleResend = async () => {
+    try {
+      await resendOTP(email, purpose);
+      toast.success("A new verification code has been sent!");
+      setOtp(new Array(6).fill("")); // Clear inputs
+      setTimeLeft(60); // Reset timer to 60 seconds
+      setCanResend(false);
+      inputRefs.current[0].focus();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to resend OTP");
+    }
   };
 
   const handleSubmit = (e) => {
@@ -85,15 +102,9 @@ const VerifyOTP = () => {
       return;
     }
 
-    setIsLoading(true);
-
-    // ⚠️ Simulate API Verification Delay (1.5s)
-    // Replace with your actual axios.post verification call
-    setTimeout(() => {
-      setIsLoading(false);
-      toast.success("Identity verified!");
-      navigate("/reset-password"); // Move to the next step in the flow
-    }, 1500);
+    // Navigate to reset password with email and OTP
+    toast.success("OTP verified! Please set your new password.");
+    navigate("/reset-password", { state: { email, otp: code } });
   };
 
   return (
@@ -112,7 +123,7 @@ const VerifyOTP = () => {
       <div className="relative z-10 w-full max-w-[400px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 p-8 text-center">
         <h2 className="text-2xl font-extrabold text-slate-900 mb-2">Verify your identity</h2>
         <p className="text-sm text-slate-500 mb-6 leading-relaxed">
-          Enter the 6-digit code sent to <br/><span className="font-bold text-slate-800">user@example.com</span> to continue.
+          Enter the 6-digit code sent to <br/><span className="font-bold text-slate-800">{email}</span> to continue.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
