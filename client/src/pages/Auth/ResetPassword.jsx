@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { toast } from "react-toastify";
+import { resetPassword } from "../../services/authService";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
@@ -8,10 +10,23 @@ const ResetPassword = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [countdown, setCountdown] = useState(5);
+  const [isLoading, setIsLoading] = useState(false);
   
   // ✅ New state to toggle password visibility
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get email and OTP from navigation state
+  const email = location.state?.email || '';
+  const otp = location.state?.otp || '';
+  
+  useEffect(() => {
+    if (!email || !otp) {
+      toast.error('Invalid password reset link. Please start from forgot password page.');
+      navigate('/forgot-password');
+    }
+  }, [email, otp, navigate]);
 
   // --- Password Strength Logic ---
   const criteria = {
@@ -39,17 +54,29 @@ const ResetPassword = () => {
     return () => clearTimeout(timer);
   }, [isSuccess, countdown, navigate]);
 
-  const handleUpdate = (e) => {
+  const handleUpdate = async (e) => {
     e.preventDefault();
     if (score < 4) {
-      alert("Please ensure your password meets all criteria.");
+      toast.warning("Please ensure your password meets all criteria.");
       return;
     }
     if (password !== confirmPassword) {
-      alert("Passwords do not match.");
+      toast.error("Passwords do not match.");
       return;
     }
-    setIsSuccess(true);
+    
+    setIsLoading(true);
+    try {
+      const response = await resetPassword(email, otp, password);
+      if (response.success) {
+        toast.success("Password reset successful!");
+        setIsSuccess(true);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to reset password. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const CheckIcon = ({ active }) => (
@@ -169,11 +196,17 @@ const ResetPassword = () => {
 
               <button 
                 type="submit" 
-                disabled={score < 4 || password !== confirmPassword}
+                disabled={score < 4 || password !== confirmPassword || isLoading}
                 className="w-full py-3.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-white font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
-                 Update Password
+                {isLoading ? (
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                    Update Password
+                  </>
+                )}
               </button>
             </form>
 

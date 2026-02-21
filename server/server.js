@@ -1,6 +1,7 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path'); // Added path module
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
@@ -28,6 +29,7 @@ app.use(cors({
   credentials: true
 }));
 
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -67,6 +69,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // Routes
 
+app.use('/api/auth', require('./routes/authRoutes')); // Authentication routes
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
 app.use('/api/campaigns', require('./routes/campaignRoutes'));

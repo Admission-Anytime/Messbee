@@ -1,4 +1,3 @@
-/* eslint-disable react/prop-types */
 import { Suspense, lazy, useState, memo } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
@@ -6,7 +5,8 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import MainHeading from "./components/header/MainHeading";
 import MainSidebar from "./components/mainsidebar/MainSidebar";
-
+import ProtectedRoute from "./components/ProtectedRoute";
+import PublicRoute from "./components/PublicRoute";
 
 // --- INLINE LOADING ---
 const PageLoader = () => (
@@ -50,14 +50,19 @@ const Label = lazy(() => import("./pages/setting/Label"));
 const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
-const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
-const ProductList = lazy(() => import("./pages/commerce/ProductList"));
-const Inventory = lazy(() => import("./pages/commerce/Inventory"));
 
 // --- LAZY LOADED PROFILE ---
 const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
 const BusinessProfile = lazy(() => import("./pages/profile/BusinessProfile"));
 const ActivePlans = lazy(() => import("./pages/profile/ActivePlans"));
+
+// --- LAZY LOADED AUTH PAGES ---
+const Login = lazy(() => import("./pages/Auth/Login"));
+const Registration = lazy(() => import("./pages/Auth/Registration"));
+const ForgotPassword = lazy(() => import("./pages/Auth/ForgotPassword"));
+const VerifyOTP = lazy(() => import("./pages/Auth/VerifyOTP"));
+const ResetPassword = lazy(() => import("./pages/Auth/ResetPassword"));
+const Onboarding = lazy(() => import("./pages/Auth/Onboarding"));
 
 // --- 404 COMPONENT ---
 const NotFound = memo(() => {
@@ -131,7 +136,16 @@ function App() {
       />
 
       <Routes>
-        <Route element={<AppLayout />}>
+        {/* PUBLIC ROUTES - Redirect to dashboard if already logged in */}
+        <Route path="/login" element={<PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>} />
+        <Route path="/signup" element={<PublicRoute><Suspense fallback={<PageLoader />}><Registration /></Suspense></PublicRoute>} />
+        <Route path="/forgot-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></PublicRoute>} />
+        <Route path="/verify-otp" element={<PublicRoute><Suspense fallback={<PageLoader />}><VerifyOTP /></Suspense></PublicRoute>} />
+        <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPassword /></Suspense></PublicRoute>} />
+        <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
+
+        {/* PROTECTED ROUTES - Require Authentication */}
+        <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           {/* 1. Dashboard */}
           <Route path="/" element={<Dashboard />} />
           <Route
@@ -190,9 +204,14 @@ function App() {
             element={<Placeholder title="Bulk Send" />}
           />
           {/* 7. Commerce */}
-          <Route path="/admin/commerce/payments" element={<PaymentList />} />
-          <Route path="/admin/commerce/products" element={<ProductList />} />
-          <Route path="/admin/commerce/inventory" element={<Inventory />} />
+          <Route
+            path="/admin/commerce/payments"
+            element={<Placeholder title="Payment List" />}
+          />
+          <Route
+            path="/admin/commerce/products"
+            element={<Placeholder title="Product List" />}
+          />
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
           {/* 9. Analytics */}

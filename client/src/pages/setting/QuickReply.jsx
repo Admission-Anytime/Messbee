@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
@@ -23,8 +23,8 @@ const QuickReply = () => {
   const [replies, setReplies] = useState([]);
   const [activePreview, setActivePreview] = useState(null);
 
-  const API_URL = 'http://localhost:5000/api/quick-replies';
-  const BASE_URL = 'http://localhost:5000'; 
+  const API_URL = '/quick-replies';
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'; 
 
   useEffect(() => {
     fetchReplies();
@@ -112,14 +112,14 @@ const QuickReply = () => {
     }
 
     try {
-      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      // Don't set Content-Type manually - browser will set it with correct boundary for FormData
       
       if (editingIndex !== null) {
         const id = replies[editingIndex]._id;
-        await axios.put(`${API_URL}/${id}`, formData, config);
+        await axios.put(`${API_URL}/${id}`, formData);
         toast.success("Updated Successfully!");
       } else {
-        await axios.post(API_URL, formData, config);
+        await axios.post(API_URL, formData);
         toast.success("Saved Successfully!"); 
       }
       fetchReplies();
@@ -155,7 +155,7 @@ const QuickReply = () => {
     setUrl(item.url || '');
     setEditingIndex(index);
     setIsModalOpen(true);
-    toast.info(`✏️ Editing: ${item.shortcut}`);
+      toast.info(`✏️ Editing: ${item.shortcut}`);
   };
 
   return (

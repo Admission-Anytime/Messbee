@@ -15,7 +15,7 @@ exports.getLabels = async (req, res) => {
 // 2. Create new label
 exports.createLabel = async (req, res) => {
     try {
-        const { name, desc, color, bg, text, creator, isSystem, userId } = req.body;
+        const { name, desc, color, bg, text, isSystem, userId } = req.body;
         
         // Validation
         if (!name || name.trim() === '') {
@@ -26,15 +26,18 @@ exports.createLabel = async (req, res) => {
             return res.status(400).json({ message: 'Label name cannot exceed 25 characters' });
         }
 
+        // Set creator from authenticated user
+        const creator = req.user ? req.user.name : 'System';
+
         const newLabel = new Label({
             name,
             desc: desc || '',
             color: color || '#EF4444',
             bg: bg || 'bg-emerald-50',
             text: text || 'text-emerald-800',
-            creator: creator || 'System',
+            creator,
             isSystem: isSystem || false,
-            userId
+            userId: userId || req.user?._id
         });
         
         const savedLabel = await newLabel.save();

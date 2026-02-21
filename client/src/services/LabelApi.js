@@ -1,42 +1,6 @@
-import axios from 'axios';
+import axios from '../context/axios';
 
-// API base URL - update based on your environment
-const API_BASE_URL = 'http://localhost:5000/api/labels';
-
-const apiClient = axios.create({
-  baseURL: API_BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-// Request interceptor - Add auth token if available
-apiClient.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
-
-// Response interceptor - Handle errors
-apiClient.interceptors.response.use(
-  (response) => {
-    return response;
-  },
-  (error) => {
-    if (error.response?.status === 401) {
-      console.error('Unauthorized - please login again');
-    }
-    return Promise.reject(error);
-  }
-);
+// Use centralized axios instance with cookie-based authentication
 
 /**
  * Get all labels
@@ -44,7 +8,7 @@ apiClient.interceptors.response.use(
  */
 export const getAllLabels = async () => {
   try {
-    const response = await apiClient.get('/');
+    const response = await axios.get('/labels/');
     return response.data;
   } catch (error) {
     console.error('Error fetching labels:', error);
@@ -59,7 +23,7 @@ export const getAllLabels = async () => {
  */
 export const createLabel = async (labelData) => {
   try {
-    const response = await apiClient.post('/', labelData);
+    const response = await axios.post('/labels/', labelData);
     return response.data;
   } catch (error) {
     console.error('Error creating label:', error);
@@ -75,7 +39,7 @@ export const createLabel = async (labelData) => {
  */
 export const updateLabel = async (id, labelData) => {
   try {
-    const response = await apiClient.put(`/${id}`, labelData);
+    const response = await axios.put(`/labels/${id}`, labelData);
     return response.data;
   } catch (error) {
     console.error('Error updating label:', error);
@@ -90,7 +54,7 @@ export const updateLabel = async (id, labelData) => {
  */
 export const deleteLabel = async (id) => {
   try {
-    const response = await apiClient.delete(`/${id}`);
+    const response = await axios.delete(`/labels/${id}`);
     return response.data;
   } catch (error) {
     console.error('Error deleting label:', error);
@@ -104,7 +68,7 @@ export const deleteLabel = async (id) => {
  */
 export const initializeSystemLabels = async () => {
   try {
-    const response = await apiClient.post('/initialize/system');
+    const response = await axios.post('/labels/initialize/system');
     return response.data;
   } catch (error) {
     console.error('Error initializing system labels:', error);

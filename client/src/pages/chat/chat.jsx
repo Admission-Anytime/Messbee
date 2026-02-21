@@ -2,12 +2,11 @@ import React, { useState, useMemo, useEffect } from "react";
 import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
-import axios from "axios";
+import axios from "../../context/axios";
 import io from "socket.io-client";
 
 // --- CONFIGURATION ---
-const API_URL = "http://localhost:5000/api";
-const SOCKET_URL = "http://localhost:5000";
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
 
 var socket;
 
@@ -27,7 +26,7 @@ const Chat = () => {
     // Fetch Chat List
     const fetchChats = async () => {
       try {
-        const { data } = await axios.get(`${API_URL}/chats`);
+        const { data } = await axios.get('/chats');
         setChats(data);
         // Automatically select first chat if available
         if (data.length > 0 && !activeChatId) setActiveChatId(data[0]._id);
@@ -117,14 +116,14 @@ const Chat = () => {
 
     const fetchMessages = async () => {
       try {
-        const { data } = await axios.get(`${API_URL}/messages/${activeChatId}`);
+        const { data } = await axios.get(`/messages/${activeChatId}`);
         setMessages(data);
         
         // Join Socket Room
         socket.emit("join_chat", activeChatId);
 
         // Mark messages as read
-        await axios.put(`${API_URL}/chats/${activeChatId}/read`);
+        await axios.put(`/chats/${activeChatId}/read`);
         
         // Update unread count locally
         setChats((prevChats) => 
@@ -182,7 +181,7 @@ const Chat = () => {
       ));
 
       // 3. Send to Backend (will auto-detect WhatsApp and send via WhatsApp API)
-      const response = await axios.post(`${API_URL}/message`, messageData);
+      const response = await axios.post('/message', messageData);
 
       // 4. Replace temp message with real one from server
       setMessages((prev) => 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { useNavigate } from "react-router-dom"; 
 import { 
   Bars3Icon, 
@@ -16,6 +16,9 @@ import {
   ArrowTopRightOnSquareIcon,
   XMarkIcon // ✅ Imported Close Icon
 } from "@heroicons/react/24/outline"; 
+
+// --- CONTEXT ---
+import { userContext } from "../../context/Context";
 
 // --- ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png"; 
@@ -91,9 +94,10 @@ const MainHeading = ({ onMenuClick }) => {
   const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
 
   // --- LOGIC: LOGOUT ---
-  const handleSignOut = () => {
-    localStorage.clear(); // Clear all stored data
-    sessionStorage.clear(); // Clear session data
+  const { logoutUser } = useContext(userContext);
+  
+  const handleSignOut = async () => {
+    await logoutUser(); // Clears cookies and localStorage
     navigate("/login"); // Redirect to login page
   };
 

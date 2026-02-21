@@ -7,8 +7,12 @@ const {
   deleteContact,
   importContacts
 } = require('../controllers/contactController');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
+
+// Protect all contact routes
+router.use(protect);
 
 /**
  * @swagger

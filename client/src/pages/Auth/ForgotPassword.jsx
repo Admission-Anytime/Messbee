@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { toast } from "react-toastify"; // Added for interactive feedback
+import { toast } from "react-toastify";
+import { forgotPassword } from "../../services/authService";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
@@ -10,22 +11,30 @@ const ForgotPassword = () => {
   const [isLoading, setIsLoading] = useState(false); // Added loading state
   const navigate = useNavigate();
   
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // ⚠️ Simulate an API call delay (1.5 seconds)
-    // Replace this setTimeout block with your actual axios API call later
-    setTimeout(() => {
+    try {
+      const response = await forgotPassword(email);
+      if (response.success) {
+        setIsSubmitted(true);
+        toast.success("Password reset OTP sent to your email!");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send reset OTP. Please try again.");
+    } finally {
       setIsLoading(false);
-      setIsSubmitted(true);
-      toast.success("Reset link sent successfully!");
-    }, 1500);
+    }
   };
 
-  const handleResend = () => {
-    // Simulate resending the email
-    toast.info(`A new recovery link was sent to ${email}`);
+  const handleResend = async () => {
+    try {
+      await forgotPassword(email);
+      toast.success(`A new OTP has been sent to ${email}`);
+    } catch (error) {
+      toast.error("Failed to resend OTP");
+    }
   };
 
   return (
@@ -95,13 +104,13 @@ const ForgotPassword = () => {
               We have sent a password recovery link to <br/> <span className="font-bold text-slate-800">{email}</span>. Please check your inbox and follow the instructions.
             </p>
             
-            {/* ✅ Changed to useNavigate for seamless React routing */}
+            {/* ✅ Navigate to verify OTP with email in state */}
             <button 
-              onClick={() => navigate('/verify-otp')} 
+              onClick={() => navigate('/verify-otp', { state: { email, purpose: 'forgot-password' } })} 
               className="w-full py-3 bg-[#00E56A] hover:bg-[#00c95d] text-white font-bold rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 mb-3"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-              Open Email
+              Continue to Verify OTP
             </button>
             
             <button 
