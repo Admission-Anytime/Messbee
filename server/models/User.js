@@ -1,57 +1,21 @@
 const mongoose = require('mongoose');
 
-const UserSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Please add a name'],
-    trim: true
-  },
-  email: {
-    type: String,
-    required: [true, 'Please add an email'],
-    unique: true,
-    lowercase: true,
-    match: [
-      /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-      'Please add a valid email'
-    ]
-  },
-  password: {
-    type: String,
-    required: [true, 'Please add a password'],
-    minlength: 6,
-    select: false
-  },
-  role: {
-    type: String,
-    enum: ['user', 'admin'],
-    default: 'user'
-  },
-  phone: {
-    type: String
-  },
-  avatar: {
-    type: String
-  },
-  company: {
-    type: String
-  },
-  isActive: {
-    type: Boolean,
-    default: true
-  },
-  subscriptionPlan: {
-    type: String,
-    enum: ['free', 'basic', 'premium', 'enterprise'],
-    default: 'free'
-  },
-  subscriptionEndDate: {
-    type: Date
-  },
-  createdAt: {
-    type: Date,
-    default: Date.now
-  }
-});
+const userSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  phone: { type: String },
+  countryCode: { type: String, default: '+91' },
+  
+  // Profile specific fields
+  professionalTitle: { type: String, default: '' },
+  timeZone: { type: String, default: '(GMT-08:00) Pacific Time (US & Canada)' },
+  language: { type: String, default: 'English (United States)' },
+  avatarUrl: { type: String, default: '' },
 
-module.exports = mongoose.model('User', UserSchema);
+  // Password Recovery fields
+  resetOtp: { type: String },
+  otpExpiry: { type: Date }
+}, { timestamps: true });
+
+module.exports = mongoose.model('User', userSchema);
