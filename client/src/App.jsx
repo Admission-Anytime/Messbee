@@ -51,6 +51,10 @@ const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
 
+const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
+const ProductList = lazy(() => import("./pages/commerce/ProductList"));
+const Inventory = lazy(() => import("./pages/commerce/Inventory"));
+
 // --- LAZY LOADED PROFILE ---
 const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
 const BusinessProfile = lazy(() => import("./pages/profile/BusinessProfile"));
@@ -142,7 +146,7 @@ function App() {
         <Route path="/forgot-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></PublicRoute>} />
         <Route path="/verify-otp" element={<PublicRoute><Suspense fallback={<PageLoader />}><VerifyOTP /></Suspense></PublicRoute>} />
         <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPassword /></Suspense></PublicRoute>} />
-        <Route path="/onboarding" element={<Suspense fallback={<PageLoader />}><Onboarding /></Suspense>} />
+        <Route path="/onboarding" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Onboarding /></Suspense></ProtectedRoute>} />
 
         {/* PROTECTED ROUTES - Require Authentication */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
@@ -204,14 +208,9 @@ function App() {
             element={<Placeholder title="Bulk Send" />}
           />
           {/* 7. Commerce */}
-          <Route
-            path="/admin/commerce/payments"
-            element={<Placeholder title="Payment List" />}
-          />
-          <Route
-            path="/admin/commerce/products"
-            element={<Placeholder title="Product List" />}
-          />
+          <Route path="/admin/commerce/payments" element={<PaymentList />} />
+          <Route path="/admin/commerce/products" element={<ProductList />} />
+          <Route path="/admin/commerce/inventory" element={<Inventory />} />
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
           {/* 9. Analytics */}
