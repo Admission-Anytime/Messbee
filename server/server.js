@@ -17,10 +17,21 @@ dotenv.config();
 connectDB();
 
 const app = express();
-const httpServer = createServer(app);
 
-// Initialize Socket.IO
-const io = initializeSocket(httpServer);
+// Only create HTTP server and Socket.IO in non-serverless environment
+//  uses AWS Lambda which sets AWS_LAMBDA_FUNCTION_NAME
+const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL;
+let httpServer;
+let io;
+
+if (!isServerless) {
+  httpServer = createServer(app);
+  io = initializeSocket(httpServer);
+} else {
+  // In serverless, just use app directly
+  httpServer = null;
+  io = null;
+}
 
 // ================== MIDDLEWARE ==================
 
@@ -112,17 +123,21 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-httpServer.listen(PORT, () => {
-  console.log('=====================================');
-  console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Server: http://localhost:${PORT}`);
-  console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
-  console.log('=====================================\n');
-});
+// Only start server if not in serverless environment
+if (!isServerless && httpServer) {
+  httpServer.listen(PORT, () => {
+    console.log('=====================================');
+    console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Server: http://localhost:${PORT}`);
+    console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
+    console.log('=====================================\n');
+  });
 
-process.on('unhandledRejection', (err) => {
-  console.error('❌ Unhandled Rejection:', err.message);
-  httpServer.close(() => process.exit(1));
-});
+  process.on('unhandledRejection', (err) => {
+    console.error('❌ Unhandled Rejection:', err.message);
+    httpServer.close(() => process.exit(1));
+  });
+}
 
-module.exports = { app, io };
+// Export app for  serverless
+module.exports = app;
