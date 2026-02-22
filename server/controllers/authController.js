@@ -220,6 +220,10 @@ exports.verifySignupOTP = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Signup successful! Welcome to Messbee.',
+      tokens: {
+        accessToken,
+        refreshToken
+      },
       data: {
         user: {
           id: user._id,
@@ -401,6 +405,10 @@ exports.verifyLoginOTP = async (req, res, next) => {
     res.status(200).json({
       success: true,
       message: 'Login successful',
+      tokens: {
+        accessToken,
+        refreshToken
+      },
       data: {
         user: {
           id: user._id,
@@ -515,8 +523,8 @@ exports.login = async (req, res, next) => {
  */
 exports.refreshToken = async (req, res, next) => {
   try {
-    // Get refresh token from cookie
-    const refreshToken = req.cookies.refreshToken;
+    // Get refresh token from cookie or request body (fallback for cross-domain)
+    const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
 
     if (!refreshToken) {
       return res.status(400).json({
@@ -562,7 +570,11 @@ exports.refreshToken = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
-      message: 'Token refreshed successfully'
+      message: 'Token refreshed successfully',
+      tokens: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+      }
     });
   } catch (error) {
     console.error('Refresh token error:', error);
