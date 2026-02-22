@@ -14,16 +14,16 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
   // Access Token Cookie (24 hours)
   res.cookie('accessToken', accessToken, {
     httpOnly: true,
-    secure: isProduction, // HTTPS only in production
-    sameSite: 'strict',
+    secure: true, // Always true for cross-origin cookies
+    sameSite: 'none', // Required for cross-origin requests
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
   });
   
   // Refresh Token Cookie (7 days)
   res.cookie('refreshToken', refreshToken, {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: 'strict',
+    secure: true, // Always true for cross-origin cookies
+    sameSite: 'none', // Required for cross-origin requests
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 };
@@ -34,11 +34,15 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
 const clearTokenCookies = (res) => {
   res.cookie('accessToken', '', {
     httpOnly: true,
+    secure: true,
+    sameSite: 'none',
     expires: new Date(0)
   });
   
   res.cookie('refreshToken', '', {
     httpOnly: true,
+    secure: true,
+    sameSite: 'none',
     expires: new Date(0)
   });
 };
