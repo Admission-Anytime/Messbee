@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Segmented, ConfigProvider, DatePicker } from "antd";
-import YellowButton from "../../components/button/buttonReg/yellowButton";
+import YellowButton from "../../components/button/buttonReg/YellowButton";
 import Analyticbody from "./Analyticbody";
 
 // ❌ DELETE THIS LINE: import MainSidebar from ... 

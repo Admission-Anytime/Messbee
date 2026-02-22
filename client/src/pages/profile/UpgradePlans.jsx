@@ -1,4 +1,4 @@
-import YellowButton from "../../components/button/buttonReg/yellowButton";
+import YellowButton from "../../components/button/buttonReg/YellowButton";
 import "./upgradeplans.scss";
 import { Switch } from "antd";
 import Check from "../../assets/checkicon.svg";
