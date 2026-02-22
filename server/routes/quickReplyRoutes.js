@@ -10,13 +10,14 @@ const {
     updateQuickReply 
 } = require('../controllers/quickReplyController');
 
-// ✅ Automatic Folder Creation (ENOENT fix) -  compatible
-// In  serverless, use /tmp directory (only writable location)
-const uploadDir = process.env.VERCEL 
+// ✅ Automatic Folder Creation (ENOENT fix) - Serverless compatible
+// In serverless (AWS Lambda/Vercel), use /tmp directory (only writable location)
+const isServerless = process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.VERCEL;
+const uploadDir = isServerless
     ? '/tmp/uploads' 
     : path.join(__dirname, '../uploads');
 
-// Only create directory if not in  or if directory doesn't exist
+// Only create directory if it doesn't exist
 if (!fs.existsSync(uploadDir)) {
     try {
         fs.mkdirSync(uploadDir, { recursive: true });
