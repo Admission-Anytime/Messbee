@@ -76,10 +76,12 @@ router.post("/message", async (req, res) => {
       // Emit socket event
       try {
         const io = getIO();
-        io.emit("message_sent", {
-          chatId: chatId,
-          message: newMessage
-        });
+        if (io) {
+          io.emit("message_sent", {
+            chatId: chatId,
+            message: newMessage
+          });
+        }
       } catch (socketError) {
         console.error("Socket error:", socketError.message);
       }
@@ -108,10 +110,12 @@ router.post("/message", async (req, res) => {
     // Emit socket event
     try {
       const io = getIO();
-      io.emit("receive_message", {
-        chatId: chatId,
-        message: newMessage
-      });
+      if (io) {
+        io.emit("receive_message", {
+          chatId: chatId,
+          message: newMessage
+        });
+      }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
     }
