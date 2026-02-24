@@ -55,6 +55,46 @@ exports.protect = async (req, res, next) => {
   }
 };
 
+// Optional protect - sets req.user if token exists, but doesn't fail if missing
+exports.optionalProtect = async (req, res, next) => {
+  let token;
+
+  // Get token from cookie (primary method)
+  if (req.cookies.accessToken) {
+    token = req.cookies.accessToken;
+  }
+  // Fallback: Check for token in Authorization header
+  else if (
+    req.headers.authorization &&
+    req.headers.authorization.startsWith('Bearer')
+  ) {
+    token = req.headers.authorization.split(' ')[1];
+  }
+
+  // If no token, just continue without setting req.user
+  if (!token) {
+    return next();
+  }
+
+  try {
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+
+    // Get user from token
+    req.user = await User.findById(decoded.id).select('-password');
+
+    // If user not found or inactive, just continue without req.user
+    if (!req.user || !req.user.isActive) {
+      req.user = null;
+    }
+  } catch (error) {
+    // If token verification fails, just continue without req.user
+    req.user = null;
+  }
+
+  next();
+};
+
 // Grant access to specific roles
 exports.authorize = (...roles) => {
   return (req, res, next) => {

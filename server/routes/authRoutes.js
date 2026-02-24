@@ -13,7 +13,7 @@ const {
   getMe,
   updatePassword
 } = require('../controllers/authController');
-const { protect } = require('../middleware/auth');
+const { protect, optionalProtect } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -271,17 +271,13 @@ router.post('/refresh-token', refreshToken);
  * @swagger
  * /api/auth/logout:
  *   post:
- *     summary: Logout user
+ *     summary: Logout user (clears cookies)
  *     tags: [Authentication]
- *     security:
- *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Logged out successfully
- *       401:
- *         description: Not authorized
  */
-router.post('/logout', protect, logout);
+router.post('/logout', optionalProtect, logout);
 
 // ==================== OTP MANAGEMENT ====================
 

@@ -589,18 +589,22 @@ exports.refreshToken = async (req, res, next) => {
 // ==================== LOGOUT ====================
 
 /**
- * @desc    Logout user
+ * @desc    Logout user - Clears cookies and refresh token
  * @route   POST /api/auth/logout
- * @access  Private
+ * @access  Public (clears cookies even if not authenticated)
  */
 exports.logout = async (req, res, next) => {
   try {
-    // Clear refresh token from database
-    const user = await User.findById(req.user.id);
-    user.refreshToken = undefined;
-    await user.save();
+    // If user is authenticated, clear refresh token from database
+    if (req.user && req.user.id) {
+      const user = await User.findById(req.user.id);
+      if (user) {
+        user.refreshToken = undefined;
+        await user.save();
+      }
+    }
 
-    // Clear cookies
+    // Always clear cookies, even if not authenticated
     clearTokenCookies(res);
 
     res.status(200).json({
@@ -608,8 +612,13 @@ exports.logout = async (req, res, next) => {
       message: 'Logged out successfully'
     });
   } catch (error) {
+    // Even if there's an error, clear cookies
+    clearTokenCookies(res);
     console.error('Logout error:', error);
-    next(error);
+    res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
   }
 };
 

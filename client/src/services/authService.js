@@ -62,12 +62,10 @@ export const loginWithPassword = async (email, password) => {
 // ==================== TOKEN MANAGEMENT ====================
 
 /**
- * Refresh access token
+ * Refresh access token using refresh token from HTTP-only cookie
  */
-export const refreshAccessToken = async (refreshToken) => {
-  const { data } = await axios.post("/auth/refresh-token", {
-    refreshToken,
-  });
+export const refreshAccessToken = async () => {
+  const { data } = await axios.post("/auth/refresh-token");
   return data;
 };
 
@@ -162,8 +160,8 @@ export const getStoredUser = () => {
 };
 
 /**
- * Check if user is authenticated
- * Since tokens are in HTTP-only cookies, we check if user data exists
+ * Check if user is authenticated (client-side check only)
+ * Note: This only checks localStorage - server validates cookies
  */
 export const isAuthenticated = () => {
   const user = getStoredUser();
@@ -171,9 +169,8 @@ export const isAuthenticated = () => {
 };
 
 /**
- * Clear authentication data
+ * Clear authentication data (cookies are cleared by backend on logout)
  */
 export const clearAuthData = () => {
-  // Only clear user data - cookies are cleared by backend on logout
   localStorage.removeItem("user");
 };

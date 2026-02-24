@@ -13,7 +13,7 @@ import {
 
 export const SignupForm = () => {
   const navigate = useNavigate();
-  const { loginUser } = useContext(userContext);
+  const { loginUser, isLoggedIn } = useContext(userContext);
   const [number, setNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -29,12 +29,12 @@ export const SignupForm = () => {
     otp: "",
   });
 
+  // Redirect if already logged in (checked via context state)
   useEffect(() => {
-    const token = localStorage.getItem("accessToken") || localStorage.getItem("token");
-    if (token) {
+    if (isLoggedIn) {
       navigate("/admin/dashboard");
     }
-  }, [navigate]);
+  }, [isLoggedIn, navigate]);
 
   // OTP countdown timer
   useEffect(() => {

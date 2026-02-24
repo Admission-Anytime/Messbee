@@ -3,36 +3,13 @@ import axios from "axios";
 // Create axios instance with credentials
 const instance = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
-  withCredentials: true, // Send cookies with requests
+  withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
-// Request interceptor to add Authorization header
-instance.interceptors.request.use(
-  (config) => {
-    // Get access token from localStorage (fallback if cookies don't work)
-    const tokens = localStorage.getItem('tokens');
-    if (tokens) {
-      try {
-        const { accessToken } = JSON.parse(tokens);
-        if (accessToken) {
-          config.headers.Authorization = `Bearer ${accessToken}`;
-        }
-      } catch (error) {
-        console.error('Error parsing tokens:', error);
-      }
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Add response interceptor to handle token refresh
+// Response interceptor to handle token refresh
 instance.interceptors.response.use(
   (response) => {
-    // Store tokens from response if present (for login/signup)
-    if (response.data?.tokens) {
-      localStorage.setItem('tokens', JSON.stringify(response.data.tokens));
-    }
+    // Tokens are automatically stored in HTTP-only cookies by the server
     return response;
   },
   async (error) => {
@@ -43,36 +20,19 @@ instance.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        // Get refresh token from localStorage
-        const tokens = localStorage.getItem('tokens');
-        if (!tokens) {
-          throw new Error('No tokens found');
-        }
+        // Try to refresh the token using the refresh token cookie
+        const { data } = await instance.post('/auth/refresh-token');
 
-        const { refreshToken } = JSON.parse(tokens);
-        if (!refreshToken) {
-          throw new Error('No refresh token found');
-        }
-
-        // Try to refresh the token
-        const { data } = await instance.post('/auth/refresh-token', { refreshToken });
-
-        if (data.success && data.tokens) {
-          // Store new tokens
-          localStorage.setItem('tokens', JSON.stringify(data.tokens));
-          
-          // Update Authorization header for retry
-          originalRequest.headers.Authorization = `Bearer ${data.tokens.accessToken}`;
-          
-          // Retry original request
+        if (data.success) {
+          // New tokens are automatically set as cookies by the server
+          // Retry the original request
           return instance(originalRequest);
         }
       } catch (refreshError) {
         // Refresh failed, clear user data and redirect to login
         localStorage.removeItem("user");
-        localStorage.removeItem("tokens");
         
-        // Only redirect if not already on login/signup pages
+        // Only redirect if not already on auth pages
         const currentPath = window.location.pathname;
         if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup')) {
           console.log('Session expired - redirecting to login');
