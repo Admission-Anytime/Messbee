@@ -96,9 +96,20 @@ export const forgotPassword = async (email) => {
 };
 
 /**
+ * Verify reset password OTP
+ */
+export const verifyResetOTP = async (email, otp) => {
+  const { data } = await axios.post("/auth/verify-reset-otp", {
+    email,
+    otp,
+  });
+  return data;
+};
+
+/**
  * Reset password with OTP
  */
-export const resetPassword = async (email, otp, newPassword) => {
+export const resetPassword = async (email, otp, newPassword) => {  
   const { data } = await axios.post("/auth/reset-password", {
     email,
     otp,

@@ -56,6 +56,14 @@ const ResetPassword = () => {
 
   const handleUpdate = async (e) => {
     e.preventDefault();
+    
+    // Validation checks
+    if (!email || !otp) {
+      toast.error("Missing email or OTP. Please start from forgot password page.");
+      navigate('/forgot-password');
+      return;
+    }
+    
     if (score < 4) {
       toast.warning("Please ensure your password meets all criteria.");
       return;
@@ -65,15 +73,36 @@ const ResetPassword = () => {
       return;
     }
     
+    if (password.length < 6) {
+      toast.error("Password must be at least 6 characters long.");
+      return;
+    }
+    
     setIsLoading(true);
     try {
+      console.log('Attempting password reset...', { 
+        email, 
+        hasOtp: !!otp, 
+        otpLength: otp?.length,
+        passwordLength: password.length 
+      });
+      
       const response = await resetPassword(email, otp, password);
       if (response.success) {
         toast.success("Password reset successful!");
         setIsSuccess(true);
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to reset password. Please try again.");
+      console.error('Password reset error:', error);
+      const errorMessage = error.response?.data?.message || "Failed to reset password. Please try again.";
+      toast.error(errorMessage);
+      
+      // If OTP is invalid or expired, redirect to forgot password
+      if (errorMessage.includes('OTP') || errorMessage.includes('expired')) {
+        setTimeout(() => {
+          navigate('/forgot-password');
+        }, 2000);
+      }
     } finally {
       setIsLoading(false);
     }
