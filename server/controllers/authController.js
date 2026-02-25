@@ -72,6 +72,8 @@ exports.login = async (req, res, next) => {
   }
 };
 
+
+
 // @desc    Get current logged in user
 // @route   GET /api/auth/me
 // @access  Private
@@ -154,3 +156,4 @@ const sendTokenResponse = (user, statusCode, res) => {
     }
   });
 };
+
