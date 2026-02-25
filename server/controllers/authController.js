@@ -199,13 +199,12 @@ exports.verifySignupOTP = async (req, res, next) => {
     user.otpAttempts = 0;
     user.otpBlockedUntil = undefined;
     user.lastLogin = Date.now();
-    await user.save();
-
+    
     // Generate tokens
     const accessToken = user.getSignedJwtToken();
     const refreshToken = user.getRefreshToken();
     
-    // Save refresh token
+    // Save refresh token and save once
     user.refreshToken = refreshToken;
     await user.save();
 
@@ -390,12 +389,12 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.otpAttempts = 0;
     user.otpBlockedUntil = undefined;
     user.lastLogin = Date.now();
-    await user.save();
-
+    
     // Generate tokens
     const accessToken = user.getSignedJwtToken();
     const refreshToken = user.getRefreshToken();
     
+    // Update refresh token and save once
     user.refreshToken = refreshToken;
     await user.save();
 
@@ -480,14 +479,12 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Update last login
-    user.lastLogin = Date.now();
-    await user.save();
-
     // Generate tokens
     const accessToken = user.getSignedJwtToken();
     const refreshToken = user.getRefreshToken();
     
+    // Update user in a single save operation to prevent double pre-save hook execution
+    user.lastLogin = Date.now();
     user.refreshToken = refreshToken;
     await user.save();
 
@@ -888,15 +885,17 @@ exports.updatePassword = async (req, res, next) => {
 
     // Update password
     user.password = newPassword;
-    user.refreshToken = undefined; // Invalidate all sessions
-    await user.save();
-
+    
     // Generate new tokens
     const accessToken = user.getSignedJwtToken();
     const refreshToken = user.getRefreshToken();
     
+    // Update refresh token and save once (this will trigger password hashing)
     user.refreshToken = refreshToken;
     await user.save();
+
+    // Set new tokens as cookies
+    setTokenCookies(res, accessToken, refreshToken);
 
     res.status(200).json({
       success: true,

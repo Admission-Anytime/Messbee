@@ -16,7 +16,12 @@ instance.interceptors.response.use(
     const originalRequest = error.config;
 
     // If error is 401 and we haven't retried yet, try to refresh token
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // BUT skip refresh for login/signup endpoints (they should return 401 normally)
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
+                          originalRequest.url?.includes('/auth/signup') ||
+                          originalRequest.url?.includes('/auth/refresh-token');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {

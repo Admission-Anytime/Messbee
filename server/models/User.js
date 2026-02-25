@@ -104,14 +104,17 @@ const UserSchema = new mongoose.Schema({
 
 // Encrypt password using bcrypt before saving
 UserSchema.pre('save', async function(next) {
+  // Only hash password if it's new or modified
   if (!this.isModified('password')) {
-    next();
+    return next(); // CRITICAL: Return here to prevent re-hashing
   }
   
   if (this.password) {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
   }
+  
+  next();
 });
 
 // Method to compare entered password with hashed password
