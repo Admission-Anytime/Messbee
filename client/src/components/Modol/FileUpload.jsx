@@ -1,7 +1,7 @@
 import { useDropzone } from "react-dropzone";
 import HighlightOffIcon from "@mui/icons-material/HighlightOff";
 import { IconButton } from "@mui/material";
-import YellowButton from "../button/buttonReg/yellowButton";
+import YellowButton from "../button/buttonReg/YellowButton";
 import "./fileupload.scss";
 import { useRef } from "react";
 import { useMemo } from "react";

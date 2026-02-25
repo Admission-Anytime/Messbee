@@ -3,7 +3,11 @@ const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
+const { protect } = require('../middleware/auth');
 const router = express.Router();
+
+// Protect all chat routes
+router.use(protect);
 
 // 1. Get All Chats (Sidebar)
 router.get("/chats", async (req, res) => {
@@ -72,10 +76,12 @@ router.post("/message", async (req, res) => {
       // Emit socket event
       try {
         const io = getIO();
-        io.emit("message_sent", {
-          chatId: chatId,
-          message: newMessage
-        });
+        if (io) {
+          io.emit("message_sent", {
+            chatId: chatId,
+            message: newMessage
+          });
+        }
       } catch (socketError) {
         console.error("Socket error:", socketError.message);
       }
@@ -104,10 +110,12 @@ router.post("/message", async (req, res) => {
     // Emit socket event
     try {
       const io = getIO();
-      io.emit("receive_message", {
-        chatId: chatId,
-        message: newMessage
-      });
+      if (io) {
+        io.emit("receive_message", {
+          chatId: chatId,
+          message: newMessage
+        });
+      }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
     }

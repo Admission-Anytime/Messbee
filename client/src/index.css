@@ -1,5 +1,6 @@
-/* ✅ Import Urbanist Font */
+/* ✅ Import Fonts */
 @import url('https://fonts.googleapis.com/css2?family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,500;1,600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -38,4 +39,132 @@ body {
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
   }
+}
+
+/* ===========================
+   PROFESSIONAL TOAST STYLES
+   =========================== */
+
+/* Base toast card */
+.custom-toast {
+  border-radius: 12px !important;
+  padding: 14px 18px !important;
+  margin-bottom: 12px !important;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Text area */
+.custom-toast-body {
+  padding: 0;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* SUCCESS (Modern Green) */
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: white !important;
+  border-left: 4px solid #065f46 !important;
+}
+
+/* ERROR (Modern Red) */
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  color: white !important;
+  border-left: 4px solid #991b1b !important;
+}
+
+/* INFO (Modern Blue) */
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: white !important;
+  border-left: 4px solid #1e40af !important;
+}
+
+/* WARNING (Modern Amber) */
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  color: white !important;
+  border-left: 4px solid #92400e !important;
+}
+
+/* DARK (Elegant Dark) */
+.Toastify__toast--default {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+  color: white !important;
+  border-left: 4px solid #374151 !important;
+}
+
+/* LOADING (Modern Slate) */
+.Toastify__toast--loading {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important;
+  color: white !important;
+  border-left: 4px solid #334155 !important;
+}
+
+/* Progress Bar Styles */
+.Toastify__progress-bar {
+  height: 3px !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+.Toastify__progress-bar--success {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--error {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--info {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--warning {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--default {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--loading {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Spinner/Loading Icon Color */
+.Toastify__spinner {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-right-color: white !important;
+}
+
+/* Toast Icons */
+.Toastify__toast-icon {
+  width: 20px !important;
+  margin-right: 12px !important;
+  flex-shrink: 0;
+}
+
+.Toastify__toast-icon svg {
+  fill: white !important;
+}
+
+/* Close button color */
+.Toastify__close-button {
+  color: white !important;
+  opacity: 0.8;
+  align-self: flex-start;
+  padding: 4px;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 4px;
 }

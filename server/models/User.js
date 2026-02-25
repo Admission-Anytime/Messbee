@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 
 const UserSchema = new mongoose.Schema({
   name: {
@@ -20,7 +21,6 @@ const UserSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Please add a password'],
     minlength: 6,
     select: false
   },
@@ -42,6 +42,10 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isEmailVerified: {
+    type: Boolean,
+    default: false
+  },
   subscriptionPlan: {
     type: String,
     enum: ['free', 'basic', 'premium', 'enterprise'],
@@ -50,31 +54,113 @@ const UserSchema = new mongoose.Schema({
   subscriptionEndDate: {
     type: Date
   },
+  // OTP fields for authentication
+  otp: {
+    type: String,
+    select: false
+  },
+  otpExpiry: {
+    type: Date,
+    select: false
+  },
+  otpAttempts: {
+    type: Number,
+    default: 0,
+    select: false
+  },
+  otpBlockedUntil: {
+    type: Date,
+    select: false
+  },
+  // Refresh token for JWT refresh mechanism
+  refreshToken: {
+    type: String,
+    select: false
+  },
+  // Security: Track last login
+  lastLogin: {
+    type: Date
+  },
+  // Password reset fields
+  resetPasswordToken: {
+    type: String,
+    select: false
+  },
+  resetPasswordExpire: {
+    type: Date,
+    select: false
+  },
   createdAt: {
     type: Date,
     default: Date.now
+  },
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
+}, {
+  timestamps: true
 });
 
-// Encrypt password before saving
+// Encrypt password using bcrypt before saving
 UserSchema.pre('save', async function(next) {
+  // Only hash password if it's new or modified
   if (!this.isModified('password')) {
-    next();
+    return next(); // CRITICAL: Return here to prevent re-hashing
   }
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  
+  if (this.password) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+  }
+  
+  next();
 });
 
-// Sign JWT and return
-UserSchema.methods.getSignedJwtToken = function() {
-  return jwt.sign({ id: this._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRE
-  });
-};
-
-// Match user entered password to hashed password
+// Method to compare entered password with hashed password
 UserSchema.methods.matchPassword = async function(enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Generate JWT Access Token
+UserSchema.methods.getSignedJwtToken = function() {
+  return jwt.sign(
+    { id: this._id, email: this.email, role: this.role },
+    process.env.JWT_SECRET || 'your-secret-key',
+    {
+      expiresIn: process.env.JWT_EXPIRE || '24h'
+    }
+  );
+};
+
+// Generate JWT Refresh Token
+UserSchema.methods.getRefreshToken = function() {
+  const refreshToken = jwt.sign(
+    { id: this._id },
+    process.env.JWT_REFRESH_SECRET || 'your-refresh-secret-key',
+    {
+      expiresIn: process.env.JWT_REFRESH_EXPIRE || '7d'
+    }
+  );
+  
+  return refreshToken;
+};
+
+// Generate and hash password reset token
+UserSchema.methods.getResetPasswordToken = function() {
+  // Generate token
+  const resetToken = crypto.randomBytes(20).toString('hex');
+
+  // Hash token and set to resetPasswordToken field
+  this.resetPasswordToken = crypto
+    .createHash('sha256')
+    .update(resetToken)
+    .digest('hex');
+
+  // Set expire (10 minutes)
+  this.resetPasswordExpire = Date.now() + 10 * 60 * 1000;
+
+  return resetToken;
 };
 
 module.exports = mongoose.model('User', UserSchema);

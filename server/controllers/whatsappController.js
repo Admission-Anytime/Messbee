@@ -161,11 +161,13 @@ async function handleIncomingMessage(data) {
     // Emit to socket for real-time update
     try {
       const io = getIO();
-      io.emit('receive_message', {
-        chatId: chat._id,
-        message: newMessage,
-        chat: chat
-      });
+      if (io) {
+        io.emit('receive_message', {
+          chatId: chat._id,
+          message: newMessage,
+          chat: chat
+        });
+      }
       
       // Also emit chat list update
       io.emit('chat_updated', chat);
@@ -203,11 +205,13 @@ async function handleStatusUpdate(data) {
       // Emit status update to frontend
       try {
         const io = getIO();
-        io.emit('message_status_update', {
-          messageId: message._id,
-          status: status,
-          whatsappMessageId: messageId
-        });
+        if (io) {
+          io.emit('message_status_update', {
+            messageId: message._id,
+            status: status,
+            whatsappMessageId: messageId
+          });
+        }
       } catch (socketError) {
         console.error('Socket emit error:', socketError.message);
       }
@@ -278,11 +282,13 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
     // Emit to socket
     try {
       const io = getIO();
-      io.emit('message_sent', {
-        chatId: chat._id,
-        message: newMessage,
-        chat: chat
-      });
+      if (io) {
+        io.emit('message_sent', {
+          chatId: chat._id,
+          message: newMessage,
+          chat: chat
+        });
+      }
     } catch (socketError) {
       console.error('Socket emit error:', socketError.message);
     }

@@ -2,7 +2,7 @@ import { Card, Space, Col, Row } from "antd";
 import "../analytic/analytic.scss";
 import BarsDataset from "./BarsDataset";
 import PieChartbox from "./PieChartbox";
-import YellowButton from "../../components/button/buttonReg/yellowButton";
+import YellowButton from "../../components/button/buttonReg/YellowButton";
 // import PieChartbox from "./PieChartbox";
 const Analyticbody = () => {
   return (

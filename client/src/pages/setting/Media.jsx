@@ -1,5 +1,5 @@
 import { SubHeading } from "../../components/header/SubHeading";
-import YellowButton from "../../components/button/buttonReg/yellowButton";
+import YellowButton from "../../components/button/buttonReg/YellowButton";
 import FileUpload from "../../components/Modol/FileUpload";
 import { useState } from "react";
 

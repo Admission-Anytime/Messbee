@@ -3,6 +3,12 @@ const { Server } = require('socket.io');
 let io;
 
 const initializeSocket = (httpServer) => {
+  // Skip Socket.IO in serverless environments
+  if (!httpServer) {
+    console.log('⚠️  Socket.IO disabled in serverless environment');
+    return null;
+  }
+
   io = new Server(httpServer, {
     cors: {
       origin: process.env.CLIENT_URL || 'http://localhost:5173',
@@ -56,7 +62,8 @@ const initializeSocket = (httpServer) => {
 
 const getIO = () => {
   if (!io) {
-    throw new Error('Socket.io not initialized');
+    console.warn('⚠️  Socket.io not available (serverless environment)');
+    return null;
   }
   return io;
 };

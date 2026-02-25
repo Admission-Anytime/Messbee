@@ -11,7 +11,8 @@ const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(protect); // All routes require authentication
+// Protect all campaign routes
+router.use(protect);
 
 /**
  * @swagger

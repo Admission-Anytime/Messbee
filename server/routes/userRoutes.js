@@ -10,8 +10,6 @@ const upload = require('../middleware/upload');
 
 const router = express.Router();
 
-router.use(protect); // All routes require authentication
-
 /**
  * @swagger
  * /api/users/profile:
@@ -56,8 +54,8 @@ router.use(protect); // All routes require authentication
  *         description: Profile updated successfully
  */
 router.route('/profile')
-  .get(getProfile)
-  .put(updateProfile);
+  .get(protect, getProfile)
+  .put(protect, updateProfile);
 
 /**
  * @swagger
@@ -81,7 +79,7 @@ router.route('/profile')
  *       200:
  *         description: Avatar uploaded successfully
  */
-router.post('/avatar', upload.single('avatar'), uploadAvatar);
+router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
 
 /**
  * @swagger
@@ -108,6 +106,6 @@ router.post('/avatar', upload.single('avatar'), uploadAvatar);
  *       200:
  *         description: Subscription updated successfully
  */
-router.put('/subscription', updateSubscription);
+router.put('/subscription', protect, updateSubscription);
 
 module.exports = router;

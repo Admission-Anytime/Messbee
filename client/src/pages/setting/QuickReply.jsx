@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
@@ -23,8 +23,8 @@ const QuickReply = () => {
   const [replies, setReplies] = useState([]);
   const [activePreview, setActivePreview] = useState(null);
 
-  const API_URL = 'http://localhost:5000/api/quick-replies';
-  const BASE_URL = 'http://localhost:5000'; 
+  const API_URL = '/quick-replies';
+  const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'; 
 
   useEffect(() => {
     fetchReplies();
@@ -38,7 +38,7 @@ const QuickReply = () => {
       if (data.length > 0) setActivePreview(data[0]);
     } catch (error) {
       setReplies([]); 
-      toast.error("Could not connect to server");
+      toast.error("⚠️ Could not connect to server. Please check if backend is running.");
     }
   };
 
@@ -50,7 +50,7 @@ const QuickReply = () => {
         return;
       }
       setSelectedFile(file);
-      toast.info(`Selected: ${file.name}`);
+      toast.success(`📎 File selected: ${file.name}`);
     }
   };
 
@@ -71,7 +71,7 @@ const QuickReply = () => {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
     } catch (error) {
-      toast.error("Error deleting reply");
+      toast.error("❌ Failed to delete quick reply. Please try again.");
     }
   };
 
@@ -90,6 +90,16 @@ const QuickReply = () => {
     : activePreview;
 
   const handleSave = async () => {
+    // Validation
+    if (!shortcut.trim()) {
+      toast.warning("⚠️ Please enter a shortcut!");
+      return;
+    }
+    if (!message.trim() && !selectedFile) {
+      toast.warning("⚠️ Please add a message or select a file!");
+      return;
+    }
+
     const formData = new FormData();
     formData.append('shortcut', shortcut.startsWith('/') ? shortcut : `/${shortcut || 'new'}`);
     formData.append('content', message || '');
@@ -102,21 +112,21 @@ const QuickReply = () => {
     }
 
     try {
-      const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+      // Don't set Content-Type manually - browser will set it with correct boundary for FormData
       
       if (editingIndex !== null) {
         const id = replies[editingIndex]._id;
-        await axios.put(`${API_URL}/${id}`, formData, config);
+        await axios.put(`${API_URL}/${id}`, formData);
         toast.success("Updated Successfully!");
       } else {
-        await axios.post(API_URL, formData, config);
+        await axios.post(API_URL, formData);
         toast.success("Saved Successfully!"); 
       }
       fetchReplies();
       closeModal();
     } catch (error) {
-      const errorMsg = error.response?.data?.message || "Error saving data";
-      toast.error(errorMsg);
+      const errorMsg = error.response?.data?.message || "Failed to save quick reply";
+      toast.error(`❌ ${errorMsg}`);
     }
   };
 
@@ -145,6 +155,7 @@ const QuickReply = () => {
     setUrl(item.url || '');
     setEditingIndex(index);
     setIsModalOpen(true);
+      toast.info(`✏️ Editing: ${item.shortcut}`);
   };
 
   return (

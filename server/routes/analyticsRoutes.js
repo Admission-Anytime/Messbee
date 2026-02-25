@@ -8,7 +8,8 @@ const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
-router.use(protect); // All routes require authentication
+// Protect all analytics routes
+router.use(protect);
 
 /**
  * @swagger

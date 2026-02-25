@@ -135,7 +135,9 @@ exports.sendMessage = async (req, res, next) => {
     // Emit socket event
     try {
       const io = getIO();
-      io.to(req.params.contactId).emit('new-message', message);
+      if (io) {
+        io.to(req.params.contactId).emit('new-message', message);
+      }
     } catch (socketError) {
       console.error('Socket error:', socketError.message);
     }
