@@ -40,12 +40,12 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
-    
+
     const allowedOrigins = [
       'http://localhost:5173',
       process.env.CLIENT_URL
     ].filter(Boolean);
-    
+
     // Allow any subdomain or explicitly allowed origins
     if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
@@ -126,18 +126,51 @@ const PORT = process.env.PORT || 5000;
 
 // Only start server if not in serverless environment
 if (!isServerless && httpServer) {
-  httpServer.listen(PORT, () => {
-    console.log('=====================================');
-    console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🌐 Server: http://localhost:${PORT}`);
-    console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
-    console.log('=====================================\n');
+
+  let _retries = 3;
+
+  const startServer = () => {
+    httpServer.listen(PORT, () => {
+      console.log('=====================================');
+      console.log(`⚙️  Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Server: http://localhost:${PORT}`);
+      console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
+      console.log('=====================================\n');
+    });
+  };
+
+  // ── Handle port already in use — auto-retry ───────────────────────────────
+  httpServer.on('error', (err) => {
+    if (err.code === 'EADDRINUSE' && _retries > 0) {
+      _retries--;
+      console.warn(`⚠️  Port ${PORT} in use. Retrying in 1s… (${_retries} attempt(s) left)`);
+      httpServer.close();
+      setTimeout(startServer, 1000);
+    } else {
+      console.error(`❌ Server error: ${err.message}`);
+      process.exit(1);
+    }
   });
+
+  // ── Graceful shutdown so port is released cleanly on nodemon restart ──────
+  const shutdown = (signal) => {
+    console.log(`\n🛑 ${signal} — shutting down gracefully…`);
+    httpServer.close(() => {
+      console.log('✅ Port released. Bye!');
+      process.exit(0);
+    });
+    setTimeout(() => process.exit(1), 5000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 
   process.on('unhandledRejection', (err) => {
     console.error('❌ Unhandled Rejection:', err.message);
     httpServer.close(() => process.exit(1));
   });
+
+  startServer();
 }
 
 // Export app for  serverless

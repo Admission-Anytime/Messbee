@@ -23,12 +23,25 @@ const parseCSV = (text) => {
   });
 };
 
+const normalize = (str) => str.toLowerCase().replace(/[\s_\-]/g, '');
+
+const resolveField = (row, candidates) => {
+  const rowKeys = Object.keys(row);
+  for (const candidate of candidates) {
+    const normCandidate = normalize(candidate);
+    const match = rowKeys.find(k => normalize(k) === normCandidate);
+    if (match !== undefined && row[match] !== undefined && row[match] !== '') {
+      return row[match].trim();
+    }
+  }
+  return '';
+};
+
 const AVATAR_COLORS = [
   '#4CAF50','#FF9800','#607D8B','#5C6BC0','#E91E63',
   '#009688','#795548','#3F51B5','#FF5722','#9C27B0',
 ];
 
-/* ─── toClientContact ───────────────────────────────────────────────────────── */
 const toClientContact = (doc) => ({
   id:           doc._id,
   _id:          doc._id,
@@ -50,14 +63,6 @@ const toClientContact = (doc) => ({
   updatedAt:    doc.updatedAt,
 });
 
-/* ─── normalizePhone ─────────────────────────────────────────────────────────
-   Cleans and normalizes a phone number string.
-   - Guards against undefined / null / non-string values
-   - Strips spaces, dashes, dots, and parentheses
-   - Converts 00XX... international prefix to +XX...
-   - Returns null if the result is empty
-   - Does NOT assume or append any country code
-────────────────────────────────────────────────────────────────────────────── */
 const normalizePhone = (rawPhone) => {
   const cleaned = (rawPhone || '').toString().trim().replace(/[\s\-().]/g, '');
   if (!cleaned) return null;
@@ -65,18 +70,22 @@ const normalizePhone = (rawPhone) => {
   return cleaned;
 };
 
-/* ─── sendError ──────────────────────────────────────────────────────────────
-   Consistent error response shape across all routes.
-────────────────────────────────────────────────────────────────────────────── */
+const getSubscriberDigits = (phone) => {
+  const digits = (phone || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+  if (digits.length === 11 && digits.startsWith('0'))  return digits.slice(1);
+  if (digits.length === 11 && digits.startsWith('1'))  return digits.slice(1);
+  if (digits.length === 10) return digits;
+  return digits.length > 10 ? digits.slice(-10) : digits;
+};
+
 const sendError = (res, status, message, details = null) => {
   const body = { success: false, message };
   if (details) body.details = details;
   return res.status(status).json(body);
 };
 
-/* ─── isValidObjectId ────────────────────────────────────────────────────────
-   Prevents Mongoose CastError when an invalid id is passed in the URL.
-────────────────────────────────────────────────────────────────────────────── */
 const isValidObjectId = (id) => mongoose.Types.ObjectId.isValid(id);
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -89,10 +98,14 @@ exports.getContacts = async (req, res, next) => {
     const skip  = (page - 1) * limit;
 
     const filter = { user: req.user.id };
-    // const filter ={}
 
     if (req.query.status && req.query.status !== 'All Contacts') {
-      filter.status = req.query.status;
+      const statusValues = req.query.status.split(',').map(s => s.trim()).filter(Boolean);
+      if (statusValues.length === 1) {
+        filter.status = statusValues[0];
+      } else if (statusValues.length > 1) {
+        filter.status = { $in: statusValues };
+      }
     }
 
     if (req.query.labels) {
@@ -119,16 +132,9 @@ exports.getContacts = async (req, res, next) => {
     return res.json({
       success: true,
       data:    contacts.map(toClientContact),
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-      },
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -136,17 +142,14 @@ exports.getContacts = async (req, res, next) => {
 ───────────────────────────────────────────────────────────────────────────── */
 exports.getContact = async (req, res, next) => {
   try {
-    if (!isValidObjectId(req.params.id)) {
+    if (!isValidObjectId(req.params.id))
       return sendError(res, 400, 'Invalid contact ID format');
-    }
 
     const contact = await Contact.findOne({ _id: req.params.id, user: req.user.id });
     if (!contact) return sendError(res, 404, 'Contact not found');
 
     return res.json({ success: true, data: toClientContact(contact) });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -160,20 +163,36 @@ exports.createContact = async (req, res, next) => {
       status, labels, initials, color,
     } = req.body;
 
-    // Required field validation
     if (!name || !name.trim())         return sendError(res, 400, 'Name is required');
     if (!whatsapp || !whatsapp.trim()) return sendError(res, 400, 'WhatsApp number is required');
 
-    // Normalize and validate the whatsapp number
     const normalizedWhatsapp = normalizePhone(whatsapp);
     if (!normalizedWhatsapp) return sendError(res, 400, 'Invalid WhatsApp number');
-    if (normalizedWhatsapp.replace(/\D/g, '').length < 10) {
+    if (normalizedWhatsapp.replace(/\D/g, '').length < 10)
       return sendError(res, 400, 'WhatsApp number must have at least 10 digits');
-    }
 
-    // Check for duplicate
-    const existing = await Contact.findOne({ user: req.user.id, whatsapp: normalizedWhatsapp });
-    if (existing) return sendError(res, 409, 'A contact with this WhatsApp number already exists');
+    // ─── DEBUG LOGS — remove these after fixing ───────────────────────────
+    console.log('─────────────────────────────────────────');
+    console.log('RAW INPUT whatsapp   :', whatsapp);
+    console.log('NORMALIZED whatsapp  :', normalizedWhatsapp);
+    console.log('INCOMING digits      :', getSubscriberDigits(normalizedWhatsapp));
+
+    const existingContacts = await Contact.find({ user: req.user.id }, 'whatsapp').lean();
+
+    console.log('EXISTING contacts    :');
+    existingContacts.forEach((c, i) => {
+      console.log(`  [${i + 1}] whatsapp: ${c.whatsapp}  →  digits: ${getSubscriberDigits(c.whatsapp)}`);
+    });
+
+    const incomingDigits = getSubscriberDigits(normalizedWhatsapp);
+    const duplicateMatch = existingContacts.find(c => getSubscriberDigits(c.whatsapp) === incomingDigits);
+
+    console.log('DUPLICATE MATCH      :', duplicateMatch ? duplicateMatch.whatsapp : 'none');
+    console.log('─────────────────────────────────────────');
+    // ─────────────────────────────────────────────────────────────────────
+
+    const isDuplicate = !!duplicateMatch;
+    if (isDuplicate) return sendError(res, 409, 'A contact with this WhatsApp number already exists');
 
     const contact = await Contact.create({
       user:      req.user.id,
@@ -198,9 +217,8 @@ exports.createContact = async (req, res, next) => {
       const messages = Object.values(err.errors).map(e => e.message);
       return sendError(res, 400, 'Validation failed', messages);
     }
-    if (err.code === 11000) {
+    if (err.code === 11000)
       return sendError(res, 409, 'A contact with this WhatsApp number already exists');
-    }
     next(err);
   }
 };
@@ -210,39 +228,32 @@ exports.createContact = async (req, res, next) => {
 ───────────────────────────────────────────────────────────────────────────── */
 exports.updateContact = async (req, res, next) => {
   try {
-    if (!isValidObjectId(req.params.id)) {
+    if (!isValidObjectId(req.params.id))
       return sendError(res, 400, 'Invalid contact ID format');
-    }
 
     const allowed = ['name','whatsapp','phone','email','company','institute','address','city','country','status','labels','initials','color'];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0)
       return sendError(res, 400, 'No valid fields provided for update');
-    }
 
-    // Normalize whatsapp if it's being updated
     if (updates.whatsapp !== undefined) {
       const normalized = normalizePhone(updates.whatsapp);
       if (!normalized) return sendError(res, 400, 'Invalid WhatsApp number');
-      if (normalized.replace(/\D/g, '').length < 10) {
+      if (normalized.replace(/\D/g, '').length < 10)
         return sendError(res, 400, 'WhatsApp number must have at least 10 digits');
-      }
       updates.whatsapp = normalized;
     }
 
-    // Re-generate initials if name changed but initials not explicitly provided
-    if (updates.name && !updates.initials) {
+    if (updates.name && !updates.initials)
       updates.initials = updates.name.trim().substring(0, 2).toUpperCase();
-    }
 
     const contact = await Contact.findOneAndUpdate(
       { _id: req.params.id, user: req.user.id },
       updates,
       { new: true, runValidators: true }
     );
-
     if (!contact) return sendError(res, 404, 'Contact not found');
 
     return res.json({ success: true, data: toClientContact(contact) });
@@ -251,9 +262,8 @@ exports.updateContact = async (req, res, next) => {
       const messages = Object.values(err.errors).map(e => e.message);
       return sendError(res, 400, 'Validation failed', messages);
     }
-    if (err.code === 11000) {
+    if (err.code === 11000)
       return sendError(res, 409, 'A contact with this WhatsApp number already exists');
-    }
     next(err);
   }
 };
@@ -263,41 +273,32 @@ exports.updateContact = async (req, res, next) => {
 ───────────────────────────────────────────────────────────────────────────── */
 exports.deleteContact = async (req, res, next) => {
   try {
-    if (!isValidObjectId(req.params.id)) {
+    if (!isValidObjectId(req.params.id))
       return sendError(res, 400, 'Invalid contact ID format');
-    }
 
     const contact = await Contact.findOneAndDelete({ _id: req.params.id, user: req.user.id });
     if (!contact) return sendError(res, 404, 'Contact not found');
 
     return res.json({ success: true, message: 'Contact deleted successfully' });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
    DELETE /api/contacts/bulk-delete
-   Body: { ids: ['id1', 'id2', ...] }
 ───────────────────────────────────────────────────────────────────────────── */
 exports.bulkDelete = async (req, res, next) => {
   try {
     const { ids } = req.body;
-
-    if (!Array.isArray(ids) || ids.length === 0) {
+    if (!Array.isArray(ids) || ids.length === 0)
       return sendError(res, 400, 'ids must be a non-empty array');
-    }
 
     const invalidIds = ids.filter(id => !isValidObjectId(id));
-    if (invalidIds.length) {
+    if (invalidIds.length)
       return sendError(res, 400, 'One or more invalid contact IDs', invalidIds);
-    }
 
     const result = await Contact.deleteMany({ _id: { $in: ids }, user: req.user.id });
     return res.json({ success: true, deleted: result.deletedCount });
-  } catch (err) {
-    next(err);
-  }
+  } catch (err) { next(err); }
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -306,16 +307,12 @@ exports.bulkDelete = async (req, res, next) => {
 exports.importContacts = async (req, res, next) => {
   const cleanupFile = () => {
     try {
-      if (req.file?.path && fs.existsSync(req.file.path)) {
-        fs.unlinkSync(req.file.path);
-      }
-    } catch (_) { /* ignore cleanup errors */ }
+      if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch (_) {}
   };
 
   try {
-    if (!req.file) {
-      return sendError(res, 400, 'Please upload a CSV file');
-    }
+    if (!req.file) return sendError(res, 400, 'Please upload a CSV file');
 
     let fileContent;
     try {
@@ -335,51 +332,100 @@ exports.importContacts = async (req, res, next) => {
 
     cleanupFile();
 
-    if (!rows.length) {
-      return sendError(res, 400, 'CSV file is empty or has no data rows');
-    }
+    if (!rows.length) return sendError(res, 400, 'CSV file is empty or has no data rows');
 
+    const VALID_STATUSES = ['ACTIVE', 'WARM', 'INACTIVE', 'COLD'];
     const successful = [];
     const failed     = [];
 
     for (let i = 0; i < rows.length; i++) {
       const row      = rows[i];
-      const rowIndex = i + 2; // +2 because row 1 is headers, arrays are 0-indexed
+      const rowIndex = i + 2;
 
-      // Flexible column name mapping
-      const name      = row.fullName  || row.name      || row.Name      || row.FullName || '';
-      const phone     = row.Phone     || row.phone     || row.whatsapp  || row.WhatsApp || '';
-      const email     = row.Email     || row.email     || '';
-      const company   = row.Company   || row.company   || '';
-      const city      = row.City      || row.city      || '';
-      const country   = row['Country Code'] || row.country || row.Country || '';
-      const institute = row.Institute || row.institute || '';
-      const address   = row.Address   || row.address   || [city, country].filter(Boolean).join(', ');
+      const name = resolveField(row, [
+        'name', 'fullname', 'full name', 'full_name', 'fullName',
+        'FullName', 'Full Name', 'contactname', 'contact name', 'contact_name',
+      ]);
 
-      // Required field validation
-      if (!name || !name.trim()) {
+      const rawPhone = resolveField(row, [
+        'whatsapp', 'whatsappnumber', 'whatsapp number', 'whatsapp_number',
+        'WhatsApp', 'WhatsApp Number',
+        'phone', 'phonenumber', 'phone number', 'phone_number',
+        'Phone', 'Phone Number',
+        'mobile', 'mobilenumber', 'mobile number', 'mobile_number',
+        'contact', 'contactnumber', 'contact number',
+      ]);
+
+      const rawAltPhone = resolveField(row, [
+        'alternatephone', 'alternate phone', 'altphone', 'alt phone',
+        'landline', 'telephone', 'tel',
+      ]) || rawPhone;
+
+      const email = resolveField(row, [
+        'email', 'emailaddress', 'email address', 'email_address',
+        'Email', 'Email Address', 'mail',
+      ]);
+
+      const company = resolveField(row, [
+        'company', 'companyname', 'company name', 'company_name',
+        'Company', 'Company Name',
+        'organisation', 'organization', 'org',
+        'Organisation', 'Organization',
+      ]);
+
+      const institute = resolveField(row, [
+        'institute', 'institution', 'Institute', 'Institution',
+        'school', 'college', 'university',
+      ]);
+
+      const city = resolveField(row, [
+        'city', 'City', 'town', 'Town', 'district', 'District',
+      ]);
+
+      const country = resolveField(row, [
+        'country', 'Country',
+        'countrycode', 'country code', 'country_code',
+        'Country Code', 'CountryCode',
+        'nation', 'Nation',
+      ]);
+
+      const address = resolveField(row, [
+        'address', 'Address',
+        'fulladdress', 'full address', 'full_address',
+        'streetaddress', 'street address', 'street',
+      ]) || [city, country].filter(Boolean).join(', ');
+
+      const rawStatus  = resolveField(row, ['status', 'Status', 'contactstatus', 'contact status']);
+      const status     = VALID_STATUSES.includes(rawStatus.toUpperCase())
+        ? rawStatus.toUpperCase()
+        : 'ACTIVE';
+
+      const rawLabels = resolveField(row, ['labels', 'Labels', 'tags', 'Tags', 'label', 'tag']);
+      const labels    = rawLabels
+        ? rawLabels.split(',').map(l => l.trim()).filter(Boolean)
+        : [];
+
+      if (!name) {
         failed.push({ row: rowIndex, data: JSON.stringify(row), name: 'Unknown', reason: 'Missing name' });
         continue;
       }
-      if (!phone) {
-        failed.push({ row: rowIndex, data: name, name, reason: 'Missing phone number' });
+      if (!rawPhone) {
+        failed.push({ row: rowIndex, data: name, name, reason: 'Missing phone / WhatsApp number' });
         continue;
       }
 
-      // Normalize phone
-      const whatsapp = normalizePhone(phone);
-
+      const whatsapp = normalizePhone(rawPhone);
       if (!whatsapp) {
-        failed.push({ row: rowIndex, data: phone, name, reason: 'Empty phone number after cleaning' });
+        failed.push({ row: rowIndex, data: rawPhone, name, reason: 'Empty phone number after cleaning' });
         continue;
       }
-
       if (whatsapp.replace(/\D/g, '').length < 10) {
-        failed.push({ row: rowIndex, data: phone, name, reason: 'Phone number too short (min 10 digits)' });
+        failed.push({ row: rowIndex, data: rawPhone, name, reason: 'Phone number too short (min 10 digits)' });
         continue;
       }
 
-      const initials = name.trim().substring(0, 2).toUpperCase();
+      const phone    = normalizePhone(rawAltPhone) || whatsapp;
+      const initials = name.substring(0, 2).toUpperCase();
       const color    = AVATAR_COLORS[i % AVATAR_COLORS.length];
 
       try {
@@ -387,16 +433,25 @@ exports.importContacts = async (req, res, next) => {
           { user: req.user.id, whatsapp },
           {
             $set: {
-              name: name.trim(), whatsapp, phone: whatsapp, email,
-              company, institute, address, city, country,
-              status: 'ACTIVE', initials, color,
+              name,
+              whatsapp,
+              phone,
+              email:        email     || '',
+              company:      company   || '',
+              institute:    institute || '',
+              address:      address   || '',
+              city:         city      || '',
+              country:      country   || '',
+              status,
+              labels,
+              initials,
+              color,
               importedFrom: req.file?.originalname || 'csv_import',
             },
-            $setOnInsert: { labels: [], user: req.user.id },
+            $setOnInsert: { user: req.user.id },
           },
           { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
         );
-
         successful.push({ row: rowIndex, name });
       } catch (dbErr) {
         if (dbErr.name === 'ValidationError') {

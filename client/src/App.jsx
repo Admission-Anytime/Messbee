@@ -37,7 +37,7 @@ const PaymentMethods = lazy(() => import("./pages/PlanPricing/PaymentMethods"));
 const Contact = lazy(() => import("./pages/contats/contact"));
 const StatusPage = lazy(() => import("./pages/contats/Status/StatusPage"));
 const ImportContacts = lazy(() => import("./pages/contats/importContact"));
-const MapFields = lazy(() => import("./pages/contats/mapfields"));
+// const MapFields = lazy(() => import("./pages/contats/mapfields"));
 const ReviewSummary = lazy(() => import("./pages/contats/reviewSummary"));
 
 // --- LAZY LOADED SETTINGS ---
@@ -181,7 +181,7 @@ function App() {
             element={<ImportContacts />}
           />{" "}
           {/* ← ADDED */}
-          <Route path="/admin/contacts/map" element={<MapFields />} />{" "}
+          {/* <Route path="/admin/contacts/map" element={<MapFields />} />{" "} */}
           {/* ← ADDED */}
           <Route
             path="/admin/contacts/review"
