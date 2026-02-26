@@ -167,46 +167,49 @@ const CustomFieldsSection = () => {
       key: f.key || "",
       description: f.description || "",
     });
+    setEditKeyManuallyEdited(false);
     setIsEditOpen(true);
   };
 
   const closeEditModal = () => {
     setIsEditOpen(false);
     setEditIndex(null);
+    setEditKeyManuallyEdited(false);
   };
 
-  // auto-generate key in CREATE when typing name (editable, but auto if user didn't change)
-  useEffect(() => {
-    setForm((prev) => {
-      const autoKey = slugifyKey(prev.name || "");
-      const wasAuto = prev.key === autoKey || prev.key === "";
-      const nextAutoKey = slugifyKey(form.name || "");
-      if (!wasAuto) return prev;
-      return { ...prev, key: nextAutoKey };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.name]);
+  // Track if user manually edited the key in CREATE form
+  const [createKeyManuallyEdited, setCreateKeyManuallyEdited] = useState(false);
 
-  // auto-generate key in EDIT when typing name (editable, but auto if user didn't change)
+  // Track if user manually edited the key in EDIT form
+  const [editKeyManuallyEdited, setEditKeyManuallyEdited] = useState(false);
+
+  // auto-generate key in CREATE when typing name (only if user hasn't manually edited)
   useEffect(() => {
-    if (!isEditOpen) return;
-    setEditForm((prev) => {
-      const autoKey = slugifyKey(prev.name || "");
-      const wasAuto = prev.key === autoKey || prev.key === "";
-      const nextAutoKey = slugifyKey(editForm.name || "");
-      if (!wasAuto) return prev;
-      return { ...prev, key: nextAutoKey };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editForm.name, isEditOpen]);
+    if (!createKeyManuallyEdited) {
+      const autoKey = slugifyKey(form.name || "");
+      setForm((prev) => ({ ...prev, key: autoKey }));
+    }
+  }, [form.name, createKeyManuallyEdited]);
+
+  // auto-generate key in EDIT when typing name (only if user hasn't manually edited)
+  useEffect(() => {
+    if (isEditOpen && !editKeyManuallyEdited) {
+      const autoKey = slugifyKey(editForm.name || "");
+      setEditForm((prev) => ({ ...prev, key: autoKey }));
+    }
+  }, [editForm.name, isEditOpen, editKeyManuallyEdited]);
 
   const existingKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
 
   const openCreateModal = () => {
     setForm({ name: "", type: "Text", key: "", description: "" });
+    setCreateKeyManuallyEdited(false);
     setIsCreateOpen(true);
   };
-  const closeCreateModal = () => setIsCreateOpen(false);
+  const closeCreateModal = () => {
+    setIsCreateOpen(false);
+    setCreateKeyManuallyEdited(false);
+  };
 
   const toggleActive = async (index) => {
     const field = fields[index];
@@ -676,7 +679,10 @@ const CustomFieldsSection = () => {
                   <div className="relative">
                     <input
                       value={form.key}
-                      onChange={(e) => setForm((p) => ({ ...p, key: e.target.value }))}
+                      onChange={(e) => {
+                        setForm((p) => ({ ...p, key: e.target.value }));
+                        setCreateKeyManuallyEdited(true);
+                      }}
                       placeholder="order_status"
                       className="w-full border border-gray-200 rounded-lg px-4 py-2.5 pr-10 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
                     />
@@ -779,7 +785,10 @@ const CustomFieldsSection = () => {
                   <label className="block text-sm font-medium text-gray-800 mb-2">Technical Key</label>
                   <input
                     value={editForm.key}
-                    onChange={(e) => setEditForm((p) => ({ ...p, key: e.target.value }))}
+                    onChange={(e) => {
+                      setEditForm((p) => ({ ...p, key: e.target.value }));
+                      setEditKeyManuallyEdited(true);
+                    }}
                     className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
                   />
                   {editError && <p className="mt-2 text-sm text-red-600">{editError}</p>}

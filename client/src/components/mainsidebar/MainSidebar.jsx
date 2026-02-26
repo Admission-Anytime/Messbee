@@ -145,6 +145,11 @@ const MENU_ITEMS = [
             path: "/admin/settings/media",
             icon: "feather:image",
           },
+          {
+            title: "Manage Teams",
+            path: "/admin/settings/teams",
+            icon: "feather:users",
+          },
         ],
       },
       {
@@ -176,23 +181,6 @@ const MENU_ITEMS = [
             title: "Payment methods",
             path: "/admin/plan/methods",
             icon: "feather:credit-card",
-          },
-        ],
-      },
-      {
-        title: "Profile",
-        icon: "feather:briefcase",
-        isSubmenu: true,
-        children: [
-          {
-            title: "Profile Information",
-            path: "/admin/account/profile",
-            icon: "feather:user",
-          },
-          {
-            title: "Business Information",
-            path: "/admin/profile/business",
-            icon: "feather:briefcase",
           },
         ],
       },
