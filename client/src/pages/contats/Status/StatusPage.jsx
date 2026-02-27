@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   PlusIcon, 
   InformationCircleIcon, 
@@ -14,6 +14,14 @@ import {
 
 // Import the toast utility
 import { showToast } from "../../../utils/showToast"; 
+// Import the Status API
+import { 
+  getAllStatuses, 
+  createStatus, 
+  updateStatus, 
+  deleteStatus 
+} from "../../../services/StatusApi";
+
 const StatusPage = () => {
    // --- STATE ---
   const [statuses, setStatuses] = useState([]); // ✅ Start empty
@@ -29,6 +37,24 @@ const StatusPage = () => {
   const usedCount = statuses.length;
   // ✅ NEW: Boolean to easily check if limit is reached
   const isLimitReached = usedCount >= PLAN_LIMIT;
+
+  // --- FETCH STATUSES ON MOUNT ---
+  useEffect(() => {
+    fetchStatuses();
+  }, []);
+
+  const fetchStatuses = async () => {
+    try {
+      setIsLoading(true);
+      const data = await getAllStatuses();
+      setStatuses(data);
+    } catch (error) {
+      console.error('Error fetching statuses:', error);
+      showToast.error("Error", "Failed to load statuses. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // --- ACTIONS ---
   const openModal = (status = null) => {
@@ -48,45 +74,68 @@ const StatusPage = () => {
     setIsModalOpen(true);
   };
 
-  const handleSave = (e) => {
+  const handleSave = async (e) => {
     e.preventDefault();
     
-    if (isEditMode) {
-      // Update existing
-      setStatuses(statuses.map(s => s.id === currentStatus.id ? { ...currentStatus } : s));
-      showToast.success("Status Updated", "The status details have been successfully saved.");
-    } else {
-      // ✅ NEW: Double check limit before saving new status
-      if (statuses.length >= PLAN_LIMIT) {
-        showToast.error("Limit Exceeded", "You have reached the maximum number of statuses.");
-        setIsModalOpen(false);
-        return;
-      }
+    try {
+      if (isEditMode) {
+        // Update existing
+        const updatedStatus = await updateStatus(currentStatus._id, {
+          name: currentStatus.name,
+          description: currentStatus.description,
+          color: currentStatus.color,
+          isActive: currentStatus.isActive
+        });
+        
+        setStatuses(statuses.map(s => s._id === updatedStatus._id ? updatedStatus : s));
+        showToast.success("Status Updated", "The status details have been successfully saved.");
+      } else {
+        // ✅ NEW: Double check limit before saving new status
+        if (statuses.length >= PLAN_LIMIT) {
+          showToast.error("Limit Exceeded", "You have reached the maximum number of statuses.");
+          setIsModalOpen(false);
+          return;
+        }
 
-      // Create new
-      const newId = statuses.length > 0 ? Math.max(...statuses.map(s => s.id)) + 1 : 1;
-      const newStatus = {
-        id: newId,
-        ...currentStatus,
-        createdBy: "You",
-        avatar: "https://i.pravatar.cc/150?u=me",
-        isActive: true
-      };
-      setStatuses([...statuses, newStatus]);
-      showToast.success("Status Created", "New status has been added to your list.");
+        // Create new
+        const newStatus = await createStatus({
+          name: currentStatus.name,
+          description: currentStatus.description,
+          color: currentStatus.color,
+          isActive: currentStatus.isActive !== undefined ? currentStatus.isActive : true
+        });
+        
+        setStatuses([newStatus, ...statuses]);
+        showToast.success("Status Created", "New status has been added to your list.");
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving status:', error);
+      
+      // Handle limit reached error
+      if (error.response?.data?.limitReached) {
+        showToast.error("Plan Limit Reached", error.response.data.message);
+      } else {
+        showToast.error("Error", error.response?.data?.message || "Failed to save status. Please try again.");
+      }
     }
-    setIsModalOpen(false);
   };
 
   const initiateDelete = (id) => {
     setConfirmDeleteId(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (confirmDeleteId) {
-      setStatuses(statuses.filter(s => s.id !== confirmDeleteId));
-      showToast.error("Status Deleted", "The status has been permanently removed.");
-      setConfirmDeleteId(null);
+      try {
+        await deleteStatus(confirmDeleteId);
+        setStatuses(statuses.filter(s => s._id !== confirmDeleteId));
+        showToast.success("Status Deleted", "The status has been permanently removed.");
+        setConfirmDeleteId(null);
+      } catch (error) {
+        console.error('Error deleting status:', error);
+        showToast.error("Error", error.response?.data?.message || "Failed to delete status. Please try again.");
+      }
     }
   };
 
@@ -142,9 +191,14 @@ const StatusPage = () => {
            </div>
 
            <div className="divide-y divide-gray-50 min-h-[300px]">
-              {statuses.length > 0 ? (
+              {isLoading ? (
+                 <div className="p-10 text-center text-slate-400">
+                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-400"></div>
+                    <p className="mt-3">Loading statuses...</p>
+                 </div>
+              ) : statuses.length > 0 ? (
                  statuses.map((status) => (
-                    <div key={status.id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
+                    <div key={status._id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
                        
                        <div className="col-span-3 flex items-center gap-3">
                           <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
@@ -157,12 +211,12 @@ const StatusPage = () => {
 
                        <div className="col-span-2 flex items-center gap-3">
                           <button 
-                            onClick={() => handleCopyColor(status.color, status.id)}
+                            onClick={() => handleCopyColor(status.color, status._id)}
                             className="flex items-center gap-2 px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono text-slate-500 hover:border-slate-300 transition-colors"
                             title="Click to copy"
                           >
                              <div className="w-3 h-3 rounded-sm" style={{ backgroundColor: status.color }}></div>
-                             {copiedId === status.id ? "Copied!" : status.color}
+                             {copiedId === status._id ? "Copied!" : status.color}
                           </button>
                        </div>
 
@@ -180,7 +234,7 @@ const StatusPage = () => {
                              <PencilSquareIcon className="w-4 h-4" />
                           </button>
                           <button 
-                            onClick={() => initiateDelete(status.id)}
+                            onClick={() => initiateDelete(status._id)}
                             className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                             title="Delete"
                           >
