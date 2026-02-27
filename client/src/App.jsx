@@ -1,25 +1,25 @@
+import PropTypes from "prop-types";
 import { Suspense, lazy, useState, memo } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+// --- IMPORTS FOR NEW UI ---
+import Loading from "./components/Loading";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
+
 import MainHeading from "./components/header/MainHeading";
 import MainSidebar from "./components/mainsidebar/MainSidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 
-// --- INLINE LOADING ---
-const PageLoader = () => (
-  <div className="flex items-center justify-center h-full w-full">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ba2525]"></div>
-  </div>
-);
+// --- UPDATED LOADING UI ---
+const PageLoader = () => <Loading />;
 
 // --- LAZY LOADED MAIN PAGES ---
 const Dashboard = lazy(() => import("./pages/dashboard-paid"));
-const NotificationPage = lazy(
-  () => import("./pages/Notification/NotificationPage"),
-);
+const NotificationPage = lazy(() => import("./pages/Notification/NotificationPage"));
 const Chat = lazy(() => import("./pages/chat/chat"));
 const Campaign = lazy(() => import("./pages/campaign/campaign"));
 const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
@@ -54,7 +54,6 @@ const DevApi = lazy(() => import("./pages/setting/DevApi"));
 
 // --- LAZY LOADED HELP PAGES ---
 const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
-
 const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
 const ProductList = lazy(() => import("./pages/commerce/ProductList"));
 const Inventory = lazy(() => import("./pages/commerce/Inventory"));
@@ -88,11 +87,16 @@ const NotFound = memo(() => {
 });
 NotFound.displayName = "NotFound";
 
-// --- PLACEHOLDER COMPONENTS (Memoized) ---
+// --- PLACEHOLDER COMPONENTS ---
 const Placeholder = memo(({ title }) => (
   <div className="p-10 text-xl font-bold text-slate-700">{title}</div>
 ));
 Placeholder.displayName = "Placeholder";
+Placeholder.propTypes = {
+  title: PropTypes.string.isRequired,
+};
+
+
 
 // --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
@@ -100,12 +104,10 @@ const AppLayout = memo(() => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      {/* HEADER */}
       <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
       </div>
 
-      {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
@@ -121,177 +123,101 @@ AppLayout.displayName = "AppLayout";
 
 function App() {
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          fontFamily: "Urbanist, Poppins, sans-serif",
-          colorPrimary: "#ba2525",
-        },
-      }}
-    >
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnHover
-        draggable
-        theme="light"
-        toastClassName="custom-toast"
-        bodyClassName="custom-toast-body"
-        style={{ zIndex: 9999 }}
-      />
+    <ErrorBoundary> {/* Added Global Error Catching */}
+      <ConfigProvider
+        theme={{
+          token: {
+            fontFamily: "Urbanist, Poppins, sans-serif",
+            colorPrimary: "#ba2525",
+          },
+        }}
+      >
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnHover
+          draggable
+          theme="light"
+          toastClassName="custom-toast"
+          bodyClassName="custom-toast-body"
+          style={{ zIndex: 9999 }}
+        />
 
-      <Routes>
-        {/* PUBLIC ROUTES - Redirect to dashboard if already logged in */}
-        <Route path="/login" element={<PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>} />
-        <Route path="/signup" element={<PublicRoute><Suspense fallback={<PageLoader />}><Registration /></Suspense></PublicRoute>} />
-        <Route path="/forgot-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></PublicRoute>} />
-        <Route path="/verify-otp" element={<PublicRoute><Suspense fallback={<PageLoader />}><VerifyOTP /></Suspense></PublicRoute>} />
-        <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPassword /></Suspense></PublicRoute>} />
-        <Route path="/onboarding" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Onboarding /></Suspense></ProtectedRoute>} />
+        <Routes>
+          {/* PUBLIC ROUTES */}
+          <Route path="/login" element={<PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>} />
+          <Route path="/signup" element={<PublicRoute><Suspense fallback={<PageLoader />}><Registration /></Suspense></PublicRoute>} />
+          <Route path="/forgot-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ForgotPassword /></Suspense></PublicRoute>} />
+          <Route path="/verify-otp" element={<PublicRoute><Suspense fallback={<PageLoader />}><VerifyOTP /></Suspense></PublicRoute>} />
+          <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPassword /></Suspense></PublicRoute>} />
+          <Route path="/onboarding" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Onboarding /></Suspense></ProtectedRoute>} />
 
-        {/* PROTECTED ROUTES - Require Authentication */}
-        <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-          {/* 1. Dashboard */}
-          <Route path="/" element={<Dashboard />} />
-          <Route
-            path="/admin/dashboard"
-            element={<Navigate to="/" replace />}
-          />
-          {/* 2. Notifications */}
-          <Route path="/admin/notifications" element={<NotificationPage />} />
-          {/* 3. Chat */}
-          <Route path="/admin/chat" element={<Chat />} />
-          {/* 4. Contacts & CRM */}
-          <Route path="/admin/contacts" element={<Contact />} />
-          <Route path="/admin/contacts/list" element={<Contact />} />
-          <Route path="/admin/contacts/labels" element={<Label />} />
-          <Route path="/admin/contacts/fields" element={<CustomField />} />
-          <Route path="/admin/contacts/quick-reply" element={<QuickReply />} />
-          <Route
-            path="/admin/contacts/quick-replies"
-            element={<QuickReply />}
-          />
-          <Route path="/admin/contacts/status" element={<StatusPage />} />
-          <Route
-            path="/admin/contacts/crm"
-            element={<Placeholder title="CRM Pipeline" />}
-          />
-          {/* ── Import Contacts Route ── */}
-          <Route
-            path="/admin/contacts/import"
-            element={<ImportContacts />}
-          />{" "}
-          {/* ← ADDED */}
-          <Route path="/admin/contacts/map" element={<MapFields />} />{" "}
-          {/* ← ADDED */}
-          <Route
-            path="/admin/contacts/review"
-            element={<ReviewSummary />}
-          />{" "}
-          {/* ← ADDED */}
-          {/* 5. Templates */}
-          <Route path="/admin/templates/list" element={<Templates />} />
-          <Route path="/admin/campaigns/templates" element={<Templates />} />
-          <Route
-            path="/admin/templates/gallery"
-            element={<TemplatesGallery />}
-          />
-          <Route
-            path="/admin/templates/create"
-            element={<CreateTemplate />}
-          />
-          {/* 6. Campaigns */}
-          <Route path="/admin/campaign" element={<Campaign />} />
-          <Route path="/admin/campaigns" element={<Campaign />} />
-          <Route path="/admin/campaign/create" element={<CreateCampaign />} />
-          <Route
-            path="/admin/campaigns/bulk"
-            element={<Placeholder title="Bulk Send" />}
-          />
-          {/* 7. Commerce */}
-          <Route path="/admin/commerce/payments" element={<PaymentList />} />
-          <Route path="/admin/commerce/products" element={<ProductList />} />
-          <Route path="/admin/commerce/inventory" element={<Inventory />} />
-          {/* 8. Automation */}
-          <Route path="/admin/automation" element={<Automation />} />
-          {/* 9. Analytics */}
-          <Route path="/admin/analytic" element={<Analytic />} />
-          <Route
-            path="/admin/analytic/conversation"
-            element={<Placeholder title="Conversation Analytics" />}
-          />
-          <Route
-            path="/admin/analytic/messages"
-            element={<Placeholder title="Message Analytics" />}
-          />
-          <Route
-            path="/admin/analytic/template"
-            element={<Placeholder title="Template Analytics" />}
-          />
-          <Route
-            path="/admin/reports"
-            element={<Placeholder title="Reports" />}
-          />
-          <Route
-            path="/admin/alerts"
-            element={<Placeholder title="Alerts" />}
-          />
-          <Route
-            path="/admin/business"
-            element={<Placeholder title="Business Management" />}
-          />
-          {/* 10. Integrations */}
-          <Route path="/admin/api" element={<DevApi />} />
-          <Route path="/admin/developer/api" element={<DevApi />} />
-          <Route path="/admin/integration/api" element={<DevApi />} />
-          <Route
-            path="/admin/integration/apps"
-            element={<Placeholder title="App Connect" />}
-          />
-          {/* 11. Settings */}
-          <Route path="/admin/settings/whatsapp" element={<Wapi />} />
-          <Route path="/admin/settings/media" element={<Media />} />
-          <Route path="/admin/settings/teams" element={<ManageTeams />} />
-          {/* 12. Plan & Pricing */}
-          <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
-          <Route path="/admin/plan/addons" element={<AddonsWCC />} />
-          <Route path="/admin/plan/active" element={<ActivePlan />} />
-          <Route path="/admin/plan/history" element={<PaymentHistory />} />
-          <Route path="/admin/plan/methods" element={<PaymentMethods />} />
-          {/* 13. Profile & Account */}
-          <Route
-            path="/admin/account/admin"
-            element={<Placeholder title="Admin Users" />}
-          />
-          <Route
-            path="/admin/account/settings"
-            element={<Placeholder title="Settings" />}
-          />
-          <Route path="/admin/account/profile" element={<UserProfile />} />
-          <Route path="/admin/account/plan" element={<ActivePlans />} />
-          <Route path="/admin/profile/info" element={<UserProfile />} />
-          <Route path="/admin/profile/business" element={<BusinessProfile />} />
-          {/* 14. Help */}
-          <Route
-            path="/admin/help/docs"
-            element={<ApiDocs />}
-          />
-          <Route
-            path="/admin/help/support"
-            element={<Placeholder title="Support" />}
-          />
-          <Route
-            path="/admin/help/faqs"
-            element={<Placeholder title="FAQs" />}
-          />
-        </Route>
+          {/* PROTECTED ROUTES */}
+          <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/" replace />} />
+            <Route path="/admin/notifications" element={<NotificationPage />} />
+            <Route path="/admin/chat" element={<Chat />} />
+            <Route path="/admin/contacts" element={<Contact />} />
+            <Route path="/admin/contacts/list" element={<Contact />} />
+            <Route path="/admin/contacts/labels" element={<Label />} />
+            <Route path="/admin/contacts/fields" element={<CustomField />} />
+            <Route path="/admin/contacts/quick-reply" element={<QuickReply />} />
+            <Route path="/admin/contacts/quick-replies" element={<QuickReply />} />
+            <Route path="/admin/contacts/status" element={<StatusPage />} />
+            <Route path="/admin/contacts/crm" element={<Placeholder title="CRM Pipeline" />} />
+            <Route path="/admin/contacts/import" element={<ImportContacts />} />
+            <Route path="/admin/contacts/map" element={<MapFields />} />
+            <Route path="/admin/contacts/review" element={<ReviewSummary />} />
+            <Route path="/admin/templates/list" element={<Templates />} />
+            <Route path="/admin/campaigns/templates" element={<Templates />} />
+            <Route path="/admin/templates/gallery" element={<TemplatesGallery />} />
+            <Route path="/admin/templates/create" element={<CreateTemplate />} />
+            <Route path="/admin/campaign" element={<Campaign />} />
+            <Route path="/admin/campaigns" element={<Campaign />} />
+            <Route path="/admin/campaign/create" element={<CreateCampaign />} />
+            <Route path="/admin/campaigns/bulk" element={<Placeholder title="Bulk Send" />} />
+            <Route path="/admin/commerce/payments" element={<PaymentList />} />
+            <Route path="/admin/commerce/products" element={<ProductList />} />
+            <Route path="/admin/commerce/inventory" element={<Inventory />} />
+            <Route path="/admin/automation" element={<Automation />} />
+            <Route path="/admin/analytic" element={<Analytic />} />
+            <Route path="/admin/analytic/conversation" element={<Placeholder title="Conversation Analytics" />} />
+            <Route path="/admin/analytic/messages" element={<Placeholder title="Message Analytics" />} />
+            <Route path="/admin/analytic/template" element={<Placeholder title="Template Analytics" />} />
+            <Route path="/admin/reports" element={<Placeholder title="Reports" />} />
+            <Route path="/admin/alerts" element={<Placeholder title="Alerts" />} />
+            <Route path="/admin/business" element={<Placeholder title="Business Management" />} />
+            <Route path="/admin/api" element={<DevApi />} />
+            <Route path="/admin/developer/api" element={<DevApi />} />
+            <Route path="/admin/integration/api" element={<DevApi />} />
+            <Route path="/admin/integration/apps" element={<Placeholder title="App Connect" />} />
+            <Route path="/admin/settings/whatsapp" element={<Wapi />} />
+            <Route path="/admin/settings/media" element={<Media />} />
+            <Route path="/admin/settings/teams" element={<ManageTeams />} />
+            <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
+            <Route path="/admin/plan/addons" element={<AddonsWCC />} />
+            <Route path="/admin/plan/active" element={<ActivePlan />} />
+            <Route path="/admin/plan/history" element={<PaymentHistory />} />
+            <Route path="/admin/plan/methods" element={<PaymentMethods />} />
+            <Route path="/admin/account/admin" element={<Placeholder title="Admin Users" />} />
+            <Route path="/admin/account/settings" element={<Placeholder title="Settings" />} />
+            <Route path="/admin/account/profile" element={<UserProfile />} />
+            <Route path="/admin/account/plan" element={<ActivePlans />} />
+            <Route path="/admin/profile/info" element={<UserProfile />} />
+            <Route path="/admin/profile/business" element={<BusinessProfile />} />
+            <Route path="/admin/help/docs" element={<ApiDocs />} />
+            <Route path="/admin/help/support" element={<Placeholder title="Support" />} />
+            <Route path="/admin/help/faqs" element={<Placeholder title="FAQs" />} />
+          </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </ConfigProvider>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </ConfigProvider>
+    </ErrorBoundary>
   );
 }
 
