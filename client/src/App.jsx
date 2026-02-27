@@ -1,25 +1,25 @@
+import PropTypes from "prop-types";
 import { Suspense, lazy, useState, memo } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ConfigProvider } from "antd";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
+// --- IMPORTS FOR NEW UI ---
+import Loading from "./components/Loading";
+import ErrorBoundary from "./components/ui/ErrorBoundary";
+
 import MainHeading from "./components/header/MainHeading";
 import MainSidebar from "./components/mainsidebar/MainSidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 
-// --- INLINE LOADING ---
-const PageLoader = () => (
-  <div className="flex items-center justify-center h-full w-full">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#ba2525]"></div>
-  </div>
-);
+// --- UPDATED LOADING UI ---
+const PageLoader = () => <Loading />;
 
 // --- LAZY LOADED MAIN PAGES ---
 const Dashboard = lazy(() => import("./pages/dashboard-paid"));
-const NotificationPage = lazy(
-  () => import("./pages/Notification/NotificationPage"),
-);
+const NotificationPage = lazy(() => import("./pages/Notification/NotificationPage"));
 const Chat = lazy(() => import("./pages/chat/chat"));
 const Campaign = lazy(() => import("./pages/campaign/campaign"));
 const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
@@ -54,7 +54,6 @@ const DevApi = lazy(() => import("./pages/setting/DevApi"));
 
 // --- LAZY LOADED HELP PAGES ---
 const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
-
 const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
 const ProductList = lazy(() => import("./pages/commerce/ProductList"));
 const Inventory = lazy(() => import("./pages/commerce/Inventory"));
@@ -88,11 +87,16 @@ const NotFound = memo(() => {
 });
 NotFound.displayName = "NotFound";
 
-// --- PLACEHOLDER COMPONENTS (Memoized) ---
+// --- PLACEHOLDER COMPONENTS ---
 const Placeholder = memo(({ title }) => (
   <div className="p-10 text-xl font-bold text-slate-700">{title}</div>
 ));
 Placeholder.displayName = "Placeholder";
+Placeholder.propTypes = {
+  title: PropTypes.string.isRequired,
+};
+
+
 
 // --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
@@ -100,12 +104,10 @@ const AppLayout = memo(() => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      {/* HEADER */}
       <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
         <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
       </div>
 
-      {/* BODY */}
       <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
