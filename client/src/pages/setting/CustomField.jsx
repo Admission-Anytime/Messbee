@@ -210,24 +210,66 @@ const CustomFieldsSection = () => {
       description:    f.description || "",
       showInContacts: f.showInContacts !== undefined ? f.showInContacts : true,
     });
+    setEditKeyManuallyEdited(false);
     setIsEditOpen(true);
   };
 
-  const closeEditModal = () => { setIsEditOpen(false); setEditIndex(null); };
+  const closeEditModal = () => {
+    setIsEditOpen(false);
+    setEditIndex(null);
+    setEditKeyManuallyEdited(false);
+  };
 
+  // Track if user manually edited the key in CREATE form
+  const [createKeyManuallyEdited, setCreateKeyManuallyEdited] = useState(false);
+
+  // Track if user manually edited the key in EDIT form
+  const [editKeyManuallyEdited, setEditKeyManuallyEdited] = useState(false);
+
+  // auto-generate key in CREATE when typing name (only if user hasn't manually edited)
   useEffect(() => {
-    if (!isEditOpen) return;
-    setEditForm(prev => {
-      const autoKey     = slugifyKey(prev.name || "");
-      const wasAuto     = prev.key === autoKey || prev.key === "";
-      const nextAutoKey = slugifyKey(editForm.name || "");
-      if (!wasAuto) return prev;
-      return { ...prev, key: nextAutoKey };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editForm.name, isEditOpen]);
+    if (!createKeyManuallyEdited) {
+      const autoKey = slugifyKey(form.name || "");
+      setForm((prev) => ({ ...prev, key: autoKey }));
+    }
+  }, [form.name, createKeyManuallyEdited]);
 
-  const existingKeys = useMemo(() => new Set(fields.map(f => f.key)), [fields]);
+  // auto-generate key in EDIT when typing name (only if user hasn't manually edited)
+  useEffect(() => {
+    if (isEditOpen && !editKeyManuallyEdited) {
+      const autoKey = slugifyKey(editForm.name || "");
+      setEditForm((prev) => ({ ...prev, key: autoKey }));
+    }
+  }, [editForm.name, isEditOpen, editKeyManuallyEdited]);
+
+  const existingKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
+
+  const openCreateModal = () => {
+    setForm({ name: "", type: "Text", key: "", description: "" });
+    setCreateKeyManuallyEdited(false);
+    setIsCreateOpen(true);
+  };
+  const closeCreateModal = () => {
+    setIsCreateOpen(false);
+    setCreateKeyManuallyEdited(false);
+  };
+
+  const toggleActive = async (index) => {
+    const field = fields[index];
+    
+    try {
+      await toggleCustomField(field._id);
+      setFields((prev) =>
+        prev.map((item, i) =>
+          i === index ? { ...item, isActive: !item.isActive } : item
+        )
+      );
+      showToast.success("Success", `Custom field ${!field.isActive ? 'activated' : 'deactivated'} successfully`);
+    } catch (err) {
+      console.error("Error toggling custom field:", err);
+      showToast.error("Error", err.response?.data?.message || "Failed to toggle custom field");
+    }
+  };
 
   // ─── Validation ───────────────────────────────────────────────────────────
   const validateCreate = () => {
@@ -547,8 +589,19 @@ const CustomFieldsSection = () => {
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-gray-800 mb-2">Technical Key</label>
                   <div className="relative">
-                    <input value={form.key} onChange={e => setForm(p => ({ ...p, key: e.target.value }))} placeholder="order_status" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 pr-10 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm" />
-                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><LockClosedIcon className="w-5 h-5" /></div>
+                    <input
+                      value={form.key}
+                      onChange={(e) => {
+                        setForm((p) => ({ ...p, key: e.target.value }));
+                        setCreateKeyManuallyEdited(true);
+                      }}
+                      placeholder="order_status"
+                      className="w-full border border-gray-200 rounded-lg px-4 py-2.5 pr-10 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
+                    />
+
+                    <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      <LockClosedIcon className="w-5 h-5" />
+                    </div>
                   </div>
                   <p className="mt-1 text-xs text-gray-500">Automatically generated based on the field name.</p>
                   {createError && <p className="mt-2 text-sm text-red-600">{createError}</p>}
@@ -601,7 +654,14 @@ const CustomFieldsSection = () => {
 
                 <div className="mb-5">
                   <label className="block text-sm font-medium text-gray-800 mb-2">Technical Key</label>
-                  <input value={editForm.key} onChange={e => setEditForm(p => ({ ...p, key: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm" />
+                  <input
+                    value={editForm.key}
+                    onChange={(e) => {
+                      setEditForm((p) => ({ ...p, key: e.target.value }));
+                      setEditKeyManuallyEdited(true);
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
+                  />
                   {editError && <p className="mt-2 text-sm text-red-600">{editError}</p>}
                 </div>
 

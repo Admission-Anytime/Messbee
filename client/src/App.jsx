@@ -49,7 +49,11 @@ const CreateTemplate = lazy(() => import("./pages/setting/CreateTemplate"));
 const Label = lazy(() => import("./pages/setting/Label"));
 const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
+const ManageTeams = lazy(() => import("./pages/setting/ManageTeams"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
+
+// --- LAZY LOADED HELP PAGES ---
+const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
 
 const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
 const ProductList = lazy(() => import("./pages/commerce/ProductList"));
@@ -250,6 +254,7 @@ function App() {
           {/* 11. Settings */}
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
           <Route path="/admin/settings/media" element={<Media />} />
+          <Route path="/admin/settings/teams" element={<ManageTeams />} />
           {/* 12. Plan & Pricing */}
           <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
           <Route path="/admin/plan/addons" element={<AddonsWCC />} />
@@ -272,7 +277,7 @@ function App() {
           {/* 14. Help */}
           <Route
             path="/admin/help/docs"
-            element={<Placeholder title="Documentation" />}
+            element={<ApiDocs />}
           />
           <Route
             path="/admin/help/support"

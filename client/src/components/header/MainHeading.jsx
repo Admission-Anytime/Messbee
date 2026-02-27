@@ -211,8 +211,8 @@ const MainHeading = ({ onMenuClick }) => {
               </button>
 
               {isNotifOpen && (
-                 <div className="absolute right-0 top-full mt-3 w-[380px] bg-white rounded-xl shadow-2xl border border-gray-100 z-[70] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
-                    <div className="px-5 pt-5 pb-2">
+                 <div className="absolute right-0 top-full mt-3 w-[380px] bg-white rounded-xl shadow-2xl border border-gray-100 z-[70] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col max-h-[500px]">
+                    <div className="px-5 pt-5 pb-2 shrink-0">
                        <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-bold text-slate-900">Notifications</h3>
                           <div className="flex items-center gap-3">
@@ -250,14 +250,14 @@ const MainHeading = ({ onMenuClick }) => {
                        </div>
                     </div>
 
-                    <div className="max-h-[400px] overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto">
                        <div className="px-5 py-2">
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-2">Recently</p>
                           
                           {filteredNotifications.length === 0 ? (
                              <div className="py-8 text-center text-slate-400 text-sm">No notifications found</div>
                           ) : (
-                             <div className="space-y-4">
+                             <div className="space-y-4 pb-4">
                                 {filteredNotifications.map((notif) => (
                                    <div 
                                      key={notif.id} 
@@ -283,13 +283,13 @@ const MainHeading = ({ onMenuClick }) => {
                              </div>
                           )}
                        </div>
-                       
-                       <div className="p-4 border-t border-gray-50 bg-gray-50/50">
-                          <button onClick={() => navigate('/admin/notifications')} className="w-full py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
-                             View all activity logs
-                             <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-400" />
-                          </button>
-                       </div>
+                    </div>
+                    
+                    <div className="p-4 border-t border-gray-50 bg-gray-50/50 shrink-0">
+                       <button onClick={() => { setIsNotifOpen(false); navigate('/admin/notifications'); }} className="w-full py-2.5 bg-white border border-gray-200 rounded-lg shadow-sm text-sm font-bold text-slate-700 flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors">
+                          View all activity logs
+                          <ArrowTopRightOnSquareIcon className="w-4 h-4 text-slate-400" />
+                       </button>
                     </div>
                  </div>
               )}
