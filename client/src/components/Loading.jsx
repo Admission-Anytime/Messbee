@@ -1,13 +1,12 @@
-import LodingLogo from "../assets/logo.svg";
+import LodingLogo from "../assets/MessBee logo with name.png";
 
 const Loading = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen w-full bg-[#fcfdfd]">
       <div className="flex flex-col items-center max-w-md text-center">
         {/* Logo and Name */}
-        <div className="flex items-center gap-2 mb-12">
-           <img src={LodingLogo} alt="MessBee" className="h-10 w-10" />
-           <span className="text-2xl font-bold text-[#1e293b]">MessBee</span>
+       <div className="flex items-center gap-2 mb-12">
+           <img src={LodingLogo} alt="MessBee" className="h-14 w-auto" /> 
         </div>
 
         {/* Animated Loader Circle */}
