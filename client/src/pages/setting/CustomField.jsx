@@ -367,93 +367,93 @@ const CustomFieldsSection = () => {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 bg-gray-50 overflow-hidden">
-      <div className="bg-white rounded-lg shadow-sm">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-gray-900">Custom Fields</h1>
-            <button className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs">?</button>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-600 whitespace-nowrap">Custom fields: {fields.length}</span>
-            <button
-              onClick={openCreateModal}
-              className="bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
-            >
-              <span className="text-lg">+</span>
-              <span>Create Custom Fields</span>
-            </button>
-          </div>
+    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Custom Fields</h1>
+          <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
         </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-blue-50 border border-blue-100 px-4 py-1.5 rounded-full">
+            <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
+            <span className="text-blue-700 font-semibold text-xs whitespace-nowrap">Custom fields: {fields.length}</span>
+          </div>
+          <button
+            onClick={openCreateModal}
+            className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+          >
+            <span className="text-lg">+</span>
+            <span>Create Custom Fields</span>
+          </button>
+        </div>
+      </div>
 
-        {/* Table */}
-        <div className="overflow-hidden">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="w-[15%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="w-[25%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="w-[10%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="w-[18%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Key</th>
-                <th className="w-[17%] px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-                <th className="w-[15%] px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
+      {/* Table Section - Added responsive horizontal scroll */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+          </div>
+        ) : fields.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <p className="text-lg font-semibold">No custom fields found</p>
+            <p className="text-sm">Create your first custom field to get started</p>
+          </div>
+        ) : (
+          <>
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-200">
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                </tr>
+              </thead>
 
-            <tbody className="bg-white divide-y divide-gray-200">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-5 h-5 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
-                      <span>Loading custom fields...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : fields.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-3 py-10 text-center text-sm text-gray-500">
-                    No custom fields yet. Create your first custom field to get started.
-                  </td>
-                </tr>
-              ) : (
+              <tbody className="divide-y divide-gray-100">
+              {
                 currentFields.map((field, displayIndex) => {
                   const actualIndex = startIndex + displayIndex;
                   return (
-                    <tr key={field._id || field.key} className="hover:bg-gray-50">
+                    <tr key={field._id || field.key} className="hover:bg-gray-50/50 transition-colors">
 
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-4">
                         <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>{field.name}</div>
                       </td>
 
-                      <td className="px-3 py-3">
-                        <div className="text-sm text-gray-600 truncate" title={field.description}>{field.description}</div>
+                      <td className="px-6 py-4">
+                        <div className="text-gray-500 text-[13px] font-medium leading-relaxed truncate" title={field.description}>{field.description || '-'}</div>
                       </td>
 
-                      <td className="px-3 py-3">
-                        <span className="px-2 py-1 text-xs text-gray-600 bg-gray-100 rounded truncate inline-block max-w-full">
+                      <td className="px-6 py-4">
+                        <span className="px-2.5 py-1 text-xs text-gray-600 bg-gray-100 rounded-md font-semibold">
                           {field.type.toLowerCase()}
                         </span>
                       </td>
 
-                      <td className="px-3 py-3">
+                      <td className="px-6 py-4">
                         <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>{field.key}</div>
                       </td>
 
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium text-gray-700 flex-shrink-0">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200 flex-shrink-0">
                             {field.createdBy.initials}
                           </div>
-                          <span className="text-sm text-gray-900 truncate" title={field.createdBy.name}>{field.createdBy.name}</span>
+                          <span className="text-gray-700 text-[13px] font-semibold truncate" title={field.createdBy.name}>{field.createdBy.name}</span>
                         </div>
                       </td>
 
                       {/* Single toggle: controls both isActive + showInContacts together */}
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-1 justify-end">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3 justify-end text-gray-400">
                           <ToggleSwitch
                             checked={field.isActive}
                             onChange={() => toggleActive(actualIndex)}
@@ -462,75 +462,76 @@ const CustomFieldsSection = () => {
                           <button
                             type="button"
                             onClick={() => openEditModal(actualIndex)}
-                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            className="hover:text-blue-500 transition-colors"
                             title="Edit"
                           >
-                            <PencilSquareIcon className="w-5 h-5" />
+                            <PencilSquareIcon className="w-4 h-4" />
                           </button>
                           <button
                             type="button"
                             onClick={() => openDeleteModal(actualIndex)}
-                            className="p-1.5 rounded-md hover:bg-gray-100 text-gray-500 flex-shrink-0"
+                            className="hover:text-red-500 transition-colors"
                             title="Delete"
                           >
-                            <TrashIcon className="w-5 h-5" />
+                            <TrashIcon className="w-4 h-4" />
                           </button>
                         </div>
                       </td>
                     </tr>
                   );
                 })
-              )}
-            </tbody>
-          </table>
-        </div>
+              }
+              </tbody>
+            </table>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
-          <div className="text-sm text-gray-600">
-            Showing {fields.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields.length)} of {fields.length} custom fields
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={goToPreviousPage} disabled={currentPage === 1} className={`p-1 rounded ${currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Previous page">
-              <ChevronLeftIcon className="w-5 h-5" />
-            </button>
-            <div className="flex items-center gap-1">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                <button
-                  key={pageNum}
-                  onClick={() => goToPage(pageNum)}
-                  className={`min-w-[32px] h-8 px-2 rounded text-sm font-medium ${currentPage === pageNum ? "bg-green-500 text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                >
-                  {pageNum}
+            {/* Pagination */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+              <div className="text-sm text-gray-600 font-medium">
+                Showing {fields.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields.length)} of {fields.length} custom fields
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={goToPreviousPage} disabled={currentPage === 1} className={`p-1 rounded ${currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Previous page">
+                  <ChevronLeftIcon className="w-5 h-5" />
                 </button>
-              ))}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                    <button
+                      key={pageNum}
+                      onClick={() => goToPage(pageNum)}
+                      className={`min-w-[32px] h-8 px-2 rounded text-sm font-semibold transition-colors ${currentPage === pageNum ? "bg-[#10B981] text-white" : "text-gray-600 hover:bg-gray-100"}`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={goToNextPage} disabled={currentPage === totalPages || totalPages === 0} className={`p-1 rounded ${currentPage === totalPages || totalPages === 0 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Next page">
+                  <ChevronRightIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-            <button onClick={goToNextPage} disabled={currentPage === totalPages || totalPages === 0} className={`p-1 rounded ${currentPage === totalPages || totalPages === 0 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Next page">
-              <ChevronRightIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
       {/* ─── Delete Confirm Modal ─────────────────────────────────────────────── */}
       {deleteIndex !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={closeDeleteModal} />
-          <div className="relative w-full max-w-md bg-white rounded-xl shadow-lg border border-gray-200">
-            <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Delete custom field?</h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  {fieldToDelete ? (<>You are about to delete <span className="font-medium text-gray-900">{fieldToDelete.name}</span>. This will also remove it from the Contacts table. This action can't be undone.</>) : "This action can't be undone."}
-                </p>
-              </div>
-              <button onClick={closeDeleteModal} className="p-2 rounded-md hover:bg-gray-100 text-gray-500" title="Close">
-                <XMarkIcon className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[360px] animate-in zoom-in duration-200 p-6 text-center">
+            <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <TrashIcon className="h-7 w-7" />
             </div>
-            <div className="p-5 flex items-center justify-end gap-3">
-              <button type="button" onClick={closeDeleteModal} className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">Keep</button>
-              <button type="button" onClick={confirmDelete} className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700">Delete</button>
+            <h3 className="text-[18px] font-bold text-gray-800 mb-2 leading-tight">Delete Custom Field?</h3>
+            <p className="text-[13px] font-medium text-gray-500 mb-8 px-2 leading-relaxed">
+              {fieldToDelete ? (<>You are about to delete <span className="font-bold text-gray-800">{fieldToDelete.name}</span>. This will also remove it from the Contacts table. This action can't be undone.</>) : "This will permanently remove the custom field. This action can't be undone."}
+            </p>
+            
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button type="button" onClick={closeDeleteModal} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button type="button" onClick={confirmDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
+                Confirm
+              </button>
             </div>
           </div>
         </div>
@@ -538,28 +539,25 @@ const CustomFieldsSection = () => {
 
       {/* ─── Create Modal ─────────────────────────────────────────────────────── */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={closeCreateModal} />
-          <div className="relative w-full max-w-lg max-h-[90vh] bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <h3 className="text-lg font-semibold text-gray-900">Create Custom Field</h3>
-              <button type="button" onClick={closeCreateModal} className="p-2 rounded-md hover:bg-gray-100 text-gray-500" title="Close">
-                <XMarkIcon className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200">
+            <div className="sticky top-0 bg-white flex justify-between items-center px-6 py-4 border-b z-10">
+              <h2 className="text-[17px] font-bold text-gray-800">Create Custom Field</h2>
+              <button type="button" onClick={closeCreateModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light transition-colors leading-none">&times;</button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
-              <form onSubmit={handleCreate} className="px-6 py-5">
+            <div className="p-6 space-y-5">
+              <form onSubmit={handleCreate} id="createForm">
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Field Name</label>
-                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Order Status" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200" />
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Field Name</label>
+                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Order Status" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Field Type</label>
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Field Type</label>
                   <div className="relative">
-                    <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className="w-full appearance-none border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200">
+                    <select value={form.type} onChange={e => setForm(p => ({ ...p, type: e.target.value }))} className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30">
                       {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                     <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDownIcon className="w-5 h-5" /></div>
@@ -567,7 +565,7 @@ const CustomFieldsSection = () => {
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Technical Key</label>
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Technical Key</label>
                   <div className="relative">
                     <input
                       value={form.key}
@@ -576,7 +574,7 @@ const CustomFieldsSection = () => {
                         setCreateKeyManuallyEdited(true);
                       }}
                       placeholder="order_status"
-                      className="w-full border border-gray-200 rounded-lg px-4 py-2.5 pr-10 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-10 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none font-mono text-sm bg-gray-50/30"
                     />
 
                     <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
@@ -588,15 +586,16 @@ const CustomFieldsSection = () => {
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Description</label>
-                  <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Briefly explain the purpose of this field" className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 min-h-[90px] resize-none" />
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Description</label>
+                  <textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Briefly explain the purpose of this field" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium resize-none bg-gray-50/30 leading-relaxed min-h-[90px]" />
                 </div>
 
-                <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
-                  <button type="button" onClick={closeCreateModal} className="px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-                  <button type="submit" disabled={!!createError} className={`px-4 py-2 rounded-lg text-white ${createError ? "bg-green-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>Create Field</button>
-                </div>
               </form>
+            </div>
+
+            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
+              <button type="button" onClick={closeCreateModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
+              <button type="submit" form="createForm" disabled={!!createError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${createError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Create Field</button>
             </div>
           </div>
         </div>
@@ -604,28 +603,25 @@ const CustomFieldsSection = () => {
 
       {/* ─── Edit Modal ───────────────────────────────────────────────────────── */}
       {isEditOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
-          <div className="absolute inset-0 bg-black/30" onClick={closeEditModal} />
-          <div className="relative w-full max-w-lg max-h-[90vh] bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
-              <h3 className="text-lg font-semibold text-gray-900">Edit Custom Field</h3>
-              <button type="button" onClick={closeEditModal} className="p-2 rounded-md hover:bg-gray-100 text-gray-500" title="Close">
-                <XMarkIcon className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200">
+            <div className="sticky top-0 bg-white flex justify-between items-center px-6 py-4 border-b z-10">
+              <h2 className="text-[17px] font-bold text-gray-800">Edit Custom Field</h2>
+              <button type="button" onClick={closeEditModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light transition-colors leading-none">&times;</button>
             </div>
 
-            <div className="overflow-y-auto flex-1">
-              <form onSubmit={handleEditSave} className="px-6 py-5">
+            <div className="p-6 space-y-5">
+              <form onSubmit={handleEditSave} id="editForm">
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Field Name</label>
-                  <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200" />
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Field Name</label>
+                  <input value={editForm.name} onChange={e => setEditForm(p => ({ ...p, name: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Field Type</label>
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Field Type</label>
                   <div className="relative">
-                    <select value={editForm.type} onChange={e => setEditForm(p => ({ ...p, type: e.target.value }))} className="w-full appearance-none border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200">
+                    <select value={editForm.type} onChange={e => setEditForm(p => ({ ...p, type: e.target.value }))} className="w-full appearance-none border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30">
                       {FIELD_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </select>
                     <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"><ChevronDownIcon className="w-5 h-5" /></div>
@@ -633,28 +629,29 @@ const CustomFieldsSection = () => {
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Technical Key</label>
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Technical Key</label>
                   <input
                     value={editForm.key}
                     onChange={(e) => {
                       setEditForm((p) => ({ ...p, key: e.target.value }));
                       setEditKeyManuallyEdited(true);
                     }}
-                    className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 font-mono text-sm"
+                    className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none font-mono text-sm bg-gray-50/30"
                   />
                   {editError && <p className="mt-2 text-sm text-red-600">{editError}</p>}
                 </div>
 
                 <div className="mb-5">
-                  <label className="block text-sm font-medium text-gray-800 mb-2">Description</label>
-                  <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} className="w-full border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:ring-2 focus:ring-green-200 min-h-[90px] resize-none" />
+                  <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Description</label>
+                  <textarea value={editForm.description} onChange={e => setEditForm(p => ({ ...p, description: e.target.value }))} className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium resize-none bg-gray-50/30 leading-relaxed min-h-[90px]" />
                 </div>
 
-                <div className="mt-6 flex items-center justify-end gap-3 border-t border-gray-100 pt-4">
-                  <button type="button" onClick={closeEditModal} className="px-4 py-2 rounded-lg text-gray-700 hover:bg-gray-100">Cancel</button>
-                  <button type="submit" disabled={!!editError} className={`px-4 py-2 rounded-lg text-white ${editError ? "bg-green-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"}`}>Save Changes</button>
-                </div>
               </form>
+            </div>
+
+            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
+              <button type="button" onClick={closeEditModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
+              <button type="submit" form="editForm" disabled={!!editError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${editError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Save Changes</button>
             </div>
           </div>
         </div>
