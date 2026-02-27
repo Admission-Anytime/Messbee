@@ -179,9 +179,6 @@ const CustomFieldsSection = () => {
     name: "", type: "Text", key: "", description: "", showInContacts: true,
   });
 
-  const openCreateModal  = () => { setForm({ name: "", type: "Text", key: "", description: "", showInContacts: true }); setIsCreateOpen(true); };
-  const closeCreateModal = () => setIsCreateOpen(false);
-
   useEffect(() => {
     setForm(prev => {
       const autoKey    = slugifyKey(prev.name || "");
@@ -245,30 +242,13 @@ const CustomFieldsSection = () => {
   const existingKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
 
   const openCreateModal = () => {
-    setForm({ name: "", type: "Text", key: "", description: "" });
+    setForm({ name: "", type: "Text", key: "", description: "", showInContacts: true });
     setCreateKeyManuallyEdited(false);
     setIsCreateOpen(true);
   };
   const closeCreateModal = () => {
     setIsCreateOpen(false);
     setCreateKeyManuallyEdited(false);
-  };
-
-  const toggleActive = async (index) => {
-    const field = fields[index];
-    
-    try {
-      await toggleCustomField(field._id);
-      setFields((prev) =>
-        prev.map((item, i) =>
-          i === index ? { ...item, isActive: !item.isActive } : item
-        )
-      );
-      showToast.success("Success", `Custom field ${!field.isActive ? 'activated' : 'deactivated'} successfully`);
-    } catch (err) {
-      console.error("Error toggling custom field:", err);
-      showToast.error("Error", err.response?.data?.message || "Failed to toggle custom field");
-    }
   };
 
   // ─── Validation ───────────────────────────────────────────────────────────
