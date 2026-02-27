@@ -1,8 +1,15 @@
 import axios from "axios";
 
+// Resolve the backend API base URL:
+// - In development, VITE_API_URL is the plain origin (http://localhost:5000)
+//   and Vite proxy forwards /api/* → backend.  We use a relative "/api" base.
+// - In production, set VITE_API_URL to your backend origin (no /api suffix).
+const _origin = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
+const API_BASE_URL = _origin ? `${_origin}/api` : "/api";
+
 // Create axios instance with credentials
 const instance = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  baseURL: API_BASE_URL,
   withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
@@ -18,8 +25,8 @@ instance.interceptors.response.use(
     // If error is 401 and we haven't retried yet, try to refresh token
     // BUT skip refresh for login/signup endpoints (they should return 401 normally)
     const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
-                          originalRequest.url?.includes('/auth/signup') ||
-                          originalRequest.url?.includes('/auth/refresh-token');
+      originalRequest.url?.includes('/auth/signup') ||
+      originalRequest.url?.includes('/auth/refresh-token');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
@@ -36,14 +43,14 @@ instance.interceptors.response.use(
       } catch (refreshError) {
         // Refresh failed, clear user data and redirect to login
         localStorage.removeItem("user");
-        
+
         // Only redirect if not already on auth pages
         const currentPath = window.location.pathname;
         if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup')) {
           console.log('Session expired - redirecting to login');
           window.location.href = "/login";
         }
-        
+
         return Promise.reject(refreshError);
       }
     }

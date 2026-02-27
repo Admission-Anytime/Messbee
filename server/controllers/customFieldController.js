@@ -9,15 +9,12 @@ exports.getCustomFields = async (req, res, next) => {
     const { page = 1, limit = 10, search, isActive } = req.query;
     const userId = req.user.id;
 
-    // Build query
     const query = { userId };
 
-    // Filter by active status if provided
     if (isActive !== undefined) {
       query.isActive = isActive === 'true';
     }
 
-    // Search in name and description
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -78,10 +75,10 @@ exports.getCustomField = async (req, res, next) => {
 // @access  Private
 exports.createCustomField = async (req, res, next) => {
   try {
-    const { name, description, type, key } = req.body;
+    // ✅ FIXED: added showInContacts to destructuring
+    const { name, description, type, key, showInContacts } = req.body;
     const userId = req.user.id;
 
-    // Validate required fields
     if (!name || !key) {
       return res.status(400).json({
         success: false,
@@ -89,7 +86,6 @@ exports.createCustomField = async (req, res, next) => {
       });
     }
 
-    // Check if key already exists for this user
     const existingField = await CustomField.findOne({ key, userId });
     if (existingField) {
       return res.status(400).json({
@@ -100,11 +96,13 @@ exports.createCustomField = async (req, res, next) => {
 
     const field = await CustomField.create({
       name,
-      description: description || '',
-      type: type || 'Text',
+      description:    description || '',
+      type:           type || 'Text',
       key,
-      createdBy: userId,
-      userId
+      // ✅ FIXED: save showInContacts — default true if not provided
+      showInContacts: showInContacts !== undefined ? Boolean(showInContacts) : true,
+      createdBy:      userId,
+      userId,
     });
 
     const populatedField = await CustomField.findById(field._id)
@@ -131,10 +129,10 @@ exports.createCustomField = async (req, res, next) => {
 // @access  Private
 exports.updateCustomField = async (req, res, next) => {
   try {
-    const { name, description, type, key } = req.body;
+    // ✅ FIXED: added showInContacts to destructuring
+    const { name, description, type, key, showInContacts } = req.body;
     const userId = req.user.id;
 
-    // Find field
     let field = await CustomField.findOne({
       _id: req.params.id,
       userId
@@ -147,7 +145,6 @@ exports.updateCustomField = async (req, res, next) => {
       });
     }
 
-    // If key is being changed, check for uniqueness
     if (key && key !== field.key) {
       const existingField = await CustomField.findOne({ key, userId });
       if (existingField) {
@@ -158,12 +155,13 @@ exports.updateCustomField = async (req, res, next) => {
       }
     }
 
-    // Update fields
     const fieldsToUpdate = {};
-    if (name !== undefined) fieldsToUpdate.name = name;
-    if (description !== undefined) fieldsToUpdate.description = description;
-    if (type !== undefined) fieldsToUpdate.type = type;
-    if (key !== undefined) fieldsToUpdate.key = key;
+    if (name           !== undefined) fieldsToUpdate.name           = name;
+    if (description    !== undefined) fieldsToUpdate.description    = description;
+    if (type           !== undefined) fieldsToUpdate.type           = type;
+    if (key            !== undefined) fieldsToUpdate.key            = key;
+    // ✅ FIXED: allow updating showInContacts
+    if (showInContacts !== undefined) fieldsToUpdate.showInContacts = Boolean(showInContacts);
 
     field = await CustomField.findByIdAndUpdate(
       req.params.id,
