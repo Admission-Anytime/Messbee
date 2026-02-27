@@ -4,6 +4,7 @@ import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
 import axios from "../../context/axios";
 import io from "socket.io-client";
+import ErrorState from "../../components/ui/ErrorState";
 
 // --- CONFIGURATION ---
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
@@ -17,6 +18,7 @@ const Chat = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [activeTab, setActiveTab] = useState("All Chats");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // --- 1. INITIALIZE DATA & SOCKET ---
   useEffect(() => {
@@ -26,6 +28,7 @@ const Chat = () => {
     // Fetch Chat List
     const fetchChats = async () => {
       try {
+        setError(null);
         const { data } = await axios.get('/chats');
         setChats(data);
         // Automatically select first chat if available
@@ -33,6 +36,7 @@ const Chat = () => {
         setLoading(false);
       } catch (err) {
         console.error("Error fetching chats:", err);
+        setError(err.response?.data?.message || "Failed to load chats. Please try again.");
         setLoading(false);
       }
     };
@@ -213,6 +217,11 @@ const Chat = () => {
       alert("Failed to send message. Please try again.");
     }
   };
+
+  // Show error state if error occurred
+  if (error && !loading) {
+    return <ErrorState onRetry={() => window.location.reload()} message={error} />;
+  }
 
   // --- 5. RENDER ---
   return (

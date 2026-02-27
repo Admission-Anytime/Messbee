@@ -1,6 +1,7 @@
 import { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { userContext } from '../context/Context';
+import Loading from './Loading';
 
 /**
  * PublicRoute Component
@@ -12,11 +13,7 @@ const PublicRoute = ({ children }) => {
 
   // Show loading spinner while checking authentication
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen w-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#ba2525]"></div>
-      </div>
-    );
+    return <Loading />;
   }
 
   // Redirect to dashboard if already logged in

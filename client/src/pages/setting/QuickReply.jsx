@@ -5,7 +5,8 @@ import {
   Sticker, Music, Video as VideoIcon, FileText, Link, 
   User, Upload, X, Pencil, Trash2, ExternalLink, AlertTriangle 
 } from 'lucide-react';
-import { toast } from 'react-toastify'; 
+import { toast } from 'react-toastify';
+import ErrorState from '../../components/ui/ErrorState'; 
 
 const QuickReply = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,6 +23,8 @@ const QuickReply = () => {
 
   const [replies, setReplies] = useState([]);
   const [activePreview, setActivePreview] = useState(null);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const API_URL = '/quick-replies';
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'; 
@@ -32,13 +35,18 @@ const QuickReply = () => {
 
   const fetchReplies = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await axios.get(API_URL);
       const data = Array.isArray(response.data) ? response.data : [];
       setReplies(data);
       if (data.length > 0) setActivePreview(data[0]);
     } catch (error) {
-      setReplies([]); 
+      setReplies([]);
+      setError(error.response?.data?.message || "Could not connect to server. Please check if backend is running.");
       toast.error("⚠️ Could not connect to server. Please check if backend is running.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -157,6 +165,11 @@ const QuickReply = () => {
     setIsModalOpen(true);
       toast.info(`✏️ Editing: ${item.shortcut}`);
   };
+
+  // Show error state if error occurred
+  if (error && !loading) {
+    return <ErrorState onRetry={fetchReplies} message={error} />;
+  }
 
   return (
     <div className="flex h-screen w-full font-sans bg-white text-slate-700 overflow-hidden">

@@ -21,11 +21,13 @@ import {
   updateStatus, 
   deleteStatus 
 } from "../../../services/StatusApi";
+import ErrorState from "../../../components/ui/ErrorState";
 
 const StatusPage = () => {
    // --- STATE ---
   const [statuses, setStatuses] = useState([]); // ✅ Start empty
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -46,10 +48,12 @@ const StatusPage = () => {
   const fetchStatuses = async () => {
     try {
       setIsLoading(true);
+      setError(null);
       const data = await getAllStatuses();
       setStatuses(data);
     } catch (error) {
       console.error('Error fetching statuses:', error);
+      setError(error.response?.data?.message || "Failed to load statuses. Please try again.");
       showToast.error("Error", "Failed to load statuses. Please try again.");
     } finally {
       setIsLoading(false);
@@ -145,6 +149,11 @@ const StatusPage = () => {
     setTimeout(() => setCopiedId(null), 2000);
     showToast.success("Color Copied", `Color code ${code} copied to clipboard.`);
   };
+
+  // Show error state if error occurred
+  if (error && !isLoading) {
+    return <ErrorState onRetry={fetchStatuses} message={error} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">

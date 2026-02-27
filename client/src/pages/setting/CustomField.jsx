@@ -16,6 +16,7 @@ import {
   deleteCustomField,
 } from "../../services/CustomfieldApi";
 import { showToast } from "../../utils/showToast";
+import ErrorState from "../../components/ui/ErrorState";
 
 const slugifyKey = (value) =>
   value
@@ -364,6 +365,11 @@ const CustomFieldsSection = () => {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isCreateOpen, isEditOpen, deleteIndex]);
+
+  // Show error state if error occurred
+  if (error && !loading) {
+    return <ErrorState onRetry={fetchCustomFields} message={error} />;
+  }
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (

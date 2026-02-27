@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { getAllLabels, createLabel, updateLabel, deleteLabel } from '../../services/LabelApi';
 import { toast } from 'react-toastify';
+import ErrorState from '../../components/ui/ErrorState';
 
 const Label = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLabel, setEditingLabel] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   // --- DELETE MODAL STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -30,10 +32,12 @@ const Label = () => {
   const fetchLabels = async () => {
     try {
       setLoading(true);
+      setError(null);
       const data = await getAllLabels();
       setLabels(data);
     } catch (error) {
       console.error('Failed to fetch labels:', error);
+      setError(error.response?.data?.message || 'Failed to load labels');
       toast.error('❌ Failed to load labels');
     } finally {
       setLoading(false);
@@ -112,6 +116,11 @@ const Label = () => {
     setIsModalOpen(false);
     setEditingLabel(null);
   };
+
+  // Show error state if error occurred
+  if (error && !loading) {
+    return <ErrorState onRetry={fetchLabels} message={error} />;
+  }
 
   return (
     <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
