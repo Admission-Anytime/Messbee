@@ -597,19 +597,6 @@ export default function MediaGallery() {
             </div>
           )}
         </div>
-
-        {/* ── FOOTER STATUS BAR ── */}
-        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-green-500 inline-block" />
-            <span className="text-sm text-gray-600 font-medium">API Connected: WhatsApp Business</span>
-          </div>
-          <span className="text-sm text-gray-400">Showing {filtered.length} of {totalAssets} assets</span>
-          <div className="flex items-center gap-4">
-            <button className="text-sm text-gray-500 hover:text-gray-700 transition font-medium">Documentation</button>
-            <button className="px-4 py-1.5 bg-gray-900 hover:bg-gray-800 text-white text-sm font-semibold rounded-xl transition">Support Center</button>
-          </div>
-        </div>
       </div>
     </>
   );
