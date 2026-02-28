@@ -324,16 +324,16 @@ const MainHeading = ({ onMenuClick }) => {
                    </div>
                 </div>
                 <div className="px-2">
-                   <button onClick={() => navigate('/admin/account/profile')} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><UserIcon className="w-4 h-4" /> My Profile</button>
-                   <button onClick={() => navigate('/admin/profile/business')} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><BuildingOfficeIcon className="w-4 h-4" /> Organization Settings</button>
-                   <button onClick={() => navigate('/admin/help/docs')} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><DocumentTextIcon className="w-4 h-4" /> API Documentation</button>
+                   <button onClick={() => { setIsProfileOpen(false); navigate('/admin/account/profile'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><UserIcon className="w-4 h-4" /> My Profile</button>
+                   <button onClick={() => { setIsProfileOpen(false); navigate('/admin/profile/business'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><BuildingOfficeIcon className="w-4 h-4" /> Organization Settings</button>
+                   <button onClick={() => { setIsProfileOpen(false); navigate('/admin/help/docs'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><DocumentTextIcon className="w-4 h-4" /> API Documentation</button>
                 </div>
                 <div className="h-px bg-gray-100 my-2 mx-2"></div>
                 
                 {/* ✅ UPDATED SIGN OUT BUTTON */}
                 <div className="px-2">
                    <button 
-                     onClick={handleSignOut} 
+                     onClick={() => { setIsProfileOpen(false); handleSignOut(); }} 
                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-bold text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
                    >
                      <ArrowRightOnRectangleIcon className="w-4 h-4" /> Sign Out
