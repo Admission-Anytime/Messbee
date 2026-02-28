@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import defaultLogo from '../../assets/MessBee Logo.png';
 
 const BusinessProfile = () => {
   const [isEditing, setIsEditing] = useState({
@@ -11,6 +12,8 @@ const BusinessProfile = () => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
+  const [logoPreview, setLogoPreview] = useState(defaultLogo);
+  const [savedLogo, setSavedLogo] = useState(defaultLogo);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -48,6 +51,10 @@ const BusinessProfile = () => {
     // Clear errors when toggling edit
     if (isEditing[section]) {
       setErrors({});
+      // Reset logo preview when canceling identity section edit
+      if (section === 'identity') {
+        setLogoPreview(savedLogo);
+      }
     }
   };
 
@@ -104,6 +111,11 @@ const BusinessProfile = () => {
     
     // Simulate API call
     setTimeout(() => {
+      // Save logo when identity section is saved
+      if (section === 'identity') {
+        setSavedLogo(logoPreview);
+      }
+      
       toast.success("Section updated successfully!", {
         position: "top-right",
         autoClose: 3000,
@@ -119,6 +131,40 @@ const BusinessProfile = () => {
   };
 
   const triggerImageUpload = () => fileInputRef.current?.click();
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("Image size should be less than 5MB", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+        return;
+      }
+      
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error("Please upload a valid image file", {
+          position: "top-right",
+          autoClose: 3000,
+        });
+        return;
+      }
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result);
+        toast.success("Logo uploaded successfully!", {
+          position: "top-right",
+          autoClose: 2000,
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8 font-sans text-gray-800 bg-[#f8f9fa] p-8 min-h-screen">
@@ -172,32 +218,63 @@ const BusinessProfile = () => {
 
         <div className="flex flex-col md:flex-row gap-10">
           <div className="flex flex-col items-center gap-3">
-            <div 
-              onClick={triggerImageUpload}
-              className="w-32 h-32 bg-gradient-to-br from-[#e6f4ea] to-[#d4ede0] rounded-2xl border-2 border-dashed border-[#bcf0da] flex flex-col items-center justify-center relative overflow-hidden group cursor-pointer hover:border-[#1ebd74] hover:shadow-lg transition-all duration-300"
-            >
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="#1ebd74" />
-                <path d="M20 5H17.17L15.59 3.23C15.21 2.81 14.68 2.56 14.12 2.56H9.88C9.32 2.56 8.79 2.81 8.41 3.23L6.83 5H4C2.9 5 2 5.9 2 7V17C2 18.1 2.9 19 4 19H20C21.1 19 22 18.1 22 17V7C22 5.9 21.1 5 20 5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17Z" fill="#1ebd74" />
-                <path d="M6 8.5C6.82843 8.5 7.5 7.82843 7.5 7C7.5 6.17157 6.82843 5.5 6 5.5C5.17157 5.5 4.5 6.17157 4.5 7C4.5 7.82843 5.17157 8.5 6 8.5Z" fill="#1ebd74" />
-              </svg>
-              <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+            <div className="relative">
+              <div 
+                onClick={isEditing.identity ? triggerImageUpload : undefined}
+                className={`w-32 h-32 bg-white rounded-2xl border-2 border-dashed border-[#bcf0da] flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-300 ${
+                  isEditing.identity 
+                    ? 'cursor-pointer hover:border-[#1ebd74] hover:shadow-lg' 
+                    : 'cursor-default opacity-90'
+                }`}
+              >
+                {logoPreview ? (
+                  <>
+                    <img 
+                      src={logoPreview} 
+                      alt="Organization Logo" 
+                      className="w-full h-full object-contain p-3"
+                    />
+                    {isEditing.identity && (
+                      <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-10 transition-opacity duration-300 flex items-center justify-center">
+                        <svg className="w-10 h-10 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M12 15C13.6569 15 15 13.6569 15 12C15 10.3431 13.6569 9 12 9C10.3431 9 9 10.3431 9 12C9 13.6569 10.3431 15 12 15Z" fill="#1ebd74" />
+                      <path d="M20 5H17.17L15.59 3.23C15.21 2.81 14.68 2.56 14.12 2.56H9.88C9.32 2.56 8.79 2.81 8.41 3.23L6.83 5H4C2.9 5 2 5.9 2 7V17C2 18.1 2.9 19 4 19H20C21.1 19 22 18.1 22 17V7C22 5.9 21.1 5 20 5ZM12 17C9.24 17 7 14.76 7 12C7 9.24 9.24 7 12 7C14.76 7 17 9.24 17 12C17 14.76 14.76 17 12 17Z" fill="#1ebd74" />
+                      <path d="M6 8.5C6.82843 8.5 7.5 7.82843 7.5 7C7.5 6.17157 6.82843 5.5 6 5.5C5.17157 5.5 4.5 6.17157 4.5 7C4.5 7.82843 5.17157 8.5 6 8.5Z" fill="#1ebd74" />
+                    </svg>
+                    {isEditing.identity && (
+                      <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-5 transition-opacity duration-300"></div>
+                    )}
+                  </>
+                )}
+              </div>
+              {isEditing.identity && (
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#1ebd74] rounded-full flex items-center justify-center shadow-lg border-2 border-white">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z" />
+                  </svg>
+                </div>
+              )}
             </div>
             <input 
               ref={fileInputRef} 
               type="file" 
               accept="image/*" 
               className="hidden" 
-              onChange={(e) => {
-                if (e.target.files?.[0]) {
-                  toast.info("Logo upload feature coming soon!", {
-                    position: "top-right",
-                    autoClose: 2000,
-                  });
-                }
-              }}
+              onChange={handleImageUpload}
             />
-            <p className="text-[10px] text-gray-400 text-center uppercase font-bold tracking-wider leading-relaxed">Square, min 500×500px<br />JPG, PNG or SVG</p>
+            <p className="text-[10px] text-gray-400 text-center uppercase font-bold tracking-wider leading-relaxed">
+              Square, min 500×500px<br />JPG, PNG or SVG
+              {isEditing.identity && <span className="block text-[#1ebd74] mt-1">Click to upload</span>}
+            </p>
           </div>
 
           <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
