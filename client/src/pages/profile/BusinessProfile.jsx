@@ -221,10 +221,10 @@ const BusinessProfile = () => {
             <div className="relative">
               <div 
                 onClick={isEditing.identity ? triggerImageUpload : undefined}
-                className={`w-32 h-32 bg-white rounded-2xl border-2 border-dashed border-[#bcf0da] flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-300 ${
+                className={`w-32 h-32 bg-white rounded-2xl border-2 flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-300 ${
                   isEditing.identity 
-                    ? 'cursor-pointer hover:border-[#1ebd74] hover:shadow-lg' 
-                    : 'cursor-default opacity-90'
+                    ? 'border-dashed border-[#bcf0da] cursor-pointer hover:border-[#1ebd74] hover:shadow-lg' 
+                    : 'border-solid border-gray-200 cursor-default'
                 }`}
               >
                 {logoPreview ? (
