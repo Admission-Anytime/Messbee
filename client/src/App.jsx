@@ -54,6 +54,8 @@ const DevApi = lazy(() => import("./pages/setting/DevApi"));
 
 // --- LAZY LOADED HELP PAGES ---
 const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
+const Support = lazy(() => import("./pages/help/Support"));
+const Faq = lazy(() => import("./pages/help/Faq"));
 const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
 const ProductList = lazy(() => import("./pages/commerce/ProductList"));
 const Inventory = lazy(() => import("./pages/commerce/Inventory"));
@@ -283,11 +285,11 @@ function App() {
           />
           <Route
             path="/admin/help/support"
-            element={<Placeholder title="Support" />}
+            element={<Support />}
           />
           <Route
             path="/admin/help/faqs"
-            element={<Placeholder title="FAQs" />}
+            element={<Faq />}
           />
         </Route>
 

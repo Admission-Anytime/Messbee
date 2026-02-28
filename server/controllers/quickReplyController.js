@@ -4,7 +4,6 @@ const QuickReply = require('../models/QuickReply');
 exports.getQuickReplies = async (req, res) => {
     try {
         const replies = await QuickReply.find().sort({ createdAt: -1 });
-        console.log(`✅ Fetched ${replies.length} quick replies`);
         res.status(200).json(replies || []);
     } catch (err) {
         console.error('❌ Error fetching quick replies:', err.message);

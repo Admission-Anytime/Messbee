@@ -4,7 +4,6 @@ const Label = require('../models/Label');
 exports.getLabels = async (req, res) => {
     try {
         const labels = await Label.find().sort({ createdAt: -1 });
-        console.log(`✅ Fetched ${labels.length} labels`);
         res.status(200).json(labels || []);
     } catch (err) {
         console.error('❌ Error fetching labels:', err.message);

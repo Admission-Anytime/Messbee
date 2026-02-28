@@ -184,6 +184,28 @@ const MENU_ITEMS = [
           },
         ],
       },
+      {
+        title: "Help & Support",
+        icon: "feather:help-circle",
+        isSubmenu: true,
+        children: [
+          {
+            title: "API Documentation",
+            path: "/admin/help/docs",
+            icon: "feather:book",
+          },
+          {
+            title: "FAQs",
+            path: "/admin/help/faqs",
+            icon: "feather:message-circle",
+          },
+          {
+            title: "Contact Support",
+            path: "/admin/help/support",
+            icon: "feather:headphones",
+          },
+        ],
+      },
     ],
   },
 ];

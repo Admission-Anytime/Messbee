@@ -5,7 +5,6 @@ exports.getStatuses = async (req, res) => {
     try {
         const userId = req.user._id;
         const statuses = await Status.find({ userId }).sort({ createdAt: -1 });
-        console.log(`✅ Fetched ${statuses.length} statuses for user ${userId}`);
         res.status(200).json(statuses || []);
     } catch (err) {
         console.error('❌ Error fetching statuses:', err.message);
