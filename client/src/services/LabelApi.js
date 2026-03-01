@@ -9,7 +9,9 @@ import axios from '../context/axios';
 export const getAllLabels = async () => {
   try {
     const response = await axios.get('/labels/');
-    return response.data;
+    // Ensure we always return an array
+    const data = response.data;
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching labels:', error);
     throw error;

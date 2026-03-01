@@ -201,10 +201,15 @@ const StatusPage = () => {
 
            <div className="divide-y divide-gray-50 min-h-[300px]">
               {isLoading ? (
-                 <div className="p-10 text-center text-slate-400">
-                    <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-slate-400"></div>
-                    <p className="mt-3">Loading statuses...</p>
-                 </div>
+                 Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center">
+                       <div className="col-span-3"><div className="h-4 bg-gray-200 animate-pulse rounded w-24" /></div>
+                       <div className="hidden md:block col-span-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></div>
+                       <div className="col-span-2"><div className="h-6 bg-gray-200 animate-pulse rounded w-20" /></div>
+                       <div className="col-span-2"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></div>
+                       <div className="col-span-1 flex justify-center gap-2"><div className="h-8 w-8 bg-gray-200 animate-pulse rounded-lg" /><div className="h-8 w-8 bg-gray-200 animate-pulse rounded-lg" /></div>
+                    </div>
+                 ))
               ) : statuses.length > 0 ? (
                  statuses.map((status) => (
                     <div key={status._id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">

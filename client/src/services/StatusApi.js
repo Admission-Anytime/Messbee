@@ -9,7 +9,9 @@ import axios from '../context/axios';
 export const getAllStatuses = async () => {
   try {
     const response = await axios.get('/statuses/');
-    return response.data;
+    // Ensure we always return an array
+    const data = response.data;
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching statuses:', error);
     throw error;

@@ -34,11 +34,14 @@ const Label = () => {
       setLoading(true);
       setError(null);
       const data = await getAllLabels();
-      setLabels(data);
+      // Ensure data is always an array before setting state
+      setLabels(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch labels:', error);
       setError(error.response?.data?.message || 'Failed to load labels');
       toast.error('❌ Failed to load labels');
+      // Reset to empty array on error
+      setLabels([]);
     } finally {
       setLoading(false);
     }
@@ -144,9 +147,28 @@ const Label = () => {
       {/* Table Section - Added responsive horizontal scroll */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-          </div>
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-200">
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="px-6 py-4"><div className="h-5 bg-gray-200 animate-pulse rounded w-24" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
+                  <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : labels.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -167,7 +189,7 @@ const Label = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {labels.map((label) => (
+              {Array.isArray(labels) && labels.map((label) => (
                 <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2.5 py-1 rounded-md text-[13px] font-semibold`}>

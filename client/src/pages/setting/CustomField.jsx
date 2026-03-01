@@ -76,7 +76,11 @@ const CustomFieldsSection = () => {
       setError(null);
       const response = await getCustomFields({ page: 1, limit: 1000 });
 
-      const transformedFields = response.data.data.map((field) => ({
+      // Add defensive checks to ensure data is an array
+      const apiData = response?.data?.data;
+      const dataArray = Array.isArray(apiData) ? apiData : [];
+
+      const transformedFields = dataArray.map((field) => ({
         _id: field._id,
         name: field.name,
         description: field.description || "",
@@ -96,6 +100,8 @@ const CustomFieldsSection = () => {
       console.error("Error fetching custom fields:", err);
       setError(err.response?.data?.message || "Failed to load custom fields");
       showToast.error("Error", err.response?.data?.message || "Failed to load custom fields");
+      // Reset to empty array on error
+      setFields([]);
     } finally {
       setLoading(false);
     }
@@ -104,14 +110,14 @@ const CustomFieldsSection = () => {
   useEffect(() => { fetchCustomFields(); }, []);
 
   // ─── Pagination ───────────────────────────────────────────────────────────
-  const totalPages  = Math.ceil(fields.length / ITEMS_PER_PAGE);
+  const totalPages  = Math.ceil((fields?.length || 0) / ITEMS_PER_PAGE);
   const startIndex  = (currentPage - 1) * ITEMS_PER_PAGE;
   const endIndex    = startIndex + ITEMS_PER_PAGE;
-  const currentFields = fields.slice(startIndex, endIndex);
+  const currentFields = Array.isArray(fields) ? fields.slice(startIndex, endIndex) : [];
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
-  }, [fields.length, currentPage, totalPages]);
+  }, [fields, currentPage, totalPages]);
 
   const goToNextPage     = () => currentPage < totalPages && setCurrentPage(p => p + 1);
   const goToPreviousPage = () => currentPage > 1 && setCurrentPage(p => p - 1);
@@ -149,6 +155,7 @@ const CustomFieldsSection = () => {
     try {
       // Optimistic update both flags at once
       setFields(prev => {
+        if (!Array.isArray(prev)) return [];
         const next = prev.map((item, i) =>
           i === index ? { ...item, isActive: newActive, showInContacts: newActive } : item
         );
@@ -163,6 +170,7 @@ const CustomFieldsSection = () => {
     } catch (err) {
       // Revert both on failure
       setFields(prev => {
+        if (!Array.isArray(prev)) return [];
         const next = prev.map((item, i) =>
           i === index ? { ...item, isActive: field.isActive, showInContacts: field.showInContacts } : item
         );
@@ -240,7 +248,7 @@ const CustomFieldsSection = () => {
     }
   }, [editForm.name, isEditOpen, editKeyManuallyEdited]);
 
-  const existingKeys = useMemo(() => new Set(fields.map((f) => f.key)), [fields]);
+  const existingKeys = useMemo(() => new Set(Array.isArray(fields) ? fields.map((f) => f.key) : []), [fields]);
 
   const openCreateModal = () => {
     setForm({ name: "", type: "Text", key: "", description: "", showInContacts: true });
@@ -342,6 +350,7 @@ const CustomFieldsSection = () => {
         showInContacts: updatedField.showInContacts !== undefined ? updatedField.showInContacts : editForm.showInContacts,
       };
       setFields(prev => {
+        if (!Array.isArray(prev)) return [transformed];
         const next = prev.map((f, i) => i === editIndex ? transformed : f);
         broadcastFieldsChange(next);
         return next;
@@ -398,9 +407,30 @@ const CustomFieldsSection = () => {
       {/* Table Section - Added responsive horizontal scroll */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-          </div>
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-200">
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <tr key={i} className="border-b border-gray-50">
+                  <td className="px-6 py-4"><div className="h-4 bg-gray-200 animate-pulse rounded w-32" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-24 font-mono" /></td>
+                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
+                  <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : fields.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -425,7 +455,7 @@ const CustomFieldsSection = () => {
 
               <tbody className="divide-y divide-gray-100">
               {
-                currentFields.map((field, displayIndex) => {
+                Array.isArray(currentFields) && currentFields.map((field, displayIndex) => {
                   const actualIndex = startIndex + displayIndex;
                   return (
                     <tr key={field._id || field.key} className="hover:bg-gray-50/50 transition-colors">
@@ -493,14 +523,14 @@ const CustomFieldsSection = () => {
             {/* Pagination */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
               <div className="text-sm text-gray-600 font-medium">
-                Showing {fields.length === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields.length)} of {fields.length} custom fields
+                Showing {(fields?.length || 0) === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields?.length || 0)} of {fields?.length || 0} custom fields
               </div>
               <div className="flex items-center gap-2">
                 <button onClick={goToPreviousPage} disabled={currentPage === 1} className={`p-1 rounded ${currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Previous page">
                   <ChevronLeftIcon className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
+                  {totalPages > 0 && Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
                     <button
                       key={pageNum}
                       onClick={() => goToPage(pageNum)}
