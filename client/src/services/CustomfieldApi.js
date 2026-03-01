@@ -14,7 +14,7 @@ import axios from '../context/axios';
  */
 export const getCustomFields = async (params = {}) => {
   try {
-    const response = await axios.get('/custom-fields/', { params });
+    const response = await axios.get('/custom-fields', { params });
     return response;
   } catch (error) {
     console.error('Get custom fields error:', error.response?.data || error.message);
@@ -48,7 +48,7 @@ export const getCustomField = async (id) => {
  */
 export const createCustomField = async (payload) => {
   try {
-    const response = await axios.post('/custom-fields/', payload);
+    const response = await axios.post('/custom-fields', payload);
     return response;
   } catch (error) {
     console.error('Create custom field error:', error.response?.data || error.message);

@@ -8,7 +8,7 @@ import axios from '../context/axios';
  */
 export const getAllStatuses = async () => {
   try {
-    const response = await axios.get('/statuses/');
+    const response = await axios.get('/statuses');
     // Ensure we always return an array
     const data = response.data;
     return Array.isArray(data) ? data : [];
@@ -40,7 +40,7 @@ export const getStatusById = async (id) => {
  */
 export const createStatus = async (statusData) => {
   try {
-    const response = await axios.post('/statuses/', statusData);
+    const response = await axios.post('/statuses', statusData);
     return response.data;
   } catch (error) {
     console.error('Error creating status:', error);

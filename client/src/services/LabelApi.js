@@ -8,7 +8,7 @@ import axios from '../context/axios';
  */
 export const getAllLabels = async () => {
   try {
-    const response = await axios.get('/labels/');
+    const response = await axios.get('/labels');
     // Ensure we always return an array
     const data = response.data;
     return Array.isArray(data) ? data : [];
@@ -25,7 +25,7 @@ export const getAllLabels = async () => {
  */
 export const createLabel = async (labelData) => {
   try {
-    const response = await axios.post('/labels/', labelData);
+    const response = await axios.post('/labels', labelData);
     return response.data;
   } catch (error) {
     console.error('Error creating label:', error);
