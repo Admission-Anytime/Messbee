@@ -64,6 +64,17 @@ app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Handle OPTIONS method for all routes (CORS preflight)
+app.options('*', cors(corsOptions));
+
+// Middleware to handle trailing slashes - strip them from URLs
+app.use((req, res, next) => {
+  if (req.path !== '/' && req.path.endsWith('/')) {
+    req.url = req.url.slice(0, -1);
+  }
+  next();
+});
+
 // ✅ Fix: Static folder setup using path.join
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
