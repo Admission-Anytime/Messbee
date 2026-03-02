@@ -32,6 +32,12 @@ const AddonsWCC = lazy(() => import("./pages/PlanPricing/AddonsWCC"));
 const ActivePlan = lazy(() => import("./pages/PlanPricing/ActivePlan"));
 const PaymentHistory = lazy(() => import("./pages/PlanPricing/PaymentHistory"));
 const PaymentMethods = lazy(() => import("./pages/PlanPricing/PaymentMethods"));
+const SubscriptionManagement = lazy(() => import("./pages/PlanPricing/SubscriptionManagement"));
+const FinancialStatement = lazy(() => import("./pages/PlanPricing/FinancialStatement"));
+const BillingAddress = lazy(() => import("./pages/PlanPricing/BillingAddress"));
+const TaxInformation = lazy(() => import("./pages/PlanPricing/TaxInformation"));
+const ManageSubscription = lazy(() => import("./pages/PlanPricing/ManageSubscription"));
+const InvoiceView = lazy(() => import("./pages/PlanPricing/InvoiceView"));
 
 // --- LAZY LOADED CONTACTS ---
 const Contact = lazy(() => import("./pages/contats/contact"));
@@ -265,6 +271,12 @@ function App() {
           <Route path="/admin/plan/active" element={<ActivePlan />} />
           <Route path="/admin/plan/history" element={<PaymentHistory />} />
           <Route path="/admin/plan/methods" element={<PaymentMethods />} />
+          <Route path="/admin/plan/statement" element={<SubscriptionManagement />} />
+          <Route path="/admin/plan/financial" element={<FinancialStatement />} />
+          <Route path="/admin/plan/billing-address" element={<BillingAddress />} />
+          <Route path="/admin/plan/tax-information" element={<TaxInformation />} />
+          <Route path="/admin/plan/overview" element={<ManageSubscription />} />
+          <Route path="/admin/plan/invoice/:id" element={<InvoiceView />} />
           {/* 13. Profile & Account */}
           <Route
             path="/admin/account/admin"
