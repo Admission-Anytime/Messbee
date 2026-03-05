@@ -1,19 +1,17 @@
 import axios from "axios";
 
-// Resolve the backend API base URL:
-// - In development, VITE_API_URL is the plain origin (http://localhost:5000)
-//   and Vite proxy forwards /api/* → backend.  We use a relative "/api" base.
-// - In production, set VITE_API_URL to your backend origin (no /api suffix).
-const _origin = (import.meta.env.VITE_API_URL || "").replace(/\/api\/?$/, "");
-const API_BASE_URL = _origin ? `${_origin}/api` : "/api";
+// 1. RESOLVE BASE URL:
+// It will try to use your .env variable first. 
+// If it can't find it, it safely forces the connection to your backend on port 5000.
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-// Create axios instance with credentials
+// 2. CREATE AXIOS INSTANCE:
 const instance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
-// Response interceptor to handle token refresh
+// 3. RESPONSE INTERCEPTOR (For automatic token refresh):
 instance.interceptors.response.use(
   (response) => {
     // Tokens are automatically stored in HTTP-only cookies by the server
