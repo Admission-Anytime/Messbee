@@ -1,24 +1,23 @@
 import { useState } from "react";
 import {
-  CheckCircleFilled,
-  DownOutlined,
-  LinkOutlined,
-  PlayCircleOutlined,
-  HistoryOutlined,
-  ArrowLeftOutlined,
-  SearchOutlined,
-  DeleteOutlined,
-  SyncOutlined,
-  EyeOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  ClockCircleOutlined,
-  CalendarOutlined,
-  AppstoreOutlined,
-  CloseOutlined,
-  UserOutlined,
-  SafetyCertificateOutlined,
-} from "@ant-design/icons";
+  CheckCircle,
+  ChevronDown,
+  Link2,
+  PlayCircle,
+  History,
+  ArrowLeft,
+  Search,
+  Trash2,
+  RefreshCw,
+  Eye,
+  XCircle,
+  Clock,
+  Calendar,
+  Grid3x3,
+  X,
+  User,
+  ShieldCheck,
+} from "lucide-react";
 
 /* ── integration card data ── */
 const integrations = [
@@ -361,21 +360,21 @@ const SyncStatusBadge = ({ status }) => {
       bg: "bg-emerald-50",
       text: "text-emerald-600",
       border: "border-emerald-200",
-      icon: <CheckCircleOutlined className="text-[10px]" />,
+      icon: <CheckCircle className="w-3 h-3" />,
     },
     failed: {
       label: "Failed",
       bg: "bg-red-50",
       text: "text-red-500",
       border: "border-red-200",
-      icon: <CloseCircleOutlined className="text-[10px]" />,
+      icon: <XCircle className="w-3 h-3" />,
     },
     processing: {
       label: "Processing",
       bg: "bg-amber-50",
       text: "text-amber-600",
       border: "border-amber-200",
-      icon: <ClockCircleOutlined className="text-[10px]" />,
+      icon: <Clock className="w-3 h-3" />,
     },
   };
 
@@ -452,7 +451,7 @@ const ConfigureModal = ({ integration, onClose }) => {
             onClick={onClose}
             className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <CloseOutlined className="text-slate-400 text-sm" />
+            <X className="w-4 h-4 text-slate-400" />
           </button>
         </div>
 
@@ -469,7 +468,7 @@ const ConfigureModal = ({ integration, onClose }) => {
             <div className="bg-slate-50 rounded-xl border border-slate-200 px-5 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center border-2 border-white shadow-sm">
-                  <UserOutlined className="text-emerald-600 text-sm" />
+                  <User className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div>
                   <p className="text-[11px] text-slate-400 leading-none mb-0.5">Connected as</p>
@@ -539,7 +538,7 @@ const ConfigureModal = ({ integration, onClose }) => {
                           </option>
                         ))}
                       </select>
-                      <DownOutlined className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
                     </div>
                   </div>
                 </div>
@@ -566,7 +565,7 @@ const ConfigureModal = ({ integration, onClose }) => {
           {/* ── footer actions ── */}
           <div className="flex items-center justify-between pt-5 border-t border-slate-200">
             <button className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer">
-              <SafetyCertificateOutlined className="text-sm" />
+              <ShieldCheck className="w-4 h-4" />
               Test Connection
             </button>
 
@@ -578,7 +577,7 @@ const ConfigureModal = ({ integration, onClose }) => {
                 Cancel
               </button>
               <button className="px-5 py-2.5 rounded-xl bg-emerald-500 text-white font-semibold text-sm hover:bg-emerald-600 transition-all duration-200 shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-2">
-                <CheckCircleOutlined className="text-xs" />
+                <CheckCircle className="w-3.5 h-3.5" />
                 Save & Activate
               </button>
             </div>
@@ -616,7 +615,7 @@ const IntegrationCard = ({ integration, isInstalled, onInstall, onConfigure }) =
           disabled
           className="w-full py-2.5 px-4 rounded-xl bg-blue-600 text-white font-semibold text-sm cursor-not-allowed flex items-center justify-center gap-2"
         >
-          <SyncOutlined spin className="text-xs" />
+          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
           Installing...
         </button>
       );
@@ -697,7 +696,7 @@ const SyncHistoryView = ({ onBack }) => {
             onClick={onBack}
             className="mt-1.5 w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <ArrowLeftOutlined className="text-sm text-slate-600" />
+            <ArrowLeft className="w-4 h-4 text-slate-600" />
           </button>
           <div>
             <h1 className="text-2xl font-extrabold text-slate-800">Sync History</h1>
@@ -709,11 +708,11 @@ const SyncHistoryView = ({ onBack }) => {
 
         <div className="flex items-center gap-3">
           <button className="px-4 py-2.5 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 cursor-pointer flex items-center gap-2">
-            <DeleteOutlined className="text-xs" />
+            <Trash2 className="w-3.5 h-3.5" />
             Clear History
           </button>
           <button className="px-4 py-2.5 rounded-xl bg-emerald-500 text-white font-semibold text-sm hover:bg-emerald-600 transition-all duration-200 shadow-sm shadow-emerald-200 cursor-pointer flex items-center gap-2">
-            <SyncOutlined className="text-xs" />
+            <RefreshCw className="w-3.5 h-3.5" />
             Force Sync
           </button>
         </div>
@@ -722,7 +721,7 @@ const SyncHistoryView = ({ onBack }) => {
       {/* ── filter bar ── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
         <div className="relative">
-          <SearchOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             placeholder="Search Sync ID..."
@@ -732,7 +731,7 @@ const SyncHistoryView = ({ onBack }) => {
           />
         </div>
         <div className="relative">
-          <AppstoreOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+          <Grid3x3 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <select
             value={appFilter}
             onChange={(e) => setAppFilter(e.target.value)}
@@ -744,7 +743,7 @@ const SyncHistoryView = ({ onBack }) => {
             <option value="Webhooks">Webhooks</option>
             <option value="Salesforce">Salesforce</option>
           </select>
-          <DownOutlined className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
         </div>
         <div className="relative">
           <div className="absolute left-3 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-400" />
@@ -758,10 +757,10 @@ const SyncHistoryView = ({ onBack }) => {
             <option value="Failed">Failed</option>
             <option value="Processing">Processing</option>
           </select>
-          <DownOutlined className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
         </div>
         <div className="relative">
-          <CalendarOutlined className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm" />
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <select
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
@@ -772,7 +771,7 @@ const SyncHistoryView = ({ onBack }) => {
             <option value="Last 90 Days">Last 90 Days</option>
             <option value="All Time">All Time</option>
           </select>
-          <DownOutlined className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-400 pointer-events-none" />
+          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400 pointer-events-none" />
         </div>
       </div>
 
@@ -807,7 +806,7 @@ const SyncHistoryView = ({ onBack }) => {
             <span className="text-sm text-slate-500">{row.timestamp}</span>
             <div className="flex justify-end">
               <button className="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center transition-colors cursor-pointer">
-                <EyeOutlined className="text-slate-400 text-sm" />
+                <Eye className="w-4 h-4 text-slate-400" />
               </button>
             </div>
           </div>
@@ -845,7 +844,7 @@ const SyncHistoryView = ({ onBack }) => {
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
-              <CheckCircleOutlined className="text-lg text-emerald-500" />
+              <CheckCircle className="w-5 h-5 text-emerald-500" />
             </div>
             <span className="text-[11px] font-bold text-emerald-500 uppercase tracking-wider">
               Success Rate
@@ -857,7 +856,7 @@ const SyncHistoryView = ({ onBack }) => {
         <div className="bg-white rounded-2xl border border-slate-200 p-5">
           <div className="flex items-center gap-3 mb-3">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
-              <ClockCircleOutlined className="text-lg text-blue-500" />
+              <Clock className="w-5 h-5 text-blue-500" />
             </div>
             <span className="text-[11px] font-bold text-blue-500 uppercase tracking-wider">
               Avg Latency
@@ -946,11 +945,11 @@ const AppIntegration = () => {
 
             <div className="flex items-center gap-3">
               <button className="px-5 py-2.5 rounded-xl bg-blue-600 text-white font-semibold text-sm hover:bg-blue-700 transition-all duration-200 shadow-lg shadow-blue-600/25 cursor-pointer flex items-center gap-2">
-                <LinkOutlined />
+                <Link2 className="w-4 h-4" />
                 Install Zapier
               </button>
               <button className="px-5 py-2.5 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 text-white font-semibold text-sm hover:bg-white/20 transition-all duration-200 cursor-pointer flex items-center gap-2">
-                <PlayCircleOutlined />
+                <PlayCircle className="w-4 h-4" />
                 View Tutorial
               </button>
             </div>
@@ -985,7 +984,7 @@ const AppIntegration = () => {
             onClick={() => setActiveView("sync-history")}
             className="px-4 py-2 rounded-xl border-2 border-slate-200 text-slate-600 font-semibold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all duration-200 cursor-pointer flex items-center gap-2"
           >
-            <HistoryOutlined className="text-sm" />
+            <History className="w-4 h-4" />
             Sync History
           </button>
 
@@ -993,7 +992,7 @@ const AppIntegration = () => {
             <button className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 transition-colors cursor-pointer">
               <span className="text-slate-400 text-xs">Sort by:</span>
               <span className="font-semibold text-slate-700">{sortBy}</span>
-              <DownOutlined className="text-[10px] text-slate-400" />
+              <ChevronDown className="w-3 h-3 text-slate-400" />
             </button>
           </div>
         </div>
