@@ -21,11 +21,11 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   });
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    <div className="flex flex-col h-full bg-white relative font-sans">
       
       {/* 1. HEADER */}
       <div className="h-16 flex items-center justify-between px-5 shrink-0 bg-white z-40 relative">
-         <h2 className="text-2xl font-extrabold text-slate-900">Chats</h2>
+         <h2 className="text-xl font-extrabold text-slate-900">Chats</h2>
          
          {/* ✅ NEW: Custom Chat-Plus Icon matching your screenshot exactly! */}
          <button 
@@ -49,7 +49,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
-                    <h3 className="text-lg font-bold text-slate-900">Start New Chat</h3>
+                    <h3 className="text-base font-bold text-slate-900">Start New Chat</h3>
                     <button onClick={() => setIsNewChatModalOpen(false)} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors -mr-1.5">
                         <XMarkIcon className="w-5 h-5" />
                     </button>
@@ -131,7 +131,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               placeholder="Search chats..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none text-sm text-gray-700 placeholder:text-gray-400"
+              className="flex-1 bg-transparent border-none outline-none text-xs text-gray-700 placeholder:text-gray-400"
             />
             <div className="w-5 h-5 border border-gray-200 rounded flex items-center justify-center text-[10px] text-gray-400 font-mono bg-white shadow-sm">/</div>
          </div>
@@ -174,7 +174,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               {/* Chat Info */}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
                  <div className="flex justify-between items-start">
-                    <h4 className="text-[15px] font-bold text-slate-900 truncate">{chat.name}</h4>
+                    <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
                     <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{chat.time || "12:12 PM"}</span>
                  </div>
                  <p className="text-xs truncate text-gray-500 font-medium">

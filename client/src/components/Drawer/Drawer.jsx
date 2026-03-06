@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import { Drawer } from "antd";
+import { Drawer } from "@mui/material";
 import ContactForm from "../form/Form";
 
 const OpenDrawer = ({ title, onClose, open }) => {
@@ -10,8 +10,11 @@ const OpenDrawer = ({ title, onClose, open }) => {
   };
 
   return (
-    <Drawer title={title} onClose={onClose} open={open}>
-      <ContactForm onSubmit={onSubmit} />
+    <Drawer anchor="right" onClose={onClose} open={open}>
+      <div style={{ width: 400, padding: '20px' }}>
+        <h2 style={{ marginTop: 0 }}>{title}</h2>
+        <ContactForm onSubmit={onSubmit} />
+      </div>
     </Drawer>
   );
 };

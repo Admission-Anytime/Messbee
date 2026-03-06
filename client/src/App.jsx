@@ -1,7 +1,8 @@
 import PropTypes from "prop-types";
-import { Suspense, lazy, useState, memo } from "react";
+import { Suspense, lazy, useState, memo, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
-import { ConfigProvider } from "antd";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -17,10 +18,10 @@ import PublicRoute from "./components/PublicRoute";
 // --- UPDATED LOADING UI ---
 const PageLoader = () => <Loading />;
 
-// --- LAZY LOADED MAIN PAGES ---
-const Dashboard = lazy(() => import("./pages/dashboard-paid"));
+// --- LAZY LOADED MAIN PAGES (with prefetch hints) ---
+const Dashboard = lazy(() => import(/* webpackPrefetch: true */ "./pages/dashboard-paid"));
 const NotificationPage = lazy(() => import("./pages/Notification/NotificationPage"));
-const Chat = lazy(() => import("./pages/chat/chat"));
+const Chat = lazy(() => import(/* webpackPrefetch: true */ "./pages/chat/chat"));
 const Campaign = lazy(() => import("./pages/campaign/campaign"));
 const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
 const Automation = lazy(() => import("./pages/automation/automation"));
@@ -40,7 +41,7 @@ const ManageSubscription = lazy(() => import("./pages/PlanPricing/ManageSubscrip
 const InvoiceView = lazy(() => import("./pages/PlanPricing/InvoiceView"));
 
 // --- LAZY LOADED CONTACTS ---
-const Contact = lazy(() => import("./pages/contats/contact"));
+const Contact = lazy(() => import(/* webpackPrefetch: true */ "./pages/contats/contact"));
 const StatusPage = lazy(() => import("./pages/contats/Status/StatusPage"));
 const ImportContacts = lazy(() => import("./pages/contats/importContact"));
 // const MapFields = lazy(() => import("./pages/contats/mapfields"));
@@ -129,16 +130,22 @@ const AppLayout = memo(() => {
 });
 AppLayout.displayName = "AppLayout";
 
+// Material-UI theme configuration
+const theme = createTheme({
+  palette: {
+    primary: {
+      main: "#ba2525",
+    },
+  },
+  typography: {
+    fontFamily: "Urbanist, Poppins, sans-serif",
+  },
+});
+
 function App() {
   return (
-    <ConfigProvider
-      theme={{
-        token: {
-          fontFamily: "Urbanist, Poppins, sans-serif",
-          colorPrimary: "#ba2525",
-        },
-      }}
-    >
+    <ThemeProvider theme={theme}>
+      <CssBaseline />
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -307,7 +314,7 @@ function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
-    </ConfigProvider>
+    </ThemeProvider>
   );
 }
 

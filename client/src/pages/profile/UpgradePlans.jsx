@@ -1,6 +1,6 @@
 import YellowButton from "../../components/button/buttonReg/YellowButton";
 import "./upgradeplans.scss";
-import { Switch } from "antd";
+import { Switch } from "@mui/material";
 import Check from "../../assets/checkicon.svg";
 import { useState } from "react";
 const UpgradePlans = () => {

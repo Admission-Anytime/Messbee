@@ -5,18 +5,33 @@ export const userContext = createContext();
 
 const Context = (props) => {
   const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false); // Changed to false for faster initial render
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // Load user data on mount - Validate that cookies are valid
+  // Load user data on mount - Non-blocking approach
   useEffect(() => {
     const loadUser = async () => {
+      // Check localStorage first for immediate UI update
+      const cachedUser = localStorage.getItem("user");
+      if (cachedUser) {
+        try {
+          const userData = JSON.parse(cachedUser);
+          setUser(userData);
+          setIsLoggedIn(true);
+        } catch (error) {
+          console.error("Invalid cached user data");
+          localStorage.removeItem("user");
+        }
+      }
+      
+      // Then verify with server in background (non-blocking)
       try {
-        // Verify authentication with server (validates HTTP-only cookies)
         const response = await getCurrentUser();
         if (response.success && response.data) {
           setUser(response.data);
           setIsLoggedIn(true);
+          localStorage.setItem("user", JSON.stringify(response.data));
         } else {
           // Invalid auth - clear everything
           clearAuthData();
@@ -30,7 +45,7 @@ const Context = (props) => {
         setUser(null);
         setIsLoggedIn(false);
       } finally {
-        setLoading(false);
+        setAuthChecked(true);
       }
     };
 
@@ -71,6 +86,7 @@ const Context = (props) => {
     setUser,
     updateUser,
     loading,
+    authChecked,
     isLoggedIn,
     loginUser,
     logoutUser,

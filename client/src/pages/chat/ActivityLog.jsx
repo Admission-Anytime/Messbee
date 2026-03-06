@@ -34,7 +34,7 @@ const ActivityLog = ({ onBack }) => {
             <img src="https://ui-avatars.com/api/?name=Priyanshu+Raghuvanshi&background=0D8ABC&color=fff" alt="" className="w-10 h-10 rounded-full object-cover" />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-extrabold text-slate-900">Priyanshu Raghuvanshi</h2>
+                <h2 className="text-sm font-extrabold text-slate-900">Priyanshu Raghuvanshi</h2>
                 <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#16a34a] text-[9px] font-bold rounded uppercase tracking-widest border border-[#bbf7d0]">
                   Warm Lead
                 </span>
@@ -46,7 +46,7 @@ const ActivityLog = ({ onBack }) => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-4">
-          <button className="px-5 py-2.5 bg-white border border-gray-200 text-slate-700 text-sm font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-sm hidden sm:block">
+          <button className="px-5 py-2.5 bg-white border border-gray-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-sm hidden sm:block">
             Export Log
           </button>
           <button className="p-2.5 bg-[#0f172a] text-white rounded-full hover:bg-black transition-colors shadow-md">
@@ -64,20 +64,20 @@ const ActivityLog = ({ onBack }) => {
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-[11px] font-bold text-gray-400 mb-2 tracking-wide uppercase">Total Interactions</p>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-3xl font-black text-slate-800">156</h3>
+                <h3 className="text-2xl font-black text-slate-800">156</h3>
                 <span className="text-xs font-bold text-[#22C55E] bg-green-50 px-2 py-0.5 rounded-md">+12 this week</span>
               </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-[11px] font-bold text-gray-400 mb-2 tracking-wide uppercase">Avg. Agent Response Time</p>
               <div className="flex items-baseline gap-2">
-                <h3 className="text-3xl font-black text-slate-800">4m</h3>
+                <h3 className="text-2xl font-black text-slate-800">4m</h3>
                 <span className="text-xs font-medium text-gray-400 ml-1">Industry avg: 12m</span>
               </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
               <p className="text-[11px] font-bold text-gray-400 mb-2 tracking-wide uppercase">Lead Since</p>
-              <h3 className="text-3xl font-black text-slate-800">Jan 24, 2024</h3>
+              <h3 className="text-2xl font-black text-slate-800">Jan 24, 2024</h3>
             </div>
           </div>
 
@@ -87,7 +87,7 @@ const ActivityLog = ({ onBack }) => {
               <button 
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-5 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all shadow-sm border
+                className={`px-5 py-2.5 rounded-full text-xs font-bold whitespace-nowrap transition-all shadow-sm border
                   ${activeTab === tab ? "bg-[#0f172a] border-[#0f172a] text-white" : "bg-white text-gray-500 hover:bg-gray-50 border-gray-200"}`}
               >
                 {tab}
@@ -108,12 +108,12 @@ const ActivityLog = ({ onBack }) => {
               <span className="absolute top-5 -left-[7px] w-3 h-3 bg-amber-400 rounded-full ring-4 ring-[#F9FAFB]"></span>
               <div className="bg-[#fffbeb] border border-amber-200 p-5 rounded-2xl shadow-sm">
                 <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2 text-amber-600 font-bold text-sm">
+                  <div className="flex items-center gap-2 text-amber-600 font-bold text-xs">
                     <DocumentTextIcon className="w-5 h-5" /> Internal Note
                   </div>
                   <span className="text-xs font-bold text-amber-500">10:45 AM</span>
                 </div>
-                <p className="text-sm text-gray-700 italic leading-relaxed mb-4">
+                <p className="text-xs text-gray-700 italic leading-relaxed mb-4">
                   "Customer requested a callback regarding the MBBS application deadline for Delhi University. Follow up scheduled for tomorrow morning."
                 </p>
                 <div className="flex items-center gap-2">
@@ -127,7 +127,7 @@ const ActivityLog = ({ onBack }) => {
               <span className="absolute top-5 -left-[7px] w-3 h-3 bg-[#22C55E] rounded-full ring-4 ring-[#F9FAFB]"></span>
               <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2 text-[#22C55E] font-bold text-sm">
+                  <div className="flex items-center gap-2 text-[#22C55E] font-bold text-xs">
                     <ChatBubbleLeftRightIcon className="w-5 h-5" /> Outgoing Message
                   </div>
                   <span className="text-xs font-bold text-gray-400 flex items-center gap-1">
@@ -135,7 +135,7 @@ const ActivityLog = ({ onBack }) => {
                   </span>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl">
-                  <p className="text-sm text-gray-700">
+                  <p className="text-xs text-gray-700">
                     Great! We'll wait for the documents then. Have a productive day ahead.
                   </p>
                 </div>
@@ -146,12 +146,12 @@ const ActivityLog = ({ onBack }) => {
               <span className="absolute top-5 -left-[7px] w-3 h-3 bg-blue-500 rounded-full ring-4 ring-[#F9FAFB]"></span>
               <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                  <div className="flex items-center gap-2 text-blue-600 font-bold text-xs">
                     <ArrowsRightLeftIcon className="w-5 h-5" /> Lifecycle Change
                   </div>
                   <span className="text-xs font-bold text-gray-400">Yesterday, 06:45 PM</span>
                 </div>
-                <p className="text-sm text-gray-600 flex items-center flex-wrap gap-1.5">
+                <p className="text-xs text-gray-600 flex items-center flex-wrap gap-1.5">
                   Status changed from <span className="px-2 py-0.5 bg-gray-100 text-gray-600 font-bold rounded text-[10px] uppercase">Cold Lead</span> 
                   to <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#16a34a] border border-[#bbf7d0] font-bold rounded text-[10px] uppercase">Warm Lead</span> 
                   by <span className="font-bold text-slate-800">Arshlan Khan</span>
@@ -163,7 +163,7 @@ const ActivityLog = ({ onBack }) => {
               <span className="absolute top-5 -left-[7px] w-3 h-3 bg-purple-500 rounded-full ring-4 ring-[#F9FAFB]"></span>
               <div className="bg-white border border-gray-100 p-5 rounded-2xl shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex justify-between items-center mb-3">
-                  <div className="flex items-center gap-2 text-purple-600 font-bold text-sm">
+                  <div className="flex items-center gap-2 text-purple-600 font-bold text-xs">
                     <MegaphoneIcon className="w-5 h-5" /> Campaign Broadcast
                   </div>
                   <div className="flex items-center gap-2">
@@ -175,7 +175,7 @@ const ActivityLog = ({ onBack }) => {
                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest flex items-center gap-2 mb-2">
                     <DocumentTextIcon className="w-3.5 h-3.5" /> TEMPLATE: MBBS_ADMISSION
                   </p>
-                  <p className="text-sm text-gray-700 line-clamp-2">
+                  <p className="text-xs text-gray-700 line-clamp-2">
                     "Hello Priyanshu! Registration for the upcoming MBBS batches in Delhi-NCR are now open. Secure your seat..."
                   </p>
                 </div>

@@ -146,7 +146,7 @@ const Chat = () => {
   }
 
   return (
-    <div className="flex w-full h-full bg-white font-['Urbanist'] overflow-hidden">
+    <div className="flex w-full h-full bg-white font-sans overflow-hidden">
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; } .hide-scrollbar::-webkit-scrollbar { display: none; } `}</style>
       
       {/* LEFT: CONTACT LIST */}

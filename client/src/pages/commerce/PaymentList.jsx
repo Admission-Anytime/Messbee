@@ -1,10 +1,4 @@
 import React, { useState } from 'react';
-import { Table, Tag, DatePicker, Select, Button } from "antd";
-import {
-  FilterOutlined,
-  DownloadOutlined,
-  EyeOutlined,
-} from "@ant-design/icons";
 
 const PaymentList = () => {
   const [loading] = useState(false);

@@ -63,11 +63,11 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
   };
 
   return (
-    <div className="h-full flex flex-col bg-white border-l border-gray-100 relative w-full">
+    <div className="h-full flex flex-col bg-white border-l border-gray-100 relative w-full font-sans">
       
       {/* HEADER WITH CLOSE BUTTON */}
       <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 shrink-0 bg-white">
-        <h3 className="text-base font-bold text-slate-800">Contact Info</h3>
+        <h3 className="text-sm font-bold text-slate-800">Contact Info</h3>
         <button onClick={onClose} className="p-2 -mr-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all">
            <XMarkIcon className="w-5 h-5" />
         </button>
@@ -83,10 +83,10 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
               <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#22C55E] border-[3px] border-white rounded-full"></span>
           </div>
           
-          <h2 className="text-xl font-extrabold text-slate-900 text-center">{profileData.name}</h2>
-          <p className="text-sm text-gray-500 font-medium mb-4">{profileData.phone}</p>
+          <h2 className="text-lg font-extrabold text-slate-900 text-center">{profileData.name}</h2>
+          <p className="text-xs text-gray-500 font-medium mb-4">{profileData.phone}</p>
           
-          <span className={`px-4 py-1 text-[11px] font-bold rounded-md border uppercase tracking-widest shadow-sm
+          <span className={`px-4 py-1 text-[10px] font-bold rounded-md border uppercase tracking-widest shadow-sm
             ${profileData.status === 'Warm Lead' ? 'bg-[#f0fdf4] text-[#16a34a] border-[#bbf7d0]' : 
               profileData.status === 'Cold Lead' ? 'bg-gray-100 text-gray-600 border-gray-200' : 
               'bg-blue-50 text-blue-600 border-blue-200'}`}
@@ -100,7 +100,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
           
           {/* LABELS */}
           <div>
-             <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-3">Labels</h4>
+             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Labels</h4>
              <div className="flex flex-wrap gap-2 items-center">
                  <span className="px-3 py-1.5 bg-[#eff6ff] text-[#2563eb] text-xs font-bold rounded-lg border border-[#dbeafe]">Priority</span>
                  <span className="px-3 py-1.5 bg-[#faf5ff] text-[#9333ea] text-xs font-bold rounded-lg border border-[#f3e8ff]">Education</span>
@@ -111,19 +111,19 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
 
           {/* CUSTOM FIELDS (Dynamically reading from state) */}
           <div>
-             <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-4">Custom Fields</h4>
+             <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Custom Fields</h4>
              <div className="space-y-4">
                  <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5 tracking-wider">Institute</p>
-                    <p className="text-sm font-bold text-gray-900">{profileData.institute}</p>
+                    <p className="text-xs font-bold text-gray-900">{profileData.institute}</p>
                  </div>
                  <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5 tracking-wider">GSTN</p>
-                    <p className="text-sm font-bold text-gray-900">{profileData.gstn}</p>
+                    <p className="text-xs font-bold text-gray-900">{profileData.gstn}</p>
                  </div>
                  <div>
                     <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5 tracking-wider">City</p>
-                    <p className="text-sm font-bold text-gray-900">{profileData.city}</p>
+                    <p className="text-xs font-bold text-gray-900">{profileData.city}</p>
                  </div>
              </div>
           </div>
@@ -131,14 +131,14 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
           {/* RECENT NOTES (Dynamically rendering from list) */}
           <div>
              <div className="flex justify-between items-center mb-3">
-                <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest">Recent Notes</h4>
+                <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Recent Notes</h4>
                 <button onClick={() => setIsNoteModalOpen(true)} className="text-xs font-bold text-[#22C55E] hover:text-green-600 transition-colors">Add Note</button>
              </div>
              
              <div className="space-y-3">
                {notes.map((note, index) => (
                  <div key={index} className="bg-[#FFFDF0] border border-[#FDF0B4] p-4 rounded-xl relative">
-                    <p className="text-sm text-gray-700 italic leading-relaxed mb-4">"{note.text}"</p>
+                    <p className="text-xs text-gray-700 italic leading-relaxed mb-4">"{note.text}"</p>
                     <div className="flex justify-between items-center text-[10px] font-bold text-gray-400">
                        <span>By {note.author}</span>
                        <span>{note.date}</span>
@@ -155,11 +155,11 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
       <div className="shrink-0 w-full bg-white border-t border-gray-100 p-6 flex flex-col gap-3 z-10">
          <button 
             onClick={() => { setEditForm(profileData); setIsEditModalOpen(true); }} // Load current state into form before opening
-            className="w-full py-3.5 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm"
+            className="w-full py-3.5 bg-white border border-gray-200 text-gray-700 text-xs font-bold rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-colors shadow-sm"
          >
             Edit Profile
          </button>
-         <button onClick={onViewHistory} className="w-full py-3.5 bg-[#0f172a] text-white text-sm font-bold rounded-xl hover:bg-black transition-colors shadow-md">
+         <button onClick={onViewHistory} className="w-full py-3.5 bg-[#0f172a] text-white text-xs font-bold rounded-xl hover:bg-black transition-colors shadow-md">
             View Full History
          </button>
       </div>

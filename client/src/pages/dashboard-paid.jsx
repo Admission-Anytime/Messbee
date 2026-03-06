@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { DatePicker, ConfigProvider } from "antd";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 
 import {
@@ -31,9 +33,9 @@ function Dashboard() {
       agents: 4
    });
 
-   const handleDateChange = (date, dateString) => {
+   const handleDateChange = (date) => {
       setSelectedDate(date);
-      setDateString(dateString);
+      setDateString(date.format("YYYY-MM-DD"));
       setIsSyncing(true);
 
       setTimeout(() => {
@@ -159,32 +161,32 @@ function Dashboard() {
                </div>
 
                <div className="flex w-full md:w-auto items-center gap-3">
-                  <ConfigProvider
-                     theme={{
-                        token: {
-                           colorPrimary: '#10B981',
-                           borderRadius: 6,
-                           fontFamily: 'Urbanist',
-                           colorBgContainer: '#F8FAFC',
-                           colorBorder: '#E2E8F0',
-                        },
-                        components: {
-                           DatePicker: {
-                              activeBorderColor: '#10B981',
-                              hoverBorderColor: '#34D399',
-                              activeShadow: '0 0 0 2px rgba(16, 185, 129, 0.1)',
-                           }
-                        }
-                     }}
-                  >
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
                      <DatePicker
                         value={selectedDate}
                         onChange={handleDateChange}
                         format="MMMM DD, YYYY"
-                        allowClear={false}
-                        className="w-full md:w-[240px] h-10 font-medium shadow-sm hover:bg-white transition-all"
+                        slotProps={{
+                           textField: {
+                              size: "small",
+                              sx: {
+                                 width: { xs: '100%', md: 240 },
+                                 '& .MuiOutlinedInput-root': {
+                                    fontFamily: 'Urbanist',
+                                    fontWeight: 500,
+                                    backgroundColor: '#F8FAFC',
+                                    '&:hover fieldset': {
+                                       borderColor: '#34D399',
+                                    },
+                                    '&.Mui-focused fieldset': {
+                                       borderColor: '#10B981',
+                                    },
+                                 },
+                              },
+                           },
+                        }}
                      />
-                  </ConfigProvider>
+                  </LocalizationProvider>
 
                   <button onClick={handleSyncData} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors shrink-0">
                      <ArrowPathIcon className={`w-5 h-5 ${isSyncing ? "animate-spin text-[#10B981]" : ""}`} />

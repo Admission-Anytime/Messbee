@@ -1,134 +1,118 @@
-import { Card, Space, Col, Row } from "antd";
+import { Box, Paper, Grid, Typography } from "@mui/material";
 import "../analytic/analytic.scss";
 import BarsDataset from "./BarsDataset";
 import PieChartbox from "./PieChartbox";
 import YellowButton from "../../components/button/buttonReg/YellowButton";
-// import PieChartbox from "./PieChartbox";
+
 const Analyticbody = () => {
   return (
-    <div
-      style={{
+    <Box
+      sx={{
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         flexDirection: "column",
-        marginTop: "1rem",
-        marginBottom: "1rem",
-        overFlow: "auto",
+        mt: 2,
+        mb: 2,
       }}
     >
-      <Space direction="vertical" size={20}>
-        <Card title="Conversation">
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, width: '100%' }}>
+        <Paper elevation={1} sx={{ p: 2 }}>
+          <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+            Conversation
+          </Typography>
           <div id="analytic-bar">
             <BarsDataset />
           </div>
-        </Card>
-        <Row gutter={16}>
-          <Col span={12}>
-            <Card title="User">
-              <h2>3456</h2>
+        </Paper>
+        
+        <Grid container spacing={2}>
+          <Grid item xs={12} md={6}>
+            <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                User
+              </Typography>
+              <Typography variant="h4" sx={{ mb: 2 }}>3456</Typography>
               <PieChartbox />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card title="Summary Report">
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Charges</p>
-                <p>₹20</p>
-              </div>
-              <hr style={{ marginTop: "2rem", marginBottom: "2rem" }} />
-              <h4 style={{ fontWeight: 600, fontSize: "16px" }}>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={3}>
+            <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Summary Report
+              </Typography>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+                <Typography>Total Charges</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box sx={{ borderTop: '1px solid #e0e0e0', my: 2 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: "16px", mb: 1 }}>
                 Marketing Conversation
-              </h4>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div style={{ marginTop: "1.3rem" }}>
+              </Typography>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box sx={{ mt: 2 }}>
                 <YellowButton
                   title="WhatsApp conversation Pricing "
                   padding="0.6rem 2rem"
-                ></YellowButton>
-              </div>
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card title="Summary Report">
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Charges</p>
-                <p>₹20</p>
-              </div>
-              <hr style={{ marginTop: "0.7rem", marginBottom: "0.7rem" }} />
-              <h4 style={{ fontWeight: 600, fontSize: "16px" }}>
+                />
+              </Box>
+            </Paper>
+          </Grid>
+          
+          <Grid item xs={12} md={3}>
+            <Paper elevation={1} sx={{ p: 2, height: '100%' }}>
+              <Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
+                Summary Report
+              </Typography>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Charges</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box sx={{ borderTop: '1px solid #e0e0e0', my: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: "16px", mb: 1 }}>
                 Marketing Conversation
-              </h4>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <hr style={{ marginTop: "0.7rem", marginBottom: "0.7rem" }} />
-              <h4 style={{ fontWeight: 600, fontSize: "16px" }}>
+              </Typography>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box sx={{ borderTop: '1px solid #e0e0e0', my: 1 }} />
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: "16px", mb: 1 }}>
                 Marketing Conversation
-              </h4>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-              <div
-                className="title-wrapper"
-                style={{ display: "flex", justifyContent: "space-between" }}
-              >
-                <p>Total Conversation</p>
-                <p>₹20</p>
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      </Space>
-    </div>
+              </Typography>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+              <Box className="title-wrapper" sx={{ display: "flex", justifyContent: "space-between" }}>
+                <Typography>Total Conversation</Typography>
+                <Typography>₹20</Typography>
+              </Box>
+            </Paper>
+          </Grid>
+        </Grid>
+      </Box>
+    </Box>
   );
 };
 

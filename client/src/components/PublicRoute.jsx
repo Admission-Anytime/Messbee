@@ -1,22 +1,17 @@
 import { useContext } from 'react';
 import { Navigate } from 'react-router-dom';
 import { userContext } from '../context/Context';
-import Loading from './Loading';
 
 /**
  * PublicRoute Component
  * Redirects to dashboard if user is already authenticated
  * Used for login, signup, etc.
+ * Optimized for fast initial render - no loading state blocking
  */
 const PublicRoute = ({ children }) => {
-  const { isLoggedIn, loading } = useContext(userContext);
+  const { isLoggedIn } = useContext(userContext);
 
-  // Show loading spinner while checking authentication
-  if (loading) {
-    return <Loading />;
-  }
-
-  // Redirect to dashboard if already logged in
+  // Redirect to dashboard if already logged in (fast, non-blocking)
   if (isLoggedIn) {
     return <Navigate to="/" replace />;
   }

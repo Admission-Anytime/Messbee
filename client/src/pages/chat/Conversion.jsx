@@ -150,14 +150,14 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   const filteredAgents = AGENTS_LIST.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
 
   return (
-    <div className="flex flex-col h-full relative bg-[#F9FAFB]">
+    <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
       
       {/* 1. HEADER */}
       <div className="h-20 px-6 bg-white border-b border-gray-100 flex items-center justify-between shrink-0 z-20 relative shadow-sm">
          {isSearchOpen ? (
             <div className="flex-1 flex items-center gap-3 animate-in fade-in duration-200">
                 <MagnifyingGlassIcon className="w-5 h-5 text-gray-400" />
-                <input type="text" placeholder="Search in conversation..." className="flex-1 border-none outline-none text-sm text-slate-700 placeholder:text-slate-400 h-full py-2" autoFocus />
+                <input type="text" placeholder="Search in conversation..." className="flex-1 border-none outline-none text-xs text-slate-700 placeholder:text-slate-400 h-full py-2" autoFocus />
                 <button onClick={() => setIsSearchOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><XMarkIcon className="w-5 h-5" /></button>
             </div>
          ) : (
@@ -171,10 +171,10 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
                     </div>
                     <div className="flex flex-col justify-center">
-                       <h3 className="text-[17px] font-bold text-slate-900 leading-tight">{data.name}</h3>
+                       <h3 className="text-[15px] font-bold text-slate-900 leading-tight">{data.name}</h3>
                        <div className="flex items-center gap-2 mt-0.5">
                           <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
-                          <span className="text-[13px] font-medium text-gray-500">Active now</span>
+                          <span className="text-xs font-medium text-gray-500">Active now</span>
                           <span className="text-gray-300 text-xs">•</span>
                           <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Warm Lead</span>
                        </div>
@@ -193,13 +193,13 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                         {isMenuOpen && (
                             <div className="absolute right-0 top-10 w-60 bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                 {/* Group 1 */}
-                                <button onClick={() => { onToggleProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onToggleProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <UserIcon className="w-4 h-4 text-slate-400" /> View Profile
                                 </button>
-                                <button onClick={() => { setIsLabelModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { setIsLabelModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <TagIcon className="w-4 h-4 text-slate-400" /> Manage Labels
                                 </button>
-                                <button onClick={() => { setIsChangeStatusModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between font-medium transition-colors">
+                                <button onClick={() => { setIsChangeStatusModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between font-medium transition-colors">
                                     <div className="flex items-center gap-3"><ArrowsRightLeftIcon className="w-4 h-4 text-slate-400" /> Change Status</div>
                                     <ChevronRightIcon className="w-3 h-3 text-slate-400" />
                                 </button>
@@ -207,33 +207,33 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                                 <div className="border-t border-slate-100 my-1.5"></div>
 
                                 {/* Group 2 */}
-                                <button onClick={() => { onViewHistory && onViewHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onViewHistory && onViewHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <ClockIcon className="w-4 h-4 text-slate-400" /> View Full History
                                 </button>
-                                <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <UserPlusIcon className="w-4 h-4 text-slate-400" /> Assign Agent
                                 </button>
 
                                 <div className="border-t border-slate-100 my-1.5"></div>
 
                                 {/* Group 3 */}
-                                <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> Archive Chat
                                 </button>
-                                <button onClick={() => { onUpdateStatus && onUpdateStatus('pinned'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onUpdateStatus && onUpdateStatus('pinned'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <MapPinIcon className="w-4 h-4 text-slate-400" /> Pin Chat
                                 </button>
 
                                 <div className="border-t border-slate-100 my-1.5"></div>
 
                                 {/* Group 4: Destructive Actions */}
-                                <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
                                     <TrashIcon className="w-4 h-4 text-red-400" /> Clear Chat History
                                 </button>
-                                <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
                                     <UserMinusIcon className="w-4 h-4 text-red-400" /> Delete Contact
                                 </button>
-                                <button onClick={() => { onUpdateStatus && onUpdateStatus('blocked'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
+                                <button onClick={() => { onUpdateStatus && onUpdateStatus('blocked'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
                                     <NoSymbolIcon className="w-4 h-4 text-red-400" /> Block
                                 </button>
                             </div>
@@ -258,7 +258,7 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                  </div>
               )}
               <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[70%]`}>
-                 <div className={`px-5 py-3 text-[15px] shadow-sm ${msg.sender === "me" ? "bg-[#22C55E] text-white rounded-2xl rounded-br-sm" : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"}`}>
+                 <div className={`px-5 py-3 text-sm shadow-sm ${msg.sender === "me" ? "bg-[#22C55E] text-white rounded-2xl rounded-br-sm" : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"}`}>
                     {msg.media && (
                        <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-gray-200'}`}>
                           {msg.media.type === 'image' ? (
@@ -311,18 +311,40 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                 <div className="p-3 border-b border-gray-100">
                    <div className="flex items-center bg-gray-50 rounded-xl px-3 py-2 border border-gray-100">
                       <MagnifyingGlassIcon className="w-4 h-4 text-gray-400"/>
-                      <input placeholder="/" autoFocus className="bg-transparent border-none outline-none text-sm ml-2 w-full text-gray-700"/>
+                      <input placeholder="/" autoFocus className="bg-transparent border-none outline-none text-xs ml-2 w-full text-gray-700"/>
                       <span className="text-gray-400 text-xs font-mono">ⓘ</span>
                    </div>
                 </div>
                 <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                   <div onClick={() => handleTemplateSelect("Congratulations {{1}}! You have been...")} className="flex gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]">
-                       <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0"><MegaphoneIcon className="w-5 h-5" /></div>
-                       <div className="flex-1"><div className="flex justify-between items-center mb-1"><h4 className="text-sm font-bold text-gray-900">Admission_Success</h4><span className="text-[9px] font-extrabold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded uppercase">Marketing</span></div><p className="text-xs text-gray-500 truncate">Congratulations {"{{1}}"}! You have been...</p></div>
+                   <div 
+                      onClick={() => handleTemplateSelect("Congratulations {{1}}! You have been...")} 
+                      className="flex gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+                   >
+                       <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                          <MegaphoneIcon className="w-5 h-5" />
+                       </div>
+                       <div className="flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                             <h4 className="text-xs font-bold text-gray-900">Admission_Success</h4>
+                             <span className="text-[9px] font-extrabold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded uppercase">Marketing</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 truncate">Congratulations {"{{1}}"} ! You have been...</p>
+                       </div>
                    </div>
-                   <div onClick={() => handleTemplateSelect("Dear {{1}}, your payment for {{2}} is...")} className="flex gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]">
-                       <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"><DocumentTextIcon className="w-5 h-5" /></div>
-                       <div className="flex-1"><div className="flex justify-between items-center mb-1"><h4 className="text-sm font-bold text-gray-900">Payment_Reminder</h4><span className="text-[9px] font-extrabold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded uppercase">Utility</span></div><p className="text-xs text-gray-500 truncate">Dear {"{{1}}"}, your payment for {"{{2}}"} is...</p></div>
+                   <div 
+                      onClick={() => handleTemplateSelect("Dear {{1}}, your payment for {{2}} is...")} 
+                      className="flex gap-3 p-3 hover:bg-gray-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+                   >
+                       <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
+                          <DocumentTextIcon className="w-5 h-5" />
+                       </div>
+                       <div className="flex-1">
+                          <div className="flex justify-between items-center mb-1">
+                             <h4 className="text-xs font-bold text-gray-900">Payment_Reminder</h4>
+                             <span className="text-[9px] font-extrabold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded uppercase">Utility</span>
+                          </div>
+                          <p className="text-[11px] text-gray-500 truncate">Dear {"{{1}}"}, your payment for {"{{2}}"} is...</p>
+                       </div>
                    </div>
                 </div>
                 <div className="px-4 py-2.5 bg-gray-50 text-[10px] text-gray-400 border-t border-gray-100 flex justify-between">
@@ -356,7 +378,7 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                    if (!e.target.value.includes("/")) setShowTemplates(false); 
                }} 
                placeholder="Type a message or use '/' for shortcuts..." 
-               className="flex-1 bg-transparent border-none outline-none text-[15px] px-3 text-slate-800 placeholder:text-gray-400"
+               className="flex-1 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-gray-400"
             />
 
             {/* Right Icons: Bolt, Smiley, Send */}

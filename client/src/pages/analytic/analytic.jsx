@@ -1,14 +1,18 @@
 import React, { useState } from "react";
-import { Segmented, ConfigProvider, DatePicker } from "antd";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { ToggleButton, ToggleButtonGroup, Box } from "@mui/material";
 import YellowButton from "../../components/button/buttonReg/YellowButton";
 import Analyticbody from "./Analyticbody";
+import dayjs from "dayjs";
 
 // ❌ DELETE THIS LINE: import MainSidebar from ... 
 // ❌ DELETE THIS LINE: import "./analytic.scss";
 
-const { RangePicker } = DatePicker;
-
 const Analytic = () => {
+  const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
+  
   return (
     // ✅ Use this container to fill the screen correctly
     <div className="flex w-full h-full flex-col bg-slate-50 font-['Urbanist'] overflow-hidden">
@@ -20,7 +24,40 @@ const Analytic = () => {
           <Tab />
         </div>
         <div className="flex items-center gap-4">
-          <RangePicker className="font-['Urbanist'] border-gray-300 hover:border-gray-400 py-1.5" />
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <DatePicker
+                label="From"
+                value={dateRange[0]}
+                onChange={(newValue) => setDateRange([newValue, dateRange[1]])}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: {
+                      '& .MuiOutlinedInput-root': {
+                        fontFamily: 'Urbanist',
+                      },
+                    },
+                  },
+                }}
+              />
+              <DatePicker
+                label="To"
+                value={dateRange[1]}
+                onChange={(newValue) => setDateRange([dateRange[0], newValue])}
+                slotProps={{
+                  textField: {
+                    size: "small",
+                    sx: {
+                      '& .MuiOutlinedInput-root': {
+                        fontFamily: 'Urbanist',
+                      },
+                    },
+                  },
+                }}
+              />
+            </Box>
+          </LocalizationProvider>
           <YellowButton title="Apply Filter" padding="0.5rem 1rem" />
         </div>
       </div>
@@ -39,26 +76,48 @@ export default Analytic;
 // ... keep your Tab component code below ...
 export const Tab = () => {
   const [value, setValue] = useState("Conversation");
+  
+  const handleChange = (event, newValue) => {
+    if (newValue !== null) {
+      setValue(newValue);
+    }
+  };
+  
   return (
-    <ConfigProvider
-      theme={{
-        components: {
-          Segmented: {
-            itemSelectedBg: "#ba2525",
-            itemSelectedColor: "#ffffff",
-            itemColor: "#64748b", 
-            trackBg: "#f1f5f9",
-            borderRadius: 8,
+    <ToggleButtonGroup
+      value={value}
+      exclusive
+      onChange={handleChange}
+      aria-label="analytics type"
+      sx={{
+        '& .MuiToggleButton-root': {
+          fontFamily: 'Urbanist',
+          fontWeight: 700,
+          textTransform: 'none',
+          px: 3,
+          py: 1,
+          color: '#64748b',
+          borderRadius: '8px',
+          border: '1px solid #f1f5f9',
+          '&.Mui-selected': {
+            backgroundColor: '#ba2525',
+            color: '#ffffff',
+            '&:hover': {
+              backgroundColor: '#a02020',
+            },
+          },
+          '&:hover': {
+            backgroundColor: '#f8fafc',
           },
         },
+        backgroundColor: '#f1f5f9',
+        borderRadius: '8px',
+        padding: '4px',
       }}
     >
-      <Segmented
-        options={["Conversation", "Message", "Campaign"]}
-        value={value}
-        onChange={setValue}
-        className="font-bold shadow-sm border border-slate-100"
-      />
-    </ConfigProvider>
+      <ToggleButton value="Conversation">Conversation</ToggleButton>
+      <ToggleButton value="Message">Message</ToggleButton>
+      <ToggleButton value="Campaign">Campaign</ToggleButton>
+    </ToggleButtonGroup>
   );
 };

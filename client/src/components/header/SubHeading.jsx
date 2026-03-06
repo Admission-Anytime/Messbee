@@ -1,21 +1,46 @@
 import "../../pages/contats/contact.scss";
 import PropTypes from "prop-types";
+import { TextField, InputAdornment, IconButton } from "@mui/material";
+import { Search as SearchIcon } from "@mui/icons-material";
+import { useState } from "react";
 
-import { Input } from "antd";
-
-const { Search } = Input;
-const onSearch = (value, _e, info) => console.log(info?.source, value);
 // eslint-disable-next-line react/prop-types
 export const SubHeading = ({ title, children }) => {
+  const [searchValue, setSearchValue] = useState("");
+  
+  const onSearch = (value) => {
+    console.log("search:", value);
+  };
+
   return (
     <div className="contact-heading">
       <h2>{title}</h2>
       <div className="contact-search">
-        <Search
-          placeholder="input search text"
-          enterButton="Search"
-          size="large"
-          onSearch={onSearch}
+        <TextField
+          placeholder="Search..."
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+          onKeyPress={(e) => {
+            if (e.key === 'Enter') {
+              onSearch(searchValue);
+            }
+          }}
+          size="medium"
+          sx={{ minWidth: 300 }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon />
+              </InputAdornment>
+            ),
+            endAdornment: (
+              <InputAdornment position="end">
+                <IconButton onClick={() => onSearch(searchValue)} edge="end">
+                  <SearchIcon />
+                </IconButton>
+              </InputAdornment>
+            ),
+          }}
         />
         {children}
       </div>
