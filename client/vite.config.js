@@ -21,13 +21,12 @@ export default defineConfig({
     // Target modern browsers for smaller bundle
     target: 'esnext',
     
-    // Enable minification
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true, // Remove console.logs in production
-        drop_debugger: true,
-      },
+    // Enable minification with esbuild (faster than terser)
+    minify: 'esbuild',
+    
+    // esbuild options
+    esbuild: {
+      drop: ['console', 'debugger'], // Remove console.logs and debuggers in production
     },
     
     // Optimize chunk splitting
