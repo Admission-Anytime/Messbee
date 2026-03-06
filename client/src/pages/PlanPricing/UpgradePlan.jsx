@@ -304,19 +304,6 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
             </div>
           </div>
         </div>
-
-        {/* footer links */}
-        <div className="flex items-center justify-center gap-6 mt-6 mb-4">
-          <span className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
-            Privacy Policy
-          </span>
-          <span className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
-            Terms of Service
-          </span>
-          <span className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer transition-colors">
-            Contact Billing
-          </span>
-        </div>
       </div>
     </div>
   );
