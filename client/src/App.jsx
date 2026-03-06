@@ -58,6 +58,7 @@ const CustomField = lazy(() => import("./pages/setting/CustomField"));
 const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
 const ManageTeams = lazy(() => import("./pages/setting/ManageTeams"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
+const AppIntegration = lazy(() => import("./pages/setting/AppIntegration"));
 
 // --- LAZY LOADED HELP PAGES ---
 const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
@@ -266,7 +267,7 @@ function App() {
           <Route path="/admin/integration/api" element={<DevApi />} />
           <Route
             path="/admin/integration/apps"
-            element={<Placeholder title="App Connect" />}
+            element={<AppIntegration />}
           />
           {/* 11. Settings */}
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
