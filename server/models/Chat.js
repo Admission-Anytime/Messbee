@@ -36,8 +36,7 @@ const chatSchema = mongoose.Schema(
 );
 
 // Index for faster queries
-chatSchema.index({ phone: 1 });
-chatSchema.index({ whatsappId: 1 });
+// Note: phone and whatsappId already have indexes from unique: true
 chatSchema.index({ chatStatus: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("Chat", chatSchema);

@@ -32,6 +32,6 @@ const messageSchema = mongoose.Schema(
 
 // Index for faster queries
 messageSchema.index({ chatId: 1, createdAt: -1 });
-messageSchema.index({ whatsappMessageId: 1 });
+// Note: whatsappMessageId already has an index from unique: true
 
 module.exports = mongoose.model("Message", messageSchema);
