@@ -4,6 +4,7 @@ import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
 import ActivityLog from "./ActivityLog"; 
 import axios from "../../context/axios";
+import chatService from "../../services/chatService";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
 
@@ -28,16 +29,17 @@ const Chat = () => {
     const fetchChats = async () => {
       try {
         setError(null);
-        // const { data } = await axios.get('/chats'); 
+        const result = await chatService.getChats();
         
-        const mockChats = [
-          { _id: '1', name: "Priyanshu Raghuvanshi", time: "12:12 PM", lastMsg: "This Document Contains important in...", unread: 2, chatStatus: 'open' },
-          { _id: '2', name: "Arshlan Khan", time: "YESTERDAY", lastMsg: "Please check the latest updates...", unread: 0, chatStatus: 'open' },
-          { _id: '3', name: "Keshri Singh Aarti", time: "5 FEB", lastMsg: "Thank you for the quick response!", unread: 0, chatStatus: 'closed' },
-        ];
-
-        setChats(mockChats);
-        if (mockChats.length > 0 && !activeChatId) setActiveChatId(mockChats[0]._id);
+        if (result.success) {
+          setChats(result.data);
+          if (result.data.length > 0 && !activeChatId) {
+            setActiveChatId(result.data[0]._id);
+          }
+        } else {
+          setError(result.error);
+        }
+        
         setLoading(false);
       } catch (err) {
         console.error("Error fetching chats:", err);
@@ -48,7 +50,9 @@ const Chat = () => {
 
     fetchChats();
 
+    // Listen for incoming messages
     socket.on("receive_message", (data) => {
+      console.log('Received message:', data);
       if (activeChatId === data.chatId) {
         setMessages((prev) => {
           const isDuplicate = prev.some(msg => 
@@ -60,13 +64,55 @@ const Chat = () => {
         });
       }
 
+      // Update chat list
       setChats((prevChats) => 
         prevChats.map((chat) => 
           chat._id === data.chatId 
-            ? { ...chat, lastMsg: data.message.media ? `📸 Image` : data.message.text, lastMsgTime: data.message.time, unread: chat._id === activeChatId ? chat.unread : (chat.unread || 0) + 1 } 
+            ? { ...chat, lastMsg: data.message.media ? `📸 ${data.message.mediaType}` : data.message.text, lastMsgTime: data.message.time, unread: chat._id === activeChatId ? chat.unread : (chat.unread || 0) + 1 } 
             : chat
         )
       );
+    });
+
+    // Listen for sent messages
+    socket.on("message_sent", (data) => {
+      console.log('Message sent confirmation:', data);
+      // Update message status
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg._id === data.message._id || msg._id.startsWith('temp_') 
+            ? { ...data.message, status: 'sent' } 
+            : msg
+        )
+      );
+    });
+
+    // Listen for message status updates
+    socket.on("message_status_update", (data) => {
+      console.log('Message status update:', data);
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg._id === data.messageId || msg.whatsappMessageId === data.whatsappMessageId
+            ? { ...msg, status: data.status } 
+            : msg
+        )
+      );
+    });
+
+    // Listen for chat updates
+    socket.on("chat_updated", (updatedChat) => {
+      console.log('Chat updated:', updatedChat);
+      setChats((prevChats) => 
+        prevChats.map((chat) => 
+          chat._id === updatedChat._id ? updatedChat : chat
+        )
+      );
+    });
+
+    // Listen for new chats created
+    socket.on("chat_created", (newChat) => {
+      console.log('New chat created:', newChat);
+      setChats((prevChats) => [newChat, ...prevChats]);
     });
 
     return () => socket.disconnect();
@@ -77,19 +123,27 @@ const Chat = () => {
 
     const fetchMessages = async () => {
       try {
-        // const { data } = await axios.get(`/messages/${activeChatId}`);
-        // await axios.put(`/chats/${activeChatId}/read`);
+        const result = await chatService.getMessages(activeChatId);
         
-        const mockMessages = [
-          { _id: 'm1', text: "Hello!", sender: "them", time: "12:05 PM", status: "read" },
-          { _id: 'm2', text: "What Are u doing ?", sender: "me", time: "12:07 PM", status: "read" },
-          { _id: 'm3', text: "I am Working On my project.", sender: "them", time: "12:08 PM", status: "read" },
-          { _id: 'm4', text: "Only two screen are left!", sender: "me", time: "12:12 PM", status: "delivered" },
-        ];
+        if (result.success) {
+          setMessages(result.data);
+        } else {
+          console.error('Failed to fetch messages:', result.error);
+          setMessages([]);
+        }
         
-        setMessages(mockMessages);
+        // Mark messages as read
+        await chatService.markMessagesAsRead(activeChatId);
+        
+        // Join socket room for this chat
         socket.emit("join_chat", activeChatId);
-        setChats((prevChats) => prevChats.map((chat) => chat._id === activeChatId ? { ...chat, unread: 0 } : chat));
+        
+        // Update unread count in chat list
+        setChats((prevChats) => 
+          prevChats.map((chat) => 
+            chat._id === activeChatId ? { ...chat, unread: 0 } : chat
+          )
+        );
       } catch (err) {
         console.error("Error fetching messages:", err);
       }
@@ -111,30 +165,115 @@ const Chat = () => {
   }, [chats, activeTab]);
 
   const handleSendMessage = async (text, media = null) => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (!text?.trim() && !media) return;
     
-    const messageData = {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const tempId = 'temp_' + Date.now();
+    
+    // Create temporary message for immediate UI update
+    const tempMessage = {
+      _id: tempId,
       chatId: activeChatId,
-      text: text,
-      media: media, 
+      text: text || '',
+      media: media,
       sender: "me",
-      time: time
+      time: time,
+      status: 'pending',
+      createdAt: new Date()
     };
 
     try {
-      const tempMessage = { ...messageData, _id: 'temp_' + Date.now(), status: 'pending', createdAt: new Date() };
+      // Add temporary message to UI
       setMessages((prev) => [...prev, tempMessage]);
 
-      setChats((prev) => prev.map(c => c._id === activeChatId ? { ...c, lastMsg: media ? `📸 Image` : text, lastMsgTime: time } : c));
+      // Update chat list optimistically
+      setChats((prev) => 
+        prev.map(c => 
+          c._id === activeChatId 
+            ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time } 
+            : c
+        )
+      );
 
-      // const response = await axios.post('/message', messageData);
-      const mockResponse = { ...tempMessage, status: 'sent' };
+      // Send to backend
+      let result;
+      if (media) {
+        // Determine media type from media object
+        const mediaType = media.type || 'image';
+        result = await chatService.sendMediaMessage(activeChatId, text, media, mediaType);
+      } else {
+        result = await chatService.sendMessage(activeChatId, text);
+      }
 
-      setMessages((prev) => prev.map(msg => msg._id === tempMessage._id ? { ...mockResponse, status: mockResponse.status || 'sent' } : msg));
-      socket.emit("send_message", { chatId: activeChatId, message: mockResponse });
+      if (result.success) {
+        // Replace temporary message with actual message from server
+        setMessages((prev) => 
+          prev.map(msg => 
+            msg._id === tempId 
+              ? { ...result.data, status: result.data.status || 'sent' } 
+              : msg
+          )
+        );
+
+        // Emit via socket for real-time updates to other clients
+        socket.emit("send_message", { 
+          chatId: activeChatId, 
+          message: result.data 
+        });
+      } else {
+        // Mark message as failed
+        setMessages((prev) => 
+          prev.map(msg => 
+            msg._id === tempId 
+              ? { ...msg, status: 'failed', error: result.error } 
+              : msg
+          )
+        );
+        console.error('Failed to send message:', result.error);
+      }
 
     } catch (error) {
-      setMessages((prev) => prev.map(msg => msg._id === 'temp_' + Date.now() ? { ...msg, status: 'failed' } : msg));
+      console.error('Error in handleSendMessage:', error);
+      // Mark message as failed
+      setMessages((prev) => 
+        prev.map(msg => 
+          msg._id === tempId 
+            ? { ...msg, status: 'failed' } 
+            : msg
+        )
+      );
+    }
+  };
+
+  const handleCreateChat = async (name, phone) => {
+    try {
+      setLoading(true);
+      const result = await chatService.createChat(name, phone, 'whatsapp');
+      
+      if (result.success) {
+        // Add to chat list if not already there
+        setChats((prevChats) => {
+          const exists = prevChats.find(c => c._id === result.data._id);
+          if (exists) {
+            return prevChats;
+          }
+          return [result.data, ...prevChats];
+        });
+        
+        // Select the new chat
+        setActiveChatId(result.data._id);
+        setShowProfile(false);
+        setLoading(false);
+        
+        return { success: true, data: result.data };
+      } else {
+        setLoading(false);
+        return { success: false, error: result.error };
+      }
+    } catch (error) {
+      console.error('Error creating chat:', error);
+      setLoading(false);
+      return { success: false, error: error.message };
     }
   };
 
@@ -151,7 +290,26 @@ const Chat = () => {
       
       {/* LEFT: CONTACT LIST */}
       <div className={`w-full md:w-[350px] lg:w-[380px] flex flex-col border-r border-gray-100 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
-        {loading ? <div className="p-10 text-center text-slate-400">Loading chats...</div> : <ContactCard chats={filteredChats} activeChatId={activeChatId} onChatSelect={(id) => { setActiveChatId(id); setShowProfile(false); }} activeTab={activeTab} setActiveTab={setActiveTab} />}
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <svg className="animate-spin h-10 w-10 text-[#22C55E] mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              <p className="text-slate-500 font-medium">Loading chats...</p>
+            </div>
+          </div>
+        ) : (
+          <ContactCard 
+            chats={filteredChats} 
+            activeChatId={activeChatId} 
+            onChatSelect={(id) => { setActiveChatId(id); setShowProfile(false); }} 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            onCreateChat={handleCreateChat} 
+          />
+        )}
       </div>
       
       {/* MIDDLE: CONVERSATION AREA */}
