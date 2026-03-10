@@ -13,7 +13,7 @@ const ProtectedRoute = ({ children }) => {
 
   // Redirect to login if not authenticated (fast, non-blocking)
   if (!isLoggedIn) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    return <Navigate to="/landing" state={{ from: location }} replace />;
   }
 
   // User is authenticated, render the protected content

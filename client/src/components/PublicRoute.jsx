@@ -13,7 +13,7 @@ const PublicRoute = ({ children }) => {
 
   // Redirect to dashboard if already logged in (fast, non-blocking)
   if (isLoggedIn) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   // User is not authenticated, show public page
