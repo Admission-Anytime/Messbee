@@ -42,11 +42,11 @@ instance.interceptors.response.use(
         // Refresh failed, clear user data and redirect to login
         localStorage.removeItem("user");
 
-        // Only redirect if not already on auth pages
+        // Only redirect if not already on auth/public pages
         const currentPath = window.location.pathname;
-        if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup')) {
-          console.log('Session expired - redirecting to login');
-          window.location.href = "/login";
+        if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup') && !currentPath.startsWith('/landing')) {
+          console.log('Session expired - redirecting to landing');
+          window.location.href = "/landing";
         }
 
         return Promise.reject(refreshError);
