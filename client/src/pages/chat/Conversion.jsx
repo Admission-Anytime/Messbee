@@ -176,7 +176,7 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                           <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
                           <span className="text-xs font-medium text-gray-500">Active now</span>
                           <span className="text-gray-300 text-xs">•</span>
-                          <span className="text-[10px] font-extrabold text-gray-500 uppercase tracking-wider">Warm Lead</span>
+                          <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#16a34a] border border-[#bbf7d0] text-[10px] font-bold rounded-md shadow-sm">Warm Lead</span>
                        </div>
                     </div>
                  </div>
