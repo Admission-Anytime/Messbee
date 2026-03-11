@@ -89,7 +89,7 @@ const MENU_ITEMS = [
             title: "Inventory",
             path: "/admin/commerce/inventory",
             icon: "feather:archive",
-          }, // ✅ Added Inventory
+          }, 
         ],
       },
       { title: "Automation", path: "/admin/automation", icon: "feather:cpu" },
@@ -189,14 +189,20 @@ const MENU_ITEMS = [
         icon: "feather:help-circle",
         isSubmenu: true,
         children: [
+          // ✅ THESE PATHS NOW MATCH APP.JSX EXACTLY
+          {
+            title: "Introduction",
+            path: "/admin/help/introduction",
+            icon: "feather:info",
+          },
           {
             title: "API Documentation",
-            path: "/admin/help/docs",
+            path: "/admin/help/api-docs",
             icon: "feather:book",
           },
           {
             title: "FAQs",
-            path: "/admin/help/faqs",
+            path: "/admin/help/faq",
             icon: "feather:message-circle",
           },
           {
@@ -222,7 +228,8 @@ const SidebarItem = ({
 }) => {
   const isOpen = openSubmenu === item.title;
   const isFloatingOpen = activeFloating === item.title;
-  const isChildActive = item.children?.some((child) => isActive(child.path));
+  // Keeps submenu parent green if any child route is active
+  const isChildActive = item.children?.some((child) => window.location.pathname.includes(child.path));
   const active = isActive(item.path);
 
   const activeClass = "bg-[#EBF5F0] text-slate-900 border-l-4 border-[#10B981]";
@@ -287,7 +294,7 @@ const SidebarItem = ({
         >
           <div className="bg-white py-1 space-y-0.5 border-l border-slate-100 ml-6 pl-2">
             {item.children.map((sub, idx) => {
-              const isSubActive = isActive(sub.path);
+              const isSubActive = window.location.pathname.includes(sub.path);
               return (
                 <Link
                   key={idx}
@@ -359,11 +366,14 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       setOpenSubmenu("Contacts & CRM");
     } else if (location.pathname.includes("/admin/commerce")) {
       setOpenSubmenu("Commerce");
-    } else if (location.pathname.includes("/admin/commerce")) {
-      setOpenSubmenu("Commerce");
+    } else if (location.pathname.includes("/admin/plan")) {
+      setOpenSubmenu("Plan & Pricing");
+    } else if (location.pathname.includes("/admin/help")) {
+      // ✅ Ensures the "Help & Support" accordion stays open if you refresh the page
+      setOpenSubmenu("Help & Support");
     }
   }, [location.pathname]);
-  // ✅ LOGOUT FUNCTION - Use Context
+
   const { logoutUser } = useContext(userContext);
 
   const handleLogout = async () => {
@@ -455,7 +465,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             {MENU_ITEMS[0].items
               .find((i) => i.title === activeFloating)
               ?.children?.map((sub, idx) => {
-                const isSubActive = isActive(sub.path);
+                const isSubActive = window.location.pathname.includes(sub.path);
                 return (
                   <Link
                     key={idx}
