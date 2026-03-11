@@ -1,17 +1,23 @@
 import { useContext } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { userContext } from '../context/Context';
+import Loading from './Loading';
 
 /**
  * ProtectedRoute Component
- * Redirects to login if user is not authenticated
- * Optimized for fast initial render - no loading state blocking
+ * Waits for auth check to complete before redirecting.
+ * This prevents wrongly bouncing logged-in users to /landing on page refresh.
  */
 const ProtectedRoute = ({ children }) => {
-  const { isLoggedIn } = useContext(userContext);
+  const { isLoggedIn, authChecked } = useContext(userContext);
   const location = useLocation();
 
-  // Redirect to login if not authenticated (fast, non-blocking)
+  // Wait for auth check to finish before making any redirect decision
+  if (!authChecked) {
+    return <Loading />;
+  }
+
+  // Auth check done - redirect to landing if not authenticated
   if (!isLoggedIn) {
     return <Navigate to="/landing" state={{ from: location }} replace />;
   }

@@ -8,6 +8,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 // --- IMPORTS FOR NEW UI ---
 import Loading from "./components/Loading";
+import { userContext } from "./context/Context";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 
 import MainHeading from "./components/header/MainHeading";
