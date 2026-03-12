@@ -87,9 +87,9 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
             <div className="bg-white w-full max-w-[500px] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                 
                 {/* Modal Header */}
-                <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
                     <h3 className="text-base font-bold text-slate-900">Start New Chat</h3>
-                    <button onClick={handleCloseModal} className="text-gray-400 hover:text-gray-700 p-1.5 rounded-full hover:bg-gray-100 transition-colors -mr-1.5" disabled={isCreating}>
+                    <button onClick={handleCloseModal} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors -mr-1.5" disabled={isCreating}>
                         <XMarkIcon className="w-5 h-5" />
                     </button>
                 </div>
@@ -106,22 +106,22 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
                     {/* Contact Name (Optional) */}
                     <div>
-                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">Contact Name (Optional)</label>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">Contact Name (Optional)</label>
                         <input 
                             type="text"
                             placeholder="Enter contact name"
                             value={newChatName}
                             onChange={(e) => setNewChatName(e.target.value)}
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 text-sm font-medium text-slate-900 outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
                             disabled={isCreating}
                         />
                     </div>
                     
                     {/* Enter Number */}
                     <div>
-                        <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">WhatsApp Number *</label>
+                        <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">WhatsApp Number *</label>
                         <div className="flex focus-within:ring-1 focus-within:ring-[#22C55E] focus-within:border-[#22C55E] rounded-xl transition-all shadow-sm">
-                            <span className="inline-flex items-center px-4 py-3 rounded-l-xl border border-r-0 border-gray-200 bg-gray-50 text-gray-500 text-sm font-bold">
+                            <span className="inline-flex items-center px-4 py-3 rounded-l-xl border border-r-0 border-slate-200 bg-slate-50 text-slate-500 text-sm font-bold">
                                 +91
                             </span>
                             <input 
@@ -129,13 +129,13 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                                 placeholder="Enter 10-digit number" 
                                 value={newChatPhone}
                                 onChange={(e) => setNewChatPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                                className="flex-1 min-w-0 block w-full px-4 py-3 rounded-r-xl border border-gray-200 text-sm font-medium text-slate-900 outline-none" 
+                                className="flex-1 min-w-0 block w-full px-4 py-3 rounded-r-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none" 
                                 autoFocus
                                 disabled={isCreating}
                                 maxLength={10}
                             />
                         </div>
-                        <p className="mt-1 text-xs text-gray-500">Enter the WhatsApp number without country code</p>
+                        <p className="mt-1 text-xs text-slate-500">Enter the WhatsApp number without country code</p>
                     </div>
 
                     {/* Info Box */}
@@ -147,10 +147,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 bg-gray-50/50 border-t border-gray-100 shrink-0">
+                <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/50 border-t border-slate-100 shrink-0">
                     <button 
                         onClick={handleCloseModal} 
-                        className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-900 transition-colors rounded-xl hover:bg-gray-100"
+                        className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-100"
                         disabled={isCreating}
                     >
                         Cancel
@@ -181,21 +181,21 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       {/* 2. SEARCH BAR */}
       <div className="px-5 pb-4 shrink-0">
-         <div className="relative bg-gray-50 rounded-xl flex items-center px-4 py-2.5 border border-gray-100 focus-within:border-gray-300 focus-within:bg-white transition-all">
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 mr-2" />
+         <div className="relative bg-slate-50 rounded-xl flex items-center px-4 py-2.5 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
+            <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 mr-2" />
             <input 
               type="text" 
               placeholder="Search chats..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 bg-transparent border-none outline-none text-xs text-gray-700 placeholder:text-gray-400"
+              className="flex-1 bg-transparent border-none outline-none text-xs text-slate-700 placeholder:text-slate-400"
             />
-            <div className="w-5 h-5 border border-gray-200 rounded flex items-center justify-center text-[10px] text-gray-400 font-mono bg-white shadow-sm">/</div>
+            <div className="w-5 h-5 border border-slate-200 rounded flex items-center justify-center text-[10px] text-slate-400 font-mono bg-white shadow-sm">/</div>
          </div>
       </div>
 
       {/* 3. FILTER TABS */}
-      <div className="px-5 pb-3 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-gray-50">
+      <div className="px-5 pb-3 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
          {TABS.map((tab) => (
             <button
               key={tab}
@@ -203,7 +203,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm ${
                 activeTab === tab 
                   ? "bg-[#22C55E] text-white border border-[#22C55E]" 
-                  : "bg-[#F8FAFC] text-slate-600 border border-gray-200 hover:bg-gray-100"
+                  : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
               }`}
             >
               {tab}
@@ -218,8 +218,8 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
              key={chat._id || chat.id} 
              onClick={() => onChatSelect(chat._id || chat.id)}
              className={`
-               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-gray-50 relative
-               ${activeChatId === (chat._id || chat.id) ? "bg-green-50/30 border-l-4 border-l-[#22C55E]" : "border-l-4 border-l-transparent hover:bg-gray-50"}
+               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative
+               ${activeChatId === (chat._id || chat.id) ? "bg-green-50/30 border-l-4 border-l-[#22C55E]" : "border-l-4 border-l-transparent hover:bg-slate-50"}
              `}
            >
               {/* Avatar */}
@@ -243,16 +243,16 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] font-bold text-gray-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
+                    <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
                  </div>
-                 <p className="text-xs truncate text-gray-500 font-medium">
+                 <p className="text-xs truncate text-slate-500 font-medium">
                     {chat.lastMsg || "No messages yet"}
                  </p>
                  <div className="mt-1.5 flex justify-between items-center">
                     {chat.chatStatus && (
                       <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${
                         chat.chatStatus === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
-                        chat.chatStatus === 'closed' ? 'text-gray-600 bg-gray-100 border border-gray-200' :
+                        chat.chatStatus === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :
                         'text-blue-600 bg-blue-50 border border-blue-200'
                       }`}>
                          {chat.chatStatus}
@@ -268,13 +268,13 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
            </div>
          )) : (
             <div className="flex flex-col items-center justify-center h-full px-6 text-center">
-                <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
-                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center mb-4">
+                  <svg className="w-10 h-10 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                   </svg>
                 </div>
                 <h3 className="text-base font-bold text-slate-900 mb-2">No chats yet</h3>
-                <p className="text-sm text-gray-500 mb-4">Start a conversation by clicking the + button above</p>
+                <p className="text-sm text-slate-500 mb-4">Start a conversation by clicking the + button above</p>
                 <button 
                   onClick={() => setIsNewChatModalOpen(true)}
                   className="px-6 py-2.5 text-sm font-bold text-white bg-[#22C55E] rounded-xl hover:bg-green-500 flex items-center gap-2 shadow-sm transition-colors"

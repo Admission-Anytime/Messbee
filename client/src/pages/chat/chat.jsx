@@ -64,14 +64,29 @@ const Chat = () => {
         });
       }
 
-      // Update chat list
-      setChats((prevChats) => 
-        prevChats.map((chat) => 
-          chat._id === data.chatId 
-            ? { ...chat, lastMsg: data.message.media ? `📸 ${data.message.mediaType}` : data.message.text, lastMsgTime: data.message.time, unread: chat._id === activeChatId ? chat.unread : (chat.unread || 0) + 1 } 
-            : chat
-        )
-      );
+      // Update chat list - move to top only if it's not the active chat
+      setChats((prevChats) => {
+        const chatIndex = prevChats.findIndex(chat => chat._id === data.chatId);
+        if (chatIndex === -1) return prevChats;
+        
+        const updatedChat = {
+          ...prevChats[chatIndex],
+          lastMsg: data.message.media ? `📸 ${data.message.mediaType}` : data.message.text,
+          lastMsgTime: data.message.time,
+          unread: data.chatId === activeChatId ? prevChats[chatIndex].unread : (prevChats[chatIndex].unread || 0) + 1
+        };
+        
+        // If it's the active chat, keep it in the same position
+        if (data.chatId === activeChatId) {
+          const newChats = [...prevChats];
+          newChats[chatIndex] = updatedChat;
+          return newChats;
+        }
+        
+        // If it's not the active chat, move it to the top
+        const newChats = prevChats.filter(chat => chat._id !== data.chatId);
+        return [updatedChat, ...newChats];
+      });
     });
 
     // Listen for sent messages
@@ -186,14 +201,14 @@ const Chat = () => {
       // Add temporary message to UI
       setMessages((prev) => [...prev, tempMessage]);
 
-      // Update chat list optimistically
-      setChats((prev) => 
-        prev.map(c => 
+      // Update chat list optimistically - keep active chat in same position
+      setChats((prev) => {
+        return prev.map(c => 
           c._id === activeChatId 
             ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time } 
             : c
-        )
-      );
+        );
+      });
 
       // Send to backend
       let result;
@@ -289,7 +304,7 @@ const Chat = () => {
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; } .hide-scrollbar::-webkit-scrollbar { display: none; } `}</style>
       
       {/* LEFT: CONTACT LIST */}
-      <div className={`w-full md:w-[350px] lg:w-[380px] flex flex-col border-r border-gray-100 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`w-full md:w-[350px] lg:w-[380px] flex flex-col border-r border-slate-100 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -316,7 +331,7 @@ const Chat = () => {
       <div className={`flex-1 flex flex-col h-full bg-white relative min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <div className="flex h-full w-full relative">
-             <div className="flex-1 h-full min-w-0 flex flex-col border-r border-gray-100">
+             <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">
                 <Conversion 
                   data={{ ...activeChat, messages: messages }} 
                   onSendMessage={handleSendMessage} 
@@ -340,7 +355,7 @@ const Chat = () => {
              )}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-gray-50/50"><p className="font-semibold text-slate-500">Select a conversation</p></div>
+          <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50"><p className="font-semibold text-slate-500">Select a conversation</p></div>
         )}
       </div>
     </div>
