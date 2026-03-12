@@ -13,7 +13,7 @@ import {
   ShoppingCart,
 } from "lucide-react";
 
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "../../utils/showToast";
 import "react-toastify/dist/ReactToastify.css";
 
 /* ═══════════════════════════════════════════
@@ -393,7 +393,7 @@ const UpgradePlan = () => {
   /* ── PLAN SELECTION VIEW ── */
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-4 lg:p-8 font-['Urbanist'] pb-20 relative">
-      <ToastContainer />
+      
 
       <div className="max-w-7xl mx-auto space-y-16">
         {/* --- HEADER & TOGGLE --- */}

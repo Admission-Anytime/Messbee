@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/showToast";
 import { resendOTP } from "../../services/authService";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
