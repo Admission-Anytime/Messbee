@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { Suspense, lazy, useState, memo, useEffect, useContext } from "react";
+import { Suspense, lazy, useState, memo, useEffect } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -8,7 +8,6 @@ import "react-toastify/dist/ReactToastify.css";
 
 // --- IMPORTS FOR NEW UI ---
 import Loading from "./components/Loading";
-import { userContext } from "./context/Context";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 
 import MainHeading from "./components/header/MainHeading";
@@ -78,7 +77,6 @@ const ForgotPassword = lazy(() => import("./pages/Auth/ForgotPassword"));
 const VerifyOTP = lazy(() => import("./pages/Auth/VerifyOTP"));
 const ResetPassword = lazy(() => import("./pages/Auth/ResetPassword"));
 const Onboarding = lazy(() => import("./pages/Auth/Onboarding"));
-const LandingPage = lazy(() => import("./pages/LandingPage"));
 
 // --- LAZY LOADED HELP PAGES ---
 const HelpLayout = lazy(() => import("./pages/help/help"));
@@ -155,13 +153,6 @@ const theme = createTheme({
   },
 });
 
-// --- ROOT REDIRECT COMPONENT ---
-// Sends logged-in users to /dashboard, unauthenticated users to /landing
-const RootRedirect = () => {
-  const { isLoggedIn } = useContext(userContext);
-  return isLoggedIn ? <Navigate to="/dashboard" replace /> : <Navigate to="/landing" replace />;
-};
-
 function App() {
   return (
     <ThemeProvider theme={theme}>
@@ -181,12 +172,6 @@ function App() {
       />
 
       <Routes>
-        {/* ROOT: redirect based on auth state */}
-        <Route path="/" element={<RootRedirect />} />
-
-        {/* LANDING PAGE - Public marketing page for new visitors */}
-        <Route path="/landing" element={<Suspense fallback={<PageLoader />}><LandingPage /></Suspense>} />
-
         {/* PUBLIC ROUTES - Redirect to dashboard if already logged in */}
         <Route path="/login" element={<PublicRoute><Suspense fallback={<PageLoader />}><Login /></Suspense></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><Suspense fallback={<PageLoader />}><Registration /></Suspense></PublicRoute>} />
@@ -198,10 +183,10 @@ function App() {
         {/* PROTECTED ROUTES - Require Authentication */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
           {/* 1. Dashboard */}
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/" element={<Dashboard />} />
           <Route
             path="/admin/dashboard"
-            element={<Navigate to="/dashboard" replace />}
+            element={<Navigate to="/" replace />}
           />
           {/* 2. Notifications */}
           <Route path="/admin/notifications" element={<NotificationPage />} />
@@ -324,12 +309,12 @@ function App() {
           <Route path="/admin/help" element={<HelpLayout />}>
             {/* Default page when hitting /admin/help */}
             <Route index element={<Navigate to="introduction" replace />} />
-
+            
             {/* Main Tabs */}
             <Route path="introduction" element={<Introduction />} />
             <Route path="faq" element={<Faq />} />
             <Route path="api-docs" element={<ApiDocs />} />
-
+            
             {/* Support Hub and sub-pages */}
             <Route path="support">
               <Route index element={<Support />} />
