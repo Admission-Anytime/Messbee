@@ -2,7 +2,7 @@ import { useState, useEffect, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneInput } from "react-international-phone";
 import "react-international-phone/style.css";
-import { toast } from "react-toastify";
+import { toast } from "../../utils/showToast";
 import { userContext } from "../../context/Context";
 import { 
   requestSignupOTP, 

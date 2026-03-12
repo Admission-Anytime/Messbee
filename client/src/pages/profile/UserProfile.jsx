@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { ToastContainer, toast } from "react-toastify";
+import { toast } from "../../utils/showToast";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
@@ -104,7 +104,7 @@ const UserProfile = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-6 font-sans text-gray-800 bg-[#f8f9fa] p-8">
-      <ToastContainer />
+      
 
       {/* Header / Avatar Section */}
       <div className="bg-white rounded-[20px] border border-gray-100 p-6 flex flex-col md:flex-row items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow duration-300">

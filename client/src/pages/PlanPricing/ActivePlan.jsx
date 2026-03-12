@@ -7,7 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 // ✅ Import Toastify
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from '../../utils/showToast';
 import 'react-toastify/dist/ReactToastify.css';
 
 // --- REUSABLE COMPONENT: RESOURCE CARD ---
@@ -59,7 +59,7 @@ const ActivePlan = () => {
 
    return (
       <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] pb-20 relative">
-         <ToastContainer />
+         
 
          <div className="max-w-7xl mx-auto space-y-8">
 
