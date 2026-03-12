@@ -7,25 +7,27 @@ import YellowButton from "../../components/button/buttonReg/YellowButton";
 import Analyticbody from "./Analyticbody";
 import dayjs from "dayjs";
 
-// ❌ DELETE THIS LINE: import MainSidebar from ... 
-// ❌ DELETE THIS LINE: import "./analytic.scss";
-
 const Analytic = () => {
   const [dateRange, setDateRange] = useState([dayjs(), dayjs()]);
   
   return (
-    // ✅ Use this container to fill the screen correctly
     <div className="flex w-full h-full flex-col bg-slate-50 font-['Urbanist'] overflow-hidden">
       
-      {/* HEADER */}
-      <div className="w-full h-[70px] bg-white px-6 border-b border-gray-200 flex items-center justify-between shrink-0">
+      {/* HEADER SECTION */}
+      <div className="w-full bg-white px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-6">
-          <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Analytics</h2>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Analytics Overview</h2>
+            <p className="text-sm text-slate-500 font-medium">Track your messaging performance and costs</p>
+          </div>
+          <div className="hidden lg:block h-10 w-px bg-gray-200"></div>
           <Tab />
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* DATE PICKER & FILTER */}
+        <div className="flex items-center gap-3">
           <LocalizationProvider dateAdapter={AdapterDayjs}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'center' }}>
               <DatePicker
                 label="From"
                 value={dateRange[0]}
@@ -34,13 +36,17 @@ const Analytic = () => {
                   textField: {
                     size: "small",
                     sx: {
+                      width: '140px',
                       '& .MuiOutlinedInput-root': {
                         fontFamily: 'Urbanist',
+                        borderRadius: '10px',
+                        backgroundColor: '#f8fafc',
                       },
                     },
                   },
                 }}
               />
+              <span className="text-gray-400 font-medium">-</span>
               <DatePicker
                 label="To"
                 value={dateRange[1]}
@@ -49,8 +55,11 @@ const Analytic = () => {
                   textField: {
                     size: "small",
                     sx: {
+                      width: '140px',
                       '& .MuiOutlinedInput-root': {
                         fontFamily: 'Urbanist',
+                        borderRadius: '10px',
+                        backgroundColor: '#f8fafc',
                       },
                     },
                   },
@@ -58,12 +67,12 @@ const Analytic = () => {
               />
             </Box>
           </LocalizationProvider>
-          <YellowButton title="Apply Filter" padding="0.5rem 1rem" />
+          <YellowButton title="Apply Filter" padding="0.55rem 1.2rem" />
         </div>
       </div>
 
-      {/* BODY */}
-      <div className="flex-1 w-full overflow-y-auto p-6">
+      {/* BODY SECTION */}
+      <div className="flex-1 w-full overflow-y-auto custom-scrollbar p-6 md:p-8">
         <Analyticbody />
       </div>
 
@@ -73,7 +82,7 @@ const Analytic = () => {
 
 export default Analytic;
 
-// ... keep your Tab component code below ...
+// --- CUSTOM STYLED TAB COMPONENT ---
 export const Tab = () => {
   const [value, setValue] = useState("Conversation");
   
@@ -90,29 +99,31 @@ export const Tab = () => {
       onChange={handleChange}
       aria-label="analytics type"
       sx={{
+        backgroundColor: '#f1f5f9',
+        borderRadius: '10px',
+        padding: '4px',
+        height: 'fit-content',
         '& .MuiToggleButton-root': {
           fontFamily: 'Urbanist',
           fontWeight: 700,
           textTransform: 'none',
           px: 3,
-          py: 1,
+          py: 0.75,
           color: '#64748b',
-          borderRadius: '8px',
-          border: '1px solid #f1f5f9',
+          border: 'none',
+          borderRadius: '8px !important',
           '&.Mui-selected': {
-            backgroundColor: '#ba2525',
+            backgroundColor: '#10B981', // Changed to Messbee Green
             color: '#ffffff',
+            boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)',
             '&:hover': {
-              backgroundColor: '#a02020',
+              backgroundColor: '#059669',
             },
           },
           '&:hover': {
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#e2e8f0',
           },
         },
-        backgroundColor: '#f1f5f9',
-        borderRadius: '8px',
-        padding: '4px',
       }}
     >
       <ToggleButton value="Conversation">Conversation</ToggleButton>
