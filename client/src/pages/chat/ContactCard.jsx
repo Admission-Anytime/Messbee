@@ -219,7 +219,9 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
              onClick={() => onChatSelect(chat._id || chat.id)}
              className={`
                flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative
-               ${activeChatId === (chat._id || chat.id) ? "bg-green-50/30 border-l-4 border-l-[#22C55E]" : "border-l-4 border-l-transparent hover:bg-slate-50"}
+               ${activeChatId === (chat._id || chat.id) 
+                 ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm" 
+                 : "border-l-4 border-l-transparent hover:bg-slate-50"}
              `}
            >
               {/* Avatar */}
