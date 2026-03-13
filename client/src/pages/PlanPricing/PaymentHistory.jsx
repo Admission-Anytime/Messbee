@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
    BanknotesIcon,
@@ -14,7 +14,7 @@ import {
    EyeIcon
 } from "@heroicons/react/24/outline";
 
-import { ToastContainer, toast } from 'react-toastify';
+import { toast } from '../../utils/showToast';
 import 'react-toastify/dist/ReactToastify.css';
 
 const PaymentHistory = () => {
@@ -95,7 +95,7 @@ const PaymentHistory = () => {
       <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] pb-20 relative">
 
          {/* ✅ FIXED: Added Z-Index so toasts appear on top */}
-         <ToastContainer style={{ zIndex: 99999 }} position="top-right" />
+         
 
          <div className="max-w-7xl mx-auto space-y-8">
 

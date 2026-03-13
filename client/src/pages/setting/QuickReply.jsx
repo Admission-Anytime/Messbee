@@ -5,7 +5,7 @@ import {
   Sticker, Music, Video as VideoIcon, FileText, Link, 
   User, Upload, X, Pencil, Trash2, ExternalLink, AlertTriangle 
 } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { toast } from '../../utils/showToast';
 import ErrorState from '../../components/ui/ErrorState'; 
 
 const QuickReply = () => {

@@ -1,6 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { toast } from "react-toastify"; // Added toast for the Google button
+import { toast } from "../../utils/showToast"; // Patched toast for custom card
 import LoginForm from "../../components/auth/LoginForm";
 import Google from "../../assets/googlelogo.svg";
 
