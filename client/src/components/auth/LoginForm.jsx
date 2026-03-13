@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { toast } from "../../utils/showToast";
+import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import { 
   loginWithPassword, 

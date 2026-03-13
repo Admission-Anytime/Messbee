@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { toast } from "../../utils/showToast";
+import { toast } from "react-toastify";
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
 function Toggle({ enabled, onChange }) {

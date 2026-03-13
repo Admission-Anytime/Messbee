@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { toast } from "../../utils/showToast";
+import { toast } from "react-toastify";
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,

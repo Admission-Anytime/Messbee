@@ -13,7 +13,7 @@ import {
 } from "@heroicons/react/24/outline";
 
 // ✅ Import Toastify
-import { toast } from '../../utils/showToast';
+import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const PaymentMethods = () => {
@@ -75,7 +75,7 @@ const PaymentMethods = () => {
     <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] pb-20 relative">
       
       {/* ✅ FIXED: High Z-Index for Toasts */}
-      
+      <ToastContainer style={{ zIndex: 99999 }} position="top-right" />
 
       <div className="max-w-7xl mx-auto space-y-8">
         

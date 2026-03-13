@@ -159,16 +159,16 @@ function App() {
       <CssBaseline />
       <ToastContainer
         position="top-right"
-        autoClose={4000}
-        hideProgressBar
+        autoClose={3000}
+        hideProgressBar={false}
         newestOnTop
-        closeOnClick={false}
+        closeOnClick
         pauseOnHover
-        draggable={false}
+        draggable
         theme="light"
-        toastClassName="custom-toast-card"
+        toastClassName="custom-toast"
         bodyClassName="custom-toast-body"
-        style={{ zIndex: 99999 }}
+        style={{ zIndex: 9999 }}
       />
 
       <Routes>

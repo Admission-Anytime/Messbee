@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAllLabels, createLabel, updateLabel, deleteLabel } from '../../services/LabelApi';
-import { toast } from '../../utils/showToast';
+import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState';
 
 const Label = () => {

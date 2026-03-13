@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { toast } from "../../utils/showToast";
+import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
 
@@ -168,7 +168,7 @@ const BusinessProfile = () => {
 
   return (
     <div className="w-full max-w-6xl mx-auto space-y-8 font-sans text-gray-800 bg-[#f8f9fa] p-8 min-h-screen">
-      
+      <ToastContainer />
 
       <div>
         <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Organization Settings</h1>

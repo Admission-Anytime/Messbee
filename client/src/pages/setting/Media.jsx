@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { toast } from "../../utils/showToast";
+import { toast } from "react-toastify";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TABS = ["All Assets", "Images", "Videos", "Documents", "Audio"];
