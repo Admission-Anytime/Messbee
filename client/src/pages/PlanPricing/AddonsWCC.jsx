@@ -7,7 +7,6 @@ import {
    XMarkIcon
 } from "@heroicons/react/24/outline";
 
-// ✅ Import Toastify
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -33,7 +32,7 @@ const AddonsWCC = () => {
    const totalPayable = finalAmount + taxes;
 
    const handlePayment = () => {
-      // ✅ Use Toast instead of Alert
+
       toast.success(`Processing payment of ${formatCurrency(totalPayable)}...`, {
          autoClose: 2000
       });

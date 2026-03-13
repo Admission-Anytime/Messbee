@@ -79,7 +79,7 @@ const QuickReply = () => {
       setIsDeleteModalOpen(false);
       setItemToDelete(null);
     } catch (error) {
-      toast.error("❌ Failed to delete quick reply. Please try again.");
+      toast.error("Failed to delete quick reply. Please try again.");
     }
   };
 
@@ -134,7 +134,7 @@ const QuickReply = () => {
       closeModal();
     } catch (error) {
       const errorMsg = error.response?.data?.message || "Failed to save quick reply";
-      toast.error(`❌ ${errorMsg}`);
+      toast.error(`${errorMsg}`);
     }
   };
 

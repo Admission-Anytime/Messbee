@@ -39,7 +39,7 @@ const Label = () => {
     } catch (error) {
       console.error('Failed to fetch labels:', error);
       setError(error.response?.data?.message || 'Failed to load labels');
-      toast.error('❌ Failed to load labels');
+      toast.error('Failed to load labels');
       // Reset to empty array on error
       setLabels([]);
     } finally {
@@ -49,7 +49,7 @@ const Label = () => {
 
   const handleOpenModal = (label = null) => {
     if (!label && labels.length >= 5) {
-      return toast.warning('⚠️ Limit Reached: You can only create up to 5 labels');
+      return toast.warning('Limit Reached: You can only create up to 5 labels');
     }
     if (label) {
       setEditingLabel(label);
@@ -66,8 +66,8 @@ const Label = () => {
   };
 
   const handleSave = async () => {
-    if (!labelName.trim()) return toast.warning('⚠️ Please enter a label name');
-    if (labelName.length > 25) return toast.warning('⚠️ Label name cannot exceed 25 characters');
+    if (!labelName.trim()) return toast.warning('Please enter a label name');
+    if (labelName.length > 25) return toast.warning('Label name cannot exceed 25 characters');
     
     try {
       const labelData = {
@@ -83,17 +83,17 @@ const Label = () => {
         // Update existing label
         await updateLabel(editingLabel._id, labelData);
         await fetchLabels(); // Refresh the list
-        toast.success('✅ Label updated successfully');
+        toast.success(' Label updated successfully');
       } else {
         // Create new label
         await createLabel(labelData);
         await fetchLabels(); // Refresh the list
-        toast.success('✅ Label created successfully');
+        toast.success('  Label created successfully');
       }
       closeModal();
     } catch (error) {
       console.error('Failed to save label:', error);
-      toast.error(`❌ ${error.response?.data?.message || 'Failed to save label'}`);
+      toast.error(`${error.response?.data?.message || 'Failed to save label'}`);
     }
   };
 
@@ -108,10 +108,10 @@ const Label = () => {
       await fetchLabels(); // Refresh the list
       setIsDeleteModalOpen(false);
       setLabelToDelete(null);
-      toast.success('✅ Label deleted successfully');
+      toast.success('Label deleted successfully');
     } catch (error) {
       console.error('Failed to delete label:', error);
-      toast.error(`❌ ${error.response?.data?.message || 'Failed to delete label'}`);
+      toast.error(`${error.response?.data?.message || 'Failed to delete label'}`);
     }
   };
 

@@ -156,11 +156,10 @@ const theme = createTheme({
 function App() {
   return (
     <ThemeProvider theme={theme}>
-      <CssBaseline />
       <ToastContainer
-        position="top-right"
+        position="top-right"      // ✅ Changed from top-center to top-left
         autoClose={3000}
-        hideProgressBar={false}
+        hideProgressBar={true} 
         newestOnTop
         closeOnClick
         pauseOnHover
@@ -168,7 +167,7 @@ function App() {
         theme="light"
         toastClassName="custom-toast"
         bodyClassName="custom-toast-body"
-        style={{ zIndex: 9999 }}
+        style={{ zIndex: 9999, top: '24px', right: '24px' }} // ✅ Added left spacing
       />
 
       <Routes>
