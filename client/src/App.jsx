@@ -119,17 +119,31 @@ Placeholder.propTypes = {
 };
 
 // --- LAYOUT WRAPPER ---
+// --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const location = useLocation();
+
+  // Define which paths should show the Navbar
+  // "/" is your Dashboard according to your Routes configuration
+  const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
-        <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-      </div>
+    <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
+      
+      {/* Sidebar remains visible on all protected pages */}
+      <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
-        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        
+        {/* Conditional Rendering: Navbar only shows if isDashboard is true */}
+        {isDashboard && (
+          <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
+            <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+          </div>
+        )}
+
+        {/* Main Content Area */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
           <Suspense fallback={<PageLoader />}>
             <Outlet />
@@ -280,7 +294,7 @@ function App() {
           <Route path="/admin/settings/teams" element={<ManageTeams />} />
           {/* 12. Plan & Pricing */}
           <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
-          <Route path="/admin/plan/addons" element={<AddonsWCC />} />
+          <Route path="/admin/plan/addons-wcc" element={<AddonsWCC />} />
           <Route path="/admin/plan/active" element={<ActivePlan />} />
           <Route path="/admin/plan/history" element={<PaymentHistory />} />
           <Route path="/admin/plan/methods" element={<PaymentMethods />} />
@@ -300,7 +314,7 @@ function App() {
             element={<Placeholder title="Settings" />}
           />
           <Route path="/admin/account/profile" element={<UserProfile />} />
-          <Route path="/admin/account/plan" element={<ActivePlans />} />
+          <Route path="/admin/plan/active-plan" element={<ActivePlans />} />
           <Route path="/admin/profile/info" element={<UserProfile />} />
           <Route path="/admin/profile/business" element={<BusinessProfile />} />
 
