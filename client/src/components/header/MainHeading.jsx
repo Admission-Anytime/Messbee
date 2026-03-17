@@ -148,19 +148,14 @@ const MainHeading = ({ onMenuClick }) => {
     <div className="w-full flex items-center justify-between px-4 lg:px-6 py-2 bg-white border-b border-gray-100 shadow-sm sticky top-0 z-50 font-['Urbanist'] h-[70px]">
       
       {/* --- LEFT: LOGO SECTION --- */}
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center shrink-0">
         <button onClick={onMenuClick} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors">
           <Bars3Icon className="w-6 h-6" />
         </button>
-
-        <div onClick={() => navigate('/admin/dashboard')} className="flex items-center gap-2 cursor-pointer" title="Go to Dashboard">
-            <img src={logoIcon} alt="MessBee Logo" className="w-8 h-8 object-contain" />
-            <img src={logoName} alt="MessBee Name" className="h-6 w-auto object-contain mt-1" />
-        </div>
       </div>
 
       {/* --- CENTER: SEARCH BAR --- */}
-      <div className="flex-1 max-w-xl mx-6 hidden md:block">
+      <div className="flex-1 max-w-xl mx-4 hidden md:block">
          <div className="w-full h-10 bg-[#F1F5F9] rounded-lg border border-transparent focus-within:border-gray-300 focus-within:bg-white transition-all relative flex items-center group">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-gray-400 ml-3 group-focus-within:text-gray-600">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -183,7 +178,7 @@ const MainHeading = ({ onMenuClick }) => {
            </div>
         </button>
 
-        <button onClick={() => navigate('/admin/plan/billing')} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
+        <button   onClick={() => navigate('/admin/plan/active')} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
            <WalletIcon className="w-4 h-4 text-slate-500 group-hover:text-slate-700" />
            <div className="flex flex-col leading-none items-start">
              <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
