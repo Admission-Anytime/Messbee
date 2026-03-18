@@ -4,6 +4,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Payment success bounce animation */
+@keyframes bounceIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  80%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
 /* ✅ Apply globally with performance optimizations */
 * {
   /* Enable hardware acceleration for smooth animations */
