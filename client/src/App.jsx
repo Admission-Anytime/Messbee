@@ -121,15 +121,26 @@ Placeholder.propTypes = {
 // --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const location = useLocation();
 
+  const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      <div className="h-[70px] shrink-0 z-50 bg-white shadow-sm relative w-full">
-        <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
-      </div>
+    <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
+      
+      {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
+      <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
-      <div className="flex flex-1 overflow-hidden relative h-[calc(100vh-85px)]">
-        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      {/* 2. Main content container (Navbar + Page Content) */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        
+        {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
+        {isDashboard && (
+          <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
+            <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
+          </div>
+        )}
+
+        {/* 4. Page Content area */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
           <Suspense fallback={<PageLoader />}>
             <Outlet />
