@@ -877,7 +877,7 @@ const UpgradePlan = () => {
   const navigate = useNavigate();
 
   // FIX 1: unified billing cycle state (was split into billingCycle + billingPeriod)
-  const [billingCycle, setBillingCycle] = useState("quarterly");
+  const [billingCycle, setBillingCycle] = useState("yearly");
   const [selectedPlan, setSelectedPlan] = useState(null);
 
   // --- SLIDER STATE ---
@@ -1033,12 +1033,7 @@ const UpgradePlan = () => {
           </p>
         </div>
 
-        {/* --- PRICING SECTION --- */}
-        <section className="py-10 bg-white rounded-3xl" id="pricing">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-12">
-              <h2 className="text-3xl font-bold text-slate-900">Simple, transparent pricing</h2>
-              <p className="mt-4 text-slate-500">Choose the plan that fits your business stage.</p>
+                    <div className="text-center mb-12">
 
               {/* ── Billing Toggle ── */}
               <div className="mt-10 flex items-center justify-center">
@@ -1082,6 +1077,11 @@ const UpgradePlan = () => {
                 </div>
               </div>
             </div>
+
+        {/* --- PRICING SECTION --- */}
+        <section className="rounded-3xl" id="pricing">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
 
             {/* ── Plan Cards ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -1456,11 +1456,11 @@ const UpgradePlan = () => {
                 ))}
               </div>
             </div>
-            <div className="text-center pb-5">
+            {/* <div className="text-center pb-5">
               <a href="#" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 transition-colors">
                 Other country pricing →
               </a>
-            </div>
+            </div> */}
           </div>
         </div>
 

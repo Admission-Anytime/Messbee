@@ -120,8 +120,18 @@ Placeholder.propTypes = {
 
 // --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const location = useLocation();
+  
+  // Collapse sidebar by default on UpgradePlan page
+  const isPricingPage = location.pathname === "/admin/plan/upgrade";
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!isPricingPage);
+
+  // Collapse sidebar when navigating to pricing page
+  useEffect(() => {
+    if (isPricingPage) {
+      setIsSidebarOpen(false);
+    }
+  }, [isPricingPage]);
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   return (
