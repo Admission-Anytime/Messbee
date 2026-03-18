@@ -369,15 +369,15 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
           {/* Plan Card */}
           {isOpen && (
-            <div className="bg-[#F8FAFC] rounded-2xl p-4 mb-4 border border-slate-50 shadow-sm">
+            <div className="bg-[#F8FAFC] rounded-xl p-2.5 mb-2 border border-slate-50 shadow-sm">
               <div className="flex justify-between items-start">
-                <div className="flex flex-col gap-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan: Custom</p>
-                  <h4 className="text-[15px] font-extrabold text-slate-900">Standard</h4>
+                <div className="flex flex-col gap-0.5">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan: Custom</p>
+                  <h4 className="text-[13px] font-extrabold text-slate-900">Standard</h4>
                 </div>
-                <div className="text-right flex flex-col gap-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[15px] font-extrabold text-[#10B981]">₹617.56</span>
+                <div className="text-right flex flex-col gap-0.5">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
+                  <span className="text-[13px] font-extrabold text-[#10B981]">₹617.56</span>
                 </div>
               </div>
             </div>
