@@ -1,3 +1,4 @@
+/* eslint-disable react/prop-types */
 import { useState } from "react";
 import {
   CheckCircle,
@@ -415,13 +416,15 @@ const ToggleSwitch = ({ enabled, onChange, label, sublabel }) => (
    CONFIGURE MODAL
    ════════════════════════════════════════════════ */
 const ConfigureModal = ({ integration, onClose }) => {
-  const mapping = dataMappingConfig[integration.id] || dataMappingConfig["google-sheets"];
+  const mapping = dataMappingConfig[integration?.id] || dataMappingConfig["google-sheets"];
 
   const [fieldMappings, setFieldMappings] = useState(
     mapping.fields.map((f) => ({ ...f }))
   );
   const [syncAuto, setSyncAuto] = useState(true);
   const [updateRows, setUpdateRows] = useState(false);
+
+  if (!integration) return null;
 
   const handleColumnChange = (index, value) => {
     setFieldMappings((prev) =>
@@ -590,8 +593,11 @@ const ConfigureModal = ({ integration, onClose }) => {
 
 /* ── integration card component ── */
 const IntegrationCard = ({ integration, isInstalled, onInstall, onConfigure }) => {
-  const { name, description, icon, status, action } = integration;
   const [installing, setInstalling] = useState(false);
+  
+  if (!integration) return null;
+  
+  const { name, description, icon, status, action } = integration;
 
   const isComingSoon = status === "coming_soon";
 
@@ -688,7 +694,7 @@ const SyncHistoryView = ({ onBack }) => {
   const totalRecords = 1240;
 
   return (
-    <div className="p-6 max-h-[calc(100vh-120px)] overflow-y-auto">
+    <div className="p-6 min-h-screen overflow-y-auto">
       {/* ── header ── */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-start gap-3">
@@ -890,7 +896,7 @@ const SyncHistoryView = ({ onBack }) => {
    MAIN PAGE COMPONENT
    ════════════════════════════════════════════════ */
 const AppIntegration = () => {
-  const [sortBy, setSortBy] = useState("Most Popular");
+  const [sortBy] = useState("Most Popular");
   const [activeView, setActiveView] = useState("integrations");
   const [installedApps, setInstalledApps] = useState(new Set());
   const [configureTarget, setConfigureTarget] = useState(null); // integration object or null
@@ -910,7 +916,7 @@ const AppIntegration = () => {
 
   /* ── integrations view ── */
   return (
-    <div className="p-6 max-h-[calc(100vh-120px)] overflow-y-auto">
+    <div className="p-6 min-h-screen overflow-y-auto pb-12">
       {/* ── Configure modal ── */}
       {configureTarget && (
         <ConfigureModal
