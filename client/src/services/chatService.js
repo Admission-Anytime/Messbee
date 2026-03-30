@@ -266,6 +266,101 @@ const chatService = {
         error: error.message
       };
     }
+  },
+
+  /**
+   * Clear all messages in a chat
+   */
+  async clearChatHistory(chatId) {
+    try {
+      const response = await axios.delete(`/chats/${chatId}/messages`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error clearing chat history:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Delete a chat and all its messages
+   */
+  async deleteChat(chatId) {
+    try {
+      const response = await axios.delete(`/chats/${chatId}`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Update chat status (fixed: calling existing status route)
+   */
+  async updateChatStatus(chatId, chatStatus) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/status`, { chatStatus });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error updating chat status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Update chat labels
+   */
+  async updateChatLabels(chatId, labels) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/labels`, { labels });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error updating chat labels:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Toggle pinned status of a chat
+   */
+  async toggleChatPin(chatId) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/pin`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error toggling chat pin:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
   }
 };
 

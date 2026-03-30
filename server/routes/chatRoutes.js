@@ -16,7 +16,7 @@ router.use(protect);
 // 1. Get All Chats (Sidebar)
 router.get("/", async (req, res) => {
   try {
-    const chats = await Chat.find().sort({ updatedAt: -1 });
+    const chats = await Chat.find().sort({ isPinned: -1, updatedAt: -1 });
     res.json(chats);
   } catch (error) {
     res.status(500).json(error);
@@ -474,6 +474,21 @@ router.put("/:chatId/status", async (req, res) => {
   }
 });
 
+// 5b. Toggle Pin Status
+router.put("/:chatId/pin", async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "Chat not found" });
+    
+    chat.isPinned = !chat.isPinned;
+    await chat.save();
+    
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to toggle pin status", details: error.message });
+  }
+});
+
 // 6. Assign team member
 router.put("/:chatId/assign", async (req, res) => {
   try {
@@ -501,6 +516,47 @@ router.put("/:chatId/labels", async (req, res) => {
     res.json(chat);
   } catch (error) {
     res.status(500).json(error);
+  }
+});
+
+// 9. Clear Chat History (Soft delete all messages)
+router.delete("/:chatId/messages", async (req, res) => {
+  try {
+    await Message.updateMany(
+      { chatId: req.params.chatId },
+      { isDeleted: true, deletedAt: new Date() }
+    );
+    
+    // Update chat last message
+    await Chat.findByIdAndUpdate(req.params.chatId, {
+      lastMsg: "Chat history cleared",
+      unread: 0
+    });
+
+    res.json({ success: true, message: "Chat history cleared" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to clear chat history", details: error.message });
+  }
+});
+
+// 10. Delete Chat/Contact
+router.delete("/:chatId", async (req, res) => {
+  try {
+    const chatId = req.params.chatId;
+    
+    // Delete all messages associated with this chat
+    await Message.deleteMany({ chatId });
+    
+    // Delete the chat itself
+    const deletedChat = await Chat.findByIdAndDelete(chatId);
+    
+    if (!deletedChat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    res.json({ success: true, message: "Chat and associated messages deleted" });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to delete chat", details: error.message });
   }
 });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import chatService from "../../services/chatService";
 import { 
   PaperClipIcon, FaceSmileIcon, PhoneIcon, EllipsisVerticalIcon,
@@ -12,7 +12,7 @@ import { PaperAirplaneIcon, MegaphoneIcon, DocumentTextIcon, Squares2X2Icon, Che
 import EmojiPicker from "emoji-picker-react"; 
 
 // --- MOCK DATA ---
-const QUICK_REPLIES = [
+const QUICK_REPLIES_MOCK = [
   "Yes, please!",
   "Can you share more details?",
   "I'll check and revert shortly.",
@@ -33,22 +33,6 @@ const MEDIA_TABS = [
   { id: 'document', label: 'Documents', icon: DocumentIcon },
 ];
 
-const INITIAL_LABELS = [
-  { id: 'l1', name: 'Warm Lead', style: 'bg-[#f0fdf4] text-[#16a34a] border-[#bbf7d0]', dot: 'bg-green-500' },
-  { id: 'l2', name: 'Priority', style: 'bg-[#eff6ff] text-[#2563eb] border-[#dbeafe]', dot: 'bg-blue-500' },
-  { id: 'l3', name: 'Follow-up', style: 'bg-[#fff7ed] text-[#ea580c] border-[#ffedd5]', dot: 'bg-orange-500' },
-  { id: 'l4', name: 'Education', style: 'bg-[#faf5ff] text-[#9333ea] border-[#f3e8ff]', dot: 'bg-purple-500' },
-  { id: 'l5', name: 'VIP Client', style: 'bg-[#fef2f2] text-[#dc2626] border-[#fecaca]', dot: 'bg-red-500' },
-];
-
-const STATUS_OPTIONS = [
-  { id: 'cold', label: 'Cold Lead', dot: 'bg-blue-500' },
-  { id: 'warm', label: 'Warm Lead', dot: 'bg-orange-500' },
-  { id: 'hot', label: 'Hot Lead', dot: 'bg-red-500' },
-  { id: 'qualified', label: 'Qualified', dot: 'bg-purple-500' },
-  { id: 'invoiced', label: 'Invoiced', dot: 'bg-green-500' }
-];
-
 const AGENTS_LIST = [
   { id: 'a1', name: 'Alex Rivera', workload: 12, avatar: 'AR' },
   { id: 'a2', name: 'Sarah Chen', workload: 5, avatar: 'SC' },
@@ -57,7 +41,21 @@ const AGENTS_LIST = [
   { id: 'a5', name: 'Marcus Lee', workload: 8, avatar: 'ML' },
 ];
 
-const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat, onDeleteChat, onUpdateStatus, onViewHistory }) => {
+const Conversion = ({ 
+  data, 
+  onSendMessage, 
+  onBack, 
+  onToggleProfile, 
+  onClearChat, 
+  onDeleteChat, 
+  onUpdateStatus, 
+  onUpdateLabels, 
+  onTogglePin,
+  onViewHistory,
+  availableLabels = [],
+  statusOptions = [],
+  quickReplies = []
+}) => {
   const [inputText, setInputText] = useState("");
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -73,8 +71,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   
   const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
-  const [availableLabels, setAvailableLabels] = useState(INITIAL_LABELS);
-  const [appliedLabels, setAppliedLabels] = useState([INITIAL_LABELS[0], INITIAL_LABELS[1]]); 
 
   const [isChangeStatusModalOpen, setIsChangeStatusModalOpen] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState('warm');
@@ -88,6 +84,9 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   // File upload states
   const [uploadingFile, setUploadingFile] = useState(false);
   const [uploadError, setUploadError] = useState(null);
+
+  // Applied labels local state for the modal
+  const [appliedLabels, setAppliedLabels] = useState([]);
 
   const messagesEndRef = useRef(null);
   const menuRef = useRef(null);
@@ -108,6 +107,20 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Sync applied labels from chat data
+  useEffect(() => {
+    if (data.labels && availableLabels.length > 0) {
+      const chatLabels = availableLabels.filter(l => data.labels.includes(l.name));
+      setAppliedLabels(chatLabels);
+    } else {
+      setAppliedLabels([]);
+    }
+    
+    if (data.chatStatus) {
+      setSelectedStatus(data.chatStatus);
+    }
+  }, [data.labels, data.chatStatus, availableLabels]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -133,11 +146,9 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
     setUploadError(null);
     
     try {
-      // Upload file to WhatsApp via backend
       const uploadResult = await chatService.uploadFile(file);
       
       if (uploadResult.success) {
-        // Send message with uploaded media
         const mediaData = {
           id: uploadResult.mediaId,
           mediaId: uploadResult.mediaId,
@@ -146,7 +157,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
           fileName: uploadResult.fileName
         };
         
-        // Send with caption if there's any
         const caption = mediaCaption || file.name;
         await onSendMessage(caption, mediaData);
         
@@ -172,15 +182,36 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   };
 
   const toggleLabel = (label) => {
-    const isApplied = appliedLabels.find(l => l.id === label.id);
-    if (isApplied) setAppliedLabels(appliedLabels.filter(l => l.id !== label.id));
-    else setAppliedLabels([...appliedLabels, label]);
+    const lid = label._id || label.id;
+    const isApplied = appliedLabels.find(l => (l._id || l.id) === lid);
+    let newApplied;
+    if (isApplied) {
+      newApplied = appliedLabels.filter(l => (l._id || l.id) !== lid);
+    } else {
+      newApplied = [...appliedLabels, label];
+    }
+    setAppliedLabels(newApplied);
+  };
+
+  const handleSaveLabels = async () => {
+    if (onUpdateLabels) {
+      const labelNames = appliedLabels.map(l => l.name);
+      await onUpdateLabels(labelNames);
+    }
+    setIsLabelModalOpen(false);
+  };
+
+  const handleSaveStatus = async () => {
+    if (onUpdateStatus) {
+      await onUpdateStatus(selectedStatus);
+    }
+    setIsChangeStatusModalOpen(false);
   };
 
   const createNewLabel = () => {
     if (!labelSearch.trim()) return;
-    const newLabel = { id: `l${Date.now()}`, name: labelSearch.trim(), style: 'bg-slate-100 text-slate-700 border-slate-200', dot: 'bg-slate-500' };
-    setAvailableLabels([...availableLabels, newLabel]);
+    // Note: In a real app, this would call an API to create the label first
+    const newLabel = { id: `l${Date.now()}`, name: labelSearch.trim(), color: '#94a3b8' };
     setAppliedLabels([...appliedLabels, newLabel]);
     setLabelSearch("");
   };
@@ -188,6 +219,17 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   const filteredMedia = MOCK_MEDIA.filter(item => item.name.toLowerCase().includes(mediaSearch.toLowerCase()) && (mediaTab === 'recent' ? true : item.type === mediaTab));
   const activeMedia = MOCK_MEDIA.find(m => m.id === selectedMediaId);
   const filteredAgents = AGENTS_LIST.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
+
+  // Derived current labels for header display
+  const headerLabels = useMemo(() => {
+    if (!data.labels || availableLabels.length === 0) return [];
+    return availableLabels.filter(l => data.labels.includes(l.name));
+  }, [data.labels, availableLabels]);
+
+  // Limit Quick Replies to top 3 as requested
+  const displayQuickReplies = useMemo(() => {
+    return quickReplies.slice(0, 3);
+  }, [quickReplies]);
 
   return (
     <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
@@ -207,8 +249,8 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                     </button>
                     <div className="relative">
-                      <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-12 h-12 rounded-full object-cover" />
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
+                       <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-12 h-12 rounded-full object-cover" />
+                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
                     </div>
                     <div className="flex flex-col justify-center">
                        <h3 className="text-[15px] font-bold text-slate-900 leading-tight">{data.name}</h3>
@@ -216,7 +258,13 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                           <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
                           <span className="text-xs font-medium text-slate-500">Active now</span>
                           <span className="text-slate-300 text-xs">•</span>
-                          <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#16a34a] border border-[#bbf7d0] text-[10px] font-bold rounded-md shadow-sm">Warm Lead</span>
+                          <span className="px-2 py-0.5 text-[10px] font-bold rounded-md shadow-sm border" style={{ 
+                            backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '15') || '#f1f5f9', 
+                            color: statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color || '#64748b',
+                            borderColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '30') || '#e2e8f0'
+                          }}>
+                             {data.chatStatus ? data.chatStatus.charAt(0).toUpperCase() + data.chatStatus.slice(1) : 'Open'}
+                          </span>
                        </div>
                     </div>
                  </div>
@@ -260,8 +308,8 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                                 <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                     <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> Archive Chat
                                 </button>
-                                <button onClick={() => { onUpdateStatus && onUpdateStatus('pinned'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                    <MapPinIcon className="w-4 h-4 text-slate-400" /> Pin Chat
+                                <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                    <MapPinIcon className={`w-4 h-4 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
                                 </button>
 
                                 <div className="border-t border-slate-100 my-1.5"></div>
@@ -329,76 +377,61 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
       {/* 3. INPUT AREA */}
       <div className="p-4 bg-white z-20 relative">
          
-         {/* ✅ QUICK REPLIES BAR */}
          <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3 px-1 mb-1">
-            {QUICK_REPLIES.map((reply, idx) => (
+            {QUICK_REPLIES_MOCK.map((reply, idx) => (
                <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-4 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
                   {reply}
                </button>
             ))}
          </div>
 
-         {/* Emoji Picker Overlay */}
          {showEmojiPicker && (
             <div className="absolute bottom-32 right-10 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200" ref={emojiRef}>
                <EmojiPicker onEmojiClick={onEmojiClick} height={350} width={300} />
             </div>
          )}
 
-         {/* Template Picker Overlay */}
          {showTemplates && (
             <div className="absolute bottom-28 left-6 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
-                <div className="p-3 border-b border-slate-100">
-                   <div className="flex items-center bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
-                      <MagnifyingGlassIcon className="w-4 h-4 text-slate-400"/>
-                      <input placeholder="/" autoFocus className="bg-transparent border-none outline-none text-xs ml-2 w-full text-slate-700"/>
-                      <span className="text-slate-400 text-xs font-mono">ⓘ</span>
-                   </div>
+                <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                   <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Quick Replies</h4>
+                   <span className="text-[10px] font-bold text-slate-400">{displayQuickReplies.length} REPLIES FOUND</span>
                 </div>
                 <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                   <div 
-                      onClick={() => handleTemplateSelect("Congratulations {{1}}! You have been...")} 
-                      className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
-                   >
-                       <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-                          <MegaphoneIcon className="w-5 h-5" />
-                       </div>
-                       <div className="flex-1">
-                          <div className="flex justify-between items-center mb-1">
-                             <h4 className="text-xs font-bold text-slate-900">Admission_Success</h4>
-                             <span className="text-[9px] font-extrabold text-purple-600 bg-purple-100 px-1.5 py-0.5 rounded uppercase">Marketing</span>
+                   {displayQuickReplies.map((reply) => (
+                      <div 
+                         key={reply._id}
+                         onClick={() => handleTemplateSelect(reply.content)} 
+                         className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+                      >
+                          <div className="w-10 h-10 rounded-xl bg-green-50 text-[#22C55E] flex items-center justify-center shrink-0">
+                             <ChatBubbleLeftRightIcon className="w-5 h-5" />
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate">Congratulations {"{{1}}"} ! You have been...</p>
-                       </div>
-                   </div>
-                   <div 
-                      onClick={() => handleTemplateSelect("Dear {{1}}, your payment for {{2}} is...")} 
-                      className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
-                   >
-                       <div className="w-10 h-10 rounded-xl bg-orange-50 text-orange-500 flex items-center justify-center shrink-0">
-                          <DocumentTextIcon className="w-5 h-5" />
-                       </div>
-                       <div className="flex-1">
-                          <div className="flex justify-between items-center mb-1">
-                             <h4 className="text-xs font-bold text-slate-900">Payment_Reminder</h4>
-                             <span className="text-[9px] font-extrabold text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded uppercase">Utility</span>
+                          <div className="flex-1 min-w-0">
+                             <div className="flex justify-between items-center mb-1">
+                                <h4 className="text-xs font-bold text-slate-900 truncate">{reply.shortcut}</h4>
+                                <span className="text-[9px] font-extrabold text-green-600 bg-green-100 px-1.5 py-0.5 rounded uppercase">Reply</span>
+                             </div>
+                             <p className="text-[11px] text-slate-500 truncate">{reply.content}</p>
                           </div>
-                          <p className="text-[11px] text-slate-500 truncate">Dear {"{{1}}"}, your payment for {"{{2}}"} is...</p>
-                       </div>
-                   </div>
+                      </div>
+                   ))}
+                   {displayQuickReplies.length === 0 && (
+                      <div className="p-8 text-center">
+                         <p className="text-sm text-slate-400 font-medium">No quick replies found.</p>
+                         <p className="text-[10px] text-slate-400 mt-1">Add them in CRM Settings</p>
+                      </div>
+                   )}
                 </div>
                 <div className="px-4 py-2.5 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between">
-                    <span>Use ↑ ↓ to navigate</span><span>Enter to select 3 templates found</span>
+                    <span>Type to filter</span><span>Enter to select</span>
                 </div>
             </div>
          )}
 
          <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-         {/* ✅ ALL-IN-ONE PILL INPUT FORM (Matches Screenshot) */}
          <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1.5 shadow-sm transition-all relative">
-            
-            {/* Left Icons: Clip & Slash */}
             <div className="flex items-center gap-1 pl-2">
                 <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
                     <PaperClipIcon className="w-5 h-5" />
@@ -407,8 +440,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                     /
                 </button>
             </div>
-
-            {/* Input Field */}
             <input 
                type="text" 
                value={inputText} 
@@ -420,8 +451,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                placeholder="Type a message or use '/' for shortcuts..." 
                className="flex-1 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
             />
-
-            {/* Right Icons: Bolt, Smiley, Send */}
             <div className="flex items-center gap-1.5 pr-1">
                 <button type="button" onClick={() => setShowTemplates(!showTemplates)} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center">
                     <BoltIcon className="w-5 h-5" />
@@ -434,12 +463,9 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                 </button>
             </div>
          </form>
-
       </div>
 
-      {/* ========================================================= */}
-      {/* 🟢 CUSTOM MEDIA SELECTOR MODAL (Retained) 🟢 */}
-      {/* ========================================================= */}
+      {/* MODALS */}
       {isMediaModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 md:p-8 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-[1100px] h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -467,19 +493,19 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                  </div>
                  <div className="flex-1 bg-[#F8FAFC] p-6 overflow-y-auto custom-scrollbar">
                     {filteredMedia.length > 0 ? (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                         {filteredMedia.map((item) => (
-                            <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
-                               {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
-                               <div className="aspect-square bg-slate-50 rounded-lg mb-3 overflow-hidden flex items-center justify-center relative">
-                                  {item.type === 'image' ? <img src={item.url} alt="" className="w-full h-full object-cover" /> : <div className="text-center text-blue-400"><DocumentIcon className="w-10 h-10 mx-auto mb-1"/><span className="text-[10px] font-bold uppercase">PDF</span></div>}
-                               </div>
-                               <div className="px-1 pb-1"><h4 className="text-sm font-bold text-slate-800 truncate">{item.name}</h4><div className="flex items-center text-xs text-slate-400 mt-1 gap-1.5"><span>{item.size}</span><span>•</span><span>{item.date}</span></div></div>
-                            </div>
-                         ))}
-                      </div>
+                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                          {filteredMedia.map((item) => (
+                             <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
+                                {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
+                                <div className="aspect-square bg-slate-50 rounded-lg mb-3 overflow-hidden flex items-center justify-center relative">
+                                   {item.type === 'image' ? <img src={item.url} alt="" className="w-full h-full object-cover" /> : <div className="text-center text-blue-400"><DocumentIcon className="w-10 h-10 mx-auto mb-1"/><span className="text-[10px] font-bold uppercase">PDF</span></div>}
+                                </div>
+                                <div className="px-1 pb-1"><h4 className="text-sm font-bold text-slate-800 truncate">{item.name}</h4><div className="flex items-center text-xs text-slate-400 mt-1 gap-1.5"><span>{item.size}</span><span>•</span><span>{item.date}</span></div></div>
+                             </div>
+                          ))}
+                       </div>
                     ) : (
-                      <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
+                       <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
                     )}
                  </div>
                  <div className="w-[320px] border-l border-slate-100 bg-white flex flex-col shrink-0">
@@ -510,9 +536,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 🟢 MANAGE LABELS MODAL 🟢 */}
-      {/* ========================================================= */}
       {isLabelModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-[420px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
@@ -530,7 +553,7 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                     <div className="flex flex-wrap gap-2 min-h-[30px]">
                        {appliedLabels.length === 0 && <p className="text-xs text-slate-400 italic">No labels applied yet.</p>}
                        {appliedLabels.map(label => (
-                          <span key={label.id} className={`flex items-center gap-1.5 px-3 py-1.5 ${label.style} border text-xs font-bold rounded-lg shadow-sm`}>{label.name}<XMarkIcon className="w-3.5 h-3.5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => toggleLabel(label)}/></span>
+                          <span key={label._id || label.id} className="flex items-center gap-1.5 px-3 py-1.5 border text-xs font-bold rounded-lg shadow-sm" style={{ backgroundColor: label.color + '15', color: label.color, borderColor: label.color + '30' }}>{label.name}<XMarkIcon className="w-3.5 h-3.5 cursor-pointer opacity-70 hover:opacity-100 transition-opacity" onClick={() => toggleLabel(label)}/></span>
                        ))}
                     </div>
                  </div>
@@ -543,45 +566,40 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                          </div>
                        )}
                        {availableLabels.filter(l => l.name.toLowerCase().includes(labelSearch.toLowerCase())).map(label => {
-                          const isApplied = appliedLabels.some(al => al.id === label.id);
-                          return (
-                             <div key={label.id} onClick={() => toggleLabel(label)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors">
-                                <div className="w-5 flex justify-center items-center shrink-0">{isApplied ? <CheckIcon className="w-4 h-4 text-[#22C55E]" /> : <div className="w-4 h-4 rounded-full border border-slate-200 group-hover:border-slate-300"></div>}</div>
-                                <span className={`w-2 h-2 rounded-full shrink-0 ${label.dot}`}></span><span className="text-sm font-medium text-slate-700 truncate">{label.name}</span>
-                             </div>
-                          );
-                       })}
+                           const lid = label._id || label.id;
+                           const isApplied = appliedLabels.some(al => (al._id || al.id) === lid);
+                           return (
+                              <div key={lid} onClick={() => toggleLabel(label)} className="flex items-center gap-3 px-3 py-2.5 hover:bg-slate-50 rounded-xl cursor-pointer group transition-colors">
+                                 <div className="w-5 flex justify-center items-center shrink-0">{isApplied ? <CheckIcon className="w-4 h-4 text-[#22C55E]" /> : <div className="w-4 h-4 rounded-full border border-slate-200 group-hover:border-slate-300"></div>}</div>
+                                 <span className="w-2 h-2 rounded-full shrink-0" style={{backgroundColor: label.color || '#94a3b8'}}></span><span className="text-sm font-medium text-slate-700 truncate">{label.name}</span>
+                              </div>
+                           );
+                        })}
                     </div>
                  </div>
               </div>
               <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-3 shrink-0">
                  <button onClick={() => setIsLabelModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors">Cancel</button>
-                 <button onClick={() => setIsLabelModalOpen(false)} className="px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">Save Changes</button>
+                 <button onClick={handleSaveLabels} className="px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">Save Changes</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 🟢 CHANGE STATUS MODAL 🟢 */}
-      {/* ========================================================= */}
       {isChangeStatusModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-[450px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
-                 <div>
-                    <h2 className="text-base font-bold text-slate-900 leading-none mb-1">Update Lead Status</h2>
-                    <p className="text-xs font-medium text-slate-500"><span className="font-bold text-[#22C55E]">{data.name}</span> • Lead ID: MB-9821</p>
-                 </div>
+                 <div><h2 className="text-base font-bold text-slate-900 leading-none mb-1">Update Lead Status</h2><p className="text-xs font-medium text-slate-500"><span className="font-bold text-[#22C55E]">{data.name}</span></p></div>
                  <button onClick={() => setIsChangeStatusModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors -mr-1.5 -mt-1.5"><XMarkIcon className="w-5 h-5" /></button>
               </div>
               <div className="p-6">
                  <p className="text-[11px] font-bold text-slate-500 mb-3 tracking-wide">Select New Status</p>
                  <div className="space-y-2.5 max-h-60 overflow-y-auto custom-scrollbar pr-1">
-                    {STATUS_OPTIONS.map(status => (
-                       <div key={status.id} onClick={() => setSelectedStatus(status.id)} className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${selectedStatus === status.id ? 'border-[#22C55E] ring-1 ring-[#22C55E] bg-[#f0fdf4]' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                          <div className="flex items-center gap-3"><span className={`w-2.5 h-2.5 rounded-full ${status.dot}`}></span><span className={`text-sm font-bold ${selectedStatus === status.id ? 'text-slate-900' : 'text-slate-700'}`}>{status.label}</span></div>
-                          {selectedStatus === status.id && <SolidCheckCircle className="w-5 h-5 text-[#22C55E]" />}
+                    {statusOptions.map(status => (
+                       <div key={status.id} onClick={() => setSelectedStatus(status.label.toLowerCase())} className={`flex items-center justify-between p-3.5 rounded-xl border cursor-pointer transition-all ${selectedStatus === status.label.toLowerCase() ? 'border-[#22C55E] ring-1 ring-[#22C55E] bg-[#f0fdf4]' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                          <div className="flex items-center gap-3"><span className="w-2.5 h-2.5 rounded-full" style={{backgroundColor: status.original?.color || '#cbd5e1'}}></span><span className={`text-sm font-bold ${selectedStatus === status.label.toLowerCase() ? 'text-slate-900' : 'text-slate-700'}`}>{status.label}</span></div>
+                          {selectedStatus === status.label.toLowerCase() && <SolidCheckCircle className="w-5 h-5 text-[#22C55E]" />}
                        </div>
                     ))}
                  </div>
@@ -592,27 +610,21 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
               </div>
               <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between shrink-0">
                  <button onClick={() => setIsChangeStatusModalOpen(false)} className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
-                 <button onClick={() => setIsChangeStatusModalOpen(false)} className="flex items-center gap-2 px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">Confirm Status Update</button>
+                 <button onClick={handleSaveStatus} className="flex items-center gap-2 px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">Confirm Status Update</button>
               </div>
            </div>
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* 🟢 ASSIGN AGENT MODAL 🟢 */}
-      {/* ========================================================= */}
       {isAssignAgentModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-[450px] rounded-3xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
               <div className="px-6 py-5 border-b border-slate-100 flex items-start justify-between">
-                 <div>
-                    <h2 className="text-base font-bold text-slate-900">Assign Agent</h2>
-                    <p className="text-sm font-medium text-slate-500">Select a team member to manage this chat</p>
-                 </div>
+                 <div><h2 className="text-base font-bold text-slate-900">Assign Agent</h2><p className="text-sm font-medium text-slate-500">Select a team member to manage this chat</p></div>
                  <button onClick={() => setIsAssignAgentModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors -mr-1.5 -mt-1.5"><XMarkIcon className="w-5 h-5" /></button>
               </div>
               <div className="p-6">
-                 <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] transition-all mb-4">
+                  <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] transition-all mb-4">
                     <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
                     <input type="text" value={agentSearch} onChange={(e) => setAgentSearch(e.target.value)} placeholder="Search agents by name or email..." className="flex-1 bg-transparent border-none outline-none text-sm text-slate-800 placeholder:text-slate-400" autoFocus />
                  </div>
@@ -632,7 +644,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
                           <div className="w-5 h-5 flex justify-center items-center shrink-0">{selectedAgent === agent.id ? <SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>}</div>
                        </div>
                     ))}
-                    {filteredAgents.length === 0 && <p className="text-center text-sm text-slate-400 py-4">No agents found.</p>}
                  </div>
                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between bg-green-50/50 p-4 rounded-2xl border border-green-100">
                     <div className="flex items-center gap-3">
@@ -651,7 +662,6 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
            </div>
         </div>
       )}
-
     </div>
   );
 };

@@ -1,10 +1,14 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { ExclamationTriangleIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
 import ActivityLog from "./ActivityLog"; 
 import axios from "../../context/axios";
 import chatService from "../../services/chatService";
+import LabelApi from "../../services/LabelApi";
+import StatusApi from "../../services/StatusApi";
+import QuickReplyApi from "../../services/QuickReplyApi";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
 
@@ -20,8 +24,23 @@ const Chat = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // ✅ Dynamic Data for Labels, Statuses, and Quick Replies
+  const [availableLabels, setAvailableLabels] = useState([]);
+  const [statusOptions, setStatusOptions] = useState([]);
+  const [quickReplies, setQuickReplies] = useState([]);
+
   // ✅ State to track if we are viewing the Activity Log instead of Chat
   const [showActivityLog, setShowActivityLog] = useState(false);
+
+  // ✅ Confirmation Modal States
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+  const [confirmConfig, setConfirmConfig] = useState({
+    title: "",
+    message: "",
+    confirmText: "",
+    onConfirm: () => {},
+    type: "danger" // 'danger' or 'warning'
+  });
 
   useEffect(() => {
     socket = io(SOCKET_URL);
@@ -48,7 +67,30 @@ const Chat = () => {
       }
     };
 
+    const fetchLabelsAndStatuses = async () => {
+      try {
+        const labelsData = await LabelApi.getAllLabels();
+        setAvailableLabels(labelsData);
+        
+        const statusData = await StatusApi.getAllStatuses();
+        const formattedStatuses = statusData.map(s => ({
+          id: s._id,
+          label: s.name,
+          dot: s.color ? `bg-[${s.color}]` : 'bg-slate-300',
+          original: s
+        }));
+        setStatusOptions(formattedStatuses);
+
+        // Fetch Quick Replies
+        const replies = await QuickReplyApi.getQuickReplies();
+        setQuickReplies(replies);
+      } catch (error) {
+        console.error("Error fetching dynamic chat data:", error);
+      }
+    };
+
     fetchChats();
+    fetchLabelsAndStatuses();
 
     // Listen for incoming messages
     socket.on("receive_message", (data) => {
@@ -317,9 +359,97 @@ const Chat = () => {
     }
   };
 
+  const handleClearChat = () => {
+    if (!activeChatId) return;
+    
+    setConfirmConfig({
+      title: "Clear Chat History",
+      message: "Are you sure you want to clear this chat history? This action will remove all messages from your view and cannot be undone.",
+      confirmText: "Clear History",
+      type: "danger",
+      onConfirm: async () => {
+        try {
+          const result = await chatService.clearChatHistory(activeChatId);
+          if (result.success) {
+            setMessages([]);
+            setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, lastMsg: "Chat history cleared" } : c));
+          } else {
+            console.error("Failed to clear chat:", result.error);
+          }
+        } catch (err) {
+          console.error("Error clearing chat:", err);
+        }
+        setIsConfirmModalOpen(false);
+      }
+    });
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleDeleteChat = () => {
+    if (!activeChatId) return;
+    
+    setConfirmConfig({
+      title: "Delete Contact",
+      message: "Are you sure you want to delete this contact and all its messages? This action is permanent and cannot be reversed.",
+      confirmText: "Delete Contact",
+      type: "danger",
+      onConfirm: async () => {
+        try {
+          const result = await chatService.deleteChat(activeChatId);
+          if (result.success) {
+            const deletedId = activeChatId;
+            setActiveChatId(null);
+            setChats(prev => prev.filter(c => c._id !== deletedId));
+          } else {
+            console.error("Failed to delete chat:", result.error);
+          }
+        } catch (err) {
+          console.error("Error deleting chat:", err);
+        }
+        setIsConfirmModalOpen(false);
+      }
+    });
+    setIsConfirmModalOpen(true);
+  };
+
+  const handleUpdateStatus = async (status) => {
+    if (!activeChatId) return;
+    try {
+      const result = await chatService.updateChatStatus(activeChatId, status);
+      if (result.success) {
+        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, chatStatus: status } : c));
+      }
+    } catch (err) {
+      console.error("Error updating status:", err);
+    }
+  };
+
+  const handleUpdateLabels = async (labels) => {
+    if (!activeChatId) return;
+    try {
+      const result = await chatService.updateChatLabels(activeChatId, labels);
+      if (result.success) {
+        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, labels: labels } : c));
+      }
+    } catch (err) {
+      console.error("Error updating labels:", err);
+    }
+  };
+
+  const handleTogglePin = async () => {
+    if (!activeChatId) return;
+    try {
+      const result = await chatService.toggleChatPin(activeChatId);
+      if (result.success) {
+        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, isPinned: !c.isPinned } : c));
+      }
+    } catch (err) {
+      console.error("Error toggling pin status:", err);
+    }
+  };
+
   if (error && !loading) return <ErrorState onRetry={() => window.location.reload()} message={error} />;
 
-  // ✅ IF showActivityLog is true, completely swap out the UI with the Activity Log
   if (showActivityLog) {
     return <ActivityLog onBack={() => setShowActivityLog(false)} />;
   }
@@ -362,8 +492,15 @@ const Chat = () => {
                   onSendMessage={handleSendMessage} 
                   onBack={() => setActiveChatId(null)} 
                   onToggleProfile={() => setShowProfile(!showProfile)} 
-                  // ✅ Pass this so the 3-dot menu inside Chat can open the Activity Log
+                  onClearChat={handleClearChat}
+                  onDeleteChat={handleDeleteChat}
+                  onUpdateStatus={handleUpdateStatus}
+                  onUpdateLabels={handleUpdateLabels}
+                  onTogglePin={handleTogglePin}
                   onViewHistory={() => setShowActivityLog(true)} 
+                  availableLabels={availableLabels}
+                  statusOptions={statusOptions}
+                  quickReplies={quickReplies}
                 />
              </div>
              
@@ -373,8 +510,9 @@ const Chat = () => {
                    <UserProfilePanel 
                      data={activeChat} 
                      onClose={() => setShowProfile(false)} 
-                     // ✅ Pass this so the button in the profile panel can open the Activity Log
                      onViewHistory={() => setShowActivityLog(true)} 
+                     availableLabels={availableLabels}
+                     statusOptions={statusOptions}
                    />
                 </div>
              )}
@@ -383,6 +521,42 @@ const Chat = () => {
           <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50"><p className="font-semibold text-slate-500">Select a conversation</p></div>
         )}
       </div>
+
+      {/* CUSTOM CONFIRMATION MODAL */}
+      {isConfirmModalOpen && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setIsConfirmModalOpen(false)}></div>
+          <div className="bg-white w-full max-w-[400px] rounded-3xl shadow-2xl relative overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-14 h-14 bg-red-50 rounded-2xl mb-5 mx-auto">
+                <ExclamationTriangleIcon className="w-8 h-8 text-red-500" />
+              </div>
+              
+              <div className="text-center mb-8">
+                <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmConfig.title}</h3>
+                <p className="text-sm font-medium text-slate-500 leading-relaxed px-2">
+                  {confirmConfig.message}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <button 
+                  onClick={() => setIsConfirmModalOpen(false)}
+                  className="px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-2xl transition-colors border border-slate-100"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmConfig.onConfirm}
+                  className="px-6 py-3 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-2xl transition-all shadow-lg shadow-red-100 active:scale-[0.98]"
+                >
+                  {confirmConfig.confirmText}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
