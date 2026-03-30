@@ -198,6 +198,36 @@ const chatService = {
   },
 
   /**
+   * Upload file to WhatsApp (returns media ID for sending)
+   */
+  async uploadFile(file) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await axios.post('/chats/upload-file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      return {
+        success: true,
+        mediaId: response.data.mediaId,
+        fileUrl: response.data.fileUrl,
+        fileName: response.data.fileName,
+        mimeType: response.data.mimeType
+      };
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message
+      };
+    }
+  },
+
+  /**
    * Upload file and get media ID
    * This is a helper function that combines file upload with WhatsApp media upload
    */

@@ -4,6 +4,10 @@ const Message = require("../models/Message");
 const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
 const { protect } = require('../middleware/auth');
+const upload = require('../middleware/upload');
+const path = require('path');
+const fs = require('fs');
+const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const router = express.Router();
 
 // Protect all chat routes
@@ -30,15 +34,32 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Check if chat already exists
+    // Normalize phone numbers
+    const normalizedPhone = normalizePhoneNumber(phone || whatsappId);
+    
+    console.log(`📝 Creating/finding chat for: ${normalizedPhone} (original: ${phone || whatsappId})`);
+
+    // Check if chat already exists (check both normalized and original)
     const existingChat = await Chat.findOne({ 
       $or: [
+        { phone: normalizedPhone },
+        { whatsappId: normalizedPhone },
         { phone: phone || whatsappId },
         { whatsappId: whatsappId || phone }
       ]
     });
 
     if (existingChat) {
+      console.log(`✅ Chat already exists for ${normalizedPhone}: ${existingChat._id}`);
+      
+      // Update the chat with normalized phone if needed
+      if (existingChat.phone !== normalizedPhone) {
+        existingChat.phone = normalizedPhone;
+        existingChat.whatsappId = normalizedPhone;
+        await existingChat.save();
+        console.log(`   ✓ Updated phone to normalized format: ${normalizedPhone}`);
+      }
+      
       return res.json({
         success: true,
         data: existingChat,
@@ -46,26 +67,29 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Create new chat
+    // Create new chat with normalized phone
     const newChat = await Chat.create({
-      name: name || phone || whatsappId,
-      phone: phone || whatsappId,
-      whatsappId: whatsappId || phone,
+      name: name || normalizedPhone,
+      phone: normalizedPhone,
+      whatsappId: normalizedPhone,
       source: source,
       status: "offline",
       chatStatus: "open",
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name || phone || whatsappId)}&background=random`,
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(name || normalizedPhone)}&background=random`,
       teamMember: "Unassigned",
       unread: 0,
       lastMsg: "",
       lastMsgTime: ""
     });
 
+    console.log(`✅ Created new chat for ${normalizedPhone}: ${newChat._id}`);
+
     // Emit socket event for new chat
     try {
       const io = getIO();
       if (io) {
         io.emit("chat_created", newChat);
+        console.log(`📡 Emitted chat_created event`);
       }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
@@ -102,34 +126,63 @@ router.post("/message", async (req, res) => {
   const { chatId, text, sender, time, media, mediaType } = req.body;
   
   try {
+    console.log(`📨 Sending message to chat ${chatId}:`, {
+      sender,
+      hasText: !!text,
+      hasMedia: !!media,
+      mediaType
+    });
+
     // Get chat info
     const chat = await Chat.findById(chatId);
     if (!chat) {
+      console.error(`❌ Chat not found: ${chatId}`);
       return res.status(404).json({ error: "Chat not found" });
     }
+
+    console.log(`💬 Chat found: ${chat.name} (${chat.phone}), Source: ${chat.source}`);
 
     // If message is from 'me' (agent) and chat source is WhatsApp, send via WhatsApp API
     if (sender === "me" && chat.source === "whatsapp" && chat.whatsappId) {
       let whatsappResult;
+      let displayText = text;
 
       // Handle media messages
       if (media && mediaType) {
-        // If media.id is provided (media already uploaded to WhatsApp)
-        if (media.id) {
-          whatsappResult = await whatsappService.sendMediaMessage(
-            chat.whatsappId, 
-            mediaType, 
-            media.id,
-            text || '' // Caption
-          );
-        } else {
+        const mediaId = media.id || media.mediaId;
+        
+        if (!mediaId) {
           return res.status(400).json({ 
-            error: "Media ID required. Please upload media to WhatsApp first." 
+            error: "Media ID required. Please upload media to WhatsApp first using /api/chats/upload-file" 
           });
         }
-      } else {
+        
+        // Determine media type for WhatsApp API
+        let whatsappMediaType = mediaType;
+        if (mediaType.includes('image')) {
+          whatsappMediaType = 'image';
+        } else if (mediaType.includes('video')) {
+          whatsappMediaType = 'video';
+        } else if (mediaType.includes('audio')) {
+          whatsappMediaType = 'audio';
+        } else {
+          whatsappMediaType = 'document';
+        }
+        
+        whatsappResult = await whatsappService.sendMediaMessage(
+          chat.whatsappId, 
+          whatsappMediaType, 
+          mediaId,
+          text || '' // Caption
+        );
+        
+        // Set display text for message
+        displayText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
+      } else if (text && text.trim()) {
         // Send text message
         whatsappResult = await whatsappService.sendTextMessage(chat.whatsappId, text);
+      } else {
+        return res.status(400).json({ error: "Message text or media is required" });
       }
       
       if (!whatsappResult.success) {
@@ -143,19 +196,19 @@ router.post("/message", async (req, res) => {
       // Create Message with WhatsApp message ID
       const newMessage = await Message.create({ 
         chatId, 
-        text: text || (media ? `${mediaType} message` : ''), 
+        text: displayText, 
         sender, 
         time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         whatsappMessageId: whatsappResult.messageId,
         messageType: mediaType || "text",
-        mediaUrl: media?.url,
-        mediaType: mediaType,
+        mediaUrl: media?.url || media?.fileUrl,
+        caption: text,
         status: "sent"
       });
 
       // Update Chat Metadata
       await Chat.findByIdAndUpdate(chatId, {
-        lastMsg: text || (media ? `${mediaType} message` : ''),
+        lastMsg: displayText,
         lastMsgTime: newMessage.time,
         lastActivity: new Date()
       });
@@ -164,19 +217,24 @@ router.post("/message", async (req, res) => {
       try {
         const io = getIO();
         if (io) {
+          console.log(`📡 Emitting message_sent event for chat ${chatId}`);
           io.emit("message_sent", {
             chatId: chatId,
             message: newMessage
           });
+          console.log(`✅ Socket event emitted successfully`);
+        } else {
+          console.warn(`⚠️  Socket.IO not initialized`);
         }
       } catch (socketError) {
-        console.error("Socket error:", socketError.message);
+        console.error("❌ Socket error:", socketError.message);
       }
 
       return res.json({
         success: true,
         data: newMessage,
-        whatsappMessageId: whatsappResult.messageId
+        whatsappMessageId: whatsappResult.messageId,
+        warning: 'Message sent to WhatsApp. If recipient doesn\'t receive it within a few minutes, they may not have WhatsApp installed or active on this number.'
       });
     }
 
@@ -188,7 +246,6 @@ router.post("/message", async (req, res) => {
       time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       messageType: mediaType || "text",
       mediaUrl: media?.url,
-      mediaType: mediaType,
       status: sender === "them" ? "delivered" : "sent"
     });
     
@@ -247,7 +304,62 @@ router.put("/:chatId/read", async (req, res) => {
   }
 });
 
-// 5. Upload media to WhatsApp (for sending media messages)
+// 5. Upload file and get media for WhatsApp
+router.post("/upload-file", upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ 
+        error: "No file uploaded" 
+      });
+    }
+
+    const filePath = req.file.path;
+    const mimeType = req.file.mimetype;
+    
+    console.log(`📁 File uploaded: ${filePath}, Type: ${mimeType}`);
+
+    // Upload to WhatsApp servers
+    const result = await whatsappService.uploadMedia(filePath, mimeType);
+
+    if (!result.success) {
+      // Clean up local file on failure
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+      
+      return res.status(500).json({
+        error: "Failed to upload media to WhatsApp",
+        details: result.error
+      });
+    }
+
+    // Get file URL for preview (optional - can delete after upload to WhatsApp)
+    const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+    res.json({
+      success: true,
+      mediaId: result.mediaId,
+      fileUrl: fileUrl,
+      fileName: req.file.originalname,
+      mimeType: mimeType,
+      size: req.file.size
+    });
+  } catch (error) {
+    console.error("Error uploading file:", error);
+    
+    // Clean up local file on error
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+    
+    res.status(500).json({ 
+      error: "Failed to upload file",
+      details: error.message 
+    });
+  }
+});
+
+// 5b. Upload media to WhatsApp (from URL - legacy support)
 router.post("/upload-media", async (req, res) => {
   try {
     const { fileUrl, mimeType } = req.body;
@@ -258,7 +370,7 @@ router.post("/upload-media", async (req, res) => {
       });
     }
 
-    const result = await whatsappService.uploadMedia(fileUrl, mimeType);
+    const result = await whatsappService.uploadMediaFromUrl(fileUrl, mimeType);
 
     if (!result.success) {
       return res.status(500).json({

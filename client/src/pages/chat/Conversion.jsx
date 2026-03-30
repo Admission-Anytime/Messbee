@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import chatService from "../../services/chatService";
 import { 
   PaperClipIcon, FaceSmileIcon, PhoneIcon, EllipsisVerticalIcon,
   TrashIcon, NoSymbolIcon, UserCircleIcon, 
@@ -83,6 +84,10 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   const [agentSearch, setAgentSearch] = useState("");
   const [selectedAgent, setSelectedAgent] = useState('a1');
   const [isSmartRouting, setIsSmartRouting] = useState(false);
+  
+  // File upload states
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [uploadError, setUploadError] = useState(null);
 
   const messagesEndRef = useRef(null);
   const menuRef = useRef(null);
@@ -114,14 +119,49 @@ const Conversion = ({ data, onSendMessage, onBack, onToggleProfile, onClearChat,
   };
 
   const onEmojiClick = (emojiObject) => setInputText((prev) => prev + emojiObject.emoji);
-  const handleTemplateSelect = (template) => { setInputText(template); setShowTemplates(false); };
+  
+  const handleTemplateSelect = (template) => { 
+    setInputText(template); 
+    setShowTemplates(false); 
+  };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files[0];
-    if (file) {
-      onSendMessage(`[Sent Local File: ${file.name}]`);
-      setIsMediaModalOpen(false);
-    } 
+    if (!file) return;
+    
+    setUploadingFile(true);
+    setUploadError(null);
+    
+    try {
+      // Upload file to WhatsApp via backend
+      const uploadResult = await chatService.uploadFile(file);
+      
+      if (uploadResult.success) {
+        // Send message with uploaded media
+        const mediaData = {
+          id: uploadResult.mediaId,
+          mediaId: uploadResult.mediaId,
+          url: uploadResult.fileUrl,
+          type: uploadResult.mimeType,
+          fileName: uploadResult.fileName
+        };
+        
+        // Send with caption if there's any
+        const caption = mediaCaption || file.name;
+        await onSendMessage(caption, mediaData);
+        
+        setMediaCaption("");
+        setIsMediaModalOpen(false);
+      } else {
+        setUploadError(uploadResult.error);
+        console.error('File upload failed:', uploadResult.error);
+      }
+    } catch (error) {
+      setUploadError('Failed to upload file. Please try again.');
+      console.error('File upload error:', error);
+    } finally {
+      setUploadingFile(false);
+    }
   };
 
   const handleSendMedia = () => {

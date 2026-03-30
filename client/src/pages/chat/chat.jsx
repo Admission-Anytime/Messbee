@@ -91,15 +91,24 @@ const Chat = () => {
 
     // Listen for sent messages
     socket.on("message_sent", (data) => {
-      console.log('Message sent confirmation:', data);
+      console.log('✅ Message sent confirmation:', data);
+      console.log('   Chat ID:', data.chatId);
+      console.log('   Message ID:', data.message?._id);
+      console.log('   Active Chat ID:', activeChatId);
+      
       // Update message status
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg._id === data.message._id || msg._id.startsWith('temp_') 
-            ? { ...data.message, status: 'sent' } 
-            : msg
-        )
-      );
+      setMessages((prev) => {
+        console.log('   Current messages count:', prev.length);
+        const updated = prev.map(msg => {
+          if (msg._id === data.message._id || msg._id.startsWith('temp_')) {
+            console.log('   ✓ Updating message:', msg._id, '->', data.message._id);
+            return { ...data.message, status: 'sent' };
+          }
+          return msg;
+        });
+        console.log('   Updated messages count:', updated.length);
+        return updated;
+      });
     });
 
     // Listen for message status updates
@@ -182,6 +191,12 @@ const Chat = () => {
   const handleSendMessage = async (text, media = null) => {
     if (!text?.trim() && !media) return;
     
+    console.log('📤 handleSendMessage called:', { 
+      text: text?.substring(0, 50), 
+      hasMedia: !!media, 
+      activeChatId 
+    });
+    
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const tempId = 'temp_' + Date.now();
     
@@ -199,6 +214,7 @@ const Chat = () => {
 
     try {
       // Add temporary message to UI
+      console.log('➕ Adding temporary message to UI:', tempId);
       setMessages((prev) => [...prev, tempMessage]);
 
       // Update chat list optimistically - keep active chat in same position
@@ -211,31 +227,41 @@ const Chat = () => {
       });
 
       // Send to backend
+      console.log('🌐 Sending to backend...');
       let result;
       if (media) {
         // Determine media type from media object
         const mediaType = media.type || 'image';
+        console.log('📎 Sending media message, type:', mediaType);
         result = await chatService.sendMediaMessage(activeChatId, text, media, mediaType);
       } else {
+        console.log('💬 Sending text message');
         result = await chatService.sendMessage(activeChatId, text);
       }
 
+      console.log('📬 Backend response:', result);
+
       if (result.success) {
+        console.log('✅ Message sent successfully:', result.data._id);
         // Replace temporary message with actual message from server
         setMessages((prev) => 
-          prev.map(msg => 
-            msg._id === tempId 
-              ? { ...result.data, status: result.data.status || 'sent' } 
-              : msg
-          )
+          prev.map(msg => {
+            if (msg._id === tempId) {
+              console.log('🔄 Replacing temp message with real message');
+              return { ...result.data, status: result.data.status || 'sent' };
+            }
+            return msg;
+          })
         );
 
         // Emit via socket for real-time updates to other clients
+        console.log('📡 Emitting socket event...');
         socket.emit("send_message", { 
           chatId: activeChatId, 
           message: result.data 
         });
       } else {
+        console.error('❌ Failed to send message:', result.error);
         // Mark message as failed
         setMessages((prev) => 
           prev.map(msg => 
@@ -244,11 +270,10 @@ const Chat = () => {
               : msg
           )
         );
-        console.error('Failed to send message:', result.error);
       }
 
     } catch (error) {
-      console.error('Error in handleSendMessage:', error);
+      console.error('💥 Error in handleSendMessage:', error);
       // Mark message as failed
       setMessages((prev) => 
         prev.map(msg => 

@@ -1,4 +1,7 @@
 const axios = require('axios');
+const FormData = require('form-data');
+const fs = require('fs');
+const { normalizePhoneNumber } = require('../utils/phoneHelper');
 
 /**
  * WhatsApp Business API Service
@@ -11,6 +14,21 @@ class WhatsAppService {
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
     this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
+    
+    // Log configuration on initialization
+    console.log('🔧 WhatsApp Service initialized');
+    console.log(`📱 Phone Number ID: ${this.phoneNumberId}`);
+    console.log(`🔑 Token: ${this.accessToken ? 'Set ✓' : 'Missing ✗'}`);
+  }
+  
+  /**
+   * Validate configuration
+   */
+  validateConfig() {
+    if (!this.phoneNumberId || !this.accessToken) {
+      throw new Error('WhatsApp configuration is incomplete. Please check WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in .env file');
+    }
+    return true;
   }
 
   /**
@@ -18,12 +36,20 @@ class WhatsAppService {
    */
   async sendTextMessage(to, message) {
     try {
+      this.validateConfig();
+      
+      // Normalize phone number with country code
+      const cleanPhone = normalizePhoneNumber(to);
+      
+      console.log(`📤 Sending WhatsApp message to: ${cleanPhone} (original: ${to})`);
+      console.log(`📝 Message content: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+      
       const response = await axios.post(
         `${this.baseURL}/messages`,
         {
           messaging_product: 'whatsapp',
           recipient_type: 'individual',
-          to: to,
+          to: cleanPhone,
           type: 'text',
           text: {
             preview_url: true,
@@ -38,16 +64,22 @@ class WhatsAppService {
         }
       );
 
+      console.log(`✅ WhatsApp message sent successfully. Message ID: ${response.data.messages[0].id}`);
+      console.log(`   To: ${cleanPhone}`);
+      
       return {
         success: true,
         messageId: response.data.messages[0].id,
         data: response.data
       };
     } catch (error) {
-      console.error('WhatsApp Send Error:', error.response?.data || error.message);
+      console.error('❌ WhatsApp Send Error:', error.response?.data || error.message);
+      if (error.response?.data) {
+        console.error('   Error details:', JSON.stringify(error.response.data, null, 2));
+      }
       return {
         success: false,
-        error: error.response?.data || error.message
+        error: error.response?.data || { message: error.message }
       };
     }
   }
@@ -57,17 +89,26 @@ class WhatsAppService {
    */
   async sendMediaMessage(to, mediaType, mediaId, caption = '') {
     try {
+      this.validateConfig();
+      
+      // Normalize phone number with country code
+      const cleanPhone = normalizePhoneNumber(to);
+      
+      console.log(`📤 Sending WhatsApp ${mediaType} message to: ${cleanPhone} (original: ${to})`);
+      console.log(`   Media ID: ${mediaId}`);
+      console.log(`   Caption: ${caption || '(none)'}`);
+      
       const messageData = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
-        to: to,
+        to: cleanPhone,
         type: mediaType,
         [mediaType]: {
           id: mediaId
         }
       };
 
-      if (caption && (mediaType === 'image' || mediaType === 'video')) {
+      if (caption && (mediaType === 'image' || mediaType === 'video' || mediaType === 'document')) {
         messageData[mediaType].caption = caption;
       }
 
@@ -82,25 +123,78 @@ class WhatsAppService {
         }
       );
 
+      console.log(`✅ WhatsApp ${mediaType} message sent successfully. Message ID: ${response.data.messages[0].id}`);
+      console.log(`   To: ${cleanPhone}`);
+      
       return {
         success: true,
         messageId: response.data.messages[0].id,
         data: response.data
       };
     } catch (error) {
-      console.error('WhatsApp Media Send Error:', error.response?.data || error.message);
+      console.error('❌ WhatsApp Media Send Error:', error.response?.data || error.message);
+      if (error.response?.data) {
+        console.error('   Error details:', JSON.stringify(error.response.data, null, 2));
+      }
       return {
         success: false,
-        error: error.response?.data || error.message
+        error: error.response?.data || { message: error.message }
       };
     }
   }
 
   /**
-   * Upload media to WhatsApp servers
+   * Upload media to WhatsApp servers (from local file)
    */
-  async uploadMedia(fileUrl, mimeType) {
+  async uploadMedia(filePath, mimeType) {
     try {
+      this.validateConfig();
+      
+      console.log(`📤 Uploading media to WhatsApp: ${filePath}`);
+      
+      const formData = new FormData();
+      formData.append('messaging_product', 'whatsapp');
+      formData.append('file', fs.createReadStream(filePath), {
+        contentType: mimeType
+      });
+
+      const response = await axios.post(
+        `${this.baseURL}/media`,
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            ...formData.getHeaders()
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        }
+      );
+
+      console.log(`✅ Media uploaded successfully. Media ID: ${response.data.id}`);
+      
+      return {
+        success: true,
+        mediaId: response.data.id
+      };
+    } catch (error) {
+      console.error('❌ WhatsApp Upload Error:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data || { message: error.message }
+      };
+    }
+  }
+  
+  /**
+   * Upload media from URL to WhatsApp servers
+   */
+  async uploadMediaFromUrl(fileUrl, mimeType) {
+    try {
+      this.validateConfig();
+      
+      console.log(`📤 Uploading media from URL to WhatsApp: ${fileUrl}`);
+      
       const response = await axios.post(
         `${this.baseURL}/media`,
         {
@@ -116,15 +210,17 @@ class WhatsAppService {
         }
       );
 
+      console.log(`✅ Media uploaded successfully. Media ID: ${response.data.id}`);
+      
       return {
         success: true,
         mediaId: response.data.id
       };
     } catch (error) {
-      console.error('WhatsApp Upload Error:', error.response?.data || error.message);
+      console.error('❌ WhatsApp Upload Error:', error.response?.data || error.message);
       return {
         success: false,
-        error: error.response?.data || error.message
+        error: error.response?.data || { message: error.message }
       };
     }
   }
@@ -264,13 +360,29 @@ class WhatsAppService {
       const value = changes?.value;
 
       if (!value) {
+        console.log('⚠️  No value in webhook data');
         return { success: false, error: 'Invalid webhook data' };
       }
+
+      // Log webhook metadata
+      console.log('📋 Webhook Metadata:', {
+        hasMessages: !!value.messages,
+        hasStatuses: !!value.statuses,
+        hasContacts: !!value.contacts,
+        metadata: value.metadata
+      });
 
       // Handle incoming messages
       if (value.messages) {
         const message = value.messages[0];
         const contact = value.contacts?.[0];
+
+        console.log('📥 Processing message:', {
+          id: message.id,
+          from: message.from,
+          type: message.type,
+          timestamp: message.timestamp
+        });
 
         return {
           success: true,
@@ -292,6 +404,14 @@ class WhatsAppService {
       // Handle message status updates (delivered, read, etc.)
       if (value.statuses) {
         const status = value.statuses[0];
+        
+        console.log('📊 Processing status update:', {
+          messageId: status.id,
+          status: status.status,
+          recipientId: status.recipient_id,
+          timestamp: status.timestamp
+        });
+        
         return {
           success: true,
           type: 'status',
@@ -299,14 +419,17 @@ class WhatsAppService {
             messageId: status.id,
             status: status.status,
             timestamp: status.timestamp,
-            recipientId: status.recipient_id
+            recipientId: status.recipient_id,
+            errors: status.errors
           }
         };
       }
 
+      console.log('⚠️  Unknown webhook type:', Object.keys(value));
       return { success: false, error: 'Unknown webhook type' };
     } catch (error) {
-      console.error('Webhook Processing Error:', error.message);
+      console.error('❌ Webhook Processing Error:', error.message);
+      console.error('Stack:', error.stack);
       return {
         success: false,
         error: error.message

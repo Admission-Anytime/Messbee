@@ -13,6 +13,12 @@ router.get('/webhook', whatsappController.verifyWebhook);
 // Webhook handler (POST) - Receive messages and status updates from WhatsApp
 router.post('/webhook', whatsappController.handleWebhook);
 
+// Test WhatsApp API connection (Protected route)
+router.get('/test-connection', protect, whatsappController.testConnection);
+
+// Check message delivery status (Protected route)
+router.get('/message-status/:messageId', protect, whatsappController.getMessageStatus);
+
 // Send WhatsApp message from dashboard (Protected route)
 router.post('/send', protect, whatsappController.sendWhatsAppMessage);
 
