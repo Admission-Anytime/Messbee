@@ -3,7 +3,8 @@ import {
   MagnifyingGlassIcon, 
   ChevronRightIcon, 
   XMarkIcon,
-  DocumentDuplicateIcon
+  DocumentDuplicateIcon,
+  MapPinIcon
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
@@ -19,10 +20,16 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   
-  const displayChats = (chats || []).filter((c) => {
-    const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesSearch;
-  });
+  const displayChats = (chats || [])
+    .filter((c) => {
+      const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesSearch;
+    })
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0; // Keep original order (which is usually by updatedAt from API)
+    });
 
   const handleCreateNewChat = async () => {
     // Validate phone number
@@ -235,8 +242,11 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               {/* Chat Info */}
               <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 max-w-full overflow-hidden">
                       <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
+                      {chat.isPinned && (
+                        <MapPinIcon className="w-3.5 h-3.5 text-green-500 fill-green-500 shrink-0" />
+                      )}
                       {chat.source === 'whatsapp' && (
                         <span className="text-xs">
                           <svg className="w-3.5 h-3.5 fill-[#25D366]" viewBox="0 0 24 24">

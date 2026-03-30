@@ -9,19 +9,32 @@ import {
   PaperClipIcon 
 } from "@heroicons/react/24/outline";
 
-const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
+const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], statusOptions = [] }) => {
   
   // --- 1. STATE FOR PROFILE DATA ---
-  // We store the profile data in state so we can update it instantly
   const [profileData, setProfileData] = useState({
-    name: data?.name || "Priyanshu Raghuvanshi",
-    phone: data?.phone || "+91 98765 43210",
-    email: data?.email || "priyanshu@example.com",
-    status: "Warm Lead",
+    name: data?.name || "",
+    phone: data?.phone || "",
+    email: data?.email || "",
+    status: data?.chatStatus || "Open",
     institute: "University Of Delhi",
     gstn: "09AAX... (Verified)",
     city: "Ghaziabad, UP"
   });
+
+  // Effect to sync when data changes
+  React.useEffect(() => {
+    setProfileData(prev => ({
+      ...prev,
+      name: data?.name || "",
+      phone: data?.phone || "",
+      email: data?.email || "",
+      status: data?.chatStatus || "Open",
+    }));
+  }, [data]);
+
+  // Derived labels for display
+  const currentLabels = availableLabels.filter(l => data?.labels?.includes(l.name));
 
   // State to manage the Edit Form inputs before saving
   const [editForm, setEditForm] = useState({ ...profileData });
@@ -86,11 +99,11 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
           <h2 className="text-lg font-extrabold text-slate-900 text-center">{profileData.name}</h2>
           <p className="text-xs text-slate-500 font-medium mb-4">{profileData.phone}</p>
           
-          <span className={`px-4 py-1 text-[10px] font-bold rounded-md border uppercase tracking-widest shadow-sm
-            ${profileData.status === 'Warm Lead' ? 'bg-[#f0fdf4] text-[#16a34a] border-[#bbf7d0]' : 
-              profileData.status === 'Cold Lead' ? 'bg-slate-100 text-slate-600 border-slate-200' : 
-              'bg-blue-50 text-blue-600 border-blue-200'}`}
-          >
+          <span className="px-4 py-1 text-[10px] font-bold rounded-md border uppercase tracking-widest shadow-sm" style={{
+             backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === profileData.status?.toLowerCase())?.original?.color + '15') || '#f1f5f9',
+             color: statusOptions.find(s => s.label.toLowerCase() === profileData.status?.toLowerCase())?.original?.color || '#64748b',
+             borderColor: (statusOptions.find(s => s.label.toLowerCase() === profileData.status?.toLowerCase())?.original?.color + '30') || '#e2e8f0'
+          }}>
              {profileData.status}
           </span>
         </div>
@@ -102,9 +115,14 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
           <div>
              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Labels</h4>
              <div className="flex flex-wrap gap-2 items-center">
-                 <span className="px-3 py-1.5 bg-[#eff6ff] text-[#2563eb] text-xs font-bold rounded-lg border border-[#dbeafe]">Priority</span>
-                 <span className="px-3 py-1.5 bg-[#faf5ff] text-[#9333ea] text-xs font-bold rounded-lg border border-[#f3e8ff]">Education</span>
-                 <span className="px-3 py-1.5 bg-[#fff7ed] text-[#ea580c] text-xs font-bold rounded-lg border border-[#ffedd5]">Delhi-NCR</span>
+                 {currentLabels.length === 0 && <p className="text-[10px] text-slate-400 italic">No labels applied</p>}
+                 {currentLabels.map(label => (
+                    <span key={label._id || label.id} className="px-3 py-1.5 text-xs font-bold rounded-lg border shadow-sm" style={{
+                       backgroundColor: label.color + '15',
+                       color: label.color,
+                       borderColor: label.color + '30'
+                    }}>{label.name}</span>
+                 ))}
                  <button className="w-8 h-8 flex items-center justify-center bg-white text-slate-400 rounded-full hover:bg-slate-50 border border-slate-200 transition-colors shadow-sm"><PlusIcon className="w-4 h-4" /></button>
              </div>
           </div>
@@ -201,21 +219,26 @@ const UserProfilePanel = ({ data, onClose, onViewHistory }) => {
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Status</label>
                        <select name="status" value={editForm.status} onChange={handleEditChange} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm font-medium text-slate-800 focus:border-[#22C55E] focus:ring-1 focus:ring-[#22C55E] outline-none transition-shadow">
-                          <option value="Warm Lead">Warm Lead</option>
-                          <option value="Cold Lead">Cold Lead</option>
-                          <option value="Closed">Closed</option>
+                          {statusOptions.map(option => (
+                             <option key={option.id} value={option.label.toLowerCase()}>{option.label}</option>
+                          ))}
+                          {statusOptions.length === 0 && <option value="open">Open</option>}
                        </select>
                     </div>
                  </div>
 
-                 {/* Labels Box (Visual Only) */}
+                 {/* Labels Box */}
                  <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5 block">Labels</label>
                     <div className="min-h-[46px] border border-slate-200 rounded-xl p-2 flex flex-wrap gap-2 items-center focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] bg-white transition-shadow">
-                       <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#eff6ff] text-[#2563eb] text-xs font-bold rounded-lg">Priority <XMarkIcon className="w-3 h-3 cursor-pointer hover:text-blue-800"/></span>
-                       <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#faf5ff] text-[#9333ea] text-xs font-bold rounded-lg">Education <XMarkIcon className="w-3 h-3 cursor-pointer hover:text-purple-800"/></span>
-                       <span className="flex items-center gap-1.5 px-2.5 py-1 bg-[#fff7ed] text-[#ea580c] text-xs font-bold rounded-lg">Delhi-NCR <XMarkIcon className="w-3 h-3 cursor-pointer hover:text-orange-800"/></span>
-                       <input type="text" placeholder="Search and add labels..." className="flex-1 min-w-[150px] outline-none text-sm px-1 py-1 text-slate-700 placeholder:text-slate-400 bg-transparent" />
+                        {currentLabels.map(label => (
+                           <span key={label._id || label.id} className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold rounded-lg border" style={{
+                              backgroundColor: label.color + '15',
+                              color: label.color,
+                              borderColor: label.color + '30'
+                           }}>{label.name} <XMarkIcon className="w-3 h-3 cursor-pointer opacity-70 hover:opacity-100"/></span>
+                        ))}
+                        <input type="text" placeholder="Search and add labels..." className="flex-1 min-w-[150px] outline-none text-sm px-1 py-1 text-slate-700 placeholder:text-slate-400 bg-transparent" />
                     </div>
                  </div>
 
