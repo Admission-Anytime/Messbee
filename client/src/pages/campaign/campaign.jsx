@@ -22,31 +22,46 @@ import {
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 
-/* ── seed deterministic analytics per campaign ── */
-const getAnalytics = (id) => {
-  const seed = id * 137;
-  const total = 800 + (seed % 1200);
-  const sent = Math.round(total * 0.98);
-  const delivered = Math.round(sent * (0.82 + (seed % 10) * 0.01));
-  const read = Math.round(delivered * (0.55 + (seed % 8) * 0.02));
-  const failed = sent - delivered;
-  return { total, sent, delivered, read, failed };
+/* ── helpers ── */
+const mapStatus = (status) => {
+  switch (status) {
+    case 'completed': return 'Completed';
+    case 'active': return 'Processing';
+    case 'paused': return 'Paused';
+    case 'scheduled': return 'Scheduled';
+    default: return 'Draft';
+  }
 };
 
-const SEED_DATA = [
-  { id: 1,  title: "Dev Demo",                    message: "admission25",       status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "24 Jul 2025, 12:38 pm" },
-  { id: 2,  title: "Camp (24/07/25 12:38 pm)",    message: "mbbs",              status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "24 Jul 2025, 12:38 pm" },
-  { id: 3,  title: "Camp (13/06/25 4:04 pm)",     message: "result_alert_mb...", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "13 Jun 2025, 4:04 pm"  },
-  { id: 4,  title: "Camp (13/06/25 3:58 pm)",     message: "mbbs_abroadaspi...", status: "Processing", progress: 65,  createdBy: "Anil", initials: "AN", sentOn: "13 Jun 2025, 3:58 pm"  },
-  { id: 5,  title: "Camp (15/05/25 10:00 am)",    message: "admission_promo_5", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "15 May 2025, 10:00 am" },
-  { id: 6,  title: "Camp (16/05/25 10:00 am)",    message: "admission_promo_6", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "16 May 2025, 10:00 am" },
-  { id: 7,  title: "Camp (17/05/25 10:00 am)",    message: "admission_promo_7", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "17 May 2025, 10:00 am" },
-  { id: 8,  title: "Camp (18/05/25 10:00 am)",    message: "admission_promo_8", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "18 May 2025, 10:00 am" },
-  { id: 9,  title: "Camp (19/05/25 10:00 am)",    message: "admission_promo_9", status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "19 May 2025, 10:00 am" },
-  { id: 10, title: "Camp (20/05/25 10:00 am)",    message: "admission_promo_10",status: "Completed",  progress: 100, createdBy: "Anil", initials: "AN", sentOn: "20 May 2025, 10:00 am" },
-];
+const mapProgress = (camp) => {
+  if (camp.status === 'completed') return 100;
+  if (camp.stats?.sent > 0) return Math.round((camp.stats.delivered / camp.stats.sent) * 100);
+  return 0;
+};
 
-let nextId = SEED_DATA.length + 1;
+const formatDate = (dateStr) =>
+  new Date(dateStr).toLocaleString('en-IN', {
+    day: '2-digit', month: 'short', year: 'numeric',
+    hour: '2-digit', minute: '2-digit', hour12: true,
+  });
+
+const mapCampaign = (camp) => ({
+  id: camp._id,
+  title: camp.name,
+  message: camp.messageTemplate || '—',
+  status: mapStatus(camp.status),
+  progress: mapProgress(camp),
+  createdBy: camp.user?.name || 'User',
+  initials: (camp.user?.name || camp.name || 'U').substring(0, 2).toUpperCase(),
+  sentOn: formatDate(camp.createdAt),
+  stats: {
+    total: (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
+    sent: camp.stats?.sent || 0,
+    delivered: camp.stats?.delivered || 0,
+    read: camp.stats?.read || 0,
+    failed: camp.stats?.failed || 0,
+  },
+});
 
 /* ═══════════════════════════════════════════════════════════════ */
 
@@ -54,45 +69,21 @@ const CampaignDashboard = () => {
   const navigate = useNavigate();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch]       = useState('');
+  const [search, setSearch] = useState('');
 
   /* modal state */
   const [analyticsTarget, setAnalyticsTarget] = useState(null);
-  const [deleteTarget, setDeleteTarget]       = useState(null);
-  const [duplicatedId, setDuplicatedId]       = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [duplicatedId, setDuplicatedId] = useState(null);
 
-  useEffect(() => {
-    fetchCampaigns();
-  }, []);
+  useEffect(() => { fetchCampaigns(); }, []);
 
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
       const res = await CampaignApi.getCampaigns();
       if (res.success) {
-        // Map backend data to frontend field names
-        const mappedData = res.data.map((camp, index) => ({
-          id: camp._id,
-          title: camp.name,
-          message: camp.messageTemplate,
-          status: camp.status === 'completed' ? 'Completed' : 
-                  camp.status === 'active' ? 'Processing' : 
-                  camp.status === 'paused' ? 'Paused' :
-                  camp.status === 'scheduled' ? 'Scheduled' : 'Draft',
-          progress: camp.status === 'completed' ? 100 : (camp.stats?.sent > 0 ? Math.round((camp.stats.delivered / camp.stats.sent) * 100) : 0),
-          createdBy: "User", // Backend doesn't provide user name in populate yet, or we can use initials from name
-          initials: camp.name.substring(0, 2).toUpperCase(),
-          sentOn: new Date(camp.createdAt).toLocaleString('en-IN', {
-            day: '2-digit',
-            month: 'short',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: true
-          }),
-          stats: camp.stats
-        }));
-        setCampaigns(mappedData);
+        setCampaigns(res.data.map(mapCampaign));
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -105,19 +96,18 @@ const CampaignDashboard = () => {
   /* ── Actions ── */
   const handleDuplicate = async (camp) => {
     try {
-      const copyData = {
+      const res = await CampaignApi.createCampaign({
         name: `${camp.title} (Copy)`,
         messageTemplate: camp.message,
         status: 'draft',
-      };
-      const res = await CampaignApi.createCampaign(copyData);
+      });
       if (res.success) {
         toast.success('Campaign duplicated as draft');
-        fetchCampaigns();
         setDuplicatedId(res.data._id);
         setTimeout(() => setDuplicatedId(null), 2000);
+        fetchCampaigns();
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to duplicate campaign');
     }
   };
@@ -129,7 +119,7 @@ const CampaignDashboard = () => {
         toast.success('Campaign deleted');
         setCampaigns((prev) => prev.filter((c) => c.id !== deleteTarget.id));
       }
-    } catch (error) {
+    } catch {
       toast.error('Failed to delete campaign');
     } finally {
       setDeleteTarget(null);
@@ -142,7 +132,8 @@ const CampaignDashboard = () => {
       c.title.toLowerCase().includes(search.toLowerCase()) ||
       c.message.toLowerCase().includes(search.toLowerCase())
   );
-  const completedCount  = campaigns.filter((c) => c.status === 'Completed').length;
+
+  const completedCount = campaigns.filter((c) => c.status === 'Completed').length;
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
 
   return (
@@ -235,6 +226,7 @@ const CampaignDashboard = () => {
                 <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Campaign Title</th>
                 <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Template</th>
                 <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Status</th>
+                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Sent On</th>
                 <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Created By</th>
                 <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 text-right">Actions</th>
               </tr>
@@ -242,7 +234,7 @@ const CampaignDashboard = () => {
             <tbody className="divide-y divide-gray-50">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-sm font-medium">Loading campaigns...</p>
@@ -251,20 +243,26 @@ const CampaignDashboard = () => {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center">
+                  <td colSpan={7} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
                       <MegaphoneIcon className="w-8 h-8 opacity-40" />
                       <p className="text-sm font-medium">No campaigns found</p>
+                      <button
+                        onClick={() => navigate('/admin/campaign/create')}
+                        className="mt-1 text-xs font-semibold text-emerald-500 hover:text-emerald-600 underline underline-offset-2"
+                      >
+                        Create your first campaign
+                      </button>
                     </div>
                   </td>
                 </tr>
               ) : (
-                filtered.map((camp) => (
+                filtered.map((camp, index) => (
                   <tr
                     key={camp.id}
                     className={`group transition-colors ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
                   >
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-300">{camp.id}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-slate-300">{index + 1}</td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-800">{camp.title}</span>
@@ -282,6 +280,9 @@ const CampaignDashboard = () => {
                     </td>
                     <td className="px-4 py-4">
                       <StatusBadge status={camp.status} progress={camp.progress} />
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="text-xs text-slate-500 font-medium">{camp.sentOn}</span>
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex items-center gap-2.5">
@@ -354,23 +355,16 @@ const CampaignDashboard = () => {
    Analytics Modal
 ═══════════════════════════════════════════════════════════════ */
 const AnalyticsModal = ({ campaign, onClose }) => {
-  const stats = campaign.stats || getAnalytics(campaign.id);
-  const safeStats = {
-    total: stats.total || 0,
-    sent: stats.sent || 0,
-    delivered: stats.delivered || 0,
-    read: stats.read || 0,
-    failed: stats.failed || 0
-  };
-  const deliveryRate = safeStats.sent > 0 ? Math.round((safeStats.delivered / safeStats.sent) * 100) : 0;
-  const readRate     = safeStats.delivered > 0 ? Math.round((safeStats.read / safeStats.delivered) * 100) : 0;
+  const s = campaign.stats;
+  const deliveryRate = s.sent > 0 ? Math.round((s.delivered / s.sent) * 100) : 0;
+  const readRate = s.delivered > 0 ? Math.round((s.read / s.delivered) * 100) : 0;
 
   const rows = [
-    { label: 'Total Recipients', value: safeStats.total,     icon: <UserGroupIcon className="w-4 h-4" />,       color: 'slate',   bg: 'bg-slate-50',   border: 'border-slate-100',  text: 'text-slate-600' },
-    { label: 'Sent',             value: safeStats.sent,      icon: <PaperAirplaneIcon className="w-4 h-4" />,   color: 'blue',    bg: 'bg-blue-50',    border: 'border-blue-100',   text: 'text-blue-600'  },
-    { label: 'Delivered',        value: safeStats.delivered, icon: <CheckIcon className="w-4 h-4" />,           color: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-100',text: 'text-emerald-600'},
-    { label: 'Read',             value: safeStats.read,      icon: <EyeIcon className="w-4 h-4" />,             color: 'violet',  bg: 'bg-violet-50',  border: 'border-violet-100', text: 'text-violet-600'},
-    { label: 'Failed',           value: safeStats.failed,    icon: <ExclamationTriangleIcon className="w-4 h-4" />, color: 'red', bg: 'bg-red-50',   border: 'border-red-100',    text: 'text-red-500'   },
+    { label: 'Total Recipients', value: s.total, icon: <UserGroupIcon className="w-4 h-4" />, bg: 'bg-slate-50', border: 'border-slate-100', text: 'text-slate-600' },
+    { label: 'Sent', value: s.sent, icon: <PaperAirplaneIcon className="w-4 h-4" />, bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
+    { label: 'Delivered', value: s.delivered, icon: <CheckIcon className="w-4 h-4" />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
+    { label: 'Read', value: s.read, icon: <EyeIcon className="w-4 h-4" />, bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-600' },
+    { label: 'Failed', value: s.failed, icon: <ExclamationTriangleIcon className="w-4 h-4" />, bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-500' },
   ];
 
   return (
@@ -404,8 +398,8 @@ const AnalyticsModal = ({ campaign, onClose }) => {
           <span className="flex items-center gap-1.5">
             <ClockIcon className="w-3.5 h-3.5 text-slate-400" /> {campaign.sentOn}
           </span>
-          <span className="flex items-center gap-1.5">
-            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400" /> {campaign.message}
+          <span className="flex items-center gap-1.5 truncate max-w-[160px]">
+            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {campaign.message}
           </span>
           <StatusBadge status={campaign.status} progress={campaign.progress} />
         </div>
@@ -431,7 +425,7 @@ const AnalyticsModal = ({ campaign, onClose }) => {
         {/* Rate bars */}
         <div className="px-6 pb-6 flex flex-col gap-3">
           <RateBar label="Delivery Rate" value={deliveryRate} color="bg-emerald-500" />
-          <RateBar label="Read Rate"     value={readRate}     color="bg-violet-500" />
+          <RateBar label="Read Rate" value={readRate} color="bg-violet-500" />
         </div>
       </div>
     </div>
@@ -495,16 +489,24 @@ const DeleteModal = ({ campaign, onConfirm, onClose }) => (
 ═══════════════════════════════════════════════════════════════ */
 const StatusBadge = ({ status, progress }) => {
   const isProcessing = status === 'Processing';
+  const isDraft = status === 'Draft';
+  const isScheduled = status === 'Scheduled';
+  const isPaused = status === 'Paused';
+
+  const colorClass = isProcessing
+    ? 'text-blue-600 bg-blue-50 border-blue-100'
+    : isDraft
+      ? 'text-slate-500 bg-slate-50 border-slate-100'
+      : isScheduled
+        ? 'text-amber-600 bg-amber-50 border-amber-100'
+        : isPaused
+          ? 'text-orange-600 bg-orange-50 border-orange-100'
+          : 'text-emerald-600 bg-emerald-50 border-emerald-100';
+
   return (
     <div className="flex items-center gap-2">
       <StatusCircle percentage={progress} processing={isProcessing} />
-      <span
-        className={`text-xs font-semibold px-2 py-0.5 rounded-md ${
-          isProcessing
-            ? 'text-blue-600 bg-blue-50 border border-blue-100'
-            : 'text-emerald-600 bg-emerald-50 border border-emerald-100'
-        }`}
-      >
+      <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${colorClass}`}>
         {status}
       </span>
     </div>
@@ -523,7 +525,7 @@ const ActionBtn = ({ icon, hoverColor, title, onClick }) => (
 
 const StatusCircle = ({ percentage, processing }) => {
   const strokeColor = processing ? '#3b82f6' : '#10b981';
-  const r    = 11;
+  const r = 11;
   const circ = 2 * Math.PI * r;
   const offset = circ - (percentage / 100) * circ;
   return (

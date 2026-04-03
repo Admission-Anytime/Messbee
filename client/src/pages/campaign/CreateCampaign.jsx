@@ -23,7 +23,17 @@ const CreateCampaign = () => {
     // Step 3 State
     const [scheduleOption, setScheduleOption] = useState('now');
     const [completionAlert, setCompletionAlert] = useState(true);
-    const [campaignName, setCampaignName] = useState('Dev Demo Q3');
+    const [campaignName, setCampaignName] = useState(() => {
+        const now = new Date();
+        const dd = String(now.getDate()).padStart(2, '0');
+        const mm = String(now.getMonth() + 1).padStart(2, '0');
+        const yy = String(now.getFullYear()).slice(-2);
+        let hours = now.getHours();
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const ampm = hours >= 12 ? 'pm' : 'am';
+        hours = hours % 12 || 12;
+        return `Camp (${dd}/${mm}/${yy} ${hours}:${minutes} ${ampm})`;
+    });
     const [scheduledDate, setScheduledDate] = useState('2025-07-24');
     const [scheduledTime, setScheduledTime] = useState('12:00');
     const [isLaunching, setIsLaunching] = useState(false);
@@ -41,7 +51,7 @@ const CreateCampaign = () => {
     const handleLaunch = async () => {
         try {
             setIsLaunching(true);
-            
+
             const campaignData = {
                 name: campaignName,
                 messageTemplate: selectedTemplate, // Use name or ID based on backend expectation
@@ -154,8 +164,30 @@ const CreateCampaign = () => {
                 {currentStep === 1 && (
                     <div className="px-12 pb-12 transition-all duration-300">
                         <div className="mb-6">
-                            <h2 className="text-xl font-bold text-slate-800">Who should receive this campaign?</h2>
-                            <p className="text-gray-500 mt-1">Select the contacts you want to reach out to.</p>
+                            <h2 className="text-xl font-bold text-slate-800">Create a New Campaign</h2>
+                            <p className="text-gray-500 mt-1">Give your campaign a name, then select the audience to reach.</p>
+                        </div>
+
+                        {/* Campaign Name Input */}
+                        <div className="mb-6 p-5 rounded-xl border-2 border-gray-100 bg-white">
+                            <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
+                                Campaign Name <span className="text-red-400">*</span>
+                            </label>
+                            <input
+                                type="text"
+                                value={campaignName}
+                                onChange={(e) => setCampaignName(e.target.value)}
+                                placeholder="e.g. Summer Admission Drive 2025"
+                                className="w-full px-4 py-2.5 border border-gray-200 rounded-lg text-sm text-slate-800 font-medium placeholder:text-gray-300 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 bg-gray-50 transition"
+                            />
+                            {campaignName.trim() === '' && (
+                                <p className="text-[11px] text-gray-400 mt-1.5">A name helps you identify this campaign later.</p>
+                            )}
+                        </div>
+
+                        <div className="mb-4">
+                            <h3 className="text-base font-bold text-slate-800">Who should receive this campaign?</h3>
+                            <p className="text-gray-500 text-sm mt-0.5">Select the contacts you want to reach out to.</p>
                         </div>
 
                         <div className="space-y-4">
@@ -222,13 +254,13 @@ const CreateCampaign = () => {
                                             <FileUp className="w-5 h-5 text-gray-400" />
                                         </div>
                                         <p className="text-gray-500 text-sm mt-1">Import a list of contacts from a CSV or Excel file.</p>
-                                        
+
                                         {/* File Selected State */}
                                         {csvFile && (
                                             <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg animate-in slide-in-from-top-1 duration-300">
                                                 <div className="w-6 h-6 bg-emerald-100 rounded flex items-center justify-center text-emerald-600 font-bold text-[10px]">CSV</div>
                                                 <span className="text-xs font-bold text-emerald-700 truncate">{csvFile.name}</span>
-                                                <button 
+                                                <button
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setCsvFile(null);
@@ -264,7 +296,8 @@ const CreateCampaign = () => {
                                 </button>
                                 <button
                                     onClick={nextStep}
-                                    className="px-8 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 font-bold text-white flex items-center gap-2 transition-colors"
+                                    disabled={campaignName.trim() === ''}
+                                    className={`px-8 py-2.5 rounded-lg font-bold text-white flex items-center gap-2 transition-colors ${campaignName.trim() === '' ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                                 >
                                     Next <ArrowRight className="w-4 h-4" />
                                 </button>
@@ -341,14 +374,14 @@ const CreateCampaign = () => {
 
                         {/* RIGHT SIDE: Preview */}
                         <div className="w-1/2 bg-slate-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-                            
+
                             {/* Mobile Mockup */}
                             <div className="relative w-[280px] h-[400px] flex-shrink-0 bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden transition-transform">
                                 <div className="h-full w-full bg-[#f0f2f5] flex flex-col overflow-hidden">
                                     {/* App Header */}
                                     <div className="bg-[#00a884] p-4 pt-5 flex items-center gap-3 text-white">
                                         <ArrowRight className="w-5 h-5 rotate-180" />
-                                        <User size={24} className="bg-white/20 rounded-full p-1"/>
+                                        <User size={24} className="bg-white/20 rounded-full p-1" />
                                         <div className="flex-1">
                                             <p className="text-xs font-bold">University Admission</p>
                                             <p className="text-[9px] text-white/80">Official Account</p>
@@ -527,7 +560,7 @@ const CreateCampaign = () => {
                                 </div>
 
                                 {/* Launch Button */}
-                                <button 
+                                <button
                                     onClick={handleLaunch}
                                     disabled={isLaunching}
                                     className={`w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-lg shadow-emerald-500/20 ${isLaunching ? 'opacity-70 cursor-not-allowed' : ''}`}
