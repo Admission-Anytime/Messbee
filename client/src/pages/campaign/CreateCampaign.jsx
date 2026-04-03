@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CampaignApi from '../../services/CampaignApi';
+import { toast } from 'react-toastify';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
     Search, CheckCircle, Clock, Eye, Smartphone, ChevronLeft,
@@ -24,6 +26,45 @@ const CreateCampaign = () => {
     const [campaignName, setCampaignName] = useState('Dev Demo Q3');
     const [scheduledDate, setScheduledDate] = useState('2025-07-24');
     const [scheduledTime, setScheduledTime] = useState('12:00');
+    const [isLaunching, setIsLaunching] = useState(false);
+    const [csvFile, setCsvFile] = useState(null);
+    const fileInputRef = React.useRef(null);
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            setCsvFile(file);
+            setSelectedOption('csv');
+        }
+    };
+
+    const handleLaunch = async () => {
+        try {
+            setIsLaunching(true);
+            
+            const campaignData = {
+                name: campaignName,
+                messageTemplate: selectedTemplate, // Use name or ID based on backend expectation
+                status: scheduleOption === 'now' ? 'active' : 'scheduled',
+                scheduledDate: scheduleOption === 'later' ? new Date(`${scheduledDate}T${scheduledTime}`) : null,
+                audienceFilter: {
+                    tags: selectedOption === 'labels' ? labels : [],
+                    // other filters could be added here
+                }
+            };
+
+            const res = await CampaignApi.createCampaign(campaignData);
+            if (res.success) {
+                toast.success(scheduleOption === 'now' ? 'Campaign launched successfully!' : 'Campaign scheduled successfully!');
+                navigate('/admin/campaigns');
+            }
+        } catch (error) {
+            console.error('Error launching campaign:', error);
+            toast.error(error.response?.data?.message || 'Failed to launch campaign');
+        } finally {
+            setIsLaunching(false);
+        }
+    };
 
     const templates = [
         {
@@ -164,14 +205,51 @@ const CreateCampaign = () => {
                             </div>
 
                             {/* Option 3: Upload CSV */}
-                            <SelectionCard
-                                id="csv"
-                                title="Upload CSV"
-                                description="Import a list of contacts from a CSV or Excel file."
-                                icon={<FileUp className="w-5 h-5 text-gray-400" />}
-                                selected={selectedOption === 'csv'}
-                                onClick={() => setSelectedOption('csv')}
-                            />
+                            <div
+                                onClick={() => {
+                                    setSelectedOption('csv');
+                                    fileInputRef.current.click();
+                                }}
+                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'csv' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'}`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedOption === 'csv' ? 'border-emerald-500' : 'border-gray-300'}`}>
+                                        {selectedOption === 'csv' && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <h3 className="font-bold text-slate-800">Upload CSV</h3>
+                                            <FileUp className="w-5 h-5 text-gray-400" />
+                                        </div>
+                                        <p className="text-gray-500 text-sm mt-1">Import a list of contacts from a CSV or Excel file.</p>
+                                        
+                                        {/* File Selected State */}
+                                        {csvFile && (
+                                            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-lg animate-in slide-in-from-top-1 duration-300">
+                                                <div className="w-6 h-6 bg-emerald-100 rounded flex items-center justify-center text-emerald-600 font-bold text-[10px]">CSV</div>
+                                                <span className="text-xs font-bold text-emerald-700 truncate">{csvFile.name}</span>
+                                                <button 
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setCsvFile(null);
+                                                    }}
+                                                    className="ml-auto text-emerald-400 hover:text-emerald-600"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <input
+                                            type="file"
+                                            ref={fileInputRef}
+                                            className="hidden"
+                                            accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+                                            onChange={handleFileChange}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Footer Info & Actions */}
@@ -449,8 +527,17 @@ const CreateCampaign = () => {
                                 </div>
 
                                 {/* Launch Button */}
-                                <button className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-lg shadow-emerald-500/20">
-                                    <Rocket className="w-5 h-5" /> Launch Campaign
+                                <button 
+                                    onClick={handleLaunch}
+                                    disabled={isLaunching}
+                                    className={`w-full bg-emerald-500 hover:bg-emerald-600 text-white py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-lg shadow-emerald-500/20 ${isLaunching ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                >
+                                    {isLaunching ? (
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <Rocket className="w-5 h-5" />
+                                    )}
+                                    {isLaunching ? 'Launching...' : 'Launch Campaign'}
                                 </button>
 
                                 <p className="text-[10px] text-gray-400 text-center mt-3">By launching, you agree to our WhatsApp Policy Guidelines.</p>

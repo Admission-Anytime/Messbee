@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import CampaignApi from '../../services/CampaignApi';
+import { toast } from 'react-toastify';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -50,7 +52,8 @@ let nextId = SEED_DATA.length + 1;
 
 const CampaignDashboard = () => {
   const navigate = useNavigate();
-  const [campaigns, setCampaigns] = useState(SEED_DATA);
+  const [campaigns, setCampaigns] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch]       = useState('');
 
   /* modal state */
@@ -58,24 +61,79 @@ const CampaignDashboard = () => {
   const [deleteTarget, setDeleteTarget]       = useState(null);
   const [duplicatedId, setDuplicatedId]       = useState(null);
 
-  /* ── Actions ── */
-  const handleDuplicate = (camp) => {
-    const copy = {
-      ...camp,
-      id: nextId++,
-      title: `${camp.title} (Copy)`,
-      status: 'Completed',
-      progress: 100,
-      sentOn: 'Just now',
-    };
-    setCampaigns((prev) => [copy, ...prev]);
-    setDuplicatedId(copy.id);
-    setTimeout(() => setDuplicatedId(null), 2000);
+  useEffect(() => {
+    fetchCampaigns();
+  }, []);
+
+  const fetchCampaigns = async () => {
+    try {
+      setLoading(true);
+      const res = await CampaignApi.getCampaigns();
+      if (res.success) {
+        // Map backend data to frontend field names
+        const mappedData = res.data.map((camp, index) => ({
+          id: camp._id,
+          title: camp.name,
+          message: camp.messageTemplate,
+          status: camp.status === 'completed' ? 'Completed' : 
+                  camp.status === 'active' ? 'Processing' : 
+                  camp.status === 'paused' ? 'Paused' :
+                  camp.status === 'scheduled' ? 'Scheduled' : 'Draft',
+          progress: camp.status === 'completed' ? 100 : (camp.stats?.sent > 0 ? Math.round((camp.stats.delivered / camp.stats.sent) * 100) : 0),
+          createdBy: "User", // Backend doesn't provide user name in populate yet, or we can use initials from name
+          initials: camp.name.substring(0, 2).toUpperCase(),
+          sentOn: new Date(camp.createdAt).toLocaleString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+          }),
+          stats: camp.stats
+        }));
+        setCampaigns(mappedData);
+      }
+    } catch (error) {
+      console.error('Error fetching campaigns:', error);
+      toast.error('Failed to fetch campaigns');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDeleteConfirm = () => {
-    setCampaigns((prev) => prev.filter((c) => c.id !== deleteTarget.id));
-    setDeleteTarget(null);
+  /* ── Actions ── */
+  const handleDuplicate = async (camp) => {
+    try {
+      const copyData = {
+        name: `${camp.title} (Copy)`,
+        messageTemplate: camp.message,
+        status: 'draft',
+      };
+      const res = await CampaignApi.createCampaign(copyData);
+      if (res.success) {
+        toast.success('Campaign duplicated as draft');
+        fetchCampaigns();
+        setDuplicatedId(res.data._id);
+        setTimeout(() => setDuplicatedId(null), 2000);
+      }
+    } catch (error) {
+      toast.error('Failed to duplicate campaign');
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      const res = await CampaignApi.deleteCampaign(deleteTarget.id);
+      if (res.success) {
+        toast.success('Campaign deleted');
+        setCampaigns((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      }
+    } catch (error) {
+      toast.error('Failed to delete campaign');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   /* ── Derived ── */
@@ -182,7 +240,16 @@ const CampaignDashboard = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium">Loading campaigns...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-slate-400">
@@ -287,16 +354,23 @@ const CampaignDashboard = () => {
    Analytics Modal
 ═══════════════════════════════════════════════════════════════ */
 const AnalyticsModal = ({ campaign, onClose }) => {
-  const stats = getAnalytics(campaign.id);
-  const deliveryRate = Math.round((stats.delivered / stats.sent) * 100);
-  const readRate     = Math.round((stats.read / stats.delivered) * 100);
+  const stats = campaign.stats || getAnalytics(campaign.id);
+  const safeStats = {
+    total: stats.total || 0,
+    sent: stats.sent || 0,
+    delivered: stats.delivered || 0,
+    read: stats.read || 0,
+    failed: stats.failed || 0
+  };
+  const deliveryRate = safeStats.sent > 0 ? Math.round((safeStats.delivered / safeStats.sent) * 100) : 0;
+  const readRate     = safeStats.delivered > 0 ? Math.round((safeStats.read / safeStats.delivered) * 100) : 0;
 
   const rows = [
-    { label: 'Total Recipients', value: stats.total,     icon: <UserGroupIcon className="w-4 h-4" />,       color: 'slate',   bg: 'bg-slate-50',   border: 'border-slate-100',  text: 'text-slate-600' },
-    { label: 'Sent',             value: stats.sent,      icon: <PaperAirplaneIcon className="w-4 h-4" />,   color: 'blue',    bg: 'bg-blue-50',    border: 'border-blue-100',   text: 'text-blue-600'  },
-    { label: 'Delivered',        value: stats.delivered, icon: <CheckIcon className="w-4 h-4" />,           color: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-100',text: 'text-emerald-600'},
-    { label: 'Read',             value: stats.read,      icon: <EyeIcon className="w-4 h-4" />,             color: 'violet',  bg: 'bg-violet-50',  border: 'border-violet-100', text: 'text-violet-600'},
-    { label: 'Failed',           value: stats.failed,    icon: <ExclamationTriangleIcon className="w-4 h-4" />, color: 'red', bg: 'bg-red-50',   border: 'border-red-100',    text: 'text-red-500'   },
+    { label: 'Total Recipients', value: safeStats.total,     icon: <UserGroupIcon className="w-4 h-4" />,       color: 'slate',   bg: 'bg-slate-50',   border: 'border-slate-100',  text: 'text-slate-600' },
+    { label: 'Sent',             value: safeStats.sent,      icon: <PaperAirplaneIcon className="w-4 h-4" />,   color: 'blue',    bg: 'bg-blue-50',    border: 'border-blue-100',   text: 'text-blue-600'  },
+    { label: 'Delivered',        value: safeStats.delivered, icon: <CheckIcon className="w-4 h-4" />,           color: 'emerald', bg: 'bg-emerald-50', border: 'border-emerald-100',text: 'text-emerald-600'},
+    { label: 'Read',             value: safeStats.read,      icon: <EyeIcon className="w-4 h-4" />,             color: 'violet',  bg: 'bg-violet-50',  border: 'border-violet-100', text: 'text-violet-600'},
+    { label: 'Failed',           value: safeStats.failed,    icon: <ExclamationTriangleIcon className="w-4 h-4" />, color: 'red', bg: 'bg-red-50',   border: 'border-red-100',    text: 'text-red-500'   },
   ];
 
   return (

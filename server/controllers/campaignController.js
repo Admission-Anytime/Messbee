@@ -1,5 +1,6 @@
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
+const { sendBulkMessages } = require('../services/messageService');
 
 // @desc    Get all campaigns
 // @route   GET /api/campaigns
@@ -82,6 +83,19 @@ exports.createCampaign = async (req, res, next) => {
     }
 
     const campaign = await Campaign.create(req.body);
+
+    // If campaign is active, trigger sending process (simulated/async)
+    if (campaign.status === 'active') {
+      const contacts = await Contact.find({ _id: { $in: campaign.targetAudience } });
+      
+      // We run this in the background (no await) so the response is immediate
+      sendBulkMessages(req.user.id, campaign._id, contacts, campaign.messageTemplate)
+        .then(() => {
+          campaign.status = 'completed';
+          return campaign.save();
+        })
+        .catch(err => console.error('Campaign background process failed:', err));
+    }
 
     res.status(201).json({
       success: true,
