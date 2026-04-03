@@ -10,6 +10,23 @@ const fs = require('fs');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const router = express.Router();
 
+const resolveMessageType = (messageType, mediaType) => {
+  const typeCandidate = (messageType || mediaType || '').toLowerCase();
+
+  if (['text', 'image', 'video', 'audio', 'document', 'location', 'contact', 'sticker', 'template'].includes(typeCandidate)) {
+    return typeCandidate;
+  }
+
+  if (typeCandidate.includes('image')) return 'image';
+  if (typeCandidate.includes('video')) return 'video';
+  if (typeCandidate.includes('audio')) return 'audio';
+  if (typeCandidate.includes('pdf') || typeCandidate.includes('doc') || typeCandidate.includes('sheet') || typeCandidate.includes('presentation')) {
+    return 'document';
+  }
+
+  return 'text';
+};
+
 // Protect all chat routes
 router.use(protect);
 
@@ -29,18 +46,18 @@ router.post("/", async (req, res) => {
     const { name, phone, whatsappId, source = "whatsapp" } = req.body;
 
     if (!whatsappId && !phone) {
-      return res.status(400).json({ 
-        error: "Phone number or WhatsApp ID is required" 
+      return res.status(400).json({
+        error: "Phone number or WhatsApp ID is required"
       });
     }
 
     // Normalize phone numbers
     const normalizedPhone = normalizePhoneNumber(phone || whatsappId);
-    
+
     console.log(`📝 Creating/finding chat for: ${normalizedPhone} (original: ${phone || whatsappId})`);
 
     // Check if chat already exists (check both normalized and original)
-    const existingChat = await Chat.findOne({ 
+    const existingChat = await Chat.findOne({
       $or: [
         { phone: normalizedPhone },
         { whatsappId: normalizedPhone },
@@ -51,7 +68,7 @@ router.post("/", async (req, res) => {
 
     if (existingChat) {
       console.log(`✅ Chat already exists for ${normalizedPhone}: ${existingChat._id}`);
-      
+
       // Update the chat with normalized phone if needed
       if (existingChat.phone !== normalizedPhone) {
         existingChat.phone = normalizedPhone;
@@ -59,7 +76,7 @@ router.post("/", async (req, res) => {
         await existingChat.save();
         console.log(`   ✓ Updated phone to normalized format: ${normalizedPhone}`);
       }
-      
+
       return res.json({
         success: true,
         data: existingChat,
@@ -101,9 +118,9 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating chat:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to create chat",
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -111,9 +128,9 @@ router.post("/", async (req, res) => {
 // 2. Get Messages for a specific Chat
 router.get("/messages/:chatId", async (req, res) => {
   try {
-    const messages = await Message.find({ 
+    const messages = await Message.find({
       chatId: req.params.chatId,
-      isDeleted: false 
+      isDeleted: false
     }).sort({ createdAt: 1 });
     res.json(messages);
   } catch (error) {
@@ -124,7 +141,7 @@ router.get("/messages/:chatId", async (req, res) => {
 // 3. Send a Message (Updated to support WhatsApp with media)
 router.post("/message", async (req, res) => {
   const { chatId, text, sender, time, media, mediaType } = req.body;
-  
+
   try {
     console.log(`📨 Sending message to chat ${chatId}:`, {
       sender,
@@ -142,89 +159,97 @@ router.post("/message", async (req, res) => {
 
     console.log(`💬 Chat found: ${chat.name} (${chat.phone}), Source: ${chat.source}`);
 
+    // Determine message time
+    const msgTime = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+    const normalizedMessageType = resolveMessageType(null, mediaType);
+
     // If message is from 'me' (agent) and chat source is WhatsApp, send via WhatsApp API
     if (sender === "me" && chat.source === "whatsapp" && chat.whatsappId) {
-      let whatsappResult;
+      let whatsappResult = null;
       let displayText = text;
+      let whatsappError = null;
 
       // Handle media messages
       if (media && mediaType) {
         const mediaId = media.id || media.mediaId;
-        
+
         if (!mediaId) {
-          return res.status(400).json({ 
-            error: "Media ID required. Please upload media to WhatsApp first using /api/chats/upload-file" 
+          return res.status(400).json({
+            error: "Media ID required. Please upload media to WhatsApp first using /api/chats/upload-file"
           });
         }
-        
+
         // Determine media type for WhatsApp API
-        let whatsappMediaType = mediaType;
-        if (mediaType.includes('image')) {
-          whatsappMediaType = 'image';
-        } else if (mediaType.includes('video')) {
-          whatsappMediaType = 'video';
-        } else if (mediaType.includes('audio')) {
-          whatsappMediaType = 'audio';
-        } else {
-          whatsappMediaType = 'document';
-        }
-        
-        whatsappResult = await whatsappService.sendMediaMessage(
-          chat.whatsappId, 
-          whatsappMediaType, 
+        let whatsappMediaType = 'document';
+        if (mediaType.includes('image')) whatsappMediaType = 'image';
+        else if (mediaType.includes('video')) whatsappMediaType = 'video';
+        else if (mediaType.includes('audio')) whatsappMediaType = 'audio';
+
+        const result = await whatsappService.sendMediaMessage(
+          chat.whatsappId,
+          whatsappMediaType,
           mediaId,
-          text || '' // Caption
+          text || ''
         );
-        
-        // Set display text for message
+
+        if (result.success) {
+          whatsappResult = result;
+        } else {
+          whatsappError = result.error;
+          console.error("⚠️  WhatsApp media send failed (saving to DB anyway):", result.error);
+        }
+
         displayText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
+
       } else if (text && text.trim()) {
-        // Send text message
-        whatsappResult = await whatsappService.sendTextMessage(chat.whatsappId, text);
+        // Send text message via WhatsApp
+        const result = await whatsappService.sendTextMessage(chat.whatsappId, text);
+        if (result.success) {
+          whatsappResult = result;
+        } else {
+          whatsappError = result.error;
+          console.error("⚠️  WhatsApp text send failed (saving to DB anyway):", result.error);
+        }
       } else {
         return res.status(400).json({ error: "Message text or media is required" });
       }
-      
-      if (!whatsappResult.success) {
-        console.error("Failed to send WhatsApp message:", whatsappResult.error);
-        return res.status(500).json({ 
-          error: "Failed to send WhatsApp message",
-          details: whatsappResult.error 
-        });
-      }
 
-      // Create Message with WhatsApp message ID
-      const newMessage = await Message.create({ 
-        chatId, 
-        text: displayText, 
-        sender, 
-        time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        whatsappMessageId: whatsappResult.messageId,
-        messageType: mediaType || "text",
+      // Save message to DB regardless of WhatsApp result
+      const msgStatus = whatsappResult ? "sent" : "failed";
+      const newMessage = await Message.create({
+        chatId,
+        text: displayText,
+        sender,
+        time: msgTime,
+        whatsappMessageId: whatsappResult?.messageId,
+        messageType: media ? normalizedMessageType : "text",
         mediaUrl: media?.url || media?.fileUrl,
+        mediaType: mediaType,
+        mediaId: media?.id || media?.mediaId,
+        fileName: media?.fileName,
         caption: text,
-        status: "sent"
+        status: msgStatus,
+        error: whatsappError ? JSON.stringify(whatsappError).substring(0, 200) : undefined
       });
 
-      // Update Chat Metadata
+      // Update Chat metadata
       await Chat.findByIdAndUpdate(chatId, {
         lastMsg: displayText,
-        lastMsgTime: newMessage.time,
+        lastMsgTime: msgTime,
         lastActivity: new Date()
       });
 
-      // Emit socket event
+      // Emit socket event to all clients in the chat room
       try {
         const io = getIO();
         if (io) {
-          console.log(`📡 Emitting message_sent event for chat ${chatId}`);
-          io.emit("message_sent", {
-            chatId: chatId,
+          io.to(chatId.toString()).emit("message_sent", {
+            chatId: chatId.toString(),
             message: newMessage
           });
-          console.log(`✅ Socket event emitted successfully`);
-        } else {
-          console.warn(`⚠️  Socket.IO not initialized`);
+          // Also update chat list for all clients
+          io.emit("chat_updated", await Chat.findById(chatId));
         }
       } catch (socketError) {
         console.error("❌ Socket error:", socketError.message);
@@ -233,38 +258,50 @@ router.post("/message", async (req, res) => {
       return res.json({
         success: true,
         data: newMessage,
-        whatsappMessageId: whatsappResult.messageId,
-        warning: 'Message sent to WhatsApp. If recipient doesn\'t receive it within a few minutes, they may not have WhatsApp installed or active on this number.'
+        whatsappMessageId: whatsappResult?.messageId,
+        whatsappError: whatsappError || undefined
       });
     }
 
-    // Regular message (non-WhatsApp or from customer)
-    const newMessage = await Message.create({ 
-      chatId, 
-      text, 
-      sender, 
-      time: time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      messageType: mediaType || "text",
+    // ── Regular message (non-WhatsApp or from customer / 'them') ──
+    if (!text && !media) {
+      return res.status(400).json({ error: "Message text or media is required" });
+    }
+
+    const newMessage = await Message.create({
+      chatId,
+      text,
+      sender,
+      time: msgTime,
+      messageType: media ? normalizedMessageType : "text",
       mediaUrl: media?.url,
+      mediaType: mediaType,
+      mediaId: media?.id || media?.mediaId,
+      fileName: media?.fileName,
       status: sender === "them" ? "delivered" : "sent"
     });
-    
-    // Update Chat Metadata
-    await Chat.findByIdAndUpdate(chatId, {
-      lastMsg: text,
-      lastMsgTime: newMessage.time,
-      unread: sender === "them" ? { $inc: 1 } : 0,
-      lastActivity: new Date()
-    });
 
-    // Emit socket event
+    // Update Chat Metadata — fix: use proper $inc operator
+    const chatUpdate = {
+      lastMsg: text || '📎 Media',
+      lastMsgTime: msgTime,
+      lastActivity: new Date()
+    };
+    if (sender === "them") {
+      await Chat.findByIdAndUpdate(chatId, { ...chatUpdate, $inc: { unread: 1 } });
+    } else {
+      await Chat.findByIdAndUpdate(chatId, chatUpdate);
+    }
+
+    // Emit socket event to everyone (for non-WhatsApp chats)
     try {
       const io = getIO();
       if (io) {
         io.emit("receive_message", {
-          chatId: chatId,
+          chatId: chatId.toString(),
           message: newMessage
         });
+        io.emit("chat_updated", await Chat.findById(chatId));
       }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
@@ -276,9 +313,9 @@ router.post("/message", async (req, res) => {
     });
   } catch (error) {
     console.error("Error sending message:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to send message",
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -291,7 +328,7 @@ router.put("/:chatId/read", async (req, res) => {
       { unread: 0 },
       { new: true }
     );
-    
+
     // Mark all unread messages as read
     await Message.updateMany(
       { chatId: req.params.chatId, sender: "them", status: { $ne: "read" } },
@@ -308,14 +345,14 @@ router.put("/:chatId/read", async (req, res) => {
 router.post("/upload-file", upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ 
-        error: "No file uploaded" 
+      return res.status(400).json({
+        error: "No file uploaded"
       });
     }
 
     const filePath = req.file.path;
     const mimeType = req.file.mimetype;
-    
+
     console.log(`📁 File uploaded: ${filePath}, Type: ${mimeType}`);
 
     // Upload to WhatsApp servers
@@ -326,7 +363,7 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-      
+
       return res.status(500).json({
         error: "Failed to upload media to WhatsApp",
         details: result.error
@@ -346,15 +383,15 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
     });
   } catch (error) {
     console.error("Error uploading file:", error);
-    
+
     // Clean up local file on error
     if (req.file && fs.existsSync(req.file.path)) {
       fs.unlinkSync(req.file.path);
     }
-    
-    res.status(500).json({ 
+
+    res.status(500).json({
       error: "Failed to upload file",
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -365,8 +402,8 @@ router.post("/upload-media", async (req, res) => {
     const { fileUrl, mimeType } = req.body;
 
     if (!fileUrl || !mimeType) {
-      return res.status(400).json({ 
-        error: "File URL and mime type are required" 
+      return res.status(400).json({
+        error: "File URL and mime type are required"
       });
     }
 
@@ -385,9 +422,9 @@ router.post("/upload-media", async (req, res) => {
     });
   } catch (error) {
     console.error("Error uploading media:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to upload media",
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -403,8 +440,8 @@ router.post("/send-template", async (req, res) => {
     }
 
     if (chat.source !== "whatsapp" || !chat.whatsappId) {
-      return res.status(400).json({ 
-        error: "This chat is not a WhatsApp conversation" 
+      return res.status(400).json({
+        error: "This chat is not a WhatsApp conversation"
       });
     }
 
@@ -423,9 +460,9 @@ router.post("/send-template", async (req, res) => {
     }
 
     // Save template message to database
-    const time = new Date().toLocaleTimeString([], { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+    const time = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
     });
 
     const newMessage = await Message.create({
@@ -452,9 +489,9 @@ router.post("/send-template", async (req, res) => {
     });
   } catch (error) {
     console.error("Error sending template:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       error: "Failed to send template",
-      details: error.message 
+      details: error.message
     });
   }
 });
@@ -479,10 +516,10 @@ router.put("/:chatId/pin", async (req, res) => {
   try {
     const chat = await Chat.findById(req.params.chatId);
     if (!chat) return res.status(404).json({ error: "Chat not found" });
-    
+
     chat.isPinned = !chat.isPinned;
     await chat.save();
-    
+
     res.json(chat);
   } catch (error) {
     res.status(500).json({ error: "Failed to toggle pin status", details: error.message });
@@ -526,7 +563,7 @@ router.delete("/:chatId/messages", async (req, res) => {
       { chatId: req.params.chatId },
       { isDeleted: true, deletedAt: new Date() }
     );
-    
+
     // Update chat last message
     await Chat.findByIdAndUpdate(req.params.chatId, {
       lastMsg: "Chat history cleared",
@@ -543,13 +580,13 @@ router.delete("/:chatId/messages", async (req, res) => {
 router.delete("/:chatId", async (req, res) => {
   try {
     const chatId = req.params.chatId;
-    
+
     // Delete all messages associated with this chat
     await Message.deleteMany({ chatId });
-    
+
     // Delete the chat itself
     const deletedChat = await Chat.findByIdAndDelete(chatId);
-    
+
     if (!deletedChat) {
       return res.status(404).json({ error: "Chat not found" });
     }

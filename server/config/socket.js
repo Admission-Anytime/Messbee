@@ -19,7 +19,7 @@ const initializeSocket = (httpServer) => {
   io.on('connection', (socket) => {
     console.log('🔌 New client connected:', socket.id);
 
-    // Join user to their room
+    // Join user to their personal room
     socket.on('join', (userId) => {
       socket.join(userId);
       console.log(`👤 User ${userId} joined room`);
@@ -28,19 +28,24 @@ const initializeSocket = (httpServer) => {
     // Join specific chat room
     socket.on('join_chat', (chatId) => {
       socket.join(chatId);
-      console.log(`💬 User joined chat room: ${chatId}`);
+      console.log(`💬 Socket ${socket.id} joined chat room: ${chatId}`);
     });
 
-    // Handle chat messages (for P2P communication)
-    socket.on('send_message', (data) => {
-      console.log('📤 Message sent:', data);
-      // Broadcast to all clients in the chat room
-      io.to(data.chatId).emit('receive_message', data);
+    // Leave a chat room
+    socket.on('leave_chat', (chatId) => {
+      socket.leave(chatId);
+      console.log(`🚪 Socket ${socket.id} left chat room: ${chatId}`);
     });
 
     // Handle typing indicator
     socket.on('typing', (data) => {
-      socket.to(data.recipientId).emit('user-typing', data);
+      // Broadcast to others in the chat room (not back to sender)
+      socket.to(data.chatId).emit('user-typing', { chatId: data.chatId, socketId: socket.id });
+    });
+
+    // Handle stopped typing
+    socket.on('stop_typing', (data) => {
+      socket.to(data.chatId).emit('user-stop-typing', { chatId: data.chatId, socketId: socket.id });
     });
 
     // Handle user status (online/offline)

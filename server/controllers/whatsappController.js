@@ -111,7 +111,7 @@ exports.handleWebhook = async (req, res) => {
       const signature = req.headers['x-hub-signature-256'];
       const isValid = whatsappService.verifyWebhookSignature(
         signature,
-        JSON.stringify(req.body),
+        req.rawBody || JSON.stringify(req.body),
         process.env.WHATSAPP_APP_SECRET
       );
       if (!isValid) {
@@ -125,36 +125,48 @@ exports.handleWebhook = async (req, res) => {
     console.log('📱 Received WhatsApp Webhook:', JSON.stringify(webhookData, null, 2));
     
     // Log webhook type for debugging
-    const entry = webhookData.entry?.[0];
-    const changes = entry?.changes?.[0];
-    const value = changes?.value;
-    
-    if (value?.messages) {
-      console.log('📥 INCOMING MESSAGE detected');
-    }
-    if (value?.statuses) {
-      console.log('📊 MESSAGE STATUS UPDATE detected:', value.statuses[0]);
-    }
-
-    // Process the webhook
-    const result = whatsappService.processWebhook(webhookData);
-
-    if (!result.success) {
-      console.error('Webhook processing failed:', result.error);
-      return res.sendStatus(200); // Still return 200 to acknowledge receipt
-    }
-
-    // Handle incoming message
-    if (result.type === 'message') {
-      await handleIncomingMessage(result.data);
-    }
-
-    // Handle status update (delivered, read, etc.)
-    if (result.type === 'status') {
-      await handleStatusUpdate(result.data);
-    }
-
+    // Acknowledge immediately so WhatsApp does not retry while we process.
     res.sendStatus(200);
+
+    setImmediate(async () => {
+      try {
+        const entries = Array.isArray(webhookData.entry) ? webhookData.entry : [];
+
+        for (const entry of entries) {
+          const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+
+          for (const change of changes) {
+            const value = change?.value;
+            if (!value) continue;
+
+            if (Array.isArray(value.messages) && value.messages.length > 0) {
+              console.log('📥 INCOMING MESSAGE detected');
+            }
+
+            if (Array.isArray(value.statuses) && value.statuses.length > 0) {
+              console.log('📊 MESSAGE STATUS UPDATE detected:', value.statuses[0]);
+            }
+
+            const result = whatsappService.processWebhook({ entry: [{ changes: [change] }] });
+
+            if (!result.success) {
+              console.error('Webhook processing failed:', result.error);
+              continue;
+            }
+
+            if (result.type === 'message') {
+              await handleIncomingMessage(result.data);
+            }
+
+            if (result.type === 'status') {
+              await handleStatusUpdate(result.data);
+            }
+          }
+        }
+      } catch (backgroundError) {
+        console.error('❌ Async webhook processing error:', backgroundError);
+      }
+    });
   } catch (error) {
     console.error('❌ Webhook Error:', error);
     console.error('   Stack:', error.stack);
@@ -172,10 +184,11 @@ async function handleIncomingMessage(data) {
 
     // Normalize the phone number
     const normalizedFrom = normalizePhoneNumber(from);
+    const contactName = contact?.name || contact?.profile?.name || normalizedFrom;
 
     console.log(`📥 Processing incoming WhatsApp message from ${normalizedFrom} (original: ${from}), type: ${messageType}`);
     console.log(`   Message ID: ${messageId}`);
-    console.log(`   Contact: ${contact.name}`);
+    console.log(`   Contact: ${contactName}`);
 
     // Find or create chat (check both phone and whatsappId with normalized number)
     let chat = await Chat.findOne({ 
@@ -190,11 +203,11 @@ async function handleIncomingMessage(data) {
     if (!chat) {
       console.log(`📝 Creating new chat for ${normalizedFrom}`);
       chat = await Chat.create({
-        name: contact.name || normalizedFrom,
+        name: contactName,
         phone: normalizedFrom,
         status: 'active',
         chatStatus: 'open',
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name || normalizedFrom)}&background=random`,
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName)}&background=random`,
         teamMember: 'Unassigned',
         whatsappId: normalizedFrom,
         source: 'whatsapp'

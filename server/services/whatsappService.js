@@ -28,6 +28,11 @@ class WhatsAppService {
     if (!this.phoneNumberId || !this.accessToken) {
       throw new Error('WhatsApp configuration is incomplete. Please check WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN in .env file');
     }
+
+    if (!this.baseURL || !this.baseURL.includes('graph.facebook.com')) {
+      throw new Error('WhatsApp Graph API base URL is invalid');
+    }
+
     return true;
   }
 
@@ -66,6 +71,13 @@ class WhatsAppService {
 
       console.log(`✅ WhatsApp message sent successfully. Message ID: ${response.data.messages[0].id}`);
       console.log(`   To: ${cleanPhone}`);
+
+      if (!response.data?.messages?.length) {
+        return {
+          success: false,
+          error: { message: 'WhatsApp API did not return a message ID' }
+        };
+      }
       
       return {
         success: true,
@@ -125,6 +137,13 @@ class WhatsAppService {
 
       console.log(`✅ WhatsApp ${mediaType} message sent successfully. Message ID: ${response.data.messages[0].id}`);
       console.log(`   To: ${cleanPhone}`);
+
+      if (!response.data?.messages?.length) {
+        return {
+          success: false,
+          error: { message: 'WhatsApp API did not return a message ID' }
+        };
+      }
       
       return {
         success: true,

@@ -3,7 +3,7 @@ import axios from "axios";
 // 1. RESOLVE BASE URL:
 // It will try to use your .env variable first. 
 // If it can't find it, it safely forces the connection to your backend on port 5000.
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
 
 // 2. CREATE AXIOS INSTANCE:
 const instance = axios.create({

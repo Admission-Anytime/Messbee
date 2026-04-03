@@ -1,10 +1,9 @@
-import React, { useState, useMemo, useEffect } from "react";
-import { ExclamationTriangleIcon, TrashIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
 import UserProfilePanel from "./UserProfilePanel";
-import ActivityLog from "./ActivityLog"; 
-import axios from "../../context/axios";
+import ActivityLog from "./ActivityLog";
 import chatService from "../../services/chatService";
 import LabelApi from "../../services/LabelApi";
 import StatusApi from "../../services/StatusApi";
@@ -12,15 +11,14 @@ import QuickReplyApi from "../../services/QuickReplyApi";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
-var socket;
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
 
 const Chat = () => {
-  const [chats, setChats] = useState([]); 
-  const [messages, setMessages] = useState([]); 
+  const [chats, setChats] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
   const [showProfile, setShowProfile] = useState(false);
-  const [activeTab, setActiveTab] = useState("All"); 
+  const [activeTab, setActiveTab] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -38,27 +36,34 @@ const Chat = () => {
     title: "",
     message: "",
     confirmText: "",
-    onConfirm: () => {},
-    type: "danger" // 'danger' or 'warning'
+    onConfirm: () => { },
+    type: "danger"
   });
 
+  // Ref to always have latest activeChatId inside socket callbacks
+  const activeChatIdRef = useRef(null);
+  const socketRef = useRef(null);
+  const previousChatIdRef = useRef(null);
   useEffect(() => {
-    socket = io(SOCKET_URL);
+    activeChatIdRef.current = activeChatId;
+  }, [activeChatId]);
+
+  // ── Initial socket + data fetch (runs once) ──────────────────────────────
+  useEffect(() => {
+    socketRef.current = io(SOCKET_URL, { withCredentials: true });
 
     const fetchChats = async () => {
       try {
         setError(null);
         const result = await chatService.getChats();
-        
         if (result.success) {
           setChats(result.data);
-          if (result.data.length > 0 && !activeChatId) {
+          if (result.data.length > 0) {
             setActiveChatId(result.data[0]._id);
           }
         } else {
           setError(result.error);
         }
-        
         setLoading(false);
       } catch (err) {
         console.error("Error fetching chats:", err);
@@ -71,17 +76,13 @@ const Chat = () => {
       try {
         const labelsData = await LabelApi.getAllLabels();
         setAvailableLabels(labelsData);
-        
         const statusData = await StatusApi.getAllStatuses();
-        const formattedStatuses = statusData.map(s => ({
+        setStatusOptions(statusData.map(s => ({
           id: s._id,
           label: s.name,
           dot: s.color ? `bg-[${s.color}]` : 'bg-slate-300',
           original: s
-        }));
-        setStatusOptions(formattedStatuses);
-
-        // Fetch Quick Replies
+        })));
         const replies = await QuickReplyApi.getQuickReplies();
         setQuickReplies(replies);
       } catch (error) {
@@ -92,121 +93,137 @@ const Chat = () => {
     fetchChats();
     fetchLabelsAndStatuses();
 
-    // Listen for incoming messages
-    socket.on("receive_message", (data) => {
-      console.log('Received message:', data);
-      if (activeChatId === data.chatId) {
-        setMessages((prev) => {
-          const isDuplicate = prev.some(msg => 
-             msg._id === data.message._id || 
-             (msg.text === data.message.text && msg.time === data.message.time && msg.sender === 'me')
-          );
-          if (isDuplicate) return prev; 
-          return [...prev, data.message]; 
+    // ── SOCKET: incoming message from contact ('them') ──────────────────
+    socketRef.current.on("receive_message", (data) => {
+      const incomingChatId = data.chatId?.toString();
+      console.log('📩 receive_message:', incomingChatId, '| active:', activeChatIdRef.current?.toString());
+
+      // Add to message list only if viewing that chat
+      if (activeChatIdRef.current?.toString() === incomingChatId) {
+        setMessages(prev => {
+          const isDuplicate = prev.some(m => m._id?.toString() === data.message?._id?.toString());
+          if (isDuplicate) return prev;
+          return [...prev, data.message];
         });
       }
 
-      // Update chat list - move to top only if it's not the active chat
-      setChats((prevChats) => {
-        const chatIndex = prevChats.findIndex(chat => chat._id === data.chatId);
-        if (chatIndex === -1) return prevChats;
-        
-        const updatedChat = {
-          ...prevChats[chatIndex],
-          lastMsg: data.message.media ? `📸 ${data.message.mediaType}` : data.message.text,
-          lastMsgTime: data.message.time,
-          unread: data.chatId === activeChatId ? prevChats[chatIndex].unread : (prevChats[chatIndex].unread || 0) + 1
-        };
-        
-        // If it's the active chat, keep it in the same position
-        if (data.chatId === activeChatId) {
-          const newChats = [...prevChats];
-          newChats[chatIndex] = updatedChat;
-          return newChats;
+      // Update sidebar chat preview
+      setChats(prevChats => {
+        const idx = prevChats.findIndex(c => c._id?.toString() === incomingChatId);
+        if (idx === -1) {
+          if (!data.chat) return prevChats;
+          const exists = prevChats.some(c => c._id?.toString() === data.chat._id?.toString());
+          if (exists) return prevChats;
+          return [data.chat, ...prevChats];
         }
-        
-        // If it's not the active chat, move it to the top
-        const newChats = prevChats.filter(chat => chat._id !== data.chatId);
-        return [updatedChat, ...newChats];
-      });
-    });
-
-    // Listen for sent messages
-    socket.on("message_sent", (data) => {
-      console.log('✅ Message sent confirmation:', data);
-      console.log('   Chat ID:', data.chatId);
-      console.log('   Message ID:', data.message?._id);
-      console.log('   Active Chat ID:', activeChatId);
-      
-      // Update message status
-      setMessages((prev) => {
-        console.log('   Current messages count:', prev.length);
-        const updated = prev.map(msg => {
-          if (msg._id === data.message._id || msg._id.startsWith('temp_')) {
-            console.log('   ✓ Updating message:', msg._id, '->', data.message._id);
-            return { ...data.message, status: 'sent' };
-          }
-          return msg;
-        });
-        console.log('   Updated messages count:', updated.length);
+        const updated = [
+          ...prevChats.slice(0, idx),
+          {
+            ...prevChats[idx],
+            lastMsg: data.message?.text || '📎 Media',
+            lastMsgTime: data.message?.time,
+            // Increment unread only if NOT viewing this chat
+            unread: activeChatIdRef.current?.toString() === incomingChatId
+              ? 0
+              : (prevChats[idx].unread || 0) + 1
+          },
+          ...prevChats.slice(idx + 1)
+        ];
         return updated;
       });
     });
 
-    // Listen for message status updates
-    socket.on("message_status_update", (data) => {
-      console.log('Message status update:', data);
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg._id === data.messageId || msg.whatsappMessageId === data.whatsappMessageId
-            ? { ...msg, status: data.status } 
+    // ── SOCKET: our sent message confirmed by server ────────────────────
+    socketRef.current.on("message_sent", (data) => {
+      const sentChatId = data.chatId?.toString();
+      console.log('✅ message_sent for chat:', sentChatId);
+      // Replace temp message with real one
+      if (activeChatIdRef.current?.toString() === sentChatId) {
+        setMessages(prev =>
+          prev.map(msg => {
+            // Replace either the matching temp ID or a matching real ID
+            if (
+              (msg._id?.toString().startsWith('temp_')) ||
+              msg._id?.toString() === data.message?._id?.toString()
+            ) {
+              return { ...data.message, status: data.message.status || 'sent' };
+            }
+            return msg;
+          })
+        );
+      }
+    });
+
+    // ── SOCKET: delivery / read status update ──────────────────────────
+    socketRef.current.on("message_status_update", (data) => {
+      setMessages(prev =>
+        prev.map(msg =>
+          msg._id?.toString() === data.messageId?.toString() ||
+            msg.whatsappMessageId === data.whatsappMessageId
+            ? { ...msg, status: data.status }
             : msg
         )
       );
     });
 
-    // Listen for chat updates
-    socket.on("chat_updated", (updatedChat) => {
-      console.log('Chat updated:', updatedChat);
-      setChats((prevChats) => 
-        prevChats.map((chat) => 
-          chat._id === updatedChat._id ? updatedChat : chat
+    // ── SOCKET: chat metadata updated ───────────────────────────────────
+    socketRef.current.on("chat_updated", (updatedChat) => {
+      setChats(prev =>
+        prev.map(c =>
+          c._id?.toString() === updatedChat._id?.toString() ? updatedChat : c
         )
       );
     });
 
-    // Listen for new chats created
-    socket.on("chat_created", (newChat) => {
-      console.log('New chat created:', newChat);
-      setChats((prevChats) => [newChat, ...prevChats]);
+    // ── SOCKET: brand-new chat created via WhatsApp webhook ────────────
+    socketRef.current.on("chat_created", (newChat) => {
+      setChats(prev => {
+        const exists = prev.some(c => c._id?.toString() === newChat._id?.toString());
+        if (exists) return prev;
+        return [newChat, ...prev];
+      });
     });
 
-    return () => socket.disconnect();
-  }, [activeChatId]);
+    return () => {
+      if (!socketRef.current) return;
+      socketRef.current.off("receive_message");
+      socketRef.current.off("message_sent");
+      socketRef.current.off("message_status_update");
+      socketRef.current.off("chat_updated");
+      socketRef.current.off("chat_created");
+      socketRef.current.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
-    if (!activeChatId) return;
+    if (!activeChatId || !socketRef.current) return;
 
     const fetchMessages = async () => {
       try {
+        if (previousChatIdRef.current) {
+          socketRef.current.emit("leave_chat", previousChatIdRef.current);
+        }
+
         const result = await chatService.getMessages(activeChatId);
-        
+
         if (result.success) {
           setMessages(result.data);
         } else {
           console.error('Failed to fetch messages:', result.error);
           setMessages([]);
         }
-        
+
         // Mark messages as read
         await chatService.markMessagesAsRead(activeChatId);
-        
+
         // Join socket room for this chat
-        socket.emit("join_chat", activeChatId);
-        
+        socketRef.current.emit("join_chat", activeChatId);
+        previousChatIdRef.current = activeChatId;
+
         // Update unread count in chat list
-        setChats((prevChats) => 
-          prevChats.map((chat) => 
+        setChats((prevChats) =>
+          prevChats.map((chat) =>
             chat._id === activeChatId ? { ...chat, unread: 0 } : chat
           )
         );
@@ -232,16 +249,16 @@ const Chat = () => {
 
   const handleSendMessage = async (text, media = null) => {
     if (!text?.trim() && !media) return;
-    
-    console.log('📤 handleSendMessage called:', { 
-      text: text?.substring(0, 50), 
-      hasMedia: !!media, 
-      activeChatId 
+
+    console.log('📤 handleSendMessage called:', {
+      text: text?.substring(0, 50),
+      hasMedia: !!media,
+      activeChatId
     });
-    
+
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const tempId = 'temp_' + Date.now();
-    
+
     // Create temporary message for immediate UI update
     const tempMessage = {
       _id: tempId,
@@ -261,9 +278,9 @@ const Chat = () => {
 
       // Update chat list optimistically - keep active chat in same position
       setChats((prev) => {
-        return prev.map(c => 
-          c._id === activeChatId 
-            ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time } 
+        return prev.map(c =>
+          c._id === activeChatId
+            ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time }
             : c
         );
       });
@@ -286,7 +303,7 @@ const Chat = () => {
       if (result.success) {
         console.log('✅ Message sent successfully:', result.data._id);
         // Replace temporary message with actual message from server
-        setMessages((prev) => 
+        setMessages((prev) =>
           prev.map(msg => {
             if (msg._id === tempId) {
               console.log('🔄 Replacing temp message with real message');
@@ -298,17 +315,17 @@ const Chat = () => {
 
         // Emit via socket for real-time updates to other clients
         console.log('📡 Emitting socket event...');
-        socket.emit("send_message", { 
-          chatId: activeChatId, 
-          message: result.data 
+        socketRef.current?.emit("send_message", {
+          chatId: activeChatId,
+          message: result.data
         });
       } else {
         console.error('❌ Failed to send message:', result.error);
         // Mark message as failed
-        setMessages((prev) => 
-          prev.map(msg => 
-            msg._id === tempId 
-              ? { ...msg, status: 'failed', error: result.error } 
+        setMessages((prev) =>
+          prev.map(msg =>
+            msg._id === tempId
+              ? { ...msg, status: 'failed', error: result.error }
               : msg
           )
         );
@@ -317,10 +334,10 @@ const Chat = () => {
     } catch (error) {
       console.error('💥 Error in handleSendMessage:', error);
       // Mark message as failed
-      setMessages((prev) => 
-        prev.map(msg => 
-          msg._id === tempId 
-            ? { ...msg, status: 'failed' } 
+      setMessages((prev) =>
+        prev.map(msg =>
+          msg._id === tempId
+            ? { ...msg, status: 'failed' }
             : msg
         )
       );
@@ -331,7 +348,7 @@ const Chat = () => {
     try {
       setLoading(true);
       const result = await chatService.createChat(name, phone, 'whatsapp');
-      
+
       if (result.success) {
         // Add to chat list if not already there
         setChats((prevChats) => {
@@ -341,12 +358,12 @@ const Chat = () => {
           }
           return [result.data, ...prevChats];
         });
-        
+
         // Select the new chat
         setActiveChatId(result.data._id);
         setShowProfile(false);
         setLoading(false);
-        
+
         return { success: true, data: result.data };
       } else {
         setLoading(false);
@@ -361,7 +378,7 @@ const Chat = () => {
 
   const handleClearChat = () => {
     if (!activeChatId) return;
-    
+
     setConfirmConfig({
       title: "Clear Chat History",
       message: "Are you sure you want to clear this chat history? This action will remove all messages from your view and cannot be undone.",
@@ -387,7 +404,7 @@ const Chat = () => {
 
   const handleDeleteChat = () => {
     if (!activeChatId) return;
-    
+
     setConfirmConfig({
       title: "Delete Contact",
       message: "Are you sure you want to delete this contact and all its messages? This action is permanent and cannot be reversed.",
@@ -457,7 +474,7 @@ const Chat = () => {
   return (
     <div className="flex w-full h-full bg-white font-sans overflow-hidden">
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; } .hide-scrollbar::-webkit-scrollbar { display: none; } `}</style>
-      
+
       {/* LEFT: CONTACT LIST */}
       <div className={`w-full md:w-[350px] lg:w-[380px] flex flex-col border-r border-slate-100 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
         {loading ? (
@@ -471,51 +488,51 @@ const Chat = () => {
             </div>
           </div>
         ) : (
-          <ContactCard 
-            chats={filteredChats} 
-            activeChatId={activeChatId} 
-            onChatSelect={(id) => { setActiveChatId(id); setShowProfile(false); }} 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            onCreateChat={handleCreateChat} 
+          <ContactCard
+            chats={filteredChats}
+            activeChatId={activeChatId}
+            onChatSelect={(id) => { setActiveChatId(id); setShowProfile(false); }}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab}
+            onCreateChat={handleCreateChat}
           />
         )}
       </div>
-      
+
       {/* MIDDLE: CONVERSATION AREA */}
       <div className={`flex-1 flex flex-col h-full bg-white relative min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
         {activeChat ? (
           <div className="flex h-full w-full relative">
-             <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">
-                <Conversion 
-                  data={{ ...activeChat, messages: messages }} 
-                  onSendMessage={handleSendMessage} 
-                  onBack={() => setActiveChatId(null)} 
-                  onToggleProfile={() => setShowProfile(!showProfile)} 
-                  onClearChat={handleClearChat}
-                  onDeleteChat={handleDeleteChat}
-                  onUpdateStatus={handleUpdateStatus}
-                  onUpdateLabels={handleUpdateLabels}
-                  onTogglePin={handleTogglePin}
-                  onViewHistory={() => setShowActivityLog(true)} 
+            <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">
+              <Conversion
+                data={{ ...activeChat, messages: messages }}
+                onSendMessage={handleSendMessage}
+                onBack={() => setActiveChatId(null)}
+                onToggleProfile={() => setShowProfile(!showProfile)}
+                onClearChat={handleClearChat}
+                onDeleteChat={handleDeleteChat}
+                onUpdateStatus={handleUpdateStatus}
+                onUpdateLabels={handleUpdateLabels}
+                onTogglePin={handleTogglePin}
+                onViewHistory={() => setShowActivityLog(true)}
+                availableLabels={availableLabels}
+                statusOptions={statusOptions}
+                quickReplies={quickReplies}
+              />
+            </div>
+
+            {/* RIGHT: PROFILE PANEL */}
+            {showProfile && (
+              <div className="w-[320px] lg:w-[340px] bg-white h-full shrink-0 hidden xl:block">
+                <UserProfilePanel
+                  data={activeChat}
+                  onClose={() => setShowProfile(false)}
+                  onViewHistory={() => setShowActivityLog(true)}
                   availableLabels={availableLabels}
                   statusOptions={statusOptions}
-                  quickReplies={quickReplies}
                 />
-             </div>
-             
-             {/* RIGHT: PROFILE PANEL */}
-             {showProfile && (
-                <div className="w-[320px] lg:w-[340px] bg-white h-full shrink-0 hidden xl:block">
-                   <UserProfilePanel 
-                     data={activeChat} 
-                     onClose={() => setShowProfile(false)} 
-                     onViewHistory={() => setShowActivityLog(true)} 
-                     availableLabels={availableLabels}
-                     statusOptions={statusOptions}
-                   />
-                </div>
-             )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-slate-50/50"><p className="font-semibold text-slate-500">Select a conversation</p></div>
@@ -531,7 +548,7 @@ const Chat = () => {
               <div className="flex items-center justify-center w-14 h-14 bg-red-50 rounded-2xl mb-5 mx-auto">
                 <ExclamationTriangleIcon className="w-8 h-8 text-red-500" />
               </div>
-              
+
               <div className="text-center mb-8">
                 <h3 className="text-xl font-bold text-slate-900 mb-2">{confirmConfig.title}</h3>
                 <p className="text-sm font-medium text-slate-500 leading-relaxed px-2">
@@ -540,13 +557,13 @@ const Chat = () => {
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <button 
+                <button
                   onClick={() => setIsConfirmModalOpen(false)}
                   className="px-6 py-3 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-2xl transition-colors border border-slate-100"
                 >
                   Cancel
                 </button>
-                <button 
+                <button
                   onClick={confirmConfig.onConfirm}
                   className="px-6 py-3 text-sm font-bold text-white bg-red-500 hover:bg-red-600 rounded-2xl transition-all shadow-lg shadow-red-100 active:scale-[0.98]"
                 >
