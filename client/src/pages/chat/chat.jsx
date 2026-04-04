@@ -21,6 +21,7 @@ const Chat = () => {
   const [activeTab, setActiveTab] = useState("All");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [sendError, setSendError] = useState(null);  // WhatsApp send error
 
   // ✅ Dynamic Data for Labels, Statuses, and Quick Replies
   const [availableLabels, setAvailableLabels] = useState([]);
@@ -302,6 +303,7 @@ const Chat = () => {
 
       if (result.success) {
         console.log('✅ Message sent successfully:', result.data._id);
+        setSendError(null); // clear any previous error
         // Replace temporary message with actual message from server
         setMessages((prev) =>
           prev.map(msg => {
@@ -320,12 +322,19 @@ const Chat = () => {
           message: result.data
         });
       } else {
-        console.error('❌ Failed to send message:', result.error);
-        // Mark message as failed
+        console.error('❌ Failed to send message:', result.error, 'Code:', result.errorCode);
+        // Show WhatsApp error to user (include error code if available)
+        const errMsg = result.error || 'Failed to send message via WhatsApp';
+        const displayErr = result.errorCode ? `[${result.errorCode}] ${errMsg}` : errMsg;
+        setSendError(displayErr);
+        setTimeout(() => setSendError(null), 10000); // auto-dismiss after 10s
+        // Replace temp message with the DB-saved failed message (or mark as failed)
         setMessages((prev) =>
           prev.map(msg =>
             msg._id === tempId
-              ? { ...msg, status: 'failed', error: result.error }
+              ? result.data
+                ? { ...result.data, status: 'failed', error: errMsg }
+                : { ...msg, status: 'failed', error: errMsg }
               : msg
           )
         );
@@ -501,6 +510,16 @@ const Chat = () => {
 
       {/* MIDDLE: CONVERSATION AREA */}
       <div className={`flex-1 flex flex-col h-full bg-white relative min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
+        {/* WhatsApp Send Error Banner */}
+        {sendError && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-5 py-3 rounded-2xl shadow-lg max-w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
+            <svg className="w-5 h-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            </svg>
+            <span>WhatsApp failed: {sendError}</span>
+            <button onClick={() => setSendError(null)} className="ml-2 text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
+          </div>
+        )}
         {activeChat ? (
           <div className="flex h-full w-full relative">
             <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">

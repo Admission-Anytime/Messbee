@@ -37,6 +37,59 @@ class WhatsAppService {
   }
 
   /**
+   * Register WhatsApp Business Number
+   */
+  async register(pin) {
+    try {
+      this.validateConfig();
+      const response = await axios.post(
+        `${this.baseURL}/register`,
+        {
+          messaging_product: 'whatsapp',
+          pin: pin
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('✅ WhatsApp number registered successfully');
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('❌ WhatsApp Register Error:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data || { message: error.message } };
+    }
+  }
+
+  /**
+   * Deregister WhatsApp Business Number
+   */
+  async deregister() {
+    try {
+      this.validateConfig();
+      const response = await axios.post(
+        `${this.baseURL}/deregister`,
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      console.log('✅ WhatsApp number deregistered successfully');
+      return { success: true, data: response.data };
+    } catch (error) {
+      console.error('❌ WhatsApp Deregister Error:', error.response?.data || error.message);
+      return { success: false, error: error.response?.data || { message: error.message } };
+    }
+  }
+
+  /**
    * Send a text message via WhatsApp
    */
   async sendTextMessage(to, message) {

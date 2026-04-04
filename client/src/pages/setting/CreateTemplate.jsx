@@ -354,7 +354,7 @@ const Templates = () => {
                             <div className="space-y-4">
                                 {buttons.map((btn) => (
                                     <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                                        <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
                                             <div>
                                                 <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
                                                 <select 
@@ -364,7 +364,6 @@ const Templates = () => {
                                                 >
                                                   <option>Visit website</option>
                                                   <option>Call phone number</option>
-                                                  <option>Copy code</option>
                                                 </select>
                                             </div>
                                             <div>
@@ -373,11 +372,10 @@ const Templates = () => {
                                                   <input 
                                                     type="text" 
                                                     value={btn.text} 
-                                                    onChange={(e) => updateButton(btn.id, 'text', e.target.value.slice(0, 25))}
-                                                    className="w-full p-2.5 pr-12 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                    onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
                                                     placeholder="Visit website"
                                                   />
-                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{btn.text.length}/25</span>
                                                 </div>
                                             </div>
                                             
@@ -397,34 +395,26 @@ const Templates = () => {
                                                       <input 
                                                         type="text" 
                                                         value={btn.value} 
-                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value.slice(0, 20))}
-                                                        className="w-full p-2.5 pr-12 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
                                                         placeholder="Mobile Number"
                                                       />
-                                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{btn.value.length}/20</span>
                                                     </div>
                                                 </div>
                                               </>
                                             ) : (
                                               <>
-                                                <div>
-                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">URL Type</label>
-                                                    <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
-                                                      <option>Static</option>
-                                                      <option>Dynamic</option>
-                                                    </select>
-                                                </div>
+                                            
                                                 <div>
                                                     <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
                                                     <div className="relative">
                                                       <input 
                                                         type="text" 
                                                         value={btn.value} 
-                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value.slice(0, 2000))}
-                                                        className="w-full p-2.5 pr-14 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
                                                         placeholder="https://..."
                                                       />
-                                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{(btn.value || '').length}/2000</span>
                                                     </div>
                                                 </div>
                                               </>

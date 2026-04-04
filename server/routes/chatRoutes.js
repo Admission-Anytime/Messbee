@@ -10,6 +10,36 @@ const fs = require('fs');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const router = express.Router();
 
+/**
+ * Map WhatsApp API error codes to user-friendly messages
+ */
+function parseWhatsAppError(errorObj) {
+  // Meta Graph API error structure: { error: { message, code, error_data: { details } } }
+  const inner = errorObj?.error || errorObj;
+  const code = inner?.code;
+  const details = inner?.error_data?.details || inner?.message || '';
+
+  const codeMessages = {
+    131047: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use a template message to initiate.',
+    131030: 'Phone number not in allowed list — your WhatsApp account is in TEST MODE. Add this number as a test recipient in Meta Developer Console.',
+    131026: 'Message could not be delivered — the number may not have WhatsApp installed or has blocked your number.',
+    131000: 'Something went wrong on WhatsApp servers. Please try again.',
+    131005: 'Permission denied — your WhatsApp Business Account does not have permission to perform this action.',
+    131008: 'Required parameter is missing from the API request.',
+    131009: 'Parameter value is invalid.',
+    131051: 'Message type not supported for this recipient.',
+    131052: 'Media download error.',
+    131053: 'Media upload error.',
+    100:    'Invalid parameter — check your phone number format. It must include country code (e.g. 919XXXXXXXXX).',
+    190:    'WhatsApp access token has expired. Please update WHATSAPP_ACCESS_TOKEN in your .env file.',
+    4:      'API call limit reached. Please try again later.',
+    80007:  'Rate limit — too many messages sent too quickly.'
+  };
+
+  const userMessage = codeMessages[code] || details || inner?.message || 'Unknown WhatsApp API error';
+  return { code, userMessage };
+}
+
 const resolveMessageType = (messageType, mediaType) => {
   const typeCandidate = (messageType || mediaType || '').toLowerCase();
 
@@ -164,11 +194,16 @@ router.post("/message", async (req, res) => {
 
     const normalizedMessageType = resolveMessageType(null, mediaType);
 
+    // Determine the WhatsApp recipient number (prefer whatsappId, fallback to phone)
+    const whatsappRecipient = chat.whatsappId || chat.phone;
+
     // If message is from 'me' (agent) and chat source is WhatsApp, send via WhatsApp API
-    if (sender === "me" && chat.source === "whatsapp" && chat.whatsappId) {
+    if (sender === "me" && chat.source === "whatsapp" && whatsappRecipient) {
       let whatsappResult = null;
       let displayText = text;
       let whatsappError = null;
+
+      console.log(`📱 Sending WhatsApp message via recipient: ${whatsappRecipient} (whatsappId: ${chat.whatsappId}, phone: ${chat.phone})`);
 
       // Handle media messages
       if (media && mediaType) {
@@ -187,7 +222,7 @@ router.post("/message", async (req, res) => {
         else if (mediaType.includes('audio')) whatsappMediaType = 'audio';
 
         const result = await whatsappService.sendMediaMessage(
-          chat.whatsappId,
+          whatsappRecipient,
           whatsappMediaType,
           mediaId,
           text || ''
@@ -197,19 +232,20 @@ router.post("/message", async (req, res) => {
           whatsappResult = result;
         } else {
           whatsappError = result.error;
-          console.error("⚠️  WhatsApp media send failed (saving to DB anyway):", result.error);
+          console.error("❌ WhatsApp media send failed:", JSON.stringify(result.error));
         }
 
         displayText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
 
       } else if (text && text.trim()) {
         // Send text message via WhatsApp
-        const result = await whatsappService.sendTextMessage(chat.whatsappId, text);
+        const result = await whatsappService.sendTextMessage(whatsappRecipient, text);
         if (result.success) {
           whatsappResult = result;
+          console.log(`✅ WhatsApp message sent to ${whatsappRecipient}`);
         } else {
           whatsappError = result.error;
-          console.error("⚠️  WhatsApp text send failed (saving to DB anyway):", result.error);
+          console.error(`❌ WhatsApp text send failed for ${whatsappRecipient}:`, JSON.stringify(result.error));
         }
       } else {
         return res.status(400).json({ error: "Message text or media is required" });
@@ -255,11 +291,24 @@ router.post("/message", async (req, res) => {
         console.error("❌ Socket error:", socketError.message);
       }
 
+      // If WhatsApp send failed, return error details to the frontend
+      if (whatsappError) {
+        const { code, userMessage } = parseWhatsAppError(whatsappError);
+        console.error(`❌ WhatsApp error [${code}]: ${userMessage}`);
+
+        return res.status(500).json({
+          success: false,
+          data: newMessage,
+          error: userMessage,
+          errorCode: code,
+          rawError: whatsappError
+        });
+      }
+
       return res.json({
         success: true,
         data: newMessage,
-        whatsappMessageId: whatsappResult?.messageId,
-        whatsappError: whatsappError || undefined
+        whatsappMessageId: whatsappResult?.messageId
       });
     }
 

@@ -346,7 +346,13 @@ const Conversion = ({
                      </div>
                   )}
                   <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[70%]`}>
-                     <div className={`px-5 py-3 text-sm shadow-sm ${msg.sender === "me" ? "bg-[#22C55E] text-white rounded-2xl rounded-br-sm" : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"}`}>
+                     <div className={`px-5 py-3 text-sm shadow-sm ${
+                        msg.sender === "me"
+                           ? msg.status === 'failed'
+                              ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
+                              : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
+                           : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
+                     }`}>
                         {msg.media && (
                            <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-200'}`}>
                               {msg.media.type === 'image' ? (
@@ -363,10 +369,19 @@ const Conversion = ({
                            </div>
                         )}
                         {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                        {msg.sender === "me" && msg.status === 'failed' && (
+                           <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
+                        )}
                      </div>
                      <div className={`text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
                         {msg.time || "12:00 PM"}
-                        {msg.sender === "me" && <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>}
+                        {msg.sender === "me" && (
+                           msg.status === 'failed'
+                              ? <span className="text-red-500 font-bold text-xs" title={msg.error || 'Failed to send'}>✗</span>
+                              : msg.status === 'pending'
+                                 ? <span className="text-slate-400 font-bold text-xs animate-pulse">○</span>
+                                 : <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
+                        )}
                      </div>
                   </div>
                </div>

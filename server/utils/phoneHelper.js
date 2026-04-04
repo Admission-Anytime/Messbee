@@ -12,24 +12,38 @@
 function normalizePhoneNumber(phone, defaultCountryCode = '91') {
   if (!phone) return '';
   
-  // Remove all non-numeric characters
-  let cleanPhone = phone.toString().replace(/[^0-9]/g, '');
-  
-  // If phone already has country code (12 digits starting with 91), return as is
-  if (cleanPhone.length === 12 && cleanPhone.startsWith(defaultCountryCode)) {
+  let cleanPhone = phone.toString().trim();
+
+  // Strip leading + if present (international format indicator)
+  if (cleanPhone.startsWith('+')) {
+    cleanPhone = cleanPhone.substring(1);
+  }
+
+  // Remove all remaining non-numeric characters (spaces, dashes, parentheses)
+  cleanPhone = cleanPhone.replace(/[^0-9]/g, '');
+
+  if (!cleanPhone) return '';
+
+  // If already has valid country code prefix and correct total length, return as-is
+  // (e.g., 919119943301 = 91 + 10 digits = 12 digits)
+  if (
+    cleanPhone.startsWith(defaultCountryCode) &&
+    cleanPhone.length === defaultCountryCode.length + 10
+  ) {
     return cleanPhone;
   }
-  
-  // If phone has 10 digits and doesn't start with country code, add it
+
+  // If exactly 10 digits, prepend the default country code
   if (cleanPhone.length === 10) {
-    cleanPhone = defaultCountryCode + cleanPhone;
+    return defaultCountryCode + cleanPhone;
   }
-  
-  // If phone has 11 digits and starts with 0, remove the 0 and add country code
+
+  // If 11 digits starting with '0', strip leading 0 and prepend country code
   if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
-    cleanPhone = defaultCountryCode + cleanPhone.substring(1);
+    return defaultCountryCode + cleanPhone.substring(1);
   }
-  
+
+  // For all other lengths (international or already full), return as-is
   return cleanPhone;
 }
 

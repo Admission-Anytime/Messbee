@@ -36,6 +36,74 @@ exports.testConnection = async (req, res, next) => {
   }
 };
 
+// @desc    Register WhatsApp Number
+// @route   POST /api/whatsapp/register
+// @access  Private
+exports.registerNumber = async (req, res, next) => {
+  try {
+    const { pin } = req.body;
+    if (!pin) {
+      return res.status(400).json({
+        success: false,
+        message: 'PIN is required to register the number'
+      });
+    }
+
+    // Await the WhatsApp service registration
+    const response = await whatsappService.register(pin);
+
+    if (response.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Number registered successfully',
+        data: response.data
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Registration failed',
+        error: response.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Registration process failed',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Deregister WhatsApp Number
+// @route   POST /api/whatsapp/deregister
+// @access  Private
+exports.deregisterNumber = async (req, res, next) => {
+  try {
+    // Await the WhatsApp service deregistration
+    const response = await whatsappService.deregister();
+
+    if (response.success) {
+      res.status(200).json({
+        success: true,
+        message: 'Number deregistered successfully',
+        data: response.data
+      });
+    } else {
+      res.status(400).json({
+        success: false,
+        message: 'Deregistration failed',
+        error: response.error
+      });
+    }
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Deregistration process failed',
+      error: error.message
+    });
+  }
+};
+
 // @desc    Get message delivery status from database
 // @route   GET /api/whatsapp/message-status/:messageId
 // @access  Private
