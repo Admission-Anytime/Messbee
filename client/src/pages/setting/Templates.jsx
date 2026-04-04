@@ -21,25 +21,17 @@ const Templates = ({ activeTab, }) => {
   }, [activeTab]);
 
   // --- TEMPLATE DATA ---
-  const [templates, setTemplates] = useState([
-    { id: 'tmp_82931', name: 'mbbs_admission', category: 'Marketing', updated: '24 Jul, 2025', status: 'Approved', lang: 'EN' },
-    { id: 'tmp_82932', name: 'auth_otp_v2', category: 'Authentication', updated: '22 Jul, 2025', status: 'Approved', lang: 'EN' },
-    { id: 'tmp_82933', name: 'payment_reminder', category: 'Utility', updated: '21 Jul, 2025', status: 'Pending', lang: 'EN' },
-    { id: 'tmp_82934', name: 'order_update', category: 'Utility', updated: '20 Jul, 2025', status: 'Rejected', lang: 'EN' },
-  ]);
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
 
   useEffect(() => {
     const customTemplates = JSON.parse(localStorage.getItem('custom_templates') || '[]');
-    if (customTemplates.length > 0) {
-      setTemplates(prev => {
-        const combined = [...prev, ...customTemplates];
-        // Remove duplicates by ID just in case
-        return Array.from(new Map(combined.map(item => [item.id, item])).values());
-      });
+    setTemplates(customTemplates);
+    if (customTemplates.length > 0 && !selectedTemplate) {
+      setSelectedTemplate(customTemplates[0]);
     }
   }, []);
 
-  const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, templateId: null });
 
   const handleDeleteClick = (e, id) => {
@@ -51,6 +43,7 @@ const Templates = ({ activeTab, }) => {
     const id = deleteModal.templateId;
     const updatedTemplates = templates.filter(t => t.id !== id);
     setTemplates(updatedTemplates);
+    localStorage.setItem('custom_templates', JSON.stringify(updatedTemplates));
     
     if (selectedTemplate?.id === id) {
       setSelectedTemplate(updatedTemplates.length > 0 ? updatedTemplates[0] : null);
@@ -62,7 +55,7 @@ const Templates = ({ activeTab, }) => {
 
   const handleEdit = (e, temp) => {
     e.stopPropagation();
-    navigate('/admin/templates/create', { state: { editTemplate: temp } });
+    navigate('/admin/templates/create', { state: { editTemplate: temp, fromGallery: true } });
     toast.info(`Opening "${temp.name}" for editing`);
   };
 
@@ -186,7 +179,7 @@ const Templates = ({ activeTab, }) => {
               {selectedTemplate ? (
                   <MobilePreview 
                     name={selectedTemplate?.name} 
-                    body={`Hello! This is a preview of your template "${selectedTemplate?.name}".`} 
+                    body={selectedTemplate?.bodyText || `Hello! This is a preview of your template "${selectedTemplate?.name}".`} 
                   />
               ) : (
                   <div className="text-center p-10 opacity-40">

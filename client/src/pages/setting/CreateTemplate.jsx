@@ -10,7 +10,7 @@ const Templates = () => {
 
   // ✅ KEY FIX: gallery vs direct create
   const [view, setView] = useState(
-    location.state?.fromGallery ? 'setup' : 'choose'
+    location.state?.editTemplate ? 'content' : (location.state?.fromGallery ? 'setup' : 'choose')
   );
 
   const [templateType, setTemplateType] = useState('CUSTOM');
@@ -128,7 +128,8 @@ const Templates = () => {
       category: formData.category,
       updated: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
       status: 'Pending',
-      lang: 'EN'
+      lang: 'EN',
+      bodyText: formData.bodyText
     };
     
     const existingTemplates = JSON.parse(localStorage.getItem('custom_templates') || '[]');
@@ -263,172 +264,18 @@ const Templates = () => {
                             ))
                         )}
                     </div>
-                    <div className="space-y-2 pt-3">
-                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Template Name</label>
-                        <input type="text" placeholder="Enter template name..." className="w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" onChange={(e) => setFormData({...formData, name: e.target.value})} />
-                    </div>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Languages</label>
-                        <select className="w-full p-4 md:p-5 border border-gray-200 rounded-lg bg-white outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>English (US)</option><option>Hindi</option></select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Template Name</label>
+                            <input type="text" placeholder="Enter template name..." className="w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Languages</label>
+                            <select className="w-full p-4 md:p-5 border border-gray-200 rounded-lg bg-white outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>English (US)</option><option>Hindi</option></select>
+                        </div>
                     </div>
 
-                    {/* MOVED: CONTENT AREA TO STEP 1 IF NOT AUTH */}
-                    {formData.category !== 'Authentication' && (
-                    <>
-                        <div className="pt-6 border-t border-gray-100">
-                            <div className="flex flex-col gap-1 mb-3">
-                                <h3 className="text-sm md:text-base font-bold text-gray-800">Body</h3>
-                                <p className="text-xs text-gray-500">Enter the text for your message in the language that you've selected.</p>
-                            </div>
-                            <div className="border border-gray-200 rounded-lg bg-white overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/5 transition-all">
-                                <div className="flex justify-end p-2 pb-0">
-                                    <span className="text-[10px] font-medium text-gray-400">{charCount}/1024</span>
-                                </div>
-                                <div
-                                  ref={editorRef}
-                                  contentEditable
-                                  suppressContentEditableWarning
-                                  onInput={syncEditorContent}
-                                  className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
-                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                                />
-                            </div>
-                            <div className="flex flex-wrap items-center justify-between mt-2 gap-3 relative">
-                                <span className="text-xs font-semibold text-gray-500">Characters:- {charCount}/1024</span>
-                                <div className="flex items-center gap-4 text-gray-500">
-                                    <div className="flex items-center gap-3 pr-4 border-r border-gray-200">
-                                        {/* EMOJI */}
-                                        <div className="relative">
-                                            <button type="button" onClick={() => setShowEmojiPicker(p => !p)} title="Emoji">
-                                                <Smile size={18} className="hover:text-yellow-500 transition-colors"/>
-                                            </button>
-                                            {showEmojiPicker && (
-                                                <div className="absolute bottom-8 left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 w-64">
-                                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Pick an emoji</p>
-                                                    <div className="grid grid-cols-8 gap-1">
-                                                        {EMOJIS.map(e => (
-                                                            <button
-                                                                key={e}
-                                                                type="button"
-                                                                onClick={() => insertEmoji(e)}
-                                                                className="text-xl hover:bg-gray-100 rounded-lg p-1 transition-colors leading-none"
-                                                            >{e}</button>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                        {/* BOLD */}
-                                        <button type="button" onClick={() => applyFormat('bold')} title="Bold">
-                                            <Bold size={18} className="hover:text-gray-900 transition-colors"/>
-                                        </button>
-                                        {/* ITALIC */}
-                                        <button type="button" onClick={() => applyFormat('italic')} title="Italic">
-                                            <Italic size={18} className="hover:text-gray-900 transition-colors"/>
-                                        </button>
-                                        {/* STRIKETHROUGH */}
-                                        <button type="button" onClick={() => applyFormat('strikeThrough')} title="Strikethrough">
-                                            <Strikethrough size={18} className="hover:text-gray-900 transition-colors"/>
-                                        </button>
-                                        {/* MONOSPACE */}
-                                        <button type="button" onClick={() => applyFormat('fontName')} title="Monospace">
-                                            <Link2 size={18} className="hover:text-gray-900 transition-colors"/>
-                                        </button>
-                                    </div>
-                                    <button type="button" onClick={insertVariable} className="text-sm font-bold text-gray-700 flex items-center gap-1.5 hover:text-blue-600 transition-all">
-                                        <Plus size={16}/> Add Variable
-                                    </button>
-                                    <Info size={16} className="cursor-pointer text-gray-400 hover:text-gray-600" title="Formatting applies visually. Variables: {{1}}, {{2}}..."/>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* MOVED: ACTION BUTTONS TO STEP 1 */}
-                        <div className="pt-8 border-t border-gray-100 mt-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-sm md:text-base font-bold text-gray-800">Call to action</h3>
-                                <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
-                                    <Plus size={14}/> Add New
-                                </button>
-                            </div>
-                            <div className="space-y-4">
-                                {buttons.map((btn) => (
-                                    <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
-                                        <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                                <select 
-                                                  value={btn.type}
-                                                  onChange={(e) => updateButton(btn.id, 'type', e.target.value)}
-                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
-                                                >
-                                                  <option>Visit website</option>
-                                                  <option>Call phone number</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
-                                                <div className="relative">
-                                                  <input 
-                                                    type="text" 
-                                                    value={btn.text} 
-                                                    onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
-                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="Visit website"
-                                                  />
-                                                </div>
-                                            </div>
-                                            
-                                            {btn.type === 'Call phone number' ? (
-                                              <>
-                                                <div>
-                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country</label>
-                                                    <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
-                                                      <option>+91</option>
-                                                      <option>+1</option>
-                                                      <option>+44</option>
-                                                    </select>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Phone Number</label>
-                                                    <div className="relative">
-                                                      <input 
-                                                        type="text" 
-                                                        value={btn.value} 
-                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                        placeholder="Mobile Number"
-                                                      />
-                                                    </div>
-                                                </div>
-                                              </>
-                                            ) : (
-                                              <>
-                                            
-                                                <div>
-                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
-                                                    <div className="relative">
-                                                      <input 
-                                                        type="text" 
-                                                        value={btn.value} 
-                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                        placeholder="https://..."
-                                                      />
-                                                    </div>
-                                                </div>
-                                              </>
-                                            )}
-                                        </div>
-                                        <button onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors">
-                                            <X size={20}/>
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </>
-                    )}
+                    {/* MOVED TO STEP 2 */}
                 </div>
                 <div className="flex justify-end pt-2">
                     <button onClick={handleContinue} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
@@ -440,42 +287,180 @@ const Templates = () => {
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-6 h-6 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"><Clock size={14}/></div>
-                        <h3 className="text-sm md:text-base font-semibold text-gray-800">Offer Details</h3>
+                        <h3 className="text-sm md:text-base font-semibold text-gray-800">Template name and language</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Offer title</label>
-                            <input type="text" value={formData.offerTitle} onChange={(e) => setFormData({...formData, offerTitle: e.target.value})} className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" />
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Name your template</label>
+                            <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" />
                         </div>
                         <div className="space-y-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Expiration (Hours)</label>
-                            <select className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" value={formData.expirationDate} onChange={(e) => setFormData({...formData, expirationDate: e.target.value})}>
-                                <option>12h</option>
-                                <option>24h</option>
-                                <option>48h</option>
-                                <option>72h</option>
+                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Select language</label>
+                            <select className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" value={formData.language} onChange={(e) => setFormData({...formData, language: e.target.value})}>
+                                <option>English (US)</option>
+                                <option>Hindi</option>
                             </select>
                         </div>
                     </div>
                 </div>
                 )}
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
-                    <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-1 border-b border-gray-100 pb-4">Footer Details</h3>
-                    <div className="space-y-5 md:space-y-6 mt-5">
-                        {formData.category !== 'Authentication' && (
-                        <div>
-                            <label className="text-xs font-semibold text-gray-600 uppercase mb-3 block tracking-wide">Media Header <span className="lowercase font-normal text-gray-400 ml-2">(Optional)</span></label>
-                            <select className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>Image</option><option>Video</option></select>
+                {formData.category !== 'Authentication' && (
+                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm mt-5">
+                    <div className="mb-8 border-b border-gray-100 pb-6">
+                        <div className="flex flex-col gap-1 mb-3">
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Header <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
+                            <p className="text-xs text-gray-500">Add a title or choose which type of media you'll use for this header.</p>
                         </div>
-                        )}
-                        {formData.category !== 'Authentication' && (
-                        <div>
-                            <label className="text-xs font-semibold text-gray-600 uppercase mb-3 block tracking-wide">Footer Text <span className="lowercase font-normal text-gray-400 ml-2">(Optional)</span></label>
-                            <input type="text" className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all bg-white" value={formData.footerText} onChange={(e) => setFormData({...formData, footerText: e.target.value})} />
+                        <select 
+                            className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                            value={formData.headerType} 
+                            onChange={(e) => setFormData({...formData, headerType: e.target.value})}
+                        >
+                            <option>None</option>
+                            <option>Text</option>
+                            <option>Image</option>
+                            <option>Video</option>
+                            <option>Document</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1 mb-3">
+                        <h3 className="text-sm md:text-base font-bold text-gray-800">Body</h3>
+                        <p className="text-xs text-gray-500">Enter the text for your message in the language that you've selected.</p>
+                    </div>
+                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/5 transition-all">
+                        <div className="flex justify-end p-2 pb-0">
+                            <span className="text-[10px] font-medium text-gray-400">{charCount}/1024</span>
                         </div>
-                        )}
+                        <div
+                            ref={editorRef}
+                            contentEditable
+                            suppressContentEditableWarning
+                            onInput={syncEditorContent}
+                            className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
+                            style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                        />
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between mt-2 gap-3 relative">
+                        <span className="text-xs font-semibold text-gray-500">Characters:- {charCount}/1024</span>
+                        <div className="flex items-center gap-4 text-gray-500">
+                            <div className="flex items-center gap-3 pr-4 border-r border-gray-200">
+                                {/* EMOJI */}
+                                <div className="relative">
+                                    <button type="button" onClick={() => setShowEmojiPicker(p => !p)} title="Emoji">
+                                        <Smile size={18} className="hover:text-yellow-500 transition-colors"/>
+                                    </button>
+                                    {showEmojiPicker && (
+                                        <div className="absolute bottom-8 left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 w-64">
+                                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Pick an emoji</p>
+                                            <div className="grid grid-cols-8 gap-1">
+                                                {EMOJIS.map(e => (
+                                                    <button
+                                                        key={e}
+                                                        type="button"
+                                                        onClick={() => insertEmoji(e)}
+                                                        className="text-xl hover:bg-gray-100 rounded-lg p-1 transition-colors leading-none"
+                                                    >{e}</button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                                <button type="button" onClick={() => applyFormat('bold')} title="Bold"><Bold size={18}/></button>
+                                <button type="button" onClick={() => applyFormat('italic')} title="Italic"><Italic size={18}/></button>
+                                <button type="button" onClick={() => applyFormat('strikeThrough')} title="Strikethrough"><Strikethrough size={18}/></button>
+                                <button type="button" onClick={() => applyFormat('fontName')} title="Monospace"><Link2 size={18}/></button>
+                            </div>
+                            <button type="button" onClick={insertVariable} className="text-sm font-bold text-gray-700 flex items-center gap-1.5 hover:text-blue-600 transition-all">
+                                <Plus size={16}/> Add Variable
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-8 border-t border-gray-100 mt-6">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Call to action</h3>
+                            <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
+                                <Plus size={14}/> Add New
+                            </button>
+                        </div>
+                        <div className="space-y-4">
+                            {buttons.map((btn) => (
+                                <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
+                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                            <select 
+                                              value={btn.type}
+                                              onChange={(e) => updateButton(btn.id, 'type', e.target.value)}
+                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
+                                            >
+                                              <option>Visit website</option>
+                                              <option>Call phone number</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                              <input 
+                                                type="text" 
+                                                value={btn.text} 
+                                                onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                placeholder="Visit website"
+                                              />
+                                            </div>
+                                        </div>
+                                        
+                                        {btn.type === 'Call phone number' ? (
+                                          <>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country</label>
+                                                <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
+                                                  <option>+91</option>
+                                                  <option>+1</option>
+                                                  <option>+44</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Phone Number</label>
+                                                <div className="relative">
+                                                  <input 
+                                                    type="text" 
+                                                    value={btn.value} 
+                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                    placeholder="Mobile Number"
+                                                  />
+                                                </div>
+                                            </div>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
+                                                <div className="relative">
+                                                  <input 
+                                                    type="text" 
+                                                    value={btn.value} 
+                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                    placeholder="https://..."
+                                                  />
+                                                </div>
+                                            </div>
+                                          </>
+                                        )}
+                                    </div>
+                                    <button onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors">
+                                        <X size={20}/>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
+                )}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-6">
                     <button onClick={() => setView('setup')} className="text-gray-500 font-semibold text-sm hover:text-gray-800 transition-colors px-4 py-2 order-2 sm:order-1">Previous Step</button>
                     <button onClick={handleSubmit} className="w-full sm:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all order-1 sm:order-2">Submit Template</button>
