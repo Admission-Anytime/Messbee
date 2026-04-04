@@ -1,7 +1,8 @@
 /* eslint-disable react/prop-types */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, CheckCircle2, X, Clock } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, CheckCircle2, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const Templates = () => {
   const navigate = useNavigate();
@@ -13,8 +14,60 @@ const Templates = () => {
   );
 
   const [templateType, setTemplateType] = useState('CUSTOM');
-  const [buttons, setButtons] = useState([{ id: 1, type: 'Visit Website', text: 'Visit website', url: 'https://example.com' }]);
-  const [toast, setToast] = useState(null);
+  const [buttons, setButtons] = useState([{ id: 1, type: 'Visit Website', text: 'Visit website', value: 'https://example.com' }]);
+  const editorRef = useRef(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [charCount, setCharCount] = useState(0);
+
+  const EMOJIS = [
+    '😀','😂','🥰','😍','🤩','😊','🎉','🔥',
+    '❤️','👋','💪','✅','⭐','🚀','💡','🎯',
+    '📢','📱','💰','🛒','🎁','👍','🙏','💬',
+    '📧','⚡','🌟','🏆','💎','🤝','📞','🎊',
+  ];
+
+  // Initialize editor with bodyText on mount
+  useEffect(() => {
+    if (editorRef.current) {
+      editorRef.current.innerHTML = formData.bodyText;
+      setCharCount(editorRef.current.innerText.length);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]); // re-run when view changes so editor always has initial content
+
+  const syncEditorContent = () => {
+    if (!editorRef.current) return;
+    const plain = editorRef.current.innerText;
+    if (plain.length <= 1024) {
+      setCharCount(plain.length);
+      setFormData(prev => ({ ...prev, bodyText: editorRef.current.innerHTML }));
+    } else {
+      // truncate — restore selection to end
+      editorRef.current.innerText = plain.slice(0, 1024);
+      setCharCount(1024);
+    }
+  };
+
+  const applyFormat = (command) => {
+    editorRef.current?.focus();
+    document.execCommand(command, false, null);
+    syncEditorContent();
+  };
+
+  const insertEmoji = (emoji) => {
+    editorRef.current?.focus();
+    document.execCommand('insertText', false, emoji);
+    syncEditorContent();
+    setShowEmojiPicker(false);
+  };
+
+  const insertVariable = () => {
+    editorRef.current?.focus();
+    const text = editorRef.current?.innerText || '';
+    const matches = text.match(/\{\{(\d+)\}\}/g) || [];
+    document.execCommand('insertText', false, `{{${matches.length + 1}}}`);
+    syncEditorContent();
+  };
 
   const [formData, setFormData] = useState({
     category: 'Marketing',
@@ -43,8 +96,8 @@ const Templates = () => {
   };
 
   const showToast = (message, type = 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
+    if (type === 'success') toast.success(message);
+    else toast.error(message);
   };
 
   const addButton = () => {
@@ -58,9 +111,43 @@ const Templates = () => {
     showToast("Button deleted successfully", "error");
   };
 
-  const handleSubmit = () => {
-    showToast("Template submitted successfully!");
+  const updateButton = (id, field, value) => {
+    setButtons(buttons.map(btn => btn.id === id ? { ...btn, [field]: value } : btn));
   };
+
+  const handleSubmit = () => {
+    if (!formData.name.trim()) {
+      toast.error("Template name is mandatory");
+      return;
+    }
+    
+    // Save to localStorage for demo persistence
+    const newTemplate = {
+      id: 'tmp_' + Date.now(),
+      name: formData.name,
+      category: formData.category,
+      updated: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      status: 'Pending',
+      lang: 'EN'
+    };
+    
+    const existingTemplates = JSON.parse(localStorage.getItem('custom_templates') || '[]');
+    localStorage.setItem('custom_templates', JSON.stringify([...existingTemplates, newTemplate]));
+
+    showToast("Template submitted successfully!");
+    // Redirect to Template List after short delay
+    setTimeout(() => {
+      navigate('/admin/templates/list');
+    }, 1500);
+  };
+
+  const handleContinue = () => {
+    if (!formData.name.trim()) {
+      toast.error("Template name is mandatory");
+      return;
+    }
+    setView('content');
+  }
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -69,19 +156,11 @@ const Templates = () => {
     document.head.appendChild(link);
   }, []);
 
-  const Toast = () => (
-    <div className={`fixed top-4 md:top-10 right-4 md:right-10 z-[100] flex items-center gap-3 px-4 md:px-6 py-4 rounded-2xl shadow-2xl border animate-in slide-in-from-right duration-300 bg-white ${toast.type === 'success' ? 'border-green-100 text-green-600' : 'border-red-100 text-red-500'}`}>
-      {toast.type === 'success' ? <CheckCircle2 size={20} /> : <Trash2 size={20} />}
-      <p className="font-bold text-[11px] md:text-[13px] tracking-tight uppercase">{toast.message}</p>
-      <button onClick={() => setToast(null)} className="ml-4 opacity-40 hover:opacity-100"><X size={16}/></button>
-    </div>
-  );
 
   // ================= CHOOSE SCREEN =================
   if (view === 'choose') {
     return (
       <div className="min-h-screen w-full bg-[#F9FAFB] p-4 md:p-6 lg:p-12 flex flex-col items-center font-sans overflow-x-hidden">
-        {toast && <Toast />}
         <div className="text-center w-full max-w-2xl mt-4 md:mt-3 mb-4 md:mb-12">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3 tracking-tight">Choose Template Method</h2>
           <p className="text-gray-500 text-sm md:text-base font-medium">Select how you want to create your WhatsApp template</p>
@@ -129,7 +208,6 @@ const Templates = () => {
   // ================= SETUP / CONTENT UI (UNCHANGED) =================
   return (
     <div className="flex flex-col lg:flex-row min-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500">
-      {toast && <Toast />}
       {/* REST OF YOUR ORIGINAL FILE BELOW — 100% SAME */}
 
       
@@ -193,9 +271,177 @@ const Templates = () => {
                         <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Languages</label>
                         <select className="w-full p-4 md:p-5 border border-gray-200 rounded-lg bg-white outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>English (US)</option><option>Hindi</option></select>
                     </div>
+
+                    {/* MOVED: CONTENT AREA TO STEP 1 IF NOT AUTH */}
+                    {formData.category !== 'Authentication' && (
+                    <>
+                        <div className="pt-6 border-t border-gray-100">
+                            <div className="flex flex-col gap-1 mb-3">
+                                <h3 className="text-sm md:text-base font-bold text-gray-800">Body</h3>
+                                <p className="text-xs text-gray-500">Enter the text for your message in the language that you've selected.</p>
+                            </div>
+                            <div className="border border-gray-200 rounded-lg bg-white overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/5 transition-all">
+                                <div className="flex justify-end p-2 pb-0">
+                                    <span className="text-[10px] font-medium text-gray-400">{charCount}/1024</span>
+                                </div>
+                                <div
+                                  ref={editorRef}
+                                  contentEditable
+                                  suppressContentEditableWarning
+                                  onInput={syncEditorContent}
+                                  className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
+                                  style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                                />
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between mt-2 gap-3 relative">
+                                <span className="text-xs font-semibold text-gray-500">Characters:- {charCount}/1024</span>
+                                <div className="flex items-center gap-4 text-gray-500">
+                                    <div className="flex items-center gap-3 pr-4 border-r border-gray-200">
+                                        {/* EMOJI */}
+                                        <div className="relative">
+                                            <button type="button" onClick={() => setShowEmojiPicker(p => !p)} title="Emoji">
+                                                <Smile size={18} className="hover:text-yellow-500 transition-colors"/>
+                                            </button>
+                                            {showEmojiPicker && (
+                                                <div className="absolute bottom-8 left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 w-64">
+                                                    <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Pick an emoji</p>
+                                                    <div className="grid grid-cols-8 gap-1">
+                                                        {EMOJIS.map(e => (
+                                                            <button
+                                                                key={e}
+                                                                type="button"
+                                                                onClick={() => insertEmoji(e)}
+                                                                className="text-xl hover:bg-gray-100 rounded-lg p-1 transition-colors leading-none"
+                                                            >{e}</button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {/* BOLD */}
+                                        <button type="button" onClick={() => applyFormat('bold')} title="Bold">
+                                            <Bold size={18} className="hover:text-gray-900 transition-colors"/>
+                                        </button>
+                                        {/* ITALIC */}
+                                        <button type="button" onClick={() => applyFormat('italic')} title="Italic">
+                                            <Italic size={18} className="hover:text-gray-900 transition-colors"/>
+                                        </button>
+                                        {/* STRIKETHROUGH */}
+                                        <button type="button" onClick={() => applyFormat('strikeThrough')} title="Strikethrough">
+                                            <Strikethrough size={18} className="hover:text-gray-900 transition-colors"/>
+                                        </button>
+                                        {/* MONOSPACE */}
+                                        <button type="button" onClick={() => applyFormat('fontName')} title="Monospace">
+                                            <Link2 size={18} className="hover:text-gray-900 transition-colors"/>
+                                        </button>
+                                    </div>
+                                    <button type="button" onClick={insertVariable} className="text-sm font-bold text-gray-700 flex items-center gap-1.5 hover:text-blue-600 transition-all">
+                                        <Plus size={16}/> Add Variable
+                                    </button>
+                                    <Info size={16} className="cursor-pointer text-gray-400 hover:text-gray-600" title="Formatting applies visually. Variables: {{1}}, {{2}}..."/>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* MOVED: ACTION BUTTONS TO STEP 1 */}
+                        <div className="pt-8 border-t border-gray-100 mt-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-sm md:text-base font-bold text-gray-800">Call to action</h3>
+                                <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
+                                    <Plus size={14}/> Add New
+                                </button>
+                            </div>
+                            <div className="space-y-4">
+                                {buttons.map((btn) => (
+                                    <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 flex-1">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                                <select 
+                                                  value={btn.type}
+                                                  onChange={(e) => updateButton(btn.id, 'type', e.target.value)}
+                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
+                                                >
+                                                  <option>Visit website</option>
+                                                  <option>Call phone number</option>
+                                                  <option>Copy code</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                                <div className="relative">
+                                                  <input 
+                                                    type="text" 
+                                                    value={btn.text} 
+                                                    onChange={(e) => updateButton(btn.id, 'text', e.target.value.slice(0, 25))}
+                                                    className="w-full p-2.5 pr-12 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                    placeholder="Visit website"
+                                                  />
+                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{btn.text.length}/25</span>
+                                                </div>
+                                            </div>
+                                            
+                                            {btn.type === 'Call phone number' ? (
+                                              <>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country</label>
+                                                    <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
+                                                      <option>+91</option>
+                                                      <option>+1</option>
+                                                      <option>+44</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Phone Number</label>
+                                                    <div className="relative">
+                                                      <input 
+                                                        type="text" 
+                                                        value={btn.value} 
+                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value.slice(0, 20))}
+                                                        className="w-full p-2.5 pr-12 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                        placeholder="Mobile Number"
+                                                      />
+                                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{btn.value.length}/20</span>
+                                                    </div>
+                                                </div>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">URL Type</label>
+                                                    <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
+                                                      <option>Static</option>
+                                                      <option>Dynamic</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
+                                                    <div className="relative">
+                                                      <input 
+                                                        type="text" 
+                                                        value={btn.value} 
+                                                        onChange={(e) => updateButton(btn.id, 'value', e.target.value.slice(0, 2000))}
+                                                        className="w-full p-2.5 pr-14 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                        placeholder="https://..."
+                                                      />
+                                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300">{(btn.value || '').length}/2000</span>
+                                                    </div>
+                                                </div>
+                                              </>
+                                            )}
+                                        </div>
+                                        <button onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors">
+                                            <X size={20}/>
+                                        </button>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </>
+                    )}
                 </div>
                 <div className="flex justify-end pt-2">
-                    <button onClick={() => setView('content')} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
+                    <button onClick={handleContinue} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
                 </div>
             </div>
           ) : (
@@ -224,7 +470,7 @@ const Templates = () => {
                 </div>
                 )}
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
-                    <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-1 border-b border-gray-100 pb-4">Content Area</h3>
+                    <h3 className="text-sm md:text-base font-semibold text-gray-800 mb-1 border-b border-gray-100 pb-4">Footer Details</h3>
                     <div className="space-y-5 md:space-y-6 mt-5">
                         {formData.category !== 'Authentication' && (
                         <div>
@@ -232,15 +478,6 @@ const Templates = () => {
                             <select className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>Image</option><option>Video</option></select>
                         </div>
                         )}
-                        <div>
-                            <div className="flex justify-between items-center mb-3">
-                                <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Message Body</label>
-                                <button className="text-xs font-semibold text-blue-600 flex items-center gap-1 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-all"><Plus size={12}/> Add Variable</button>
-                            </div>
-                            <div className="border border-gray-200 rounded-lg overflow-hidden focus-within:border-[#10B981] focus-within:ring-2 focus-within:ring-[#10B981]/10 transition-all">
-                                <textarea rows="5" className="w-full p-4 md:p-5 outline-none resize-none text-sm font-medium text-gray-700 leading-relaxed bg-white" value={formData.bodyText} onChange={(e) => setFormData({...formData, bodyText: e.target.value})} />
-                            </div>
-                        </div>
                         {formData.category !== 'Authentication' && (
                         <div>
                             <label className="text-xs font-semibold text-gray-600 uppercase mb-3 block tracking-wide">Footer Text <span className="lowercase font-normal text-gray-400 ml-2">(Optional)</span></label>
@@ -249,35 +486,6 @@ const Templates = () => {
                         )}
                     </div>
                 </div>
-                {formData.category !== 'Authentication' && (
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-                        <h3 className="text-sm md:text-base font-semibold text-gray-800">Action Buttons</h3>
-                        <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-semibold text-green-600 flex items-center gap-2 border border-green-100 px-4 md:px-5 py-2 md:py-2.5 rounded-lg hover:bg-green-50 transition-all disabled:opacity-30">
-                          <Plus size={14}/> Add New
-                        </button>
-                    </div>
-                    <div className="space-y-4">
-                        {buttons.map((btn) => (
-                          <div key={btn.id} className="border border-gray-100 rounded-xl p-4 md:p-6 bg-gray-50/30 space-y-5 relative group hover:border-gray-200 transition-all">
-                              <button onClick={() => removeButton(btn.id)} className="absolute top-4 right-4 md:top-6 md:right-6 text-red-300 hover:text-red-500 transition-colors">
-                                <Trash2 size={18}/>
-                              </button>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5">
-                                  <div>
-                                      <label className="text-xs font-semibold text-gray-600 uppercase block mb-2 tracking-wide">Type</label>
-                                      <select className="w-full p-3 md:p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>Visit Website</option><option>Call Number</option></select>
-                                  </div>
-                                  <div className="sm:pr-10">
-                                      <label className="text-xs font-semibold text-gray-600 uppercase block mb-2 tracking-wide">Label</label>
-                                      <input type="text" defaultValue={btn.text} className="w-full p-3 md:p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" />
-                                  </div>
-                              </div>
-                          </div>
-                        ))}
-                    </div>
-                </div>
-                )}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-6">
                     <button onClick={() => setView('setup')} className="text-gray-500 font-semibold text-sm hover:text-gray-800 transition-colors px-4 py-2 order-2 sm:order-1">Previous Step</button>
                     <button onClick={handleSubmit} className="w-full sm:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all order-1 sm:order-2">Submit Template</button>

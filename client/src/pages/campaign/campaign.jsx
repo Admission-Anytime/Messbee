@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
+import StatusApi from '../../services/StatusApi';
 import { toast } from 'react-toastify';
 import {
   MagnifyingGlassIcon,
@@ -76,14 +77,40 @@ const CampaignDashboard = () => {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [duplicatedId, setDuplicatedId] = useState(null);
 
-  useEffect(() => { fetchCampaigns(); }, []);
+  /* dynamic filters state */
+  const [statusOptions, setStatusOptions] = useState([]);
+  const [filterStatus, setFilterStatus] = useState('All');
+  const [filterTemplate, setFilterTemplate] = useState('All');
+  const [templateOptions, setTemplateOptions] = useState([]);
+
+  useEffect(() => { 
+    fetchCampaigns();
+    fetchFilterData();
+  }, []);
+
+  const fetchFilterData = async () => {
+    try {
+      // Fetch statuses
+      const stats = await StatusApi.getAllStatuses();
+      if (Array.isArray(stats)) {
+        setStatusOptions(stats.map(s => s.name));
+      }
+    } catch (err) {
+      console.error("Failed to fetch dashboard filters:", err);
+    }
+  };
 
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
       const res = await CampaignApi.getCampaigns();
       if (res.success) {
-        setCampaigns(res.data.map(mapCampaign));
+        const mapped = res.data.map(mapCampaign);
+        setCampaigns(mapped);
+        
+        // Extract unique templates from campaigns
+        const uniqueTemplates = [...new Set(mapped.map(c => c.message))].filter(t => t !== '—');
+        setTemplateOptions(uniqueTemplates);
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -127,11 +154,13 @@ const CampaignDashboard = () => {
   };
 
   /* ── Derived ── */
-  const filtered = campaigns.filter(
-    (c) =>
-      c.title.toLowerCase().includes(search.toLowerCase()) ||
-      c.message.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = campaigns.filter(cur => {
+    const matchesSearch = cur.title.toLowerCase().includes(search.toLowerCase()) || 
+                          cur.message.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === 'All' || cur.status === filterStatus;
+    const matchesTemplate = filterTemplate === 'All' || cur.message === filterTemplate;
+    return matchesSearch && matchesStatus && matchesTemplate;
+  });
 
   const completedCount = campaigns.filter((c) => c.status === 'Completed').length;
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
@@ -198,12 +227,34 @@ const CampaignDashboard = () => {
           <div className="flex items-center gap-2 text-sm text-slate-500">
             <FunnelIcon className="w-4 h-4 text-slate-400" />
             <span className="font-medium">Filter by</span>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium">
-              Status <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-            <button className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium">
-              Template <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400" />
-            </button>
+            
+            <div className="relative group">
+              <select 
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
+              >
+                <option value="All">Status: All</option>
+                {statusOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+
+            <div className="relative group">
+              <select 
+                value={filterTemplate}
+                onChange={(e) => setFilterTemplate(e.target.value)}
+                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
+              >
+                <option value="All">Template: All</option>
+                {templateOptions.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
           </div>
           <div className="relative w-full sm:w-64">
             <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
