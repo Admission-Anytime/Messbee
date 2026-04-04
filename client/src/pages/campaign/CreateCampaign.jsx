@@ -1,23 +1,84 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
+import LabelApi from '../../services/LabelApi';
+import StatusApi from '../../services/StatusApi';
+import axios from '../../context/axios';
 import { toast } from 'react-toastify';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
     Search, CheckCircle, Clock, Eye, Smartphone, ChevronLeft,
-    Zap, Calendar, Info, Rocket, ExternalLink, User
+    Zap, Calendar, Info, Rocket, ExternalLink, User,
+    Filter
 } from 'lucide-react';
 
 const CreateCampaign = () => {
     const navigate = useNavigate();
     const [currentStep, setCurrentStep] = useState(1);
 
+    // Dynamic Data State
+    const [labelsList, setLabelsList] = useState([]);
+    const [statusOptions, setStatusOptions] = useState([]);
+    const [totalContacts, setTotalContacts] = useState(0);
+    const [estimatedCount, setEstimatedCount] = useState(0);
+
+    // Initial Data Fetch
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                const [lbls, stats, contacts] = await Promise.all([
+                    LabelApi.getAllLabels(),
+                    StatusApi.getAllStatuses(),
+                    axios.get('/contacts?limit=1')
+                ]);
+                
+                if (Array.isArray(lbls)) setLabelsList(lbls.map(l => l.name));
+                if (Array.isArray(stats)) setStatusOptions(stats.map(s => s.name));
+                if (contacts.data?.success) {
+                    setTotalContacts(contacts.data.pagination.total);
+                    setEstimatedCount(contacts.data.pagination.total);
+                }
+            } catch (err) {
+                console.error("Failed to fetch campaign initial data:", err);
+            }
+        };
+        fetchInitialData();
+    }, []);
+
     // Step 1 State
     const [selectedOption, setSelectedOption] = useState('all');
-    const [labels, setLabels] = useState(['New Leads', 'Follow-up']);
+    const [selectedLabels, setSelectedLabels] = useState([]);
+    const [selectedStatus, setSelectedStatus] = useState('');
 
-    // Step 2 State
-    const [selectedTemplate, setSelectedTemplate] = useState('admission_promo_05');
+    // Step 1 Effect for estimated audience
+    useEffect(() => {
+        const updateEstimatedCount = async () => {
+            try {
+                let params = new URLSearchParams();
+                params.set('limit', '1');
+                
+                if (selectedOption === 'labels' && selectedLabels.length > 0) {
+                    params.set('labels', selectedLabels.join(','));
+                } else if (selectedOption === 'status' && selectedStatus) {
+                    params.set('status', selectedStatus);
+                }
+                
+                if (selectedOption !== 'csv') {
+                    const res = await axios.get(`/contacts?${params.toString()}`);
+                    if (res.data?.success) {
+                        setEstimatedCount(res.data.pagination.total);
+                    }
+                } else {
+                    setEstimatedCount(0); // For CSV, count comes from file parse which isn't implemented here yet
+                }
+            } catch (err) {
+                console.error("Error updating estimated count:", err);
+            }
+        };
+        updateEstimatedCount();
+    }, [selectedOption, selectedLabels, selectedStatus]);
+
+    const [selectedTemplate, setSelectedTemplate] = useState('new_food_menu');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Step 3 State
@@ -58,8 +119,8 @@ const CreateCampaign = () => {
                 status: scheduleOption === 'now' ? 'active' : 'scheduled',
                 scheduledDate: scheduleOption === 'later' ? new Date(`${scheduledDate}T${scheduledTime}`) : null,
                 audienceFilter: {
-                    tags: selectedOption === 'labels' ? labels : [],
-                    // other filters could be added here
+                    tags: selectedOption === 'labels' ? selectedLabels : [],
+                    status: selectedOption === 'status' ? selectedStatus : null,
                 }
             };
 
@@ -78,36 +139,44 @@ const CreateCampaign = () => {
 
     const templates = [
         {
-            id: 'admission_promo_05',
+            id: 'new_food_menu',
             status: 'approved',
-            name: 'admission_promo_05',
-            preview: 'Hello {{name}}, thank you for showing interest in {{program}}.\n\nWe are excited to invite you to our upcoming webinar on June 15th.\n\nLooking forward to seeing you there!',
+            name: 'new_food_menu',
+            preview: "Hey {{1}}! We've just rolled out a brand new menu that's bursting with Italian flavors. 🍕 To celebrate this, we are offering a 20% discount!",
             lastUsed: '2 days ago',
             category: 'Marketing'
         },
         {
-            id: 'result_alert_mbbs',
+            id: 'food_order_on_the_way',
             status: 'approved',
-            name: 'result_alert_mbbs',
-            preview: 'Dear {{student_name}}, your {{exam_type}} results for the 2024 session have been published.\n\nCheck your portal for detailed breakdown.\n\nBest regards,\nUniversity Admin',
+            name: 'food_order_on_th...',
+            preview: "Hey {{1}}! Your pizza adventure is officially on its way! 🍕🚀 \n\nExpect the mouthwatering goodness to arrive at your doorstep by {{2}}!",
+            lastUsed: '1 day ago',
+            category: 'Utility'
+        },
+        {
+            id: 'food_order_delivered',
+            status: 'approved',
+            name: 'food_order_deliv...',
+            preview: "Hey {{1}}! Your order from {{2}} has been successfully delivered to your doorstep. 🍔🍟 \n\nWe hope you're as hungry as we are...",
             lastUsed: '5 days ago',
             category: 'Utility'
         },
         {
-            id: 'welcome_onboarding',
+            id: 'food_order_confirmed',
             status: 'approved',
-            name: 'welcome_onboarding',
-            preview: 'Welcome to {{company_name}}! We\'re thrilled to have you.\n\nClick the button below to complete your profile setup and get started.\n\nSee you inside!',
+            name: 'food_order_confi...',
+            preview: "Your Food Order is confirmed. Hey {{1}}! Thank you for placing an order with {{2}}. Our talented chefs are busy cooking...",
             lastUsed: 'Never',
-            category: 'Onboarding'
+            category: 'Utility'
         },
         {
-            id: 'event_reminder_01',
-            status: 'pending',
-            name: 'event_reminder_01',
-            preview: "Don't miss out! Our session {{event_name}} starts in {{time_left}}.\n\nMake sure to join 5 minutes early to test your audio.",
+            id: 'holiday_package_v1',
+            status: 'approved',
+            name: 'holiday_package_v1',
+            preview: "Ready for your next adventure? 🏖️ Book our exclusive Bali package today and get a complimentary spa voucher!",
             lastUsed: 'Never',
-            category: 'Alerts'
+            category: 'Marketing'
         }
     ];
 
@@ -195,7 +264,7 @@ const CreateCampaign = () => {
                             <SelectionCard
                                 id="all"
                                 title="All Contacts"
-                                description="Send this campaign to everyone in your contact list (1,240 contacts)."
+                                description={`Send this campaign to everyone in your contact list (${totalContacts.toLocaleString()} contacts).`}
                                 icon={<Users className="w-5 h-5 text-gray-400" />}
                                 selected={selectedOption === 'all'}
                                 onClick={() => setSelectedOption('all')}
@@ -220,18 +289,61 @@ const CreateCampaign = () => {
                                         <p className="text-gray-500 text-sm mb-3">Select specific segments of your audience using labels.</p>
 
                                         {/* Tags Input Area */}
-                                        <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50/50">
-                                            {labels.map(label => (
+                                        <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50/50 relative">
+                                            {selectedLabels.map(label => (
                                                 <span key={label} className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-sm text-gray-700 shadow-sm">
-                                                    {label} <X className="w-3 h-3 text-gray-400 cursor-pointer" />
+                                                    {label} <X className="w-3 h-3 text-gray-400 cursor-pointer" onClick={() => setSelectedLabels(prev => prev.filter(l => l !== label))} />
                                                 </span>
                                             ))}
-                                            <input
-                                                placeholder="Add labels..."
-                                                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-400 min-w-[100px]"
-                                            />
-                                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                                            <select 
+                                                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-400 min-w-[150px] outline-none"
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val && !selectedLabels.includes(val)) {
+                                                        setSelectedLabels(prev => [...prev, val]);
+                                                    }
+                                                    e.target.value = "";
+                                                }}
+                                            >
+                                                <option value="">Add labels...</option>
+                                                {labelsList.filter(l => !selectedLabels.includes(l)).map(l => (
+                                                    <option key={l} value={l}>{l}</option>
+                                                ))}
+                                            </select>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Option 2.5: Filter by Status */}
+                            <div
+                                onClick={() => setSelectedOption('status')}
+                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'status' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'
+                                    }`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedOption === 'status' ? 'border-emerald-500' : 'border-gray-300'
+                                        }`}>
+                                        {selectedOption === 'status' && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <h3 className="font-bold text-slate-800">Filter by Status</h3>
+                                            <Filter className="w-5 h-5 text-gray-300" />
+                                        </div>
+                                        <p className="text-gray-500 text-sm mb-3">Send messages based on contact lead status.</p>
+
+                                        <select 
+                                            value={selectedStatus}
+                                            onChange={(e) => setSelectedStatus(e.target.value)}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500"
+                                        >
+                                            <option value="">Select Status...</option>
+                                            {statusOptions.map(opt => (
+                                                <option key={opt} value={opt}>{opt}</option>
+                                            ))}
+                                        </select>
                                     </div>
                                 </div>
                             </div>
@@ -288,7 +400,7 @@ const CreateCampaign = () => {
                         <div className="mt-12 pt-8 border-t border-gray-100 flex items-center justify-between">
                             <div className="flex items-center gap-2 text-sm text-gray-500">
                                 <div className="w-4 h-4 bg-gray-400 text-white rounded-full flex items-center justify-center text-[10px] italic font-serif">i</div>
-                                <span>Estimated audience: <strong className="text-slate-800 font-bold">1,240 contacts</strong></span>
+                                <span>Estimated audience: <strong className="text-slate-800 font-bold">{estimatedCount.toLocaleString()} contacts</strong></span>
                             </div>
                             <div className="flex gap-3">
                                 <button className="px-8 py-2.5 rounded-lg border border-gray-200 font-bold text-slate-700 hover:bg-gray-50 transition-colors">
@@ -540,7 +652,7 @@ const CreateCampaign = () => {
                                     </div>
                                     <div className="flex justify-between items-start">
                                         <span className="text-gray-500 text-sm">Selected Audience</span>
-                                        <span className="font-bold text-slate-800 text-right">1,248 Contacts</span>
+                                        <span className="font-bold text-slate-800 text-right">{estimatedCount.toLocaleString()} Contacts</span>
                                     </div>
                                     <div className="flex justify-between items-start pt-2">
                                         <span className="text-gray-500 text-sm">Estimated Cost</span>

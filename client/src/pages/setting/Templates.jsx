@@ -1,7 +1,8 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon} from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Pencil, Trash2 } from 'lucide-react';
+import { toast } from 'react-toastify';
 
 const Templates = ({ activeTab, }) => {
   const navigate = useNavigate();
@@ -20,18 +21,83 @@ const Templates = ({ activeTab, }) => {
   }, [activeTab]);
 
   // --- TEMPLATE DATA ---
-  const [templates] = useState([
+  const [templates, setTemplates] = useState([
     { id: 'tmp_82931', name: 'mbbs_admission', category: 'Marketing', updated: '24 Jul, 2025', status: 'Approved', lang: 'EN' },
     { id: 'tmp_82932', name: 'auth_otp_v2', category: 'Authentication', updated: '22 Jul, 2025', status: 'Approved', lang: 'EN' },
     { id: 'tmp_82933', name: 'payment_reminder', category: 'Utility', updated: '21 Jul, 2025', status: 'Pending', lang: 'EN' },
     { id: 'tmp_82934', name: 'order_update', category: 'Utility', updated: '20 Jul, 2025', status: 'Rejected', lang: 'EN' },
   ]);
+
+  useEffect(() => {
+    const customTemplates = JSON.parse(localStorage.getItem('custom_templates') || '[]');
+    if (customTemplates.length > 0) {
+      setTemplates(prev => {
+        const combined = [...prev, ...customTemplates];
+        // Remove duplicates by ID just in case
+        return Array.from(new Map(combined.map(item => [item.id, item])).values());
+      });
+    }
+  }, []);
+
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0]);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, templateId: null });
+
+  const handleDeleteClick = (e, id) => {
+    e.stopPropagation();
+    setDeleteModal({ isOpen: true, templateId: id });
+  };
+
+  const confirmDelete = () => {
+    const id = deleteModal.templateId;
+    const updatedTemplates = templates.filter(t => t.id !== id);
+    setTemplates(updatedTemplates);
+    
+    if (selectedTemplate?.id === id) {
+      setSelectedTemplate(updatedTemplates.length > 0 ? updatedTemplates[0] : null);
+    }
+    
+    setDeleteModal({ isOpen: false, templateId: null });
+    toast.error("Template deleted successfully");
+  };
+
+  const handleEdit = (e, temp) => {
+    e.stopPropagation();
+    navigate('/admin/templates/create', { state: { editTemplate: temp } });
+    toast.info(`Opening "${temp.name}" for editing`);
+  };
 
   // --- VIEW 1: LIST VIEW ---
   if (view === 'list') {
     return (
-      <div className="flex flex-col lg:flex-row h-full w-full bg-[#F9FAFB] p-4 lg:p-6 gap-6 overflow-hidden font-sans antialiased">
+      <div className="flex flex-col lg:flex-row h-full w-full bg-[#F9FAFB] p-4 lg:p-6 gap-6 overflow-hidden font-sans antialiased relative">
+        {/* DELETE CONFIRMATION MODAL */}
+        {deleteModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl scale-in-center border border-gray-100 flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-6">
+                <Trash2 size={32} className="text-red-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Confirm Delete</h2>
+              <p className="text-gray-500 font-medium mb-8">
+                Are you sure you want to remove this template? This action cannot be undone.
+              </p>
+              <div className="flex gap-3 w-full">
+                <button 
+                  onClick={() => setDeleteModal({ isOpen: false, templateId: null })}
+                  className="flex-1 py-3 px-4 border border-gray-200 rounded-xl font-bold text-gray-500 hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 px-4 bg-red-500 hover:bg-red-600 text-white rounded-xl font-bold shadow-lg shadow-red-500/20 transition-all border border-red-600"
+                >
+                  Yes. Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <div className="flex items-center justify-between mb-6 gap-3">
             <div className="flex items-center gap-2">
@@ -79,6 +145,7 @@ const Templates = ({ activeTab, }) => {
                   <th className="px-4 md:px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Update Date</th>
                   <th className="px-4 md:px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
                   <th className="px-4 md:px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                  <th className="px-4 md:px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -91,6 +158,16 @@ const Templates = ({ activeTab, }) => {
                         <div className="flex items-center justify-center gap-2">
                             <div className={`w-2 h-2 rounded-full ${temp.status === 'Approved' ? 'bg-green-500' : temp.status === 'Rejected' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
                             <span className="text-[13px] font-semibold text-gray-700">{temp.status}</span>
+                        </div>
+                    </td>
+                    <td className="px-4 md:px-6 py-4">
+                        <div className="flex items-center justify-center gap-3">
+                            <button onClick={(e) => handleEdit(e, temp)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all">
+                                <Pencil size={18} />
+                            </button>
+                            <button onClick={(e) => handleDeleteClick(e, temp.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all">
+                                <Trash2 size={18} />
+                            </button>
                         </div>
                     </td>
                   </tr>
@@ -106,7 +183,17 @@ const Templates = ({ activeTab, }) => {
             
             {/* Mobile Preview */}
             <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-br from-gray-50 to-gray-100/50">
-              <MobilePreview name={selectedTemplate?.name} body={`Hello! This is a preview of your template "${selectedTemplate?.name}".`} />
+              {selectedTemplate ? (
+                  <MobilePreview 
+                    name={selectedTemplate?.name} 
+                    body={`Hello! This is a preview of your template "${selectedTemplate?.name}".`} 
+                  />
+              ) : (
+                  <div className="text-center p-10 opacity-40">
+                      <ImageIcon className="mx-auto mb-2 text-gray-300" size={40}/>
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">No Selection</p>
+                  </div>
+              )}
             </div>
             
             {/* Preview Footer */}
