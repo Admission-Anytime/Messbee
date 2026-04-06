@@ -6,21 +6,21 @@ import axios from "../../context/axios";
 const TABS = ["All Assets", "Images", "Videos", "Documents", "Audio"];
 
 const BADGE_CONFIG = {
-  IMAGE:   { icon: "🖼",  label: "Image",    bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-400" },
-  VIDEO:   { icon: "🎬",  label: "Video",    bg: "bg-rose-100",    text: "text-rose-700",    dot: "bg-rose-400"    },
-  PDF:     { icon: "📄",  label: "PDF",      bg: "bg-blue-100",   text: "text-blue-700",   dot: "bg-blue-400"   },
-  AUDIO:   { icon: "🎵",  label: "Audio",    bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-400" },
-  ARCHIVE: { icon: "🗂",  label: "Archive",  bg: "bg-amber-100",  text: "text-amber-700",  dot: "bg-amber-400"  },
+  IMAGE:   { label: "Image",    bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-400" },
+  VIDEO:   { label: "Video",    bg: "bg-rose-100",    text: "text-rose-700",    dot: "bg-rose-400"    },
+  PDF:     { label: "PDF",      bg: "bg-blue-100",   text: "text-blue-700",   dot: "bg-blue-400"   },
+  AUDIO:   { label: "Audio",    bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-400" },
+  ARCHIVE: { label: "Archive",  bg: "bg-amber-100",  text: "text-amber-700",  dot: "bg-amber-400"  },
 };
 
 const INITIAL_ASSETS = [];
 
 const FILE_ICONS = {
-  PDF:     { bg: "bg-blue-100",   icon: "📄", color: "text-blue-600"   },
-  AUDIO:   { bg: "bg-purple-100", icon: "🎵", color: "text-purple-600" },
-  ARCHIVE: { bg: "bg-orange-100", icon: "🗂️", color: "text-orange-600" },
-  VIDEO:   { bg: "bg-red-100",    icon: "🎬", color: "text-red-600"    },
-  IMAGE:   { bg: "bg-green-100",  icon: "🖼️", color: "text-green-600"  },
+  PDF:     { bg: "bg-blue-100",   color: "text-blue-600",   icon: (cls="w-7 h-7") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+  AUDIO:   { bg: "bg-purple-100", color: "text-purple-600", icon: (cls="w-7 h-7") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg> },
+  ARCHIVE: { bg: "bg-orange-100", color: "text-orange-600", icon: (cls="w-7 h-7") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg> },
+  VIDEO:   { bg: "bg-red-100",    color: "text-red-600",    icon: (cls="w-7 h-7") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.069A1 1 0 0121 8.882v6.236a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg> },
+  IMAGE:   { bg: "bg-green-100",  color: "text-green-600",  icon: (cls="w-7 h-7") => <svg className={cls} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
 };
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ function DeleteConfirmModal({ asset, onConfirm, onCancel }) {
         </p>
         {/* File preview row */}
         <div className="flex items-center gap-3 bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5 mb-5">
-          <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center text-base flex-shrink-0`}>{fi.icon}</div>
+          <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center flex-shrink-0 ${fi.color}`}>{fi.icon("w-5 h-5")}</div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
             <p className="text-xs text-gray-400">{asset.size} • {asset.ext}</p>
@@ -105,7 +105,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
         <button onClick={() => onSelect(asset.id)} className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition ${selected ? "bg-red-500 border-red-500" : "border-gray-300 hover:border-red-400"}`}>
           {selected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
         </button>
-        <div className={`w-10 h-10 rounded-lg ${fi.bg} flex items-center justify-center text-lg flex-shrink-0`}>{fi.icon}</div>
+        <div className={`w-10 h-10 rounded-lg ${fi.bg} flex items-center justify-center flex-shrink-0 ${fi.color}`}>{fi.icon("w-5 h-5")}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
           <p className="text-xs text-gray-400">{asset.size} • {asset.ext}</p>
@@ -172,7 +172,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
         {asset.thumb ? (
           <img src={asset.thumb} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
         ) : (
-          <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center text-3xl`}>{fi.icon}</div>
+          <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center ${fi.color}`}>{fi.icon("w-8 h-8")}</div>
         )}
         <div className="absolute top-2.5 left-2.5"><TypeBadge type={asset.type} size="xs" /></div>
         {asset.duration && (
@@ -312,7 +312,7 @@ function UploadFileRow({ file, onCompleted }) {
       "bg-white border-gray-100"
     }`}>
       <div className="flex items-center gap-3 mb-2">
-        <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center text-base flex-shrink-0`}>{fi.icon}</div>
+        <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center flex-shrink-0 ${fi.color}`}>{fi.icon("w-5 h-5")}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{file.name}</p>
           <p className="text-xs text-gray-400">{formatBytes(file.size)}</p>
