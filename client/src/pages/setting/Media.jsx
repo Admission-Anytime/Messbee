@@ -1,26 +1,19 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "react-toastify";
+import axios from "../../context/axios";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TABS = ["All Assets", "Images", "Videos", "Documents", "Audio"];
 
-const TYPE_COLORS = {
-  IMAGE:   { bg: "bg-green-500",  text: "text-white" },
-  VIDEO:   { bg: "bg-red-500",    text: "text-white" },
-  PDF:     { bg: "bg-blue-500",   text: "text-white" },
-  AUDIO:   { bg: "bg-purple-500", text: "text-white" },
-  ARCHIVE: { bg: "bg-orange-500", text: "text-white" },
+const BADGE_CONFIG = {
+  IMAGE:   { icon: "🖼",  label: "Image",    bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-400" },
+  VIDEO:   { icon: "🎬",  label: "Video",    bg: "bg-rose-100",    text: "text-rose-700",    dot: "bg-rose-400"    },
+  PDF:     { icon: "📄",  label: "PDF",      bg: "bg-blue-100",   text: "text-blue-700",   dot: "bg-blue-400"   },
+  AUDIO:   { icon: "🎵",  label: "Audio",    bg: "bg-violet-100", text: "text-violet-700", dot: "bg-violet-400" },
+  ARCHIVE: { icon: "🗂",  label: "Archive",  bg: "bg-amber-100",  text: "text-amber-700",  dot: "bg-amber-400"  },
 };
 
-const INITIAL_ASSETS = [
-  { id: 1, name: "Summer_Promo_01.jpg",       size: "1.2 MB",  ext: "JPG",  type: "IMAGE",   duration: null,   thumb: "https://images.unsplash.com/photo-1512941937669-90a1b58e7e9c?w=400&q=80" },
-  { id: 2, name: "Price_List_2024.pdf",        size: "456 KB",  ext: "PDF",  type: "PDF",     duration: null,   thumb: null },
-  { id: 3, name: "Customer_Story.mp4",         size: "12.5 MB", ext: "MP4",  type: "VIDEO",   duration: "0:15", thumb: "https://images.unsplash.com/photo-1606986628253-06eb27e29afc?w=400&q=80" },
-  { id: 4, name: "Welcome_Voice_Msg.ogg",      size: "112 KB",  ext: "OGG",  type: "AUDIO",   duration: null,   thumb: null },
-  { id: 5, name: "Analytics_Report_Oct.png",   size: "2.4 MB",  ext: "PNG",  type: "IMAGE",   duration: null,   thumb: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&q=80" },
-  { id: 6, name: "Resources_Pack.zip",         size: "85 MB",   ext: "ZIP",  type: "ARCHIVE", duration: null,   thumb: null },
-  { id: 7, name: "Hero_Background.jpg",        size: "3.1 MB",  ext: "JPG",  type: "IMAGE",   duration: null,   thumb: "https://images.unsplash.com/photo-1486325212027-8081e485255e?w=400&q=80" },
-];
+const INITIAL_ASSETS = [];
 
 const FILE_ICONS = {
   PDF:     { bg: "bg-blue-100",   icon: "📄", color: "text-blue-600"   },
@@ -87,10 +80,22 @@ function DeleteConfirmModal({ asset, onConfirm, onCancel }) {
   );
 }
 
+// ─── TypeBadge ──────────────────────────────────────────────────────────────────
+function TypeBadge({ type, size = "sm" }) {
+  const b = BADGE_CONFIG[type] || BADGE_CONFIG.IMAGE;
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-semibold ${b.bg} ${b.text} ${
+      size === "xs" ? "text-[10px]" : "text-xs"
+    }`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${b.dot} flex-shrink-0`} />
+      {b.label}
+    </span>
+  );
+}
+
 // ─── AssetCard ─────────────────────────────────────────────────────────────────
 function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const c = TYPE_COLORS[asset.type] || TYPE_COLORS.IMAGE;
   const fi = FILE_ICONS[asset.type] || FILE_ICONS.IMAGE;
 
   if (viewMode === "list") {
@@ -105,7 +110,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
           <p className="text-xs text-gray-400">{asset.size} • {asset.ext}</p>
         </div>
-        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${c.bg} ${c.text}`}>{asset.type}</span>
+        <TypeBadge type={asset.type} />
         {/* 3-dot menu */}
         <div className="relative">
           <button onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition">
@@ -113,11 +118,25 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           </button>
           {menuOpen && (
             <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+              <a 
+                href={asset.url} 
+                download={asset.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download
-              </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+              </a>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(asset.url);
+                  toast.success("Link copied to clipboard");
+                }} 
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+              >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 Copy Link
               </button>
@@ -155,7 +174,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
         ) : (
           <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center text-3xl`}>{fi.icon}</div>
         )}
-        <span className={`absolute top-2.5 left-2.5 text-xs font-bold px-2 py-0.5 rounded-md ${c.bg} ${c.text} tracking-wide`}>{asset.type}</span>
+        <div className="absolute top-2.5 left-2.5"><TypeBadge type={asset.type} size="xs" /></div>
         {asset.duration && (
           <span className="absolute bottom-2 right-2 text-xs font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-md">{asset.duration}</span>
         )}
@@ -173,11 +192,25 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           </button>
           {menuOpen && (
             <div className="absolute right-0 bottom-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+              <a 
+                href={asset.url} 
+                download={asset.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download
-              </button>
-              <button className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition">
+              </a>
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigator.clipboard.writeText(asset.url);
+                  toast.success("Link copied to clipboard");
+                }} 
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+              >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 Copy Link
               </button>
@@ -215,39 +248,80 @@ function NewAssetCard({ onClick }) {
 }
 
 // ─── Upload File Row ────────────────────────────────────────────────────────────
-function UploadFileRow({ file, onCancel }) {
+function UploadFileRow({ file, onCompleted }) {
   const [progress, setProgress] = useState(0);
-  const [done, setDone] = useState(false);
+  const [status, setStatus] = useState("uploading"); // uploading | processing | done | error
   const fi = FILE_ICONS[getAssetType(file)] || FILE_ICONS.IMAGE;
+  // Guard: prevent React 18 StrictMode double-invoke from uploading twice
+  const didUpload = useRef(false);
 
   useEffect(() => {
-    const speed = Math.random() * 15 + 8;
-    const interval = setInterval(() => {
-      setProgress((p) => {
-        const next = p + speed * (Math.random() * 0.5 + 0.75);
-        if (next >= 100) { clearInterval(interval); setDone(true); return 100; }
-        return next;
-      });
-    }, 200);
-    return () => clearInterval(interval);
+    if (didUpload.current) return; // already started
+    didUpload.current = true;
+
+    const uploadFile = async () => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await axios.post("/media", formData, {
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              setProgress(pct);
+              if (pct >= 100) setStatus("processing");
+            }
+          },
+        });
+
+        if (response.data && response.data.success) {
+          setProgress(100);
+          setStatus("done");
+          onCompleted(response.data.data);
+        } else {
+          setStatus("error");
+          const msg = response.data?.message || "Upload failed";
+          toast.error(`${file.name}: ${msg}`);
+          onCompleted(null);
+        }
+      } catch (err) {
+        setStatus("error");
+        const msg = err.response?.data?.message || err.message || "Upload failed";
+        toast.error(`${file.name}: ${msg}`);
+        onCompleted(null);
+      }
+    };
+
+    uploadFile();
   }, []);
 
+  const statusIcon = status === "done"
+    ? <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+    : status === "error"
+    ? <svg className="w-4 h-4 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+    : status === "processing"
+    ? <div className="w-4 h-4 border-2 border-green-500 border-t-transparent rounded-full animate-spin" />
+    : <span className="text-xs font-bold text-green-600">{Math.round(progress)}%</span>;
+
+  const barColor = status === "error" ? "bg-red-400" : "bg-green-500";
+
   return (
-    <div className="bg-white border border-gray-100 rounded-xl px-4 py-3">
+    <div className={`border rounded-xl px-4 py-3 ${
+      status === "done" ? "bg-green-50 border-green-100" :
+      status === "error" ? "bg-red-50 border-red-100" :
+      "bg-white border-gray-100"
+    }`}>
       <div className="flex items-center gap-3 mb-2">
         <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center text-base flex-shrink-0`}>{fi.icon}</div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{file.name}</p>
           <p className="text-xs text-gray-400">{formatBytes(file.size)}</p>
         </div>
-        <span className={`text-sm font-bold ${done ? "text-green-500" : "text-green-500"}`}>{Math.round(progress)}%</span>
-        <button onClick={() => onCancel(file.name)} className="w-6 h-6 rounded-full bg-gray-200 hover:bg-red-100 flex items-center justify-center transition">
-          <svg className="w-3 h-3 text-gray-500 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-        </button>
+        {statusIcon}
       </div>
       <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div
-          className="h-full bg-green-500 rounded-full transition-all duration-200"
+          className={`h-full ${barColor} rounded-full transition-all duration-200`}
           style={{ width: `${progress}%` }}
         />
       </div>
@@ -255,23 +329,30 @@ function UploadFileRow({ file, onCancel }) {
   );
 }
 
+// Map of tab name → file input accept string
+const TAB_ACCEPT = {
+  "All Assets": "image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar",
+  "Images":     "image/*",
+  "Videos":     "video/*",
+  "Documents":  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,application/pdf,application/msword",
+  "Audio":      "audio/*",
+};
+
 // ─── Upload Modal ───────────────────────────────────────────────────────────────
-function UploadModal({ open, onClose, onUploadComplete }) {
+function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets" }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploadFiles, setUploadFiles] = useState([]);
-  const [allDone, setAllDone] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0); // files that finished (success OR error)
+  const [successAssets, setSuccessAssets] = useState([]);  // only successfully uploaded assets
   const fileInputRef = useRef();
 
   useEffect(() => {
-    if (!open) { setUploadFiles([]); setAllDone(false); }
-  }, [open]);
-
-  useEffect(() => {
-    if (uploadFiles.length > 0) {
-      const timer = setTimeout(() => setAllDone(true), 5000);
-      return () => clearTimeout(timer);
+    if (!open) {
+      setUploadFiles([]);
+      setCompletedCount(0);
+      setSuccessAssets([]);
     }
-  }, [uploadFiles]);
+  }, [open]);
 
   const handleFiles = (files) => {
     const valid = Array.from(files).filter((f) => f.size <= 25 * 1024 * 1024);
@@ -286,13 +367,26 @@ function UploadModal({ open, onClose, onUploadComplete }) {
     handleFiles(e.dataTransfer.files);
   };
 
+  // Called by each UploadFileRow when it finishes (either success or error)
+  // asset will be the server response data on success, or null on error
+  const handleFileCompleted = useCallback((asset) => {
+    setCompletedCount((n) => n + 1);
+    if (asset) {
+      setSuccessAssets((prev) => [...prev, asset]);
+    }
+  }, []);
+
   const handleDone = () => {
-    onUploadComplete(uploadFiles);
+    const validAssets = successAssets.filter(Boolean);
+    onUploadComplete(validAssets);
     onClose();
-    toast.success(`${uploadFiles.length} file(s) uploaded successfully!`);
+    if (validAssets.length > 0) {
+      toast.success(`${validAssets.length} file(s) uploaded successfully!`);
+    }
   };
 
-  const totalRemaining = uploadFiles.reduce((acc, f) => acc + f.size, 0);
+  // Done is enabled when every queued file has completed (success OR error)
+  const allDone = uploadFiles.length > 0 && completedCount >= uploadFiles.length;
 
   if (!open) return null;
 
@@ -327,15 +421,22 @@ function UploadModal({ open, onClose, onUploadComplete }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <div className="text-center">
+              <div className="text-center">
               <p className="font-bold text-gray-800">Drag and drop files here</p>
-              <p className="text-sm text-gray-400 mt-0.5">Files up to 25MB supported (MP4, PNG, JPG, PDF)</p>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {activeTab === "All Assets" ? "Supports images, videos, audio, PDFs & docs" :
+                 activeTab === "Images"     ? "Images only (JPG, PNG, WEBP, GIF)" :
+                 activeTab === "Videos"     ? "Videos only (MP4, MOV, AVI, 3GP)" :
+                 activeTab === "Documents"  ? "Documents only (PDF, DOC, XLS, PPT...)" :
+                 activeTab === "Audio"      ? "Audio files only (MP3, OGG, WAV, AAC)" :
+                 "Files up to 25MB supported"}
+              </p>
             </div>
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept="image/*,video/*,audio/*,.pdf,.zip,.rar"
+              accept={TAB_ACCEPT[activeTab] || TAB_ACCEPT["All Assets"]}
               className="hidden"
               onChange={(e) => handleFiles(e.target.files)}
             />
@@ -350,15 +451,23 @@ function UploadModal({ open, onClose, onUploadComplete }) {
           {/* Uploading files list */}
           {uploadFiles.length > 0 && (
             <div className="mb-5">
-              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">
-                {uploadFiles.length} FILES UPLOADING ({formatBytes(totalRemaining)} REMAINING)
-              </p>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                  {uploadFiles.length} FILE{uploadFiles.length > 1 ? "S" : ""}
+                </p>
+                {allDone && (
+                  <span className="text-xs font-semibold text-green-600 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                    All done!
+                  </span>
+                )}
+              </div>
               <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
                 {uploadFiles.map((file, idx) => (
                   <UploadFileRow
                     key={`${file.name}-${idx}`}
                     file={file}
-                    onCancel={(name) => setUploadFiles((prev) => prev.filter((f) => f.name !== name))}
+                    onCompleted={handleFileCompleted}
                   />
                 ))}
               </div>
@@ -368,21 +477,21 @@ function UploadModal({ open, onClose, onUploadComplete }) {
           {/* Footer */}
           <div className="flex items-center justify-end gap-3">
             <button
-              onClick={() => setUploadFiles([])}
+              onClick={onClose}
               className="px-5 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition"
             >
-              Cancel All
+              Cancel
             </button>
             <button
               onClick={handleDone}
-              disabled={uploadFiles.length === 0}
+              disabled={!allDone}
               className={`px-6 py-2 text-sm font-semibold rounded-xl transition ${
-                uploadFiles.length > 0 && allDone
-                  ? "bg-green-500 hover:bg-green-600 text-white"
+                allDone
+                  ? "bg-green-500 hover:bg-green-600 text-white shadow-sm"
                   : "bg-gray-100 text-gray-400 cursor-not-allowed"
               }`}
             >
-              Done
+              {allDone ? `Done (${successAssets.filter(Boolean).length} uploaded)` : "Done"}
             </button>
           </div>
         </div>
@@ -396,11 +505,31 @@ export default function MediaGallery() {
   const [activeTab, setActiveTab] = useState("All Assets");
   const [viewMode, setViewMode] = useState("grid"); // grid | list
   const [search, setSearch] = useState("");
-  const [assets, setAssets] = useState(INITIAL_ASSETS);
+  const [assets, setAssets] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
-  const [nextId, setNextId] = useState(100);
   const [deleteTarget, setDeleteTarget] = useState(null);   // asset to confirm delete
   const [selectedIds, setSelectedIds] = useState([]);        // bulk selection
+
+  const fetchMedia = async () => {
+    try {
+      setLoading(true);
+      const { data } = await axios.get("/media");
+      if (data.success) {
+        // Map _id to id for component compatibility
+        const mapped = data.data.map(a => ({ ...a, id: a._id }));
+        setAssets(mapped);
+      }
+    } catch (err) {
+      toast.error("Failed to load media assets");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMedia();
+  }, []);
 
   const handleSelect = (id) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -411,17 +540,31 @@ export default function MediaGallery() {
     else setSelectedIds(filtered.map((a) => a.id));
   };
 
-  const handleDeleteConfirm = () => {
-    setAssets((prev) => prev.filter((a) => a.id !== deleteTarget.id));
-    toast.success(`"${deleteTarget.name}" deleted successfully`);
-    setDeleteTarget(null);
+  const handleDeleteConfirm = async () => {
+    try {
+      const { data } = await axios.delete(`/media/${deleteTarget.id}`);
+      if (data.success) {
+        setAssets((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+        toast.success(`"${deleteTarget.name}" deleted successfully`);
+        setDeleteTarget(null);
+      }
+    } catch (err) {
+      toast.error("Failed to delete asset");
+    }
   };
 
-  const handleBulkDelete = () => {
-    const count = selectedIds.length;
-    setAssets((prev) => prev.filter((a) => !selectedIds.includes(a.id)));
-    setSelectedIds([]);
-    toast.success(`${count} asset${count > 1 ? "s" : ""} deleted`);
+  const handleBulkDelete = async () => {
+    try {
+      const { data } = await axios.post("/media/bulk-delete", { ids: selectedIds });
+      if (data.success) {
+        const count = selectedIds.length;
+        setAssets((prev) => prev.filter((a) => !selectedIds.includes(a.id)));
+        setSelectedIds([]);
+        toast.success(`${count} asset${count > 1 ? "s" : ""} deleted`);
+      }
+    } catch (err) {
+      toast.error("Failed to delete selected assets");
+    }
   };
 
   // Filter assets by tab + search
@@ -436,23 +579,21 @@ export default function MediaGallery() {
     return matchTab && matchSearch;
   });
 
-  const handleUploadComplete = (files) => {
-    const newAssets = Array.from(files).map((file, i) => ({
-      id: nextId + i,
-      name: file.name,
-      size: formatBytes(file.size),
-      ext: file.name.split(".").pop().toUpperCase(),
-      type: getAssetType(file),
-      duration: null,
-      thumb: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
-    }));
+  const handleUploadComplete = (newAssetsRaw) => {
+    const newAssets = newAssetsRaw.map(a => ({ ...a, id: a._id }));
     setAssets((prev) => [...newAssets, ...prev]);
-    setNextId((n) => n + files.length);
   };
 
-  // Storage usage mock
-  const storageUsed = 42;
-  const totalAssets = 142;
+  // Storage usage calculation
+  const totalAssets = assets.length;
+  // Simple sum of sizes (assuming size string like "1.2 MB")
+  const totalSizeBytes = assets.reduce((acc, a) => {
+    const val = parseFloat(a.size);
+    if (a.size.includes("MB")) return acc + val * 1024 * 1024;
+    if (a.size.includes("KB")) return acc + val * 1024;
+    return acc + val;
+  }, 0);
+  const storageUsed = (totalSizeBytes / (1024 * 1024)).toFixed(1); // in MB
 
   return (
     <>
@@ -471,6 +612,7 @@ export default function MediaGallery() {
         open={showUpload}
         onClose={() => setShowUpload(false)}
         onUploadComplete={handleUploadComplete}
+        activeTab={activeTab}
       />
 
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -577,22 +719,40 @@ export default function MediaGallery() {
           {/* Assets Grid / List */}
           {viewMode === "grid" ? (
             <div className="grid grid-cols-4 gap-4" style={{ animation: "fadeUp 0.3s ease" }}>
-              {/* New Asset card — always first */}
-              <NewAssetCard onClick={() => setShowUpload(true)} />
-              {filtered.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="grid" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
-              ))}
+              {loading ? (
+                <div className="col-span-4 py-20 flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-400 mt-4 font-medium">Loading assets...</p>
+                </div>
+              ) : (
+                <>
+                  {/* New Asset card — always first */}
+                  <NewAssetCard onClick={() => setShowUpload(true)} />
+                  {filtered.map((asset) => (
+                    <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="grid" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
+                  ))}
+                </>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-2" style={{ animation: "fadeUp 0.3s ease" }}>
-              {filtered.map((asset) => (
-                <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="list" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
-              ))}
-              {filtered.length === 0 && (
-                <div className="text-center py-16 text-gray-400">
-                  <p className="text-lg font-semibold">No assets found</p>
-                  <p className="text-sm mt-1">Try a different search or upload new files</p>
+              {loading ? (
+                <div className="py-20 flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-gray-400 mt-4 font-medium">Loading assets...</p>
                 </div>
+              ) : (
+                <>
+                  {filtered.map((asset) => (
+                    <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="list" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
+                  ))}
+                  {filtered.length === 0 && (
+                    <div className="text-center py-16 text-gray-400 font-medium">
+                      <p className="text-lg">No assets found</p>
+                      <p className="text-sm mt-1">Try a different search or upload new files</p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
