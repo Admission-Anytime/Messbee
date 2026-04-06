@@ -98,6 +98,7 @@ const CreateCampaign = () => {
     const [scheduledDate, setScheduledDate] = useState('2025-07-24');
     const [scheduledTime, setScheduledTime] = useState('12:00');
     const [isLaunching, setIsLaunching] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [csvFile, setCsvFile] = useState(null);
     const fileInputRef = React.useRef(null);
 
@@ -134,6 +135,31 @@ const CreateCampaign = () => {
             toast.error(error.response?.data?.message || 'Failed to launch campaign');
         } finally {
             setIsLaunching(false);
+        }
+    };
+
+    const handleSaveAsDraft = async () => {
+        try {
+            setIsSavingDraft(true);
+            const campaignData = {
+                name: campaignName,
+                messageTemplate: selectedTemplate,
+                status: 'draft',
+                audienceFilter: {
+                    tags: selectedOption === 'labels' ? selectedLabels : [],
+                    status: selectedOption === 'status' ? selectedStatus : null,
+                }
+            };
+            const res = await CampaignApi.createCampaign(campaignData);
+            if (res.success) {
+                toast.success('Campaign saved as draft!');
+                navigate('/admin/campaigns');
+            }
+        } catch (error) {
+            console.error('Error saving draft:', error);
+            toast.error(error.response?.data?.message || 'Failed to save draft');
+        } finally {
+            setIsSavingDraft(false);
         }
     };
 
@@ -205,8 +231,12 @@ const CreateCampaign = () => {
                     </div>
 
                     {currentStep === 3 ? (
-                        <button className="text-slate-500 font-bold hover:text-slate-700 transition-colors text-sm">
-                            Save as Draft
+                        <button
+                            onClick={handleSaveAsDraft}
+                            disabled={isSavingDraft}
+                            className="text-slate-500 font-bold hover:text-slate-700 transition-colors text-sm disabled:opacity-50"
+                        >
+                            {isSavingDraft ? 'Saving...' : 'Save as Draft'}
                         </button>
                     ) : (
                         <button
@@ -718,8 +748,12 @@ const CreateCampaign = () => {
                             <ChevronLeft className="w-5 h-5" /> Back
                         </button>
                         <div className="flex gap-4">
-                            <button className="text-slate-500 font-bold hover:text-slate-700 transition-colors">
-                                Save Draft
+                            <button
+                                onClick={handleSaveAsDraft}
+                                disabled={isSavingDraft}
+                                className="text-slate-500 font-bold hover:text-slate-700 transition-colors disabled:opacity-50"
+                            >
+                                {isSavingDraft ? 'Saving...' : 'Save Draft'}
                             </button>
                             <button
                                 onClick={nextStep}

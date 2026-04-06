@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
-import StatusApi from '../../services/StatusApi';
 import { toast } from 'react-toastify';
 import {
   MagnifyingGlassIcon,
@@ -78,27 +77,14 @@ const CampaignDashboard = () => {
   const [duplicatedId, setDuplicatedId] = useState(null);
 
   /* dynamic filters state */
-  const [statusOptions, setStatusOptions] = useState([]);
+  const CAMPAIGN_STATUS_OPTIONS = ['Completed', 'Processing', 'Draft', 'Scheduled', 'Paused'];
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterTemplate, setFilterTemplate] = useState('All');
   const [templateOptions, setTemplateOptions] = useState([]);
 
   useEffect(() => { 
     fetchCampaigns();
-    fetchFilterData();
   }, []);
-
-  const fetchFilterData = async () => {
-    try {
-      // Fetch statuses
-      const stats = await StatusApi.getAllStatuses();
-      if (Array.isArray(stats)) {
-        setStatusOptions(stats.map(s => s.name));
-      }
-    } catch (err) {
-      console.error("Failed to fetch dashboard filters:", err);
-    }
-  };
 
   const fetchCampaigns = async () => {
     try {
@@ -235,7 +221,7 @@ const CampaignDashboard = () => {
                 className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
               >
                 <option value="All">Status: All</option>
-                {statusOptions.map(opt => (
+                {CAMPAIGN_STATUS_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
