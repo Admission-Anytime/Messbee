@@ -127,6 +127,7 @@ app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));
 app.use('/api/custom-fields', require('./routes/customFieldRoutes'));
 app.use('/api/labels', require('./routes/labelRoutes'));
 app.use('/api/statuses', require('./routes/statusRoutes'));
+app.use('/api/media', require('./routes/mediaRoutes'));
 
 // ================== HEALTH CHECK ==================
 
