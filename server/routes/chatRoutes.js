@@ -1,6 +1,8 @@
 const express = require("express");
 const Chat = require("../models/Chat");
 const Message = require("../models/Message");
+const Media = require("../models/Media");
+const mongoose = require("mongoose");
 const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
 const { protect } = require('../middleware/auth');
@@ -38,6 +40,50 @@ function parseWhatsAppError(errorObj) {
 
   const userMessage = codeMessages[code] || details || inner?.message || 'Unknown WhatsApp API error';
   return { code, userMessage };
+}
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function resolveMimeType(extension) {
+  const ext = extension.toLowerCase().replace('.', '');
+  const mimeMap = {
+    'jpg': 'image/jpeg',
+    'jpeg': 'image/jpeg',
+    'png': 'image/png',
+    'gif': 'image/gif',
+    'webp': 'image/webp',
+    'mp4': 'video/mp4',
+    '3gp': 'video/3gpp',
+    'mov': 'video/quicktime',
+    'mp3': 'audio/mpeg',
+    'aac': 'audio/aac',
+    'ogg': 'audio/ogg',
+    'wav': 'audio/wav',
+    'pdf': 'application/pdf',
+    'csv': 'text/csv',
+    'txt': 'text/plain',
+    'zip': 'application/zip',
+    'rar': 'application/vnd.rar',
+    'xls': 'application/vnd.ms-excel',
+    'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'doc': 'application/msword',
+    'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'ppt': 'application/vnd.ms-powerpoint',
+    'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+  };
+  return mimeMap[ext] || 'application/octet-stream';
+}
+
+function determineAssetType(mimetype) {
+  if (mimetype.startsWith('image/')) return 'IMAGE';
+  if (mimetype.startsWith('video/')) return 'VIDEO';
+  if (mimetype.startsWith('audio/')) return 'AUDIO';
+  if (mimetype === 'application/pdf') return 'PDF';
+  return 'ARCHIVE';
 }
 
 const resolveMessageType = (messageType, mediaType) => {
@@ -207,9 +253,65 @@ router.post("/message", async (req, res) => {
 
       // Handle media messages
       if (media && mediaType) {
-        const mediaId = media.id || media.mediaId;
+        let mediaIdToUse = media.whatsappMediaId || media.id || media.mediaId;
 
-        if (!mediaId) {
+        // If the mediaId looks like a MongoDB ObjectId, it's likely a local gallery image
+        // We MUST use its whatsappMediaId instead, or upload it to WhatsApp if missing.
+        if (mediaIdToUse && (mongoose.Types.ObjectId.isValid(mediaIdToUse) || (mediaIdToUse.length === 24 && /^[0-9a-fA-F]+$/.test(mediaIdToUse)))) {
+          console.log(`🔍 Detected database ID for media: ${mediaIdToUse}. Resolving WhatsApp Media ID...`);
+          const dbMedia = await Media.findById(mediaIdToUse);
+          if (dbMedia) {
+             if (dbMedia.whatsappMediaId) {
+                mediaIdToUse = dbMedia.whatsappMediaId;
+                console.log(`   ✓ Found existing WhatsApp Media ID: ${mediaIdToUse}`);
+             } else {
+                console.log(`   ! No WhatsApp Media ID found for "${dbMedia.name}". Uploading to WhatsApp...`);
+                // Try to find the file locally and upload it
+                const uploadDir = process.env.UPLOAD_PATH || path.resolve(__dirname, '../../uploads');
+                const localFilePath = path.join(uploadDir, dbMedia.filename);
+                
+                console.log(`   📂 Local path check: ${localFilePath}`);
+                if (fs.existsSync(localFilePath)) {
+                   const determinedMimeType = resolveMimeType(dbMedia.ext || '');
+                   console.log(`   📄 Determined MIME type: ${determinedMimeType} from ext: ${dbMedia.ext}`);
+                   
+                   const uploadResult = await whatsappService.uploadMedia(localFilePath, determinedMimeType);
+                   if (uploadResult.success) {
+                      mediaIdToUse = uploadResult.mediaId;
+                      // Cache it for next time
+                      dbMedia.whatsappMediaId = mediaIdToUse;
+                      await dbMedia.save();
+                      console.log(`   ✓ Uploaded successfully. New WhatsApp Media ID: ${mediaIdToUse}`);
+                   } else {
+                      console.error(`   ✗ WhatsApp upload failed:`, JSON.stringify(uploadResult.error));
+                      return res.status(500).json({ error: "Failed to upload gallery asset to WhatsApp", details: uploadResult.error });
+                   }
+                } else {
+                   console.error(`   ✗ Local file not found at: ${localFilePath}`);
+                   // Fallback check: maybe it's in the root uploads folder
+                   const rootUploadDir = path.resolve(process.cwd(), 'uploads');
+                   const fallbackPath = path.join(rootUploadDir, dbMedia.filename);
+                   if (fs.existsSync(fallbackPath)) {
+                      console.log(`   💡 Found file in fallback path: ${fallbackPath}`);
+                      const determinedMimeType = resolveMimeType(dbMedia.ext || '');
+                      const uploadResult = await whatsappService.uploadMedia(fallbackPath, determinedMimeType);
+                      if (uploadResult.success) {
+                         mediaIdToUse = uploadResult.mediaId;
+                         dbMedia.whatsappMediaId = mediaIdToUse;
+                         await dbMedia.save();
+                         // Found and uploaded, now proceed to send
+                      } else {
+                         return res.status(500).json({ error: "Failed to upload gallery asset to WhatsApp", details: uploadResult.error });
+                      }
+                   } else {
+                      return res.status(404).json({ error: "Media file not found. Please try re-uploading to the gallery." });
+                   }
+                }
+             }
+          }
+        }
+
+        if (!mediaIdToUse) {
           return res.status(400).json({
             error: "Media ID required. Please upload media to WhatsApp first using /api/chats/upload-file"
           });
@@ -224,7 +326,7 @@ router.post("/message", async (req, res) => {
         const result = await whatsappService.sendMediaMessage(
           whatsappRecipient,
           whatsappMediaType,
-          mediaId,
+          mediaIdToUse,
           text || ''
         );
 
@@ -419,16 +521,33 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
       });
     }
 
-    // Get file URL for preview (optional - can delete after upload to WhatsApp)
+    // Generate asset preview URL
     const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+
+    // IMPORTANT: Save to permanent Media Gallery as requested
+    const assetType = determineAssetType(mimeType);
+    const media = await Media.create({
+      name: req.file.originalname,
+      filename: req.file.filename,
+      url: fileUrl,
+      size: formatBytes(req.file.size),
+      ext: path.extname(req.file.originalname),
+      type: assetType,
+      user: req.user.id,
+      thumb: assetType === 'IMAGE' ? fileUrl : null,
+      whatsappMediaId: result.mediaId
+    });
+
+    console.log(`✅ Asset saved to Media Gallery: ${media._id}`);
 
     res.json({
       success: true,
-      mediaId: result.mediaId,
+      mediaId: media._id, // Use Database ID so it can be resolved properly later
+      whatsappMediaId: result.mediaId,
       fileUrl: fileUrl,
       fileName: req.file.originalname,
       mimeType: mimeType,
-      size: req.file.size
+      size: formatBytes(req.file.size)
     });
   } catch (error) {
     console.error("Error uploading file:", error);
