@@ -525,12 +525,12 @@ const Conversion = ({
             )}
 
             {showTemplates && (
-               <div className="absolute bottom-28 left-6 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
+               <div className="absolute bottom-28 left-6 w-[92vw] max-w-[560px] md:w-[520px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
                   <div className="p-3 border-b border-slate-100 flex items-center justify-between">
                      <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Templates</h4>
                      <span className="text-[10px] font-bold text-slate-400">{displayTemplates.length} TEMPLATES</span>
                   </div>
-                  <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                  <div className="max-h-96 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                      {displayTemplates.map((template) => (
                         <div
                            key={template.id}
@@ -545,7 +545,7 @@ const Conversion = ({
                                  <h4 className="text-xs font-bold text-slate-900 truncate">{template.name}</h4>
                                  <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${template.status === 'Approved' ? 'text-green-600 bg-green-100' : 'text-blue-600 bg-blue-100'}`}>{template.status || 'Template'}</span>
                               </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-2">{template.bodyText || template.content || 'No content'}</p>
+                              <p className="text-[11px] text-slate-500 line-clamp-3">{template.bodyText || template.content || 'No content'}</p>
                            </div>
                         </div>
                      ))}
