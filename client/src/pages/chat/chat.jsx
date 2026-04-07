@@ -474,6 +474,17 @@ const Chat = () => {
     }
   };
 
+  const handleUpdateProfile = async (chatId, profileData) => {
+    try {
+      const result = await chatService.updateChatProfile(chatId, profileData);
+      if (result.success) {
+        setChats(prev => prev.map(c => c._id === chatId ? result.data : c));
+      }
+    } catch (err) {
+      console.error("Error updating profile:", err);
+    }
+  };
+
   if (error && !loading) return <ErrorState onRetry={() => window.location.reload()} message={error} />;
 
   if (showActivityLog) {
@@ -549,6 +560,8 @@ const Chat = () => {
                   onViewHistory={() => setShowActivityLog(true)}
                   availableLabels={availableLabels}
                   statusOptions={statusOptions}
+                  onUpdateProfile={handleUpdateProfile}
+                  onUpdateLabels={handleUpdateLabels}
                 />
               </div>
             )}
