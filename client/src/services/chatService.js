@@ -161,7 +161,7 @@ const chatService = {
    */
   async sendTemplateMessage(chatId, templateName, languageCode = 'en', components = []) {
     try {
-      const response = await axios.post('/chats/send-template', {
+      const response = await axios.post('/whatsapp/send-template', {
         chatId,
         templateName,
         languageCode,

@@ -47,4 +47,22 @@ router.post('/debug-send', protect, async (req, res) => {
   });
 });
 
+// Get WhatsApp message templates (Protected route)
+router.get('/templates', protect, whatsappController.getTemplates);
+
+// Create a new template (Protected route)
+router.post('/templates', protect, whatsappController.createTemplate);
+
+// Get template details (Protected route)
+router.get('/templates/:templateId', protect, whatsappController.getTemplateDetails);
+
+// Test send a template (Protected route)
+router.post('/test-template', protect, whatsappController.testSendTemplate);
+
+// Update template (Protected route)
+router.put('/templates/:templateId', protect, whatsappController.updateTemplate);
+
+// Delete template (Protected route)
+router.delete('/templates/:templateId', protect, whatsappController.deleteTemplate);
+
 module.exports = router;

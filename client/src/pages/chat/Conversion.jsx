@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import chatService from "../../services/chatService";
+import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import {
    PaperClipIcon, FaceSmileIcon, PhoneIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
@@ -56,18 +57,21 @@ const Conversion = ({
    statusOptions = [],
    quickReplies = []
 }) => {
-   const [inputText, setInputText] = useState("");
-   const [isMenuOpen, setIsMenuOpen] = useState(false);
-   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-   const [showTemplates, setShowTemplates] = useState(false);
-   const [isSearchOpen, setIsSearchOpen] = useState(false);
-
-   // Modals States
    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
    const [selectedMediaId, setSelectedMediaId] = useState(1);
    const [mediaCaption, setMediaCaption] = useState("");
    const [mediaTab, setMediaTab] = useState('recent');
    const [mediaSearch, setMediaSearch] = useState("");
+
+   // Template loading state
+   const [allTemplates, setAllTemplates] = useState([]);
+
+   const [inputText, setInputText] = useState("");
+   const [isMenuOpen, setIsMenuOpen] = useState(false);
+   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+   const [showQuickReplies, setShowQuickReplies] = useState(false);
+   const [showTemplates, setShowTemplates] = useState(false);
+   const [isSearchOpen, setIsSearchOpen] = useState(false);
 
    const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
    const [labelSearch, setLabelSearch] = useState("");
@@ -98,11 +102,33 @@ const Conversion = ({
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
    }, [data.messages]);
 
+   // Load templates from API
+   useEffect(() => {
+      const loadTemplates = async () => {
+         try {
+            const whatsappTemplates = await fetchWhatsAppTemplates();
+            const localTemplates = getLocalTemplates();
+            const templatesArray = whatsappTemplates.data?.data || [];
+            const merged = mergeTemplates(templatesArray, localTemplates);
+            setAllTemplates(merged);
+         } catch (error) {
+            console.error('Error loading templates:', error);
+            const localTemplates = getLocalTemplates();
+            setAllTemplates(localTemplates);
+         }
+      };
+      
+      loadTemplates();
+   }, []);
+
    useEffect(() => {
       const handleClickOutside = (event) => {
          if (menuRef.current && !menuRef.current.contains(event.target)) setIsMenuOpen(false);
          if (emojiRef.current && !emojiRef.current.contains(event.target)) setShowEmojiPicker(false);
-         if (templateRef.current && !templateRef.current.contains(event.target)) setShowTemplates(false);
+         if (templateRef.current && !templateRef.current.contains(event.target)) {
+            setShowTemplates(false);
+            setShowQuickReplies(false);
+         }
       };
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -124,11 +150,12 @@ const Conversion = ({
 
    const handleSubmit = (e) => {
       e.preventDefault();
-      if (!inputText.trim()) return;
+      if (!inputText || !inputText.trim()) return;
       onSendMessage(inputText);
       setInputText("");
       setShowEmojiPicker(false);
       setShowTemplates(false);
+      setShowQuickReplies(false);
    };
 
    const onEmojiClick = (emojiObject) => setInputText((prev) => prev + emojiObject.emoji);
@@ -230,6 +257,19 @@ const Conversion = ({
    const displayQuickReplies = useMemo(() => {
       return quickReplies.slice(0, 3);
    }, [quickReplies]);
+
+   // Only approved templates can be used in chat send flow.
+   const approvedTemplates = useMemo(() => {
+      return allTemplates.filter((template) => {
+         const status = String(template?.status || '').toUpperCase();
+         return status === 'APPROVED';
+      });
+   }, [allTemplates]);
+
+   // Show all approved templates in the template picker.
+   const displayTemplates = useMemo(() => {
+      return approvedTemplates;
+   }, [approvedTemplates]);
 
    return (
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
@@ -406,17 +446,17 @@ const Conversion = ({
                </div>
             )}
 
-            {showTemplates && (
+            {showQuickReplies && (
                <div className="absolute bottom-28 left-6 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
                   <div className="p-3 border-b border-slate-100 flex items-center justify-between">
                      <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Quick Replies</h4>
-                     <span className="text-[10px] font-bold text-slate-400">{displayQuickReplies.length} REPLIES FOUND</span>
+                     <span className="text-[10px] font-bold text-slate-400">{displayQuickReplies.length} REPLIES</span>
                   </div>
                   <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
                      {displayQuickReplies.map((reply) => (
                         <div
                            key={reply._id}
-                           onClick={() => handleTemplateSelect(reply.content)}
+                           onClick={() => { handleTemplateSelect(reply.content); setShowQuickReplies(false); }}
                            className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
                         >
                            <div className="w-10 h-10 rounded-xl bg-green-50 text-[#22C55E] flex items-center justify-center shrink-0">
@@ -439,7 +479,45 @@ const Conversion = ({
                      )}
                   </div>
                   <div className="px-4 py-2.5 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between">
-                     <span>Type to filter</span><span>Enter to select</span>
+                     <span>Click to insert</span><span>Closes after selecting</span>
+                  </div>
+               </div>
+            )}
+
+            {showTemplates && (
+               <div className="absolute bottom-28 left-6 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
+                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
+                     <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Templates</h4>
+                     <span className="text-[10px] font-bold text-slate-400">{displayTemplates.length} TEMPLATES</span>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+                     {displayTemplates.map((template) => (
+                        <div
+                           key={template.id}
+                           onClick={() => { handleTemplateSelect(template.bodyText || template.content); setShowTemplates(false); }}
+                           className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+                        >
+                           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
+                              <DocumentTextIcon className="w-5 h-5" />
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-center mb-1">
+                                 <h4 className="text-xs font-bold text-slate-900 truncate">{template.name}</h4>
+                                 <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${template.status === 'Approved' ? 'text-green-600 bg-green-100' : 'text-blue-600 bg-blue-100'}`}>{template.status || 'Template'}</span>
+                              </div>
+                              <p className="text-[11px] text-slate-500 line-clamp-2">{template.bodyText || template.content || 'No content'}</p>
+                           </div>
+                        </div>
+                     ))}
+                     {displayTemplates.length === 0 && (
+                        <div className="p-8 text-center">
+                           <p className="text-sm text-slate-400 font-medium">No templates found.</p>
+                           <p className="text-[10px] text-slate-400 mt-1">Create templates in Settings</p>
+                        </div>
+                     )}
+                  </div>
+                  <div className="px-4 py-2.5 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between">
+                     <span>From template list</span><span>Click to insert</span>
                   </div>
                </div>
             )}
@@ -451,29 +529,25 @@ const Conversion = ({
                   <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
                      <PaperClipIcon className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => { setInputText(prev => prev + '/'); setShowTemplates(true); }} className="text-slate-400 font-mono font-bold hover:text-slate-600 p-1.5 text-lg leading-none transition-colors">
-                     /
+                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                     <FaceSmileIcon className="w-6 h-6" />
                   </button>
                </div>
                <input
                   type="text"
                   value={inputText}
-                  onChange={(e) => {
-                     setInputText(e.target.value);
-                     if (e.target.value.endsWith("/")) setShowTemplates(true);
-                     if (!e.target.value.includes("/")) setShowTemplates(false);
-                  }}
-                  placeholder="Type a message or use '/' for shortcuts..."
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Type a message..."
                   className="flex-1 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
                />
                <div className="flex items-center gap-1.5 pr-1">
-                  <button type="button" onClick={() => setShowTemplates(!showTemplates)} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center">
+                  <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
+                     <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                  </button>
+                  <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
                      <BoltIcon className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                     <FaceSmileIcon className="w-6 h-6" />
-                  </button>
-                  <button type="submit" disabled={!inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                  <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
                      <PaperAirplaneIcon className="w-4 h-4" />
                   </button>
                </div>

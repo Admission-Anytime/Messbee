@@ -597,18 +597,75 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
 // @access  Private
 exports.sendTemplateMessage = async (req, res, next) => {
   try {
-    const { chatId, templateName, languageCode, components } = req.body;
+    const {
+      chatId,
+      to,
+      phoneNumber,
+      templateName,
+      languageCode,
+      components = []
+    } = req.body;
 
-    const chat = await Chat.findById(chatId);
-    if (!chat) {
-      return res.status(404).json({
+    if (!templateName) {
+      return res.status(400).json({
         success: false,
-        message: 'Chat not found'
+        message: 'Template name is required'
       });
     }
 
+    let chat = null;
+    let recipientPhone = '';
+
+    if (chatId) {
+      chat = await Chat.findById(chatId);
+      if (!chat) {
+        return res.status(404).json({
+          success: false,
+          message: 'Chat not found'
+        });
+      }
+      recipientPhone = normalizePhoneNumber(chat.phone || chat.whatsappId);
+    } else {
+      const rawPhone = to || phoneNumber;
+      if (!rawPhone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Either chatId or recipient phone number is required'
+        });
+      }
+
+      recipientPhone = normalizePhoneNumber(rawPhone);
+      if (!recipientPhone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid recipient phone number'
+        });
+      }
+
+      chat = await Chat.findOne({
+        $or: [
+          { phone: recipientPhone },
+          { whatsappId: recipientPhone }
+        ]
+      });
+
+      if (!chat) {
+        const displayName = recipientPhone;
+        chat = await Chat.create({
+          name: displayName,
+          phone: recipientPhone,
+          status: 'active',
+          chatStatus: 'open',
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
+          teamMember: 'Unassigned',
+          whatsappId: recipientPhone,
+          source: 'whatsapp'
+        });
+      }
+    }
+
     const result = await whatsappService.sendTemplateMessage(
-      chat.phone,
+      recipientPhone,
       templateName,
       languageCode,
       components
@@ -622,9 +679,288 @@ exports.sendTemplateMessage = async (req, res, next) => {
       });
     }
 
+    const time = new Date().toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+
+    const newMessage = await Message.create({
+      chatId: chat._id,
+      text: `Template: ${templateName}`,
+      sender: 'me',
+      time,
+      whatsappMessageId: result.messageId,
+      messageType: 'template',
+      templateName,
+      templateLanguage: languageCode || 'en_US',
+      metadata: {
+        components
+      },
+      status: 'sent'
+    });
+
+    chat.phone = recipientPhone;
+    chat.whatsappId = recipientPhone;
+    chat.source = 'whatsapp';
+    chat.status = 'active';
+    chat.lastMsg = `Template: ${templateName}`;
+    chat.lastMsgTime = time;
+    chat.lastActivity = new Date();
+    await chat.save();
+
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('message_sent', {
+          chatId: chat._id,
+          message: newMessage,
+          chat
+        });
+      }
+    } catch (socketError) {
+      console.error('Socket emit error:', socketError.message);
+    }
+
     res.status(200).json({
       success: true,
+      data: {
+        message: newMessage,
+        whatsappMessageId: result.messageId,
+        chat
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get WhatsApp message templates
+// @route   GET /api/whatsapp/templates
+// @access  Private
+exports.getTemplates = async (req, res, next) => {
+  try {
+    console.log('📡 [Server] getTemplates called');
+    
+    const data = await whatsappService.getTemplates();
+    
+    console.log('📡 [Server] WhatsApp service returned:', {
+      hasData: !!data,
+      dataType: typeof data,
+      isArray: Array.isArray(data?.data),
+      arrayLength: data?.data?.length || 'N/A'
+    });
+    
+    if (data?.data && Array.isArray(data.data)) {
+      console.log('📡 [Server] Template details:');
+      data.data.forEach((template, idx) => {
+        console.log(`  [${idx + 1}] ${template.name}:`, {
+          id: template.id,
+          status: template.status,
+          status_type: typeof template.status,
+          category: template.category,
+          created_timestamp: template.created_timestamp,
+          rejected_reason: template.rejected_reason
+        });
+      });
+    }
+
+    const templates = Array.isArray(data?.data) ? data.data : [];
+    const approvedTemplates = templates.filter((template) => template.status === 'APPROVED');
+    const nonApprovedTemplates = templates.filter((template) => template.status !== 'APPROVED');
+    
+    res.status(200).json({
+      success: true,
+      data: data,
+      summary: {
+        total: templates.length,
+        approved: approvedTemplates.length,
+        nonApproved: nonApprovedTemplates.length
+      },
+      approvedTemplates,
+      nonApprovedTemplates
+    });
+  } catch (error) {
+    console.error('❌ [Server] Error in getTemplates controller:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server Error fetching templates',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Create a new WhatsApp template
+// @route   POST /api/whatsapp/templates
+// @access  Private
+exports.createTemplate = async (req, res, next) => {
+  try {
+    const { name, category, language, components } = req.body;
+
+    if (!name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name is required'
+      });
+    }
+
+    const result = await whatsappService.createTemplate({
+      name,
+      category: category || 'MARKETING',
+      language: language || 'en_US',
+      components: components || []
+    });
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to create template',
+        error: result.error
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Template created successfully',
+      data: result.data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get template details
+// @route   GET /api/whatsapp/templates/:templateId
+// @access  Private
+exports.getTemplateDetails = async (req, res, next) => {
+  try {
+    const { templateId } = req.params;
+
+    const result = await whatsappService.getTemplateDetails(templateId);
+
+    if (!result.success) {
+      return res.status(404).json({
+        success: false,
+        message: 'Template not found',
+        error: result.error
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: result.data
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Test send a template message
+// @route   POST /api/whatsapp/test-template
+// @access  Private
+exports.testSendTemplate = async (req, res, next) => {
+  try {
+    const { phoneNumber, templateName, languageCode, testData } = req.body;
+
+    if (!phoneNumber || !templateName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number and template name are required'
+      });
+    }
+
+    const result = await whatsappService.testSendTemplate(
+      phoneNumber,
+      templateName,
+      languageCode || 'en_US',
+      testData || {}
+    );
+
+    if (!result.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to send test template',
+        error: result.error
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Test template sent successfully',
       data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a template
+// @route   DELETE /api/whatsapp/templates/:templateId
+// @access  Private
+exports.deleteTemplate = async (req, res, next) => {
+  try {
+    const { templateId } = req.params;
+    const { templateName } = req.body;
+
+    if (!templateId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template ID is required'
+      });
+    }
+
+    if (!templateName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name is required to delete a template'
+      });
+    }
+
+    console.log('🗑️ [Controller] Attempting to delete template:', { templateId, templateName });
+    const result = await whatsappService.deleteTemplate(templateId, templateName);
+
+    if (!result.success) {
+      console.error('❌ [Controller] Delete failed:', result.error);
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to delete template',
+        error: result.error
+      });
+    }
+
+    console.log('✅ [Controller] Template deleted successfully:', templateName);
+    res.status(200).json({
+      success: true,
+      message: 'Template deleted successfully',
+      data: result.data
+    });
+  } catch (error) {
+    console.error('❌ [Controller] Delete template error:', error.message);
+    next(error);
+  }
+};
+
+// @desc    Update template
+// @route   PUT /api/whatsapp/templates/:templateId
+// @access  Private
+exports.updateTemplate = async (req, res, next) => {
+  try {
+    const { templateId } = req.params;
+    const updateData = req.body;
+
+    const result = await whatsappService.updateTemplate(templateId, updateData);
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to update template',
+        error: result.error
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Template updated successfully',
+      data: result.data
     });
   } catch (error) {
     next(error);
