@@ -31,6 +31,8 @@ const MOCK_MEDIA = [
 const MEDIA_TABS = [
    { id: 'recent', label: 'Recent', icon: ClockIcon },
    { id: 'image', label: 'Images', icon: PhotoIcon },
+   { id: 'video', label: 'Videos', icon: FilmIcon },
+   { id: 'audio', label: 'Audio', icon: MusicalNoteIcon },
    { id: 'document', label: 'Documents', icon: DocumentIcon },
 ];
 
@@ -62,6 +64,8 @@ const Conversion = ({
    const [mediaCaption, setMediaCaption] = useState("");
    const [mediaTab, setMediaTab] = useState('recent');
    const [mediaSearch, setMediaSearch] = useState("");
+   const [mediaAssets, setMediaAssets] = useState(MOCK_MEDIA);
+   const [isLoadingMedia, setIsLoadingMedia] = useState(false);
 
    // Template loading state
    const [allTemplates, setAllTemplates] = useState([]);
@@ -201,8 +205,42 @@ const Conversion = ({
       }
    };
 
+   const fetchMediaAssets = async () => {
+      setIsLoadingMedia(true);
+      try {
+         const response = await chatService.getMediaAssets();
+         if (response.success) {
+            const mapped = response.data.map(a => ({
+               id: a._id,
+               name: a.name,
+               size: a.size,
+               date: new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+               fullDate: new Date(a.createdAt).toLocaleString(),
+               type: a.type === 'IMAGE' ? 'image' : (a.type === 'VIDEO' ? 'video' : (a.type === 'AUDIO' ? 'audio' : 'document')),
+               url: a.url,
+               whatsappMediaId: a.whatsappMediaId || null,
+               res: a.res || ""
+            }));
+            setMediaAssets(mapped);
+            if (mapped.length > 0 && !mapped.find(m => m.id === selectedMediaId)) {
+               setSelectedMediaId(mapped[0].id);
+            }
+         }
+      } catch (error) {
+         console.error('Error fetching media assets:', error);
+      } finally {
+         setIsLoadingMedia(false);
+      }
+   };
+
+   useEffect(() => {
+      if (isMediaModalOpen) {
+         fetchMediaAssets();
+      }
+   }, [isMediaModalOpen]);
+
    const handleSendMedia = () => {
-      const media = MOCK_MEDIA.find(m => m.id === selectedMediaId);
+      const media = mediaAssets.find(m => m.id === selectedMediaId);
       if (media) onSendMessage(mediaCaption, media);
       setIsMediaModalOpen(false);
       setMediaCaption("");
@@ -243,8 +281,8 @@ const Conversion = ({
       setLabelSearch("");
    };
 
-   const filteredMedia = MOCK_MEDIA.filter(item => item.name.toLowerCase().includes(mediaSearch.toLowerCase()) && (mediaTab === 'recent' ? true : item.type === mediaTab));
-   const activeMedia = MOCK_MEDIA.find(m => m.id === selectedMediaId);
+   const filteredMedia = mediaAssets.filter(item => item.name.toLowerCase().includes(mediaSearch.toLowerCase()) && (mediaTab === 'recent' ? true : item.type === mediaTab));
+   const activeMedia = mediaAssets.find(m => m.id === selectedMediaId);
    const filteredAgents = AGENTS_LIST.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
 
    // Derived current labels for header display
@@ -393,16 +431,18 @@ const Conversion = ({
                               : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
                            : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
                      }`}>
-                        {msg.media && (
+                        {(msg.media || msg.mediaUrl) && (
                            <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-200'}`}>
-                              {msg.media.type === 'image' ? (
-                                 <img src={msg.media.url} alt="attachment" className="max-w-full sm:max-w-[240px] rounded-xl object-cover shadow-sm" />
+                              {((msg.media?.type === 'image') || (msg.messageType === 'image') || (msg.mediaUrl && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)))) ? (
+                                 <img src={msg.media?.url || msg.mediaUrl} alt="attachment" className="max-w-full sm:max-w-[240px] rounded-xl object-cover shadow-sm bg-slate-100" />
                               ) : (
                                  <div className={`flex items-center gap-3 p-3 rounded-xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
-                                    <DocumentIcon className="w-8 h-8 shrink-0" />
+                                    {(msg.media?.type === 'video' || msg.messageType === 'video') ? <FilmIcon className="w-8 h-8 shrink-0" /> : 
+                                     (msg.media?.type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> :
+                                     <DocumentIcon className="w-8 h-8 shrink-0" />}
                                     <div className="flex flex-col min-w-0 pr-4">
-                                       <span className="text-sm font-bold truncate">{msg.media.name}</span>
-                                       <span className="text-[10px] opacity-80">{msg.media.size}</span>
+                                       <span className="text-sm font-bold truncate">{msg.media?.name || msg.fileName || 'Document'}</span>
+                                       <span className="text-[10px] opacity-80">{msg.media?.size || (msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File')}</span>
                                     </div>
                                  </div>
                               )}
@@ -581,27 +621,41 @@ const Conversion = ({
                         </div>
                      </div>
                      <div className="flex-1 bg-[#F8FAFC] p-6 overflow-y-auto custom-scrollbar">
-                        {filteredMedia.length > 0 ? (
-                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-                              {filteredMedia.map((item) => (
-                                 <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
-                                    {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
+                         {isLoadingMedia ? (
+                            <div className="flex flex-col items-center justify-center h-full">
+                               <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
+                               <p className="text-gray-400 mt-4 font-medium italic">Synchronizing assets...</p>
+                            </div>
+                         ) : filteredMedia.length > 0 ? (
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                               {filteredMedia.map((item) => (
+                                  <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
+                                     {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
                                     <div className="aspect-square bg-slate-50 rounded-lg mb-3 overflow-hidden flex items-center justify-center relative">
-                                       {item.type === 'image' ? <img src={item.url} alt="" className="w-full h-full object-cover" /> : <div className="text-center text-blue-400"><DocumentIcon className="w-10 h-10 mx-auto mb-1" /><span className="text-[10px] font-bold uppercase">PDF</span></div>}
+                                       {item.type === 'image' ? <img src={item.url} alt="" className="w-full h-full object-cover" /> : 
+                                        <div className="text-center text-blue-400">
+                                            {item.type === 'video' ? <FilmIcon className="w-10 h-10 mx-auto mb-1" /> : 
+                                             item.type === 'audio' ? <MusicalNoteIcon className="w-10 h-10 mx-auto mb-1" /> :
+                                             <DocumentIcon className="w-10 h-10 mx-auto mb-1" />}
+                                            <span className="text-[10px] font-bold uppercase">{item.type}</span>
+                                        </div>}
                                     </div>
-                                    <div className="px-1 pb-1"><h4 className="text-sm font-bold text-slate-800 truncate">{item.name}</h4><div className="flex items-center text-xs text-slate-400 mt-1 gap-1.5"><span>{item.size}</span><span>•</span><span>{item.date}</span></div></div>
-                                 </div>
-                              ))}
-                           </div>
-                        ) : (
-                           <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
-                        )}
+                                     <div className="px-1 pb-1"><h4 className="text-sm font-bold text-slate-800 truncate">{item.name}</h4><div className="flex items-center text-xs text-slate-400 mt-1 gap-1.5"><span>{item.size}</span><span>•</span><span>{item.date}</span></div></div>
+                                  </div>
+                               ))}
+                            </div>
+                         ) : (
+                            <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
+                         )}
                      </div>
                      <div className="w-[320px] border-l border-slate-100 bg-white flex flex-col shrink-0">
                         <div className="p-6 border-b border-slate-100">
                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Asset Preview</h3>
                            <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100">
-                              {activeMedia?.type === 'image' ? <img src={activeMedia.url} alt="" className="w-full h-full object-cover" /> : <DocumentIcon className="w-16 h-16 text-blue-300" />}
+                              {activeMedia?.type === 'image' ? <img src={activeMedia.url} alt="" className="w-full h-full object-cover" /> : 
+                               activeMedia?.type === 'video' ? <FilmIcon className="w-16 h-16 text-blue-300" /> :
+                               activeMedia?.type === 'audio' ? <MusicalNoteIcon className="w-16 h-16 text-blue-300" /> :
+                               <DocumentIcon className="w-16 h-16 text-blue-300" />}
                            </div>
                            <div className="space-y-4">
                               <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">File Name</p><p className="text-sm font-bold text-slate-800 break-words">{activeMedia?.name}</p></div>

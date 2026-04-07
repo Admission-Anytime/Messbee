@@ -383,6 +383,25 @@ const chatService = {
         error: error.response?.data?.message || error.message
       };
     }
+  },
+
+  /**
+   * Get all media assets from the gallery
+   */
+  async getMediaAssets() {
+    try {
+      const response = await axios.get('/media');
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error) {
+      console.error('Error fetching media assets:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
   }
 };
 
