@@ -348,6 +348,25 @@ const chatService = {
   },
 
   /**
+   * Update chat profile details
+   */
+  async updateChatProfile(chatId, profileData) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/profile`, profileData);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error updating chat profile:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
    * Toggle pinned status of a chat
    */
   async toggleChatPin(chatId) {

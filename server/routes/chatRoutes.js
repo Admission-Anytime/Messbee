@@ -590,7 +590,43 @@ router.put("/:chatId/assign", async (req, res) => {
   }
 });
 
-// 7. Add/remove labels
+// 7. Update profile details
+router.put("/:chatId/profile", async (req, res) => {
+  try {
+    const { name, phone, whatsappId, email, chatStatus, customFields } = req.body;
+    
+    const updateData = {};
+    if (name !== undefined) updateData.name = name;
+    if (phone !== undefined) updateData.phone = phone;
+    if (whatsappId !== undefined) updateData.whatsappId = whatsappId;
+    if (email !== undefined) updateData.email = email;
+    if (chatStatus !== undefined) updateData.chatStatus = chatStatus;
+    if (customFields !== undefined) updateData.customFields = customFields;
+
+    const chat = await Chat.findByIdAndUpdate(
+      req.params.chatId,
+      { $set: updateData },
+      { new: true }
+    );
+    
+    // Emit socket event to notify other clients
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit("chat_updated", chat);
+      }
+    } catch (socketError) {
+      console.error("Socket error on profile update:", socketError.message);
+    }
+
+    res.json(chat);
+  } catch (error) {
+    console.error("Error updating chat profile:", error);
+    res.status(500).json({ error: "Failed to update profile", details: error.message });
+  }
+});
+
+// 7b. Add/remove labels
 router.put("/:chatId/labels", async (req, res) => {
   try {
     const { labels } = req.body;

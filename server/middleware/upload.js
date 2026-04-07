@@ -22,14 +22,14 @@ const storage = multer.diskStorage({
 
 // File filter for WhatsApp supported media types
 const fileFilter = (req, file, cb) => {
-  // WhatsApp supported types: images, videos, audio, documents, stickers
   const allowedMimeTypes = [
     // Images
-    'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+    'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
     // Videos
-    'video/mp4', 'video/3gpp',
+    'video/mp4', 'video/3gpp', 'video/quicktime', 'video/x-msvideo', 'video/avi',
     // Audio
     'audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg',
+    'audio/wav', 'audio/webm',
     // Documents
     'application/pdf',
     'application/vnd.ms-powerpoint',
@@ -38,22 +38,38 @@ const fileFilter = (req, file, cb) => {
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'text/plain', 'text/csv'
+    'text/plain', 'text/csv',
+    // Archives
+    'application/zip', 'application/x-zip-compressed',
+    'application/x-rar-compressed', 'application/octet-stream'
   ];
 
   if (allowedMimeTypes.includes(file.mimetype)) {
     return cb(null, true);
-  } else {
-    cb(new Error(`Invalid file type: ${file.mimetype}. Please upload a supported media file.`));
   }
+
+  // Also allow by checking common extensions as a fallback
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp',
+    '.mp4', '.mov', '.avi', '.3gp',
+    '.mp3', '.ogg', '.wav', '.aac',
+    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.txt', '.csv', '.zip', '.rar'];
+
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedExts.includes(ext)) {
+    return cb(null, true);
+  }
+
+  cb(new Error(`File type not supported: ${file.mimetype} (${path.extname(file.originalname)})`));
 };
 
-// Configure multer
+// Configure multer — 25MB limit to match UI
 const upload = multer({
   storage: storage,
   limits: {
-    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 16777216 // 16MB default (WhatsApp limit)
-  },  fileFilter: fileFilter
+    fileSize: 25 * 1024 * 1024 // 25MB (matches the UI)
+  },
+  fileFilter: fileFilter
 });
 
 module.exports = upload;
