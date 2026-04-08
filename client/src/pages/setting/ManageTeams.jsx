@@ -1,18 +1,10 @@
 import { useState, useRef, useEffect } from "react";
+import axios from "../../context/axios";
+
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
-const INITIAL_MEMBERS = [
-  { id: 1,  name: "Marcus Chen",    email: "marcus.chen@example.com",  role: "ADMIN",   status: "Active",  dateAdded: "Feb 02, 2024", lastActive: "Just now",    avatar: "https://i.pravatar.cc/40?img=11" },
-  { id: 2,  name: "Elena Soprano",  email: "elena.s@example.com",      role: "MANAGER", status: "Active",  dateAdded: "Oct 21, 2023", lastActive: "2 days ago",  avatar: "https://i.pravatar.cc/40?img=5"  },
-  { id: 3,  name: "Julian Wyatt",   email: "julian.w@example.com",     role: "AGENT",   status: "Pending", dateAdded: "Mar 10, 2024", lastActive: "Never",       avatar: null },
-  { id: 4,  name: "Sarah Jenkins",  email: "sarah.j@example.com",      role: "AGENT",   status: "Active",  dateAdded: "Jan 05, 2024", lastActive: "Yesterday",   avatar: "https://i.pravatar.cc/40?img=9"  },
-  { id: 5,  name: "David Lu",       email: "david.lu@example.com",     role: "AGENT",   status: "Offline", dateAdded: "Nov 14, 2023", lastActive: "4 days ago",  avatar: "https://i.pravatar.cc/40?img=12" },
-  { id: 6,  name: "James Wilson",   email: "james.wilson@messbee.com", role: "ADMIN",   status: "Active",  dateAdded: "Jan 12, 2024", lastActive: "5 mins ago",  avatar: "https://i.pravatar.cc/40?img=15" },
-  { id: 7,  name: "Sarah Chen",     email: "s.chen@messbee.com",       role: "ADMIN",   status: "Active",  dateAdded: "Dec 08, 2023", lastActive: "1 hour ago",  avatar: "https://i.pravatar.cc/40?img=20" },
-  { id: 8,  name: "Marcus Kenter",  email: "m.kenter@messbee.com",     role: "ADMIN",   status: "Active",  dateAdded: "Feb 02, 2024", lastActive: "Just now",    avatar: null },
-  { id: 9,  name: "Elena Rodriguez",email: "e.rodriguez@messbee.com",  role: "ADMIN",   status: "Active",  dateAdded: "Oct 21, 2023", lastActive: "2 days ago",  avatar: "https://i.pravatar.cc/40?img=25" },
-  { id: 10, name: "Tom Harris",     email: "t.harris@example.com",     role: "MANAGER", status: "Active",  dateAdded: "Sep 03, 2023", lastActive: "3 hours ago", avatar: "https://i.pravatar.cc/40?img=30" },
-];
+const INITIAL_MEMBERS = [];
+
 
 const MODULES = [
   { id: "conversations", label: "Conversations", desc: "Chats, templates & history" },
@@ -43,21 +35,23 @@ const PERMISSION_CATEGORIES = [
 const DEFAULT_ROLE_PERMISSIONS = {
   Admin:{"view_conversations":true,"reply_messages":true,"delete_conversations":true,"assign_conversations":true,"import_contacts":true,"export_data":true,"edit_contacts":true,"delete_contacts":true,"create_campaigns":true,"approve_broadcasts":true,"view_analytics":true,"manage_billing":true,"api_configuration":true,"manage_team":true,"audit_logs":true},
   Manager:{"view_conversations":true,"reply_messages":true,"delete_conversations":false,"assign_conversations":true,"import_contacts":true,"export_data":true,"edit_contacts":true,"delete_contacts":false,"create_campaigns":true,"approve_broadcasts":true,"view_analytics":true,"manage_billing":false,"api_configuration":false,"manage_team":false,"audit_logs":false},
-  "Support Agent":{"view_conversations":true,"reply_messages":true,"delete_conversations":false,"assign_conversations":false,"import_contacts":false,"export_data":false,"edit_contacts":false,"delete_contacts":false,"create_campaigns":false,"approve_broadcasts":false,"view_analytics":false,"manage_billing":false,"api_configuration":false,"manage_team":false,"audit_logs":false},
-  "Sales Lead":{"view_conversations":true,"reply_messages":true,"delete_conversations":false,"assign_conversations":true,"import_contacts":true,"export_data":true,"edit_contacts":true,"delete_contacts":false,"create_campaigns":true,"approve_broadcasts":false,"view_analytics":true,"manage_billing":false,"api_configuration":false,"manage_team":false,"audit_logs":false},
+  Agent:{"view_conversations":true,"reply_messages":true,"delete_conversations":false,"assign_conversations":false,"import_contacts":false,"export_data":false,"edit_contacts":false,"delete_contacts":false,"create_campaigns":false,"approve_broadcasts":false,"view_analytics":false,"manage_billing":false,"api_configuration":false,"manage_team":false,"audit_logs":false},
 };
 
-const ROLES_LIST = [{name:"Admin",desc:"Full system access"},{name:"Manager",desc:"Team and operations control"},{name:"Support Agent",desc:"Customer communication only"},{name:"Sales Lead",desc:"CRM and broadcasts focus"}];
+
+const ROLES_LIST = [{name:"Admin",desc:"Full system access & security"},{name:"Manager",desc:"Operations & team management"},{name:"Agent",desc:"Customer support & messaging"}];
+
 const ROLES_CARDS = [
-  {role:"Admin",   members:14,iconBg:"bg-green-50", iconColor:"text-green-500",checkColor:"text-green-500",permissions:["Full API Access","Manage Billing & Subscriptions","User & Role Management","Webhook Configuration","Security Audit Logs"]},
-  {role:"Manager", members:8, iconBg:"bg-blue-50",  iconColor:"text-blue-400", checkColor:"text-blue-400", permissions:["Team Performance Analytics","Message Template Creation","Campaign Orchestration","Contact Export & Import","Flow Builder Access"]},
-  {role:"Agent",   members:42,iconBg:"bg-gray-100", iconColor:"text-gray-400", checkColor:"text-gray-400", permissions:["Respond to Chats","View Assigned Contacts","Canned Response Usage","Personal Profile Settings","Basic Chat Labels"]},
+  {role:"Admin",   iconBg:"bg-green-50", iconColor:"text-green-500",checkColor:"text-green-500",permissions:["Full API Access","Manage Billing & Subscriptions","User & Role Management","Webhook Configuration","Security Audit Logs"]},
+  {role:"Manager", iconBg:"bg-blue-50",  iconColor:"text-blue-400", checkColor:"text-blue-400", permissions:["Team Performance Analytics","Message Template Creation","Campaign Orchestration","Contact Export & Import","Flow Builder Access"]},
+  {role:"Agent",   iconBg:"bg-gray-100", iconColor:"text-gray-400", checkColor:"text-gray-400", permissions:["Respond to Chats","View Assigned Contacts","Canned Response Usage","Personal Profile Settings","Basic Chat Labels"]},
 ];
 const ROLE_QUICK_TIPS = {
-  Admin:"Admins have full visibility and control over all organizational assets. Use \"Revoke Access\" to immediately terminate a user's session and platform entry.",
-  Manager:"Managers can oversee campaigns and team activity. They cannot modify billing or system settings.",
-  Agent:"Agents handle direct customer communication. Restrict sensitive data access to keep operations secure.",
+  Admin:"Admins have full visibility and control over all organizational assets, including billing, API keys, and team management.",
+  Manager:"Managers can oversee campaigns, analytics and team activity. They are restricted from modifying billing or core system settings.",
+  Agent:"Agents handle direct customer communication. They have zero access to system settings or bulk export features.",
 };
+
 const PAGE_SIZE = 5;
 const PAGE_SIZE_ROLE = 4;
 
@@ -932,7 +926,39 @@ function CustomRoleCard({data,onDelete,onView}){
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function ManageTeams(){
   const [activeTab,setActiveTab]=useState("Members");
-  const [members,setMembers]=useState(INITIAL_MEMBERS);
+  const [members,setMembers]=useState([]);
+  const [loading,setLoading]=useState(true);
+  
+  const fetchMembers = async () => {
+    try {
+      const response = await axios.get("/users");
+      if (response.data.success && response.data.data.length > 0) {
+        const mapped = response.data.data.map(u => ({
+          id: u._id,
+          name: u.name,
+          email: u.email,
+          role: u.role ? (['user','admin'].includes(u.role) ? (u.role === 'admin' ? 'ADMIN' : 'AGENT') : u.role.toUpperCase()) : 'AGENT',
+          status: u.isActive ? 'Active' : 'Offline',
+          dateAdded: new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2024' }),
+          lastActive: u.lastActive ? new Date(u.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never',
+          avatar: u.avatar || null
+        }));
+        setMembers(mapped);
+      } else {
+        setMembers([]);
+      }
+    } catch (error) {
+      console.error("Error fetching team members:", error);
+      setMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
   const [search,setSearch]=useState("");
   const [page,setPage]=useState(1);
   const [showInvite,setShowInvite]=useState(false);
@@ -945,9 +971,10 @@ export default function ManageTeams(){
   const filtered=members.filter(m=>m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase()));
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const paginated=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
-  const admins=members.filter(m=>m.role==="ADMIN"&&m.status==="Active").length;
-  const managers=members.filter(m=>m.role==="MANAGER"&&m.status==="Active").length;
+  const admins=members.filter(m=>m.role==="ADMIN").length;
+  const managers=members.filter(m=>m.role==="MANAGER").length;
   const agents=members.filter(m=>m.role==="AGENT").length;
+
   const handleChangeRole=(id,nr)=>setMembers(prev=>prev.map(m=>m.id===id?{...m,role:nr}:m));
   const handleRemoveMember=(id)=>setMembers(prev=>prev.filter(m=>m.id!==id));
   const getRoleMembers=(role)=>{const rm={Admin:"ADMIN",Manager:"MANAGER",Agent:"AGENT"};return members.filter(m=>m.role===(rm[role]||role.toUpperCase()));};
@@ -1032,7 +1059,17 @@ export default function ManageTeams(){
         ):(
           <div>
             <div className="grid grid-cols-3 gap-5 mb-5">
-              {ROLES_CARDS.map(r=>(<RoleCard key={r.role} data={r} onEdit={role=>setRolesView(`edit:${CARD_TO_PERM[role]||role}`)} onView={role=>setRolesView(`view:${role}`)}/>))}
+              {ROLES_CARDS.map(r=>(
+                <RoleCard 
+                  key={r.role} 
+                  data={{
+                    ...r, 
+                    members: members.filter(m => m.role === r.role.toUpperCase() || (r.role === 'Agent' && m.role === 'AGENT')).length
+                  }} 
+                  onEdit={role=>setRolesView(`edit:${CARD_TO_PERM[role]||role}`)} 
+                  onView={role=>setRolesView(`view:${role}`)}
+                />
+              ))}
               {customRoles.map(r=>(
                 <CustomRoleCard key={r.name} data={r}
                   onDelete={()=>setCustomRoles(prev=>prev.filter(x=>x.name!==r.name))}

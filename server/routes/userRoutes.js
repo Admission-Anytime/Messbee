@@ -3,12 +3,16 @@ const {
   getProfile,
   updateProfile,
   uploadAvatar,
-  updateSubscription
+  updateSubscription,
+  getUsers
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
+
+router.get('/', protect, getUsers);
+
 
 /**
  * @swagger

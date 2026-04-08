@@ -128,6 +128,7 @@ app.use('/api/custom-fields', require('./routes/customFieldRoutes'));
 app.use('/api/labels', require('./routes/labelRoutes'));
 app.use('/api/statuses', require('./routes/statusRoutes'));
 app.use('/api/media', require('./routes/mediaRoutes'));
+app.use('/api/settings', require('./routes/settingsRoutes'));
 
 // ================== HEALTH CHECK ==================
 

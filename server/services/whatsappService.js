@@ -1,7 +1,9 @@
 const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
+const Setting = require('../models/Setting');
 
 /**
  * WhatsApp Business API Service
@@ -15,10 +17,40 @@ class WhatsAppService {
     this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
     this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
     
+    // Initial sync from DB
+    this.syncConfig();
+
     // Log configuration on initialization
     console.log('🔧 WhatsApp Service initialized');
-    console.log(`📱 Phone Number ID: ${this.phoneNumberId}`);
-    console.log(`🔑 Token: ${this.accessToken ? 'Set ✓' : 'Missing ✗'}`);
+  }
+
+  /**
+   * Sync configuration from database
+   */
+  async syncConfig() {
+    try {
+      // Don't attempt to sync if DB is not connected. 
+      // Mongoose buffers commands, but if connection takes >10s it times out.
+      if (mongoose.connection.readyState !== 1) {
+        return; 
+      }
+
+      const setting = await Setting.findOne({ key: 'whatsapp_config' });
+      if (setting && setting.value) {
+        const { apiVersion, phoneNumberId, accessToken, businessAccountId } = setting.value;
+        if (apiVersion) this.apiVersion = apiVersion;
+        if (phoneNumberId) this.phoneNumberId = phoneNumberId;
+        if (accessToken) this.accessToken = accessToken;
+        if (businessAccountId) this.businessAccountId = businessAccountId;
+        
+        this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
+        console.log('✅ WhatsApp Config synced from Database');
+      } else {
+        console.log('ℹ️ WhatsApp Config using Environment Variables');
+      }
+    } catch (error) {
+      console.error('❌ Error syncing WhatsApp config from DB:', error.message);
+    }
   }
   
   /**
@@ -41,6 +73,7 @@ class WhatsAppService {
    */
   async register(pin) {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       const response = await axios.post(
         `${this.baseURL}/register`,
@@ -69,6 +102,7 @@ class WhatsAppService {
    */
   async deregister() {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       const response = await axios.post(
         `${this.baseURL}/deregister`,
@@ -94,6 +128,7 @@ class WhatsAppService {
    */
   async sendTextMessage(to, message) {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
       // Normalize phone number with country code
@@ -154,6 +189,7 @@ class WhatsAppService {
    */
   async sendMediaMessage(to, mediaType, mediaId, caption = '') {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
       // Normalize phone number with country code
@@ -220,6 +256,7 @@ class WhatsAppService {
    */
   async uploadMedia(filePath, mimeType) {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
       console.log(`📤 Uploading media to WhatsApp: ${filePath}`);
@@ -263,6 +300,7 @@ class WhatsAppService {
    */
   async uploadMediaFromUrl(fileUrl, mimeType) {
     try {
+      await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
       console.log(`📤 Uploading media from URL to WhatsApp: ${fileUrl}`);
