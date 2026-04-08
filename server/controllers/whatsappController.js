@@ -3,6 +3,7 @@ const Chat = require('../models/Chat');
 const Message = require('../models/Message');
 const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
+const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 
 /**
  * WhatsApp Webhook Controller
@@ -310,6 +311,7 @@ async function handleIncomingMessage(data) {
       }
       chat.status = 'active';
       chat.lastActivity = new Date();
+      chat.lastInboundAt = new Date(parseInt(timestamp) * 1000);
       // Ensure whatsappId is set (for older chats)
       if (!chat.whatsappId) {
         chat.whatsappId = from;
@@ -435,6 +437,7 @@ async function handleIncomingMessage(data) {
     chat.lastMsg = messageText;
     chat.lastMsgTime = newMessage.time;
     chat.unread = (chat.unread || 0) + 1;
+    chat.lastInboundAt = new Date(parseInt(timestamp) * 1000);
     await chat.save();
 
     // Emit to socket for real-time update
@@ -468,18 +471,28 @@ async function handleIncomingMessage(data) {
  */
 async function handleStatusUpdate(data) {
   try {
-    const { messageId, status, timestamp, recipientId } = data;
+    const { messageId, status, timestamp, recipientId, errors } = data;
+
+    const firstError = Array.isArray(errors) && errors.length > 0 ? errors[0] : null;
+    const errorCode = firstError?.code;
+    const errorMessage = firstError?.title || firstError?.message || firstError?.details || null;
 
     console.log(`📊 Processing status update: ${status} for message ${messageId}`);
     console.log(`   Recipient: ${recipientId}, Time: ${new Date(parseInt(timestamp) * 1000).toISOString()}`);
 
     // Update message status in database
+    const updatePayload = {
+      status: status,
+      statusTimestamp: new Date(parseInt(timestamp) * 1000)
+    };
+
+    if (status === 'failed' && errorMessage) {
+      updatePayload.error = errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage;
+    }
+
     const message = await Message.findOneAndUpdate(
       { whatsappMessageId: messageId },
-      { 
-        status: status,
-        statusTimestamp: new Date(parseInt(timestamp) * 1000)
-      },
+      updatePayload,
       { new: true }
     );
 
@@ -493,7 +506,9 @@ async function handleStatusUpdate(data) {
           io.emit('message_status_update', {
             messageId: message._id,
             status: status,
-            whatsappMessageId: messageId
+            whatsappMessageId: messageId,
+            error: message.error,
+            errorCode: errorCode
           });
           console.log(`📡 Status update emitted to frontend`);
         }
@@ -531,6 +546,15 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       return res.status(404).json({
         success: false,
         message: 'Chat not found'
+      });
+    }
+
+    const canSendFreeText = await hasActiveCustomerWindow(chat);
+    if (!canSendFreeText) {
+      return res.status(500).json({
+        success: false,
+        message: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use an approved template message to initiate.',
+        errorCode: 131047
       });
     }
 
