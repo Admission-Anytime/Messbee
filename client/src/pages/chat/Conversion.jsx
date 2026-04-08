@@ -47,6 +47,7 @@ const AGENTS_LIST = [
 const Conversion = ({
    data,
    onSendMessage,
+   onSendTemplate,
    onBack,
    onToggleProfile,
    onClearChat,
@@ -164,9 +165,16 @@ const Conversion = ({
 
    const onEmojiClick = (emojiObject) => setInputText((prev) => prev + emojiObject.emoji);
 
-   const handleTemplateSelect = (template) => {
-      setInputText(template);
+   const handleQuickReplySelect = (text) => {
+      setInputText(text);
       setShowTemplates(false);
+   };
+
+   const handleTemplateSelect = async (template) => {
+      if (!template?.name || !onSendTemplate) return;
+      await onSendTemplate(template);
+      setShowTemplates(false);
+      setShowQuickReplies(false);
    };
 
    const handleFileChange = async (e) => {
@@ -496,7 +504,7 @@ const Conversion = ({
                      {displayQuickReplies.map((reply) => (
                         <div
                            key={reply._id}
-                           onClick={() => { handleTemplateSelect(reply.content); setShowQuickReplies(false); }}
+                           onClick={() => { handleQuickReplySelect(reply.content); setShowQuickReplies(false); }}
                            className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
                         >
                            <div className="w-10 h-10 rounded-xl bg-green-50 text-[#22C55E] flex items-center justify-center shrink-0">
@@ -534,7 +542,7 @@ const Conversion = ({
                      {displayTemplates.map((template) => (
                         <div
                            key={template.id}
-                           onClick={() => { handleTemplateSelect(template.bodyText || template.content); setShowTemplates(false); }}
+                           onClick={() => { handleTemplateSelect(template); }}
                            className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
                         >
                            <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">

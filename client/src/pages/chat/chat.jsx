@@ -449,6 +449,88 @@ const Chat = () => {
     }
   };
 
+  const handleSendTemplate = async (template) => {
+    if (!activeChatId || !template?.name) return;
+
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const tempId = 'temp_tpl_' + Date.now();
+
+    const tempMessage = {
+      _id: tempId,
+      chatId: activeChatId,
+      text: `Template: ${template.name}`,
+      sender: 'me',
+      time,
+      status: 'pending',
+      messageType: 'template',
+      createdAt: new Date()
+    };
+
+    const getBodyParamCount = (selectedTemplate) => {
+      const bodyComponent = Array.isArray(selectedTemplate?.components)
+        ? selectedTemplate.components.find((component) => String(component?.type || '').toUpperCase() === 'BODY')
+        : null;
+      const bodyText = bodyComponent?.text || '';
+      const placeholders = bodyText.match(/{{\d+}}/g) || [];
+      return new Set(placeholders).size;
+    };
+
+    const bodyParamCount = getBodyParamCount(template);
+    const fallbackParamText = activeChat?.name || 'there';
+    const components = bodyParamCount > 0
+      ? [{
+        type: 'body',
+        parameters: Array.from({ length: bodyParamCount }, () => ({
+          type: 'text',
+          text: fallbackParamText
+        }))
+      }]
+      : [];
+
+    setMessages((prev) => [...prev, tempMessage]);
+
+    try {
+      const result = await chatService.sendTemplateMessage(
+        activeChatId,
+        template.name,
+        template.language || 'en_US',
+        components
+      );
+
+      if (result.success) {
+        setSendError(null);
+        setMessages((prev) =>
+          prev.map((msg) => (msg._id === tempId ? { ...result.data, status: result.data.status || 'sent' } : msg))
+        );
+        socketRef.current?.emit('send_message', {
+          chatId: activeChatId,
+          message: result.data
+        });
+      } else {
+        const errMsg = result.error || `Failed to send template ${template.name}`;
+        const displayErr = result.errorCode ? `[${result.errorCode}] ${errMsg}` : errMsg;
+        setSendError(displayErr);
+        setTimeout(() => setSendError(null), 10000);
+        setMessages((prev) =>
+          prev.map((msg) =>
+            msg._id === tempId
+              ? result.data
+                ? { ...result.data, status: 'failed', error: errMsg }
+                : { ...msg, status: 'failed', error: errMsg }
+              : msg
+          )
+        );
+      }
+    } catch (error) {
+      const errMsg = error?.message || `Failed to send template ${template.name}`;
+      setSendError(errMsg);
+      setTimeout(() => setSendError(null), 10000);
+      setMessages((prev) =>
+        prev.map((msg) => (msg._id === tempId ? { ...msg, status: 'failed', error: errMsg } : msg))
+      );
+    }
+  };
+
   const handleCreateChat = async (name, phone) => {
     try {
       setLoading(true);
@@ -633,6 +715,7 @@ const Chat = () => {
               <Conversion
                 data={{ ...activeChat, messages: messages }}
                 onSendMessage={handleSendMessage}
+                onSendTemplate={handleSendTemplate}
                 onBack={() => setActiveChatId(null)}
                 onToggleProfile={() => setShowProfile(!showProfile)}
                 onClearChat={handleClearChat}
