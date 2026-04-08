@@ -10,6 +10,7 @@ const upload = require('../middleware/upload');
 const path = require('path');
 const fs = require('fs');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
+const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const router = express.Router();
 
 /**
@@ -249,6 +250,16 @@ router.post("/message", async (req, res) => {
       let displayText = text;
       let whatsappError = null;
 
+      const canSendFreeText = await hasActiveCustomerWindow(chat);
+
+      if (!canSendFreeText && (text?.trim() || media)) {
+        return res.status(500).json({
+          success: false,
+          error: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use an approved template message to initiate.',
+          errorCode: 131047
+        });
+      }
+
       console.log(`📱 Sending WhatsApp message via recipient: ${whatsappRecipient} (whatsappId: ${chat.whatsappId}, phone: ${chat.phone})`);
 
       // Handle media messages
@@ -440,7 +451,11 @@ router.post("/message", async (req, res) => {
       lastActivity: new Date()
     };
     if (sender === "them") {
-      await Chat.findByIdAndUpdate(chatId, { ...chatUpdate, $inc: { unread: 1 } });
+      await Chat.findByIdAndUpdate(chatId, {
+        ...chatUpdate,
+        lastInboundAt: new Date(),
+        $inc: { unread: 1 }
+      });
     } else {
       await Chat.findByIdAndUpdate(chatId, chatUpdate);
     }
@@ -622,9 +637,12 @@ router.post("/send-template", async (req, res) => {
     );
 
     if (!result.success) {
+      const { code, userMessage } = parseWhatsAppError(result.error);
       return res.status(500).json({
-        error: "Failed to send template",
-        details: result.error
+        success: false,
+        error: userMessage || "Failed to send template",
+        errorCode: code,
+        rawError: result.error
       });
     }
 

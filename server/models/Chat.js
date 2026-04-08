@@ -22,6 +22,7 @@ const chatSchema = mongoose.Schema(
       default: "whatsapp"
     },
     email: { type: String, default: "" },
+    lastInboundAt: { type: Date },
     businessProfile: {
       description: String,
       email: String,
@@ -41,6 +42,19 @@ const chatSchema = mongoose.Schema(
   },
   { timestamps: true }
 );
+
+chatSchema.set('toJSON', { virtuals: true });
+chatSchema.set('toObject', { virtuals: true });
+
+chatSchema.virtual('replyWindowExpiresAt').get(function () {
+  if (!this.lastInboundAt) return null;
+  return new Date(this.lastInboundAt.getTime() + 24 * 60 * 60 * 1000);
+});
+
+chatSchema.virtual('canSendFreeText').get(function () {
+  if (!this.lastInboundAt) return false;
+  return Date.now() - new Date(this.lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
+});
 
 // Index for faster queries
 // Note: phone and whatsappId already have indexes from unique: true

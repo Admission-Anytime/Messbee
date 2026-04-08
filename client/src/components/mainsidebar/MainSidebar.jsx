@@ -273,9 +273,9 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
       <div className={`flex flex-col h-screen sticky top-0 bg-[#FDFDFD] border-r border-gray-100 shadow-sm z-30 font-['Urbanist'] transition-all duration-300 ease-in-out shrink-0 ${isOpen ? "w-[260px]" : "w-[70px]"}`}>
         
         {/* --- LOGO SECTION --- */}
-        <div onClick={() => navigate('/admin/dashboard')} className={`h-[85px] flex items-center cursor-pointer shrink-0 transition-all duration-300 ${isOpen ? "justify-center gap-3 px-4" : "justify-center"}`}>
-          <img src={logoIcon} alt="Logo" className="w-10 h-10 object-contain shrink-0" />
-          {isOpen && <img src={logoName} alt="MessBee" className="h-7 w-auto object-contain mt-1 animate-fade-in" />}
+        <div onClick={() => navigate('/admin/dashboard')} className={`h-[74px] sm:h-[80px] flex items-center cursor-pointer shrink-0 transition-all duration-300 min-w-0 ${isOpen ? "justify-start gap-2 sm:gap-3 px-3 sm:px-4" : "justify-center"}`}>
+          <img src={logoIcon} alt="Logo" className="w-8 h-8 sm:w-9 sm:h-9 lg:w-10 lg:h-10 object-contain shrink-0" />
+          {isOpen && <img src={logoName} alt="MessBee" className="h-5 sm:h-6 lg:h-7 w-auto object-contain mt-0.5 animate-fade-in max-w-[150px]" />}
         </div>
 
         {/* --- SEARCH & TOGGLE --- */}

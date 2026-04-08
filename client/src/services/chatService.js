@@ -173,10 +173,14 @@ const chatService = {
         data: response.data.data || response.data
       };
     } catch (error) {
-      console.error('Error sending template:', error);
+      const serverData = error.response?.data;
+      console.error('Error sending template:', serverData || error.message);
       return {
         success: false,
-        error: error.response?.data?.error || error.message
+        error: serverData?.error || error.message,
+        errorCode: serverData?.errorCode,
+        details: serverData?.rawError,
+        data: serverData?.data
       };
     }
   },
