@@ -178,6 +178,11 @@ const Conversion = ({
    };
 
    const handleFileChange = async (e) => {
+      if (isTemplateOnlyMode) {
+         setUploadError('You can send only approved templates until the customer replies.');
+         return;
+      }
+
       const file = e.target.files[0];
       if (!file) return;
 
@@ -248,6 +253,11 @@ const Conversion = ({
    }, [isMediaModalOpen]);
 
    const handleSendMedia = () => {
+      if (isTemplateOnlyMode) {
+         setUploadError('You can send only approved templates until the customer replies.');
+         return;
+      }
+
       const media = mediaAssets.find(m => m.id === selectedMediaId);
       if (media) onSendMessage(mediaCaption, media);
       setIsMediaModalOpen(false);
@@ -292,6 +302,42 @@ const Conversion = ({
    const filteredMedia = mediaAssets.filter(item => item.name.toLowerCase().includes(mediaSearch.toLowerCase()) && (mediaTab === 'recent' ? true : item.type === mediaTab));
    const activeMedia = mediaAssets.find(m => m.id === selectedMediaId);
    const filteredAgents = AGENTS_LIST.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
+
+   const canSendFreeText = useMemo(() => {
+      if (data?.source !== 'whatsapp') return true;
+
+      const within24Hours = (dateValue) => {
+         const dt = new Date(dateValue);
+         if (Number.isNaN(dt.getTime())) return false;
+         return (Date.now() - dt.getTime()) < (24 * 60 * 60 * 1000);
+      };
+
+      // If server says true, trust it immediately.
+      if (data?.canSendFreeText === true) return true;
+
+      // Prefer explicit inbound timestamp when available.
+      if (data?.lastInboundAt && within24Hours(data.lastInboundAt)) {
+         return true;
+      }
+
+      // Fallback for older chats where lastInboundAt/canSendFreeText might be stale.
+      const latestInbound = Array.isArray(data?.messages)
+         ? [...data.messages]
+            .filter((message) => message?.sender === 'them')
+            .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime())[0]
+         : null;
+
+      if (latestInbound?.createdAt && within24Hours(latestInbound.createdAt)) {
+         return true;
+      }
+
+      // Fall back to server false only after local checks.
+      if (data?.canSendFreeText === false) return false;
+
+      return false;
+   }, [data?.source, data?.canSendFreeText, data?.lastInboundAt, data?.messages]);
+
+   const isTemplateOnlyMode = data?.source === 'whatsapp' && !canSendFreeText;
 
    // Derived current labels for header display
    const headerLabels = useMemo(() => {
@@ -480,6 +526,7 @@ const Conversion = ({
          {/* 3. INPUT AREA */}
          <div className="p-4 bg-white z-20 relative">
 
+            {!isTemplateOnlyMode && (
             <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3 px-1 mb-1">
                {QUICK_REPLIES_MOCK.map((reply, idx) => (
                   <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-4 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
@@ -487,6 +534,13 @@ const Conversion = ({
                   </button>
                ))}
             </div>
+            )}
+
+            {isTemplateOnlyMode && (
+               <div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
+                  Template-only mode: customer reply is required to open 24-hour free chat window.
+               </div>
+            )}
 
             {showEmojiPicker && (
                <div className="absolute bottom-32 right-10 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200" ref={emojiRef}>

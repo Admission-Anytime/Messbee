@@ -8,11 +8,14 @@ import chatService from "../../services/chatService";
 import LabelApi from "../../services/LabelApi";
 import StatusApi from "../../services/StatusApi";
 import QuickReplyApi from "../../services/QuickReplyApi";
-import { fetchWhatsAppTemplates } from "../../services/TemplateApi";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || window.location.origin;
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '')
+    : 'http://localhost:5000');
 
 const Chat = () => {
   const [chats, setChats] = useState([]);
@@ -328,96 +331,6 @@ const Chat = () => {
           message: result.data
         });
       } else {
-        // If first outbound message is outside the 24h window, initiate with a template.
-        if (!media && result.errorCode === 131047) {
-          console.warn('⏱️ 24h window expired. Trying template initiation flow...');
-
-          const templatesResponse = await fetchWhatsAppTemplates();
-          const approvedTemplates = Array.isArray(templatesResponse?.approvedTemplates)
-            ? templatesResponse.approvedTemplates
-            : Array.isArray(templatesResponse?.data?.data)
-              ? templatesResponse.data.data.filter((template) => template?.status === 'APPROVED')
-              : [];
-
-          const getBodyParamCount = (template) => {
-            const bodyComponent = Array.isArray(template?.components)
-              ? template.components.find((component) => String(component?.type || '').toUpperCase() === 'BODY')
-              : null;
-            const bodyText = bodyComponent?.text || '';
-            const placeholders = bodyText.match(/{{\d+}}/g) || [];
-            return new Set(placeholders).size;
-          };
-
-          const starterTemplate = approvedTemplates.find((template) => getBodyParamCount(template) === 0) || approvedTemplates[0];
-
-          if (!starterTemplate?.name) {
-            const noTemplateMsg = 'No approved WhatsApp templates are available. Create or approve a template in Meta first, then send it to start the conversation.';
-            setSendError(noTemplateMsg);
-            setTimeout(() => setSendError(null), 10000);
-            setMessages((prev) =>
-              prev.map(msg =>
-                msg._id === tempId ? { ...msg, status: 'failed', error: noTemplateMsg } : msg
-              )
-            );
-            return;
-          }
-
-          const bodyParamCount = getBodyParamCount(starterTemplate);
-          const fallbackParamText = activeChat?.name || 'there';
-          const starterComponents = bodyParamCount > 0
-            ? [{
-              type: 'body',
-              parameters: Array.from({ length: bodyParamCount }, () => ({
-                type: 'text',
-                text: fallbackParamText
-              }))
-            }]
-            : [];
-
-          const templateResult = await chatService.sendTemplateMessage(
-            activeChatId,
-            starterTemplate.name,
-            starterTemplate.language || 'en_US',
-            starterComponents
-          );
-
-          if (templateResult.success) {
-            console.log('✅ Template sent for conversation initiation');
-            const infoMsg = 'Starter template sent. Ask the user to reply once, then you can send normal messages for 24 hours.';
-            setSendError(infoMsg);
-            setTimeout(() => setSendError(null), 10000);
-            setMessages((prev) =>
-              prev.map(msg =>
-                msg._id === tempId
-                  ? templateResult.data
-                    ? { ...templateResult.data, status: templateResult.data.status || 'sent' }
-                    : { ...msg, status: 'sent', text: 'Template sent to initiate conversation' }
-                  : msg
-              )
-            );
-
-            if (templateResult.data) {
-              socketRef.current?.emit("send_message", {
-                chatId: activeChatId,
-                message: templateResult.data
-              });
-            }
-
-            return;
-          }
-
-          const tplErr = templateResult.error || `Could not send starter template. Ensure ${starterTemplate.name} is approved in Meta.`;
-          const tplDisplay = templateResult.errorCode ? `[${templateResult.errorCode}] ${tplErr}` : tplErr;
-          setSendError(tplDisplay);
-          setTimeout(() => setSendError(null), 10000);
-          setMessages((prev) =>
-            prev.map(msg =>
-              msg._id === tempId ? { ...msg, status: 'failed', error: tplErr } : msg
-            )
-          );
-          return;
-        }
-
         console.error('❌ Failed to send message:', result.error, 'Code:', result.errorCode);
         // Show WhatsApp error to user (include error code if available)
         const errMsg = result.error || 'Failed to send message via WhatsApp';
