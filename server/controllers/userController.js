@@ -16,6 +16,21 @@ exports.getProfile = async (req, res, next) => {
   }
 };
 
+// @desc    Get all users (Team Members)
+// @route   GET /api/users
+// @access  Private
+exports.getUsers = async (req, res, next) => {
+  try {
+    const users = await User.find();
+    res.status(200).json({
+      success: true,
+      data: users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // @desc    Update user profile
 // @route   PUT /api/users/profile
 // @access  Private

@@ -22,10 +22,10 @@ exports.testConnection = async (req, res, next) => {
       success: true,
       message: 'WhatsApp API configuration is valid',
       config: {
-        phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-        hasAccessToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
-        businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-        apiVersion: process.env.WHATSAPP_API_VERSION
+        phoneNumberId: whatsappService.phoneNumberId,
+        hasAccessToken: !!whatsappService.accessToken,
+        businessAccountId: whatsappService.businessAccountId,
+        apiVersion: whatsappService.apiVersion
       }
     });
   } catch (error) {
@@ -154,19 +154,28 @@ exports.getMessageStatus = async (req, res, next) => {
 // @desc    Verify webhook (GET request from WhatsApp)
 // @route   GET /api/whatsapp/webhook
 // @access  Public
-exports.verifyWebhook = (req, res) => {
+exports.verifyWebhook = async (req, res) => {
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
   const challenge = req.query['hub.challenge'];
 
-  const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || 'your_verify_token';
+  try {
+    const Setting = require('../models/Setting');
+    const setting = await Setting.findOne({ key: 'whatsapp_config' });
+    const VERIFY_TOKEN = (setting && setting.value && setting.value.verifyToken) || 
+                        process.env.WHATSAPP_VERIFY_TOKEN || 
+                        'your_verify_token';
 
-  if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('✅ Webhook verified successfully');
-    res.status(200).send(challenge);
-  } else {
-    console.error('❌ Webhook verification failed');
-    res.sendStatus(403);
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      console.log('✅ Webhook verified successfully');
+      res.status(200).send(challenge);
+    } else {
+      console.error('❌ Webhook verification failed');
+      res.sendStatus(403);
+    }
+  } catch (error) {
+    console.error('❌ Error verifying webhook:', error);
+    res.sendStatus(500);
   }
 };
 
@@ -321,6 +330,7 @@ async function handleIncomingMessage(data) {
 
     // Create message based on type
     let messageText = '';
+    let lastMsgText = '';
     let mediaUrl = null;
     let mediaId = null;
     let mediaTypeStr = null;
@@ -331,11 +341,13 @@ async function handleIncomingMessage(data) {
     switch (messageType) {
       case 'text':
         messageText = message.text || '';
+        lastMsgText = messageText;
         break;
         
       case 'image':
         caption = message.caption;
-        messageText = caption || '📷 Image';
+        messageText = caption || '';
+        lastMsgText = caption || '📷 Image';
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
@@ -350,7 +362,8 @@ async function handleIncomingMessage(data) {
         
       case 'video':
         caption = message.caption;
-        messageText = caption || '🎥 Video';
+        messageText = caption || '';
+        lastMsgText = caption || '🎥 Video';
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
@@ -363,7 +376,8 @@ async function handleIncomingMessage(data) {
         break;
         
       case 'audio':
-        messageText = '🎵 Audio message';
+        messageText = '';
+        lastMsgText = '🎵 Audio message';
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
@@ -378,7 +392,8 @@ async function handleIncomingMessage(data) {
       case 'document':
         fileName = message.filename;
         caption = message.caption;
-        messageText = fileName || caption || '📄 Document';
+        messageText = caption || '';
+        lastMsgText = fileName || caption || '📄 Document';
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
@@ -397,20 +412,24 @@ async function handleIncomingMessage(data) {
           name: message.name,
           address: message.address
         };
-        messageText = `📍 ${message.name || message.address || 'Location'}`;
+        messageText = caption || '';
+        lastMsgText = `📍 ${message.name || message.address || 'Location'}`;
         break;
         
       case 'contacts':
-        messageText = '👤 Contact Card';
+        messageText = '';
+        lastMsgText = '👤 Contact Card';
         break;
         
       case 'sticker':
-        messageText = '😊 Sticker';
+        messageText = '';
+        lastMsgText = '😊 Sticker';
         mediaId = message.mediaId;
         break;
         
       default:
-        messageText = 'Unsupported message type';
+        messageText = '';
+        lastMsgText = 'Unsupported message type';
     }
 
     // Create message record
@@ -434,7 +453,7 @@ async function handleIncomingMessage(data) {
     });
 
     // Update chat metadata
-    chat.lastMsg = messageText;
+    chat.lastMsg = lastMsgText || messageText || '📎 Media';
     chat.lastMsgTime = newMessage.time;
     chat.unread = (chat.unread || 0) + 1;
     chat.lastInboundAt = new Date(parseInt(timestamp) * 1000);

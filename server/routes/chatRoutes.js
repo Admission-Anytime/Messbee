@@ -334,6 +334,9 @@ router.post("/message", async (req, res) => {
         else if (mediaType.includes('video')) whatsappMediaType = 'video';
         else if (mediaType.includes('audio')) whatsappMediaType = 'audio';
 
+        const sidebarText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
+        displayText = text || '';
+
         const result = await whatsappService.sendMediaMessage(
           whatsappRecipient,
           whatsappMediaType,
@@ -347,8 +350,6 @@ router.post("/message", async (req, res) => {
           whatsappError = result.error;
           console.error("❌ WhatsApp media send failed:", JSON.stringify(result.error));
         }
-
-        displayText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
 
       } else if (text && text.trim()) {
         // Send text message via WhatsApp
@@ -384,7 +385,7 @@ router.post("/message", async (req, res) => {
 
       // Update Chat metadata
       await Chat.findByIdAndUpdate(chatId, {
-        lastMsg: displayText,
+        lastMsg: displayText || (media ? `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}` : ''),
         lastMsgTime: msgTime,
         lastActivity: new Date()
       });
@@ -730,7 +731,7 @@ router.put("/:chatId/assign", async (req, res) => {
 // 7. Update profile details
 router.put("/:chatId/profile", async (req, res) => {
   try {
-    const { name, phone, whatsappId, email, chatStatus, customFields } = req.body;
+    const { name, phone, whatsappId, email, chatStatus, customFields, notes } = req.body;
     
     const updateData = {};
     if (name !== undefined) updateData.name = name;
@@ -739,6 +740,7 @@ router.put("/:chatId/profile", async (req, res) => {
     if (email !== undefined) updateData.email = email;
     if (chatStatus !== undefined) updateData.chatStatus = chatStatus;
     if (customFields !== undefined) updateData.customFields = customFields;
+    if (notes !== undefined) updateData.notes = notes;
 
     const chat = await Chat.findByIdAndUpdate(
       req.params.chatId,

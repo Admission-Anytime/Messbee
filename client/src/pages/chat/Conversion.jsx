@@ -188,19 +188,28 @@ const Conversion = ({
          const uploadResult = await chatService.uploadFile(file);
 
          if (uploadResult.success) {
-            const mediaData = {
-               id: uploadResult.mediaId,
-               mediaId: uploadResult.mediaId,
+            const newAsset = {
+               id: uploadResult.mediaId || Date.now(),
+               name: uploadResult.fileName || file.name,
+               size: (file.size / 1024).toFixed(1) + ' KB',
+               date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+               fullDate: new Date().toLocaleString(),
+               type: uploadResult.mimeType?.startsWith('image/') ? 'image' : 
+                     (uploadResult.mimeType?.startsWith('video/') ? 'video' : 
+                     (uploadResult.mimeType?.startsWith('audio/') ? 'audio' : 'document')),
                url: uploadResult.fileUrl,
-               type: uploadResult.mimeType,
-               fileName: uploadResult.fileName
+               whatsappMediaId: uploadResult.whatsappMediaId || null,
+               res: ""
             };
 
-            const caption = mediaCaption || file.name;
-            await onSendMessage(caption, mediaData);
-
-            setMediaCaption("");
-            setIsMediaModalOpen(false);
+            // Add to media assets and select it
+            setMediaAssets(prev => [newAsset, ...prev]);
+            setSelectedMediaId(newAsset.id);
+            
+            // Update media tab to show the new item if it's not 'recent'
+            if (mediaTab !== 'recent') {
+               setMediaTab(newAsset.type);
+            }
          } else {
             setUploadError(uploadResult.error);
             console.error('File upload failed:', uploadResult.error);
@@ -210,6 +219,8 @@ const Conversion = ({
          console.error('File upload error:', error);
       } finally {
          setUploadingFile(false);
+         // Clear input so same file can be selected again
+         if (e.target) e.target.value = '';
       }
    };
 
@@ -572,8 +583,8 @@ const Conversion = ({
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1.5 shadow-sm transition-all relative">
-               <div className="flex items-center gap-1 pl-2">
+            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
+               <div className="flex items-center gap-0.5 pl-2 shrink-0">
                   <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
                      <PaperClipIcon className="w-5 h-5" />
                   </button>
@@ -584,11 +595,19 @@ const Conversion = ({
                <input
                   type="text"
                   value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
+                  onChange={(e) => {
+                     const val = e.target.value;
+                     setInputText(val);
+                     if (val.endsWith("/")) {
+                        setShowTemplates(true);
+                        setShowQuickReplies(false);
+                     }
+                     if (!val.includes("/")) setShowTemplates(false);
+                  }}
                   placeholder="Type a message..."
-                  className="flex-1 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
+                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
                />
-               <div className="flex items-center gap-1.5 pr-1">
+               <div className="flex items-center gap-1.5 pr-1 shrink-0">
                   <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
                      <ChatBubbleLeftRightIcon className="w-5 h-5" />
                   </button>
@@ -659,11 +678,26 @@ const Conversion = ({
                      <div className="w-[320px] border-l border-slate-100 bg-white flex flex-col shrink-0">
                         <div className="p-6 border-b border-slate-100">
                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Asset Preview</h3>
-                           <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100">
-                              {activeMedia?.type === 'image' ? <img src={activeMedia.url} alt="" className="w-full h-full object-cover" /> : 
-                               activeMedia?.type === 'video' ? <FilmIcon className="w-16 h-16 text-blue-300" /> :
-                               activeMedia?.type === 'audio' ? <MusicalNoteIcon className="w-16 h-16 text-blue-300" /> :
-                               <DocumentIcon className="w-16 h-16 text-blue-300" />}
+                           <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
+                              {uploadingFile ? (
+                                 <div className="flex flex-col items-center justify-center">
+                                    <div className="w-8 h-8 border-4 border-[#22C55E] border-t-transparent rounded-full animate-spin"></div>
+                                    <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-tight">Uploading...</p>
+                                 </div>
+                              ) : uploadError ? (
+                                 <div className="text-center p-4">
+                                    <NoSymbolIcon className="w-12 h-12 text-red-300 mx-auto mb-2" />
+                                    <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight">{uploadError}</p>
+                                 </div>
+                              ) : activeMedia?.type === 'image' ? (
+                                 <img src={activeMedia.url} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                 <div className="text-center">
+                                    {activeMedia?.type === 'video' ? <FilmIcon className="w-16 h-16 text-blue-300" /> :
+                                     activeMedia?.type === 'audio' ? <MusicalNoteIcon className="w-16 h-16 text-blue-300" /> :
+                                     <DocumentIcon className="w-16 h-16 text-blue-300" />}
+                                 </div>
+                              )}
                            </div>
                            <div className="space-y-4">
                               <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">File Name</p><p className="text-sm font-bold text-slate-800 break-words">{activeMedia?.name}</p></div>

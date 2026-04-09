@@ -21,6 +21,7 @@ const chatSchema = mongoose.Schema(
       enum: ["whatsapp", "web", "api", "manual"],
       default: "whatsapp"
     },
+    email: { type: String, default: "" },
     lastInboundAt: { type: Date },
     businessProfile: {
       description: String,
@@ -30,7 +31,13 @@ const chatSchema = mongoose.Schema(
     },
     lastActivity: { type: Date },
     customFields: { type: mongoose.Schema.Types.Mixed }, // For custom data
-    notes: { type: String },
+    notes: [
+      {
+        text: String,
+        author: String,
+        date: String
+      }
+    ],
     tags: [{ type: String }]
   },
   { timestamps: true }
