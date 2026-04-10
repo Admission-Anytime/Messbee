@@ -107,6 +107,104 @@ class WhatsAppService {
     ) || null;
   }
 
+  getTemplateBodyText(template) {
+    const components = Array.isArray(template?.components) ? template.components : [];
+    const body = components.find((component) => String(component?.type || '').toUpperCase() === 'BODY');
+    return body?.text || '';
+  }
+
+  getBodyTemplateParamCount(template) {
+    const bodyText = this.getTemplateBodyText(template);
+    const placeholders = bodyText.match(/{{\s*\d+\s*}}/g) || [];
+    return new Set(placeholders.map((ph) => ph.replace(/\s+/g, ''))).size;
+  }
+
+  renderTemplateBody(template, components = [], fallbackText = '') {
+    const bodyText = this.getTemplateBodyText(template);
+    if (!bodyText) {
+      return `Template: ${template?.name || 'message'}`;
+    }
+
+    const bodyComponent = Array.isArray(components)
+      ? components.find((component) => String(component?.type || '').toUpperCase() === 'BODY')
+      : null;
+
+    const parameters = Array.isArray(bodyComponent?.parameters) ? bodyComponent.parameters : [];
+
+    return bodyText.replace(/{{\s*(\d+)\s*}}/g, (_match, indexText) => {
+      const index = Number(indexText) - 1;
+      const value = parameters[index]?.text;
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return String(value);
+      }
+      return fallbackText || _match;
+    });
+  }
+
+  async sendTextAsTemplateBridge(to, text, preferredLanguage = 'en_US') {
+    const templatesResult = await this.getTemplates();
+    const templates = Array.isArray(templatesResult?.data) ? templatesResult.data : [];
+
+    const approvedTemplates = templates.filter(
+      (template) => String(template?.status || '').toUpperCase() === 'APPROVED'
+    );
+
+    const configuredBridgeName = process.env.WHATSAPP_BRIDGE_TEMPLATE_NAME;
+    const configuredBridgeLanguage = this.normalizeTemplateLanguage(
+      process.env.WHATSAPP_BRIDGE_TEMPLATE_LANGUAGE || preferredLanguage
+    );
+
+    let bridgeTemplate = null;
+
+    if (configuredBridgeName) {
+      bridgeTemplate = approvedTemplates.find(
+        (template) =>
+          template?.name === configuredBridgeName &&
+          this.normalizeTemplateLanguage(template?.language) === configuredBridgeLanguage
+      ) || null;
+    }
+
+    if (!bridgeTemplate) {
+      bridgeTemplate = approvedTemplates.find((template) => this.getBodyTemplateParamCount(template) > 0) || null;
+    }
+
+    if (!bridgeTemplate) {
+      return {
+        success: false,
+        error: {
+          message: 'No approved template with body parameters is available for pre-reply messaging.'
+        }
+      };
+    }
+
+    const paramCount = Math.max(1, this.getBodyTemplateParamCount(bridgeTemplate));
+    const components = [{
+      type: 'body',
+      parameters: Array.from({ length: paramCount }, () => ({
+        type: 'text',
+        text
+      }))
+    }];
+
+    const sendResult = await this.sendTemplateMessage(
+      to,
+      bridgeTemplate.name,
+      bridgeTemplate.language || configuredBridgeLanguage,
+      components
+    );
+
+    if (!sendResult.success) {
+      return sendResult;
+    }
+
+    return {
+      ...sendResult,
+      usedTemplateBridge: true,
+      bridgeTemplateName: bridgeTemplate.name,
+      displayText: text
+    };
+  }
+
   /**
    * Register WhatsApp Business Number
    */
@@ -431,7 +529,10 @@ class WhatsAppService {
       return {
         success: true,
         messageId: response.data.messages[0].id,
-        data: response.data
+        data: response.data,
+        templateName: template.name,
+        templateLanguage: normalizedLanguage,
+        displayText: this.renderTemplateBody(template, components)
       };
     } catch (error) {
       console.error('WhatsApp Template Send Error:', error.response?.data || error.message);

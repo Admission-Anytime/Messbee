@@ -249,6 +249,7 @@ router.post("/message", async (req, res) => {
       let whatsappResult = null;
       let displayText = text;
       let whatsappError = null;
+      let outboundMessageType = media ? normalizedMessageType : 'text';
 
       const canSendFreeText = await hasActiveCustomerWindow(chat);
 
@@ -373,7 +374,7 @@ router.post("/message", async (req, res) => {
         sender,
         time: msgTime,
         whatsappMessageId: whatsappResult?.messageId,
-        messageType: media ? normalizedMessageType : "text",
+        messageType: outboundMessageType,
         mediaUrl: media?.url || media?.fileUrl,
         mediaType: mediaType,
         mediaId: media?.id || media?.mediaId,
@@ -654,17 +655,22 @@ router.post("/send-template", async (req, res) => {
 
     const newMessage = await Message.create({
       chatId: chatId,
-      text: `Template: ${templateName}`,
+      text: result.displayText || `Template: ${templateName}`,
       sender: 'me',
       time: time,
       whatsappMessageId: result.messageId,
       messageType: 'template',
+      templateName: result.templateName || templateName,
+      templateLanguage: result.templateLanguage || (languageCode || 'en_US'),
+      metadata: {
+        components: components || []
+      },
       status: 'sent'
     });
 
     // Update chat metadata
     await Chat.findByIdAndUpdate(chatId, {
-      lastMsg: `Template: ${templateName}`,
+      lastMsg: result.displayText || `Template: ${templateName}`,
       lastMsgTime: time,
       lastActivity: new Date()
     });
