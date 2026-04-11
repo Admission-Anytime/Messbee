@@ -103,54 +103,6 @@ const Conversion = ({
    const templateRef = useRef(null);
    const fileInputRef = useRef(null);
 
-   const [timeLeft, setTimeLeft] = useState(null);
-
-   useEffect(() => {
-      const calculateRemaining = () => {
-         let referenceDate = null;
-         
-         // 1. Try to find the last message from the contact (Priority)
-         if (data.messages && data.messages.length > 0) {
-            const lastInboundMsg = [...data.messages].reverse().find(msg => msg.sender !== "me");
-            if (lastInboundMsg) {
-               referenceDate = lastInboundMsg.createdAt ? new Date(lastInboundMsg.createdAt) : new Date();
-            }
-         }
-
-         // 2. Fallback to lastInboundAt from metadata
-         if (!referenceDate && data.lastInboundAt) {
-            referenceDate = new Date(data.lastInboundAt);
-         }
-
-         // 3. Last fallback: Chat creation date (ensures timer shows even if no inbound yet)
-         if (!referenceDate && data.createdAt) {
-            referenceDate = new Date(data.createdAt);
-         }
-
-         if (!referenceDate) return null;
-         
-         const expiry = new Date(referenceDate.getTime() + 24 * 60 * 60 * 1000);
-         const diff = expiry - new Date();
-         return diff > 0 ? diff : 0;
-      };
-
-      setTimeLeft(calculateRemaining());
-      const interval = setInterval(() => {
-         setTimeLeft(calculateRemaining());
-      }, 1000);
-
-      return () => clearInterval(interval);
-   }, [data.messages, data.lastInboundAt, data.createdAt]);
-
-   const formatCountdown = (ms) => {
-      if (ms === null || ms < 0) return "24:00:00";
-      const totalSeconds = Math.floor(ms / 1000);
-      const hours = Math.floor(totalSeconds / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const seconds = totalSeconds % 60;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-   };
-
    useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
    }, [data.messages]);
@@ -461,15 +413,6 @@ const Conversion = ({
                   </div>
 
                   <div className="flex items-center gap-4 text-slate-400">
-                     {timeLeft !== null && (
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full font-mono text-sm font-bold border transition-all ${timeLeft > 0 ? 'text-[#22C55E] bg-green-50 border-green-100' : 'text-red-500 bg-red-50 border-red-100'}`}>
-                           <ClockIcon className={`w-4 h-4 ${timeLeft > 0 ? 'animate-pulse' : ''}`} />
-                           {formatCountdown(timeLeft)}
-                        </div>
-                     )}
-                     <button onClick={() => setIsSearchOpen(true)} className="p-1 hover:text-slate-700 transition-colors">
-                        <MagnifyingGlassIcon className="w-6 h-6" />
-                     </button>
                      <PhoneIcon className="w-6 h-6 cursor-pointer hover:text-slate-700 transition-colors" />
                      <VideoCameraIcon className="w-7 h-7 cursor-pointer hover:text-slate-700 transition-colors" />
 
@@ -694,60 +637,42 @@ const Conversion = ({
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-            {timeLeft === 0 ? (
-               <div className="flex flex-col items-center justify-center p-6 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl mx-2 mb-2 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                  <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-3">
-                     <LockClosedIcon className="w-6 h-6 text-slate-400" />
-                  </div>
-                  <h4 className="text-sm font-bold text-slate-900 mb-1">24-Hour Session Expired</h4>
-                  <p className="text-xs text-slate-500 text-center max-w-[280px] mb-4">You can no longer send free-text messages to this user. Send a template message to restart the session.</p>
-                  <button 
-                     type="button" 
-                     onClick={() => setShowTemplates(true)}
-                     className="px-6 py-2.5 bg-[#22C55E] text-white text-xs font-bold rounded-xl hover:bg-green-600 transition-all flex items-center gap-2 shadow-md shadow-green-100"
-                  >
-                     <DocumentTextIcon className="w-4 h-4" />
-                     Send Approved Template
+            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
+               <div className="flex items-center gap-0.5 pl-2 shrink-0">
+                  <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                     <PaperClipIcon className="w-5 h-5" />
+                  </button>
+                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                     <FaceSmileIcon className="w-6 h-6" />
                   </button>
                </div>
-            ) : (
-               <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
-                  <div className="flex items-center gap-0.5 pl-2 shrink-0">
-                     <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                        <PaperClipIcon className="w-5 h-5" />
-                     </button>
-                     <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                        <FaceSmileIcon className="w-6 h-6" />
-                     </button>
-                  </div>
-                  <input
-                     type="text"
-                     value={inputText}
-                     onChange={(e) => {
-                        const val = e.target.value;
-                        setInputText(val);
-                        if (val.endsWith("/")) {
-                           setShowTemplates(true);
-                           setShowQuickReplies(false);
-                        }
-                        if (!val.includes("/")) setShowTemplates(false);
-                     }}
-                     placeholder="Type a message..."
-                     className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
-                  />
-                  <div className="flex items-center gap-1.5 pr-1 shrink-0">
-                     <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
-                        <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                     </button>
-                     <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
-                        <BoltIcon className="w-5 h-5" />
-                     </button>
-                     <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
-                        <PaperAirplaneIcon className="w-4 h-4" />
-                     </button>
-                  </div>
-               </form>
-            )}
+               <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => {
+                     const val = e.target.value;
+                     setInputText(val);
+                     if (val.endsWith("/")) {
+                        setShowTemplates(true);
+                        setShowQuickReplies(false);
+                     }
+                     if (!val.includes("/")) setShowTemplates(false);
+                  }}
+                  placeholder="Type a message..."
+                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
+               />
+               <div className="flex items-center gap-1.5 pr-1 shrink-0">
+                  <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
+                     <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                  </button>
+                  <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
+                     <BoltIcon className="w-5 h-5" />
+                  </button>
+                  <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                     <PaperAirplaneIcon className="w-4 h-4" />
+                  </button>
+               </div>
+            </form>
          </div>
 
          {/* MODALS */}
