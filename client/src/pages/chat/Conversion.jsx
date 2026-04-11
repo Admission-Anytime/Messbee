@@ -77,6 +77,8 @@ const Conversion = ({
    const [showQuickReplies, setShowQuickReplies] = useState(false);
    const [showTemplates, setShowTemplates] = useState(false);
    const [isSearchOpen, setIsSearchOpen] = useState(false);
+   const [searchQuery, setSearchQuery] = useState("");
+   const [activeSearchMatch, setActiveSearchMatch] = useState(0);
 
    const [isLabelModalOpen, setIsLabelModalOpen] = useState(false);
    const [labelSearch, setLabelSearch] = useState("");
@@ -93,11 +95,13 @@ const Conversion = ({
    // File upload states
    const [uploadingFile, setUploadingFile] = useState(false);
    const [uploadError, setUploadError] = useState(null);
+   const [countdownNow, setCountdownNow] = useState(Date.now());
 
    // Applied labels local state for the modal
    const [appliedLabels, setAppliedLabels] = useState([]);
 
    const messagesEndRef = useRef(null);
+   const messageRefs = useRef({});
    const menuRef = useRef(null);
    const emojiRef = useRef(null);
    const templateRef = useRef(null);
@@ -350,6 +354,108 @@ const Conversion = ({
 
    const isTemplateOnlyMode = data?.source === 'whatsapp' && !canSendFreeText;
 
+   const sessionExpiryMs = useMemo(() => {
+      if (data?.source !== 'whatsapp') return null;
+
+      const parseDate = (value) => {
+         const dt = new Date(value);
+         return Number.isNaN(dt.getTime()) ? null : dt.getTime();
+      };
+
+      const explicitInboundMs = parseDate(data?.lastInboundAt);
+      if (explicitInboundMs) return explicitInboundMs + (24 * 60 * 60 * 1000);
+
+      const latestInbound = Array.isArray(data?.messages)
+         ? [...data.messages]
+            .filter((message) => message?.sender === 'them')
+            .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime())[0]
+         : null;
+
+      const latestInboundMs = parseDate(latestInbound?.createdAt);
+      if (latestInboundMs) return latestInboundMs + (24 * 60 * 60 * 1000);
+
+      return null;
+   }, [data?.source, data?.lastInboundAt, data?.messages]);
+
+   const sessionRemainingMs = useMemo(() => {
+      if (!sessionExpiryMs) return null;
+      return Math.max(0, sessionExpiryMs - countdownNow);
+   }, [sessionExpiryMs, countdownNow]);
+
+   useEffect(() => {
+      if (!sessionExpiryMs) return;
+
+      setCountdownNow(Date.now());
+      const timerId = setInterval(() => {
+         setCountdownNow(Date.now());
+      }, 1000);
+
+      return () => clearInterval(timerId);
+   }, [sessionExpiryMs]);
+
+   const sessionCountdown = useMemo(() => {
+      if (sessionRemainingMs === null) return null;
+
+      const totalSeconds = Math.floor(sessionRemainingMs / 1000);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+
+      return [hours, minutes, seconds].map((part) => String(part).padStart(2, '0')).join(':');
+   }, [sessionRemainingMs]);
+
+   const searchMatches = useMemo(() => {
+      const keyword = searchQuery.trim().toLowerCase();
+      if (!keyword || !Array.isArray(data?.messages)) return [];
+
+      return data.messages.reduce((acc, message, index) => {
+         const haystack = [
+            message?.text,
+            message?.fileName,
+            message?.media?.name,
+            message?.mediaUrl
+         ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+
+         if (haystack.includes(keyword)) {
+            acc.push(index);
+         }
+         return acc;
+      }, []);
+   }, [data?.messages, searchQuery]);
+
+   const searchMatchIndexSet = useMemo(() => {
+      return new Set(searchMatches);
+   }, [searchMatches]);
+
+   const currentMatchMessageIndex = searchMatches.length > 0
+      ? searchMatches[Math.min(activeSearchMatch, searchMatches.length - 1)]
+      : -1;
+
+   useEffect(() => {
+      setActiveSearchMatch(0);
+   }, [searchQuery]);
+
+   useEffect(() => {
+      if (!isSearchOpen) {
+         setSearchQuery("");
+         setActiveSearchMatch(0);
+      }
+   }, [isSearchOpen]);
+
+   useEffect(() => {
+      if (currentMatchMessageIndex < 0) return;
+      const messageNode = messageRefs.current[currentMatchMessageIndex];
+      messageNode?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+   }, [currentMatchMessageIndex]);
+
+   const handleSearchNavigate = (direction) => {
+      if (searchMatches.length === 0) return;
+      setActiveSearchMatch((prev) => (prev + direction + searchMatches.length) % searchMatches.length);
+   };
+
    // Derived current labels for header display
    const headerLabels = useMemo(() => {
       if (!data.labels || availableLabels.length === 0) return [];
@@ -382,7 +488,23 @@ const Conversion = ({
             {isSearchOpen ? (
                <div className="flex-1 flex items-center gap-3 animate-in fade-in duration-200">
                   <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
-                  <input type="text" placeholder="Search in conversation..." className="flex-1 border-none outline-none text-xs text-slate-700 placeholder:text-slate-400 h-full py-2" autoFocus />
+                  <input
+                     type="text"
+                     value={searchQuery}
+                     onChange={(e) => setSearchQuery(e.target.value)}
+                     placeholder="Search in conversation..."
+                     className="flex-1 border-none outline-none text-xs text-slate-700 placeholder:text-slate-400 h-full py-2"
+                     autoFocus
+                  />
+                  <span className="px-2 py-1 rounded-md border border-slate-200 bg-slate-50 text-[10px] font-bold text-slate-500 min-w-[52px] text-center">
+                     {searchMatches.length > 0 ? `${activeSearchMatch + 1}/${searchMatches.length}` : '0/0'}
+                  </span>
+                  <button onClick={() => handleSearchNavigate(-1)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500" title="Previous match">
+                     <ChevronRightIcon className="w-4 h-4 rotate-180" />
+                  </button>
+                  <button onClick={() => handleSearchNavigate(1)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500" title="Next match">
+                     <ChevronRightIcon className="w-4 h-4" />
+                  </button>
                   <button onClick={() => setIsSearchOpen(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-500"><XMarkIcon className="w-5 h-5" /></button>
                </div>
             ) : (
@@ -413,6 +535,15 @@ const Conversion = ({
                   </div>
 
                   <div className="flex items-center gap-4 text-slate-400">
+                     {data?.source === 'whatsapp' && sessionCountdown && (
+                        <div className={`h-8 px-2.5 rounded-lg border flex items-center gap-2 text-[11px] font-bold tracking-wide shadow-sm ${sessionRemainingMs > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                           <ClockIcon className="w-3.5 h-3.5" />
+                           <span className="tabular-nums">{sessionRemainingMs > 0 ? sessionCountdown : 'Expired'}</span>
+                        </div>
+                     )}
+                     <button onClick={() => setIsSearchOpen(true)} className="p-1 rounded-full hover:text-slate-700 transition-colors" title="Search in chat">
+                        <MagnifyingGlassIcon className="w-5 h-5" />
+                     </button>
                      <PhoneIcon className="w-6 h-6 cursor-pointer hover:text-slate-700 transition-colors" />
                      <VideoCameraIcon className="w-7 h-7 cursor-pointer hover:text-slate-700 transition-colors" />
 
@@ -482,7 +613,14 @@ const Conversion = ({
             </div>
 
             {data.messages?.map((msg, index) => (
-               <div key={index} className={`flex items-end gap-3 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
+               <div
+                  key={index}
+                  ref={(el) => {
+                     if (el) messageRefs.current[index] = el;
+                     else delete messageRefs.current[index];
+                  }}
+                  className={`flex items-end gap-3 ${msg.sender === "me" ? "justify-end" : "justify-start"} ${currentMatchMessageIndex === index ? 'ring-2 ring-emerald-300 rounded-2xl p-1 -m-1' : (searchMatchIndexSet.has(index) ? 'ring-1 ring-emerald-100 rounded-2xl p-1 -m-1' : '')}`}
+               >
                   {msg.sender !== "me" && (
                      <div className="w-8 h-8 rounded-xl bg-[#e2e8f0] overflow-hidden shrink-0 flex items-center justify-center mb-5">
                         <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
