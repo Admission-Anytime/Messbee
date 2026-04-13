@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import {
@@ -76,6 +77,16 @@ const Conversion = ({
    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
    const [showQuickReplies, setShowQuickReplies] = useState(false);
    const [showTemplates, setShowTemplates] = useState(false);
+   const [templateSearch, setTemplateSearch] = useState("");
+   const [templateCategory, setTemplateCategory] = useState("ALL");
+   const [selectedTemplateId, setSelectedTemplateId] = useState(null);
+   const [isSendingTemplate, setIsSendingTemplate] = useState(false);
+   const [isConfirmTemplateModalOpen, setIsConfirmTemplateModalOpen] = useState(false);
+   const [confirmTemplate, setConfirmTemplate] = useState(null);
+   const [deliveryMode, setDeliveryMode] = useState("now");
+   const [scheduleDate, setScheduleDate] = useState("");
+   const [scheduleTime, setScheduleTime] = useState("12:00");
+   const [confirmSendError, setConfirmSendError] = useState("");
    const [isSearchOpen, setIsSearchOpen] = useState(false);
    const [searchQuery, setSearchQuery] = useState("");
    const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -176,9 +187,50 @@ const Conversion = ({
 
    const handleTemplateSelect = async (template) => {
       if (!template?.name || !onSendTemplate) return;
-      await onSendTemplate(template);
+      setIsSendingTemplate(true);
+      try {
+         await onSendTemplate(template);
+         setShowTemplates(false);
+         setShowQuickReplies(false);
+      } finally {
+         setIsSendingTemplate(false);
+      }
+   };
+
+   const openConfirmTemplateModal = (template) => {
+      if (!template?.name) return;
+      setConfirmTemplate(template);
+      setDeliveryMode("now");
+      setScheduleDate("");
+      setScheduleTime("12:00");
+      setConfirmSendError("");
       setShowTemplates(false);
-      setShowQuickReplies(false);
+      setIsConfirmTemplateModalOpen(true);
+   };
+
+   const handleConfirmTemplateSend = async () => {
+      if (!confirmTemplate?.name) return;
+      setConfirmSendError("");
+
+      if (deliveryMode === "schedule") {
+         const scheduleValue = `${scheduleDate}T${scheduleTime}`;
+         const scheduledTime = new Date(scheduleValue).getTime();
+         const delayMs = scheduledTime - Date.now();
+         if (!scheduleDate || !scheduleTime || Number.isNaN(scheduledTime) || delayMs <= 0) {
+            setConfirmSendError("Please choose a future date and time.");
+            return;
+         }
+
+         const safeDelay = Math.min(delayMs, 2147483647);
+         window.setTimeout(() => {
+            handleTemplateSelect(confirmTemplate);
+         }, safeDelay);
+         setIsConfirmTemplateModalOpen(false);
+         return;
+      }
+
+      await handleTemplateSelect(confirmTemplate);
+      setIsConfirmTemplateModalOpen(false);
    };
 
    const handleFileChange = async (e) => {
@@ -480,6 +532,57 @@ const Conversion = ({
       return approvedTemplates;
    }, [approvedTemplates]);
 
+   const templateCategories = useMemo(() => {
+      const categories = new Set(
+         displayTemplates
+            .map((template) => String(template?.category || "").trim().toUpperCase())
+            .filter(Boolean)
+      );
+      return ["ALL", ...Array.from(categories)];
+   }, [displayTemplates]);
+
+   const filteredTemplates = useMemo(() => {
+      const query = templateSearch.trim().toLowerCase();
+      return displayTemplates.filter((template) => {
+         const category = String(template?.category || "").toUpperCase();
+         const name = String(template?.name || "");
+         const bodyText = String(template?.bodyText || "");
+         const categoryMatch = templateCategory === "ALL" || category === templateCategory;
+         const searchMatch = !query ||
+            name.toLowerCase().includes(query) ||
+            bodyText.toLowerCase().includes(query) ||
+            category.toLowerCase().includes(query);
+         return categoryMatch && searchMatch;
+      });
+   }, [displayTemplates, templateCategory, templateSearch]);
+
+   useEffect(() => {
+      if (!showTemplates) return;
+      if (filteredTemplates.length === 0) {
+         setSelectedTemplateId(null);
+         return;
+      }
+      if (!filteredTemplates.some((template) => template.id === selectedTemplateId)) {
+         setSelectedTemplateId(filteredTemplates[0].id);
+      }
+   }, [showTemplates, filteredTemplates, selectedTemplateId]);
+
+   const selectedTemplate = useMemo(() => {
+      return filteredTemplates.find((template) => template.id === selectedTemplateId) || filteredTemplates[0] || null;
+   }, [filteredTemplates, selectedTemplateId]);
+
+   const previewTitle = selectedTemplate?.name
+      ? selectedTemplate.name.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
+      : "";
+
+   const confirmPreviewText = useMemo(() => {
+      const raw = String(confirmTemplate?.bodyText || "");
+      const recipientName = data?.name || "Customer";
+      return raw.replace(/\{\{\d+\}\}/g, recipientName);
+   }, [confirmTemplate, data?.name]);
+
+   const recipientPhone = data?.phone || data?.phoneNumber || data?.mobile || data?.waId || "";
+
    return (
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
 
@@ -735,43 +838,280 @@ const Conversion = ({
                </div>
             )}
 
-            {showTemplates && (
-               <div className="absolute bottom-28 left-6 w-[92vw] max-w-[560px] md:w-[520px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
-                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-                     <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Templates</h4>
-                     <span className="text-[10px] font-bold text-slate-400">{displayTemplates.length} TEMPLATES</span>
-                  </div>
-                  <div className="max-h-96 overflow-y-auto p-2 space-y-1 custom-scrollbar">
-                     {displayTemplates.map((template) => (
-                        <div
-                           key={template.id}
-                           onClick={() => { handleTemplateSelect(template); }}
-                           className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+            {showTemplates && typeof document !== "undefined" && createPortal((
+               <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 md:p-5 bg-black/30 backdrop-blur-[2px]">
+                  <div className="bg-slate-50 w-[calc(100vw-240px)] max-w-[900px] h-[calc(100vh-28px)] max-h-[860px] rounded-xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
+                     <header className="h-16 flex items-center justify-between px-8 bg-slate-100 border-b border-slate-200">
+                        <div className="flex items-center gap-3">
+                           <Squares2X2Icon className="w-5 h-5 text-emerald-600" />
+                           <h2 className="text-xl font-bold tracking-tight text-slate-800">Select Template</h2>
+                        </div>
+                        <button
+                           type="button"
+                           onClick={() => setShowTemplates(false)}
+                           className="p-2 hover:bg-slate-200 rounded-full transition-colors"
                         >
-                           <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-500 flex items-center justify-center shrink-0">
-                              <DocumentTextIcon className="w-5 h-5" />
-                           </div>
-                           <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-center mb-1">
-                                 <h4 className="text-xs font-bold text-slate-900 truncate">{template.name}</h4>
-                                 <span className={`text-[9px] font-extrabold px-1.5 py-0.5 rounded uppercase ${template.status === 'Approved' ? 'text-green-600 bg-green-100' : 'text-blue-600 bg-blue-100'}`}>{template.status || 'Template'}</span>
+                           <XMarkIcon className="w-5 h-5 text-slate-600" />
+                        </button>
+                     </header>
+
+                     <div className="flex-1 flex overflow-hidden">
+                        <div className="w-[58%] border-r border-slate-200 flex flex-col bg-white min-w-0">
+                           <div className="p-6 space-y-4">
+                              <div className="relative">
+                                 <MagnifyingGlassIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                                 <input
+                                    type="text"
+                                    value={templateSearch}
+                                    onChange={(e) => setTemplateSearch(e.target.value)}
+                                    placeholder="Search templates by name or tag..."
+                                    className="w-full bg-slate-100 border-none rounded-lg py-3 pl-12 pr-4 focus:ring-2 focus:ring-emerald-500/30 transition-all text-sm"
+                                 />
                               </div>
-                              <p className="text-[11px] text-slate-500 line-clamp-3">{template.bodyText || template.content || 'No content'}</p>
+
+                              <div className="flex gap-2 flex-wrap">
+                                 {templateCategories.map((category) => {
+                                    const active = templateCategory === category;
+                                    return (
+                                       <button
+                                          key={category}
+                                          type="button"
+                                          onClick={() => setTemplateCategory(category)}
+                                          className={`px-3 py-1 text-[0.75rem] font-bold tracking-wider rounded-full uppercase transition-colors ${
+                                             active
+                                                ? "bg-emerald-700 text-white"
+                                                : "bg-slate-200 text-slate-700 hover:bg-slate-300"
+                                          }`}
+                                       >
+                                          {category}
+                                       </button>
+                                    );
+                                 })}
+                              </div>
+                           </div>
+
+                           <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-3 min-h-0">
+                              {filteredTemplates.map((template) => {
+                                 const isSelected = selectedTemplate?.id === template.id;
+                                 const bodyPreview = template?.bodyText || "";
+                                 return (
+                                    <button
+                                       key={template.id}
+                                       type="button"
+                                       onClick={() => setSelectedTemplateId(template.id)}
+                                       className={`w-full p-4 rounded-lg transition-all cursor-pointer text-left border-l-4 ${
+                                          isSelected
+                                             ? "bg-slate-100 border-emerald-700 ring-1 ring-inset ring-slate-300"
+                                             : "bg-white hover:bg-slate-50 border-transparent ring-1 ring-inset ring-slate-200"
+                                       }`}
+                                    >
+                                       <div className="flex justify-between items-start mb-2 gap-3">
+                                          <h3 className="font-bold text-slate-800 truncate">{template.name}</h3>
+                                          <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full uppercase shrink-0">
+                                             Approved
+                                          </span>
+                                       </div>
+                                       <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{bodyPreview}</p>
+                                       <div className="mt-3 flex gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                          <span>{template.category || "General"}</span>
+                                          <span>{template.language || "en_US"}</span>
+                                       </div>
+                                    </button>
+                                 );
+                              })}
+
+                              {filteredTemplates.length === 0 && <div className="p-8 rounded-lg border border-dashed border-slate-300 bg-slate-50" />}
                            </div>
                         </div>
-                     ))}
-                     {displayTemplates.length === 0 && (
-                        <div className="p-8 text-center">
-                           <p className="text-sm text-slate-400 font-medium">No templates found.</p>
-                           <p className="text-[10px] text-slate-400 mt-1">Create templates in Settings</p>
+
+                        <div className="w-[42%] min-w-[320px] bg-slate-100 flex flex-col items-center justify-center p-4">
+                           <div className="mb-6 text-center">
+                              <span className="text-[0.65rem] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Live Preview</span>
+                              <h4 className="text-[38px] leading-tight font-extrabold text-slate-700 truncate max-w-[320px]">{previewTitle}</h4>
+                           </div>
+
+                           <div className="w-[275px] h-[520px] bg-[#0f1e3a] rounded-[3rem] p-3 shadow-2xl relative border-4 border-[#1d2f4d]">
+                              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-[#1d2f4d] rounded-b-2xl z-10 flex items-center justify-center">
+                                 <div className="w-11 h-1.5 bg-[#334a6f] rounded-full" />
+                              </div>
+
+                              <div className="w-full h-full bg-white rounded-[2.25rem] overflow-hidden flex flex-col">
+                                 <div className="h-9 bg-white flex justify-between items-end px-6 pb-1.5">
+                                    <span className="text-[14px] font-extrabold">9:41</span>
+                                    <div className="flex gap-1.5 items-center">
+                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                                    </div>
+                                 </div>
+
+                                 <div className="flex-1 p-4 bg-slate-100 flex flex-col gap-4 overflow-hidden">
+                                    {selectedTemplate?.bodyText && (
+                                       <div className="flex items-start gap-2">
+                                          <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+                                             <MegaphoneIcon className="w-4.5 h-4.5 text-emerald-700" />
+                                          </div>
+                                          <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200">
+                                             {selectedTemplate.bodyText}
+                                          </div>
+                                       </div>
+                                    )}
+                                 </div>
+
+                                 <div className="p-3 border-t border-slate-100 bg-white">
+                                    <div className="h-10 rounded-full bg-slate-100 flex items-center px-4">
+                                       <div className="w-2.5 h-5 bg-emerald-500 rounded-full animate-pulse" />
+                                    </div>
+                                 </div>
+                              </div>
+                           </div>
                         </div>
-                     )}
-                  </div>
-                  <div className="px-4 py-2.5 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between">
-                     <span>From template list</span><span>Click to insert</span>
+                     </div>
+
+                     <footer className="h-14 px-6 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-slate-500">
+                           <InformationCircleIcon className="w-4 h-4" />
+                           <span className="text-xs font-medium">Compliance-approved template last updated 2 days ago.</span>
+                        </div>
+                        <div className="flex gap-3">
+                           <button
+                              type="button"
+                              onClick={() => setShowTemplates(false)}
+                              className="px-5 py-1.5 rounded-xl text-slate-700 font-bold text-sm hover:bg-slate-200 transition-colors border border-slate-300"
+                           >
+                              Cancel
+                           </button>
+                           <button
+                              type="button"
+                              onClick={() => selectedTemplate && openConfirmTemplateModal(selectedTemplate)}
+                              disabled={!selectedTemplate || isSendingTemplate}
+                              className="px-7 py-1.5 rounded-xl bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold text-sm shadow-[0_10px_20px_rgba(0,108,73,0.15)] hover:brightness-110 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                           >
+                              {isSendingTemplate ? "Sending..." : "Use Template"}
+                           </button>
+                        </div>
+                     </footer>
                   </div>
                </div>
-            )}
+            ), document.body)}
+
+            {isConfirmTemplateModalOpen && typeof document !== "undefined" && createPortal((
+               <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+                  <div className="bg-white w-full max-w-[520px] rounded-2xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
+                     <div className="px-6 py-4 flex justify-between items-center bg-slate-100 border-b border-slate-200">
+                        <h2 className="text-2xl font-bold text-slate-700">Confirm &amp; Send Message</h2>
+                        <button
+                           type="button"
+                           onClick={() => setIsConfirmTemplateModalOpen(false)}
+                           className="text-slate-500 hover:text-slate-700 transition-colors"
+                        >
+                           <XMarkIcon className="w-6 h-6" />
+                        </button>
+                     </div>
+
+                     <div className="p-5 space-y-4">
+                        <div>
+                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block mb-2">Recipient Summary</span>
+                           <div className="flex items-center gap-3 text-slate-800">
+                              <UserCircleIcon className="w-5 h-5 text-emerald-700" />
+                              <span className="text-sm">
+                                 Sending to: <span className="font-bold">{data?.name || "Unknown Contact"}</span>{recipientPhone ? ` (${recipientPhone})` : ""}
+                              </span>
+                           </div>
+                        </div>
+
+                        <div className="space-y-2">
+                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block">Message Preview</span>
+                           <div className="bg-emerald-50 rounded-xl p-3">
+                              <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white">
+                                 <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-tight">Verified Sender</span>
+                                 <SolidCheckCircle className="w-3.5 h-3.5 text-emerald-700" />
+                              </div>
+                              <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+                                 <p className="text-sm text-slate-800 leading-relaxed">{confirmPreviewText}</p>
+                                 <div className="flex items-center justify-end gap-1 mt-2">
+                                    <span className="text-[10px] text-slate-500">{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                                    <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+
+                        <div className="space-y-2">
+                           <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block">Delivery Options</span>
+                           <label className={`flex items-center gap-3 p-3 rounded-xl bg-slate-100 border-2 cursor-pointer ${deliveryMode === "now" ? "border-emerald-300" : "border-transparent"}`}>
+                              <input type="radio" name="deliveryMode" checked={deliveryMode === "now"} onChange={() => setDeliveryMode("now")} className="w-5 h-5 text-emerald-700 focus:ring-emerald-500 border-slate-300" />
+                              <div className="flex flex-col">
+                                 <span className="font-bold text-slate-800">Send Now</span>
+                                 <span className="text-xs text-slate-500">Message will be dispatched immediately</span>
+                              </div>
+                           </label>
+                           {deliveryMode === "schedule" && (
+                              <div className="border-2 border-emerald-500 rounded-2xl p-4 bg-white">
+                                 <div className="flex items-start justify-between mb-3">
+                                    <div className="flex items-center gap-3">
+                                       <span className="w-5 h-5 rounded-full border-2 border-emerald-600 flex items-center justify-center">
+                                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
+                                       </span>
+                                       <div className="flex flex-col">
+                                          <span className="font-bold text-slate-800">Schedule for later</span>
+                                          <span className="text-xs text-slate-500">Select a specific date and time for delivery</span>
+                                       </div>
+                                    </div>
+                                    <DocumentIcon className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                                 </div>
+                                 <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Date</p>
+                                       <input
+                                          type="date"
+                                          value={scheduleDate}
+                                          onChange={(e) => setScheduleDate(e.target.value)}
+                                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500"
+                                       />
+                                    </div>
+                                    <div>
+                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Time</p>
+                                       <input
+                                          type="time"
+                                          value={scheduleTime}
+                                          onChange={(e) => setScheduleTime(e.target.value)}
+                                          className="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-emerald-500"
+                                       />
+                                    </div>
+                                 </div>
+                              </div>
+                           )}
+                        </div>
+
+                        <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
+                           <InformationCircleIcon className="w-4 h-4 text-slate-500" />
+                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">1 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">617</span>.</p>
+                        </div>
+                        {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
+                     </div>
+
+                     <div className="px-6 py-4 bg-slate-100 flex items-center justify-end gap-3">
+                        <button
+                           type="button"
+                           onClick={() => setIsConfirmTemplateModalOpen(false)}
+                           className="px-6 py-2.5 rounded-full text-slate-700 font-medium hover:bg-slate-200 transition-colors"
+                        >
+                           Cancel
+                        </button>
+                        <button
+                           type="button"
+                           onClick={handleConfirmTemplateSend}
+                           disabled={isSendingTemplate}
+                           className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                           {deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now"}
+                           <PaperAirplaneIcon className="w-4 h-4" />
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            ), document.body)}
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
