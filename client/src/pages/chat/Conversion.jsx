@@ -1061,9 +1061,9 @@ const Conversion = ({
 
             {isConfirmTemplateModalOpen && typeof document !== "undefined" && createPortal((
                <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                  <div className="bg-white w-full max-w-[520px] rounded-2xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
-                     <div className="px-6 py-4 flex justify-between items-center bg-slate-100 border-b border-slate-200">
-                        <h2 className="text-2xl font-bold text-slate-700">Confirm &amp; Send Message</h2>
+                  <div className="bg-white w-full max-w-[520px] max-h-[95vh] rounded-2xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] flex flex-col overflow-hidden">
+                     <div className="px-4 sm:px-6 py-4 flex justify-between items-center bg-slate-100 border-b border-slate-200 shrink-0">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-700">Confirm &amp; Send Message</h2>
                         <button
                            type="button"
                            onClick={() => setIsConfirmTemplateModalOpen(false)}
@@ -1073,7 +1073,7 @@ const Conversion = ({
                         </button>
                      </div>
 
-                     <div className="p-5 space-y-4">
+                     <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
                         <div>
                            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block mb-2">Recipient Summary</span>
                            <div className="flex items-center gap-3 text-slate-800">
@@ -1159,11 +1159,11 @@ const Conversion = ({
                         {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
                      </div>
 
-                     <div className="px-6 py-4 bg-slate-100 flex items-center justify-end gap-3">
+                     <div className="px-4 sm:px-6 py-4 bg-slate-100 flex items-center justify-end gap-3 border-t border-slate-200 shrink-0">
                         <button
                            type="button"
                            onClick={() => setIsConfirmTemplateModalOpen(false)}
-                           className="px-6 py-2.5 rounded-full text-slate-700 font-medium hover:bg-slate-200 transition-colors"
+                           className="px-4 sm:px-6 py-2.5 rounded-full text-slate-700 font-medium hover:bg-slate-200 transition-colors text-sm sm:text-base"
                         >
                            Cancel
                         </button>
@@ -1171,7 +1171,7 @@ const Conversion = ({
                            type="button"
                            onClick={handleConfirmTemplateSend}
                            disabled={isSendingTemplate || isConfirmSending}
-                           className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                           className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-5 sm:px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
                         >
                            {isConfirmSending ? "Sending..." : (deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now")}
                            <PaperAirplaneIcon className="w-4 h-4" />
