@@ -255,7 +255,9 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         </span>
                       )}
                     </div>
-                    <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
+                     <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">
+                        {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : (chat.lastMsgTime || "")}
+                     </span>
                  </div>
                  <p className="text-xs truncate text-slate-500 font-medium">
                     {chat.lastMsg || "No messages yet"}
