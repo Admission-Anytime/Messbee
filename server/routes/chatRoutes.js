@@ -719,6 +719,36 @@ router.put("/:chatId/pin", async (req, res) => {
   }
 });
 
+// 5c. Toggle Mute Status
+router.put("/:chatId/mute", async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "Chat not found" });
+
+    chat.isMuted = !chat.isMuted;
+    await chat.save();
+
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to toggle mute status", details: error.message });
+  }
+});
+
+// 5d. Toggle Archive Status
+router.put("/:chatId/archive", async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "Chat not found" });
+
+    chat.chatStatus = chat.chatStatus === "archived" ? "open" : "archived";
+    await chat.save();
+
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to toggle archive status", details: error.message });
+  }
+});
+
 // 6. Assign team member
 router.put("/:chatId/assign", async (req, res) => {
   try {
