@@ -4,9 +4,21 @@ import { getCurrentUser, clearAuthData, logout } from "../services/authService";
 export const userContext = createContext();
 
 const Context = (props) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(false); // Changed to false for faster initial render
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [user, setUser] = useState(() => {
+    const cachedUser = localStorage.getItem("user");
+    if (cachedUser) {
+      try {
+        return JSON.parse(cachedUser);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(() => {
+    return !!localStorage.getItem("user");
+  });
   const [authChecked, setAuthChecked] = useState(false);
 
   // Load user data on mount - Non-blocking approach
