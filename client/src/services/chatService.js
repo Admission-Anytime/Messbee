@@ -406,6 +406,63 @@ const chatService = {
         error: error.response?.data?.message || error.message
       };
     }
+  },
+
+  /**
+   * Mute / Unmute a chat
+   */
+  async toggleMuteChat(chatId) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/mute`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error toggling mute status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Archive / Unarchive a chat
+   */
+  async toggleArchiveChat(chatId) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/archive`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error toggling archive status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Delete a chat
+   */
+  async deleteChat(chatId) {
+    try {
+      const response = await axios.delete(`/chats/${chatId}`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error deleting chat:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
   }
 };
 

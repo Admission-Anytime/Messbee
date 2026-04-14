@@ -4,9 +4,11 @@ import {
   ChevronRightIcon, 
   XMarkIcon,
   DocumentDuplicateIcon,
-  MapPinIcon
+  MapPinIcon,
+  EllipsisVerticalIcon
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import chatService from "../../services/chatService";
 
 const TABS = ["All Chats", "Mine", "Unread", "Active", "Resolved"];
 
@@ -20,16 +22,249 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState("");
   
+  // State for delete confirmation modal
+  const [chatToDelete, setChatToDelete] = useState(null);
+  
+  // State for chat options menu
+  const [openMenuId, setOpenMenuId] = useState(null);
+  const containerRef = useRef(null);
+  
+  // State for chat modifications (pin, mute, archive, delete)
+  const [chatModifications, setChatModifications] = useState({
+    pinned: {},
+    muted: {},
+    archived: {},
+    deleted: new Set(),
+    readChats: new Set()
+  });
+  
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Don't close if clicking inside the menu or on menu buttons
+      if (event.target.closest('[data-menu-button="true"]') || event.target.closest('[data-menu-content="true"]')) {
+        return;
+      }
+      setOpenMenuId(null);
+    };
+    
+    if (openMenuId) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [openMenuId]);
+
+  // Handler functions for menu options
+  const handleMuteChat = async (chatId, e) => {
+    e.stopPropagation();
+    console.log("✅ Mute clicked for chat:", chatId);
+    
+    const chat = chats.find(c => (c._id || c.id) === chatId);
+    
+    try {
+      // Update UI state with correct previous state
+      setChatModifications(prev => {
+        const isCurrentlyMuted = prev.muted[chatId] !== undefined 
+          ? prev.muted[chatId] 
+          : chat?.isMuted;
+          
+        return {
+          ...prev,
+          muted: {
+            ...prev.muted,
+            [chatId]: !isCurrentlyMuted
+          }
+        };
+      });
+      
+      setOpenMenuId(null);
+      console.log("✅ Chat muted/unmuted successfully:", chatId);
+      // API call
+      await chatService.toggleMuteChat(chatId);
+    } catch (error) {
+      console.error("❌ Failed to mute chat:", error);
+    }
+  };
+
+  const handleArchiveChat = async (chatId, e) => {
+    e.stopPropagation();
+    console.log("✅ Archive clicked for chat:", chatId);
+    
+    const chat = chats.find(c => (c._id || c.id) === chatId);
+    
+    try {
+      // Update UI state with correct previous state
+      setChatModifications(prev => {
+        const isCurrentlyArchived = prev.archived[chatId] !== undefined 
+          ? prev.archived[chatId] 
+          : chat?.chatStatus === 'archived';
+          
+        return {
+          ...prev,
+          archived: {
+            ...prev.archived,
+            [chatId]: !isCurrentlyArchived
+          }
+        };
+      });
+      
+      setOpenMenuId(null);
+      console.log("✅ Chat archived/unarchived successfully:", chatId);
+      // API call
+      await chatService.toggleArchiveChat(chatId);
+    } catch (error) {
+      console.error("❌ Failed to archive chat:", error);
+    }
+  };
+
+  const handleMarkAsRead = async (chatId, e) => {
+    e.stopPropagation();
+    console.log("✅ Mark as read clicked for chat:", chatId);
+    
+    try {
+      // Update UI state
+      setChatModifications(prev => {
+        const newReadChats = new Set(prev.readChats);
+        newReadChats.add(chatId);
+        return {
+          ...prev,
+          readChats: newReadChats
+        };
+      });
+      
+      setOpenMenuId(null);
+      console.log("✅ Chat marked as read successfully:", chatId);
+      // API call
+      await chatService.markMessagesAsRead(chatId);
+    } catch (error) {
+      console.error("❌ Failed to mark as read:", error);
+    }
+  };
+
+  const handlePinChat = async (chatId, e) => {
+    e.stopPropagation();
+    console.log("✅ Pin clicked for chat:", chatId);
+    
+    const chat = chats.find(c => (c._id || c.id) === chatId);
+    
+    try {
+      // Update UI state with correct previous state
+      setChatModifications(prev => {
+        const isCurrentlyPinned = prev.pinned[chatId] !== undefined 
+          ? prev.pinned[chatId] 
+          : chat?.isPinned;
+          
+        return {
+          ...prev,
+          pinned: {
+            ...prev.pinned,
+            [chatId]: !isCurrentlyPinned
+          }
+        };
+      });
+      
+      setOpenMenuId(null);
+      console.log("✅ Chat pinned/unpinned successfully:", chatId);
+      // API call
+      await chatService.toggleChatPin(chatId);
+    } catch (error) {
+      console.error("❌ Failed to pin chat:", error);
+    }
+  };
+
+  const handleDeleteChat = async (chatId, e) => {
+    e.stopPropagation();
+    console.log("✅ Delete clicked for chat:", chatId);
+    setOpenMenuId(null);
+    setChatToDelete(chatId);
+  };
+
+  const confirmDeleteChat = async () => {
+    if (!chatToDelete) return;
+    
+    try {
+      // Update UI state to hide the chat
+      setChatModifications(prev => {
+        const newDeleted = new Set(prev.deleted);
+        newDeleted.add(chatToDelete);
+        return {
+          ...prev,
+          deleted: newDeleted
+        };
+      });
+      
+      console.log("✅ Chat deleted successfully:", chatToDelete);
+      // API call
+      await chatService.deleteChat(chatToDelete);
+    } catch (error) {
+      console.error("❌ Failed to delete chat:", error);
+      // Revert deletion if API fails
+      setChatModifications(prev => {
+        const newDeleted = new Set(prev.deleted);
+        newDeleted.delete(chatToDelete);
+        return {
+          ...prev,
+          deleted: newDeleted
+        };
+      });
+    } finally {
+      setChatToDelete(null);
+    }
+  };
+  
   const displayChats = (chats || [])
     .filter((c) => {
+      const chatId = c._id || c.id;
       const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesSearch;
+      const isDeleted = chatModifications.deleted.has(chatId);
+      
+      const isCurrentlyArchived = chatModifications.archived[chatId] !== undefined 
+        ? chatModifications.archived[chatId] 
+        : (c.chatStatus === 'archived' || c.isArchived);
+        
+      return matchesSearch && !isDeleted && !isCurrentlyArchived;
     })
     .sort((a, b) => {
-      if (a.isPinned && !b.isPinned) return -1;
-      if (!a.isPinned && b.isPinned) return 1;
-      return 0; // Keep original order (which is usually by updatedAt from API)
+      const aId = a._id || a.id;
+      const bId = b._id || b.id;
+      
+      // Check pinned state from modifications or original data
+      const aIsPinned = chatModifications.pinned[aId] !== undefined 
+        ? chatModifications.pinned[aId] 
+        : a.isPinned;
+      const bIsPinned = chatModifications.pinned[bId] !== undefined 
+        ? chatModifications.pinned[bId] 
+        : b.isPinned;
+      
+      if (aIsPinned && !bIsPinned) return -1;
+      if (!aIsPinned && bIsPinned) return 1;
+      return 0;
     });
+  
+  // Helper function to get chat's unread count considering modifications
+  const getUnreadCount = (chat) => {
+    const chatId = chat._id || chat.id;
+    if (chatModifications.readChats.has(chatId)) {
+      return 0;
+    }
+    return chat.unread || 0;
+  };
+  
+  // Helper function to check if chat is pinned
+  const isChatPinned = (chat) => {
+    const chatId = chat._id || chat.id;
+    return chatModifications.pinned[chatId] !== undefined 
+      ? chatModifications.pinned[chatId] 
+      : chat.isPinned;
+  };
+  
+  // Helper function to check if chat is muted
+  const isChatMuted = (chat) => {
+    const chatId = chat._id || chat.id;
+    return chatModifications.muted[chatId] !== undefined 
+      ? chatModifications.muted[chatId] 
+      : chat.isMuted;
+  };
 
   const handleCreateNewChat = async () => {
     // Validate phone number
@@ -186,6 +421,37 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
         </div>
       )}
 
+      {/* --- 🔴 DELETE CONFIRMATION MODAL 🔴 --- */}
+      {chatToDelete && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 animate-in fade-in duration-200">
+            <div className="bg-white w-full max-w-[400px] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+                <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                    <h3 className="text-base font-bold text-slate-900">Delete Chat</h3>
+                    <button onClick={() => setChatToDelete(null)} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors -mr-1.5">
+                        <XMarkIcon className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6">
+                    <p className="text-sm text-slate-600">Are you sure you want to delete this conversation? This action cannot be undone and you will lose all the message history.</p>
+                </div>
+                <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/50 border-t border-slate-100 shrink-0">
+                    <button 
+                        onClick={() => setChatToDelete(null)} 
+                        className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-100"
+                    >
+                        Cancel
+                    </button>
+                    <button 
+                        onClick={confirmDeleteChat} 
+                        className="px-6 py-2.5 text-sm font-bold text-white bg-red-600 rounded-xl hover:bg-red-700 flex items-center gap-2 shadow-sm transition-colors"
+                    >
+                        Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       {/* 2. SEARCH BAR */}
       <div className="px-5 pb-4 shrink-0">
          <div className="relative bg-slate-50 rounded-xl flex items-center px-4 py-2.5 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
@@ -225,7 +491,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
              key={chat._id || chat.id} 
              onClick={() => onChatSelect(chat._id || chat.id)}
              className={`
-               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative
+               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative group
                ${activeChatId === (chat._id || chat.id) 
                  ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm" 
                  : "border-l-4 border-l-transparent hover:bg-slate-50"}
@@ -244,8 +510,15 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                  <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2 max-w-full overflow-hidden">
                       <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
-                      {chat.isPinned && (
-                        <MapPinIcon className="w-3.5 h-3.5 text-green-500 fill-green-500 shrink-0" />
+                      {isChatPinned(chat) && (
+                        <svg className="w-3.5 h-3.5 text-slate-400 shrink-0 rotate-45" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M16 11.232L16 6.5C16 5.119 14.881 4 13.5 4L10.5 4C9.119 4 8 5.119 8 6.5L8 11.232L6.113 15.006C5.556 16.12 6.368 17.5 7.618 17.5L11 17.5L11 21C11 21.552 11.448 22 12 22C12.552 22 13 21.552 13 21L13 17.5L16.382 17.5C17.632 17.5 18.444 16.12 17.887 15.006L16 11.232Z" />
+                        </svg>
+                      )}
+                      {isChatMuted(chat) && (
+                        <svg className="w-3.5 h-3.5 text-slate-400" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M13.5 4.06c0-1.336-1.616-2.256-2.73-1.72l-5.24 2.97A3 3 0 004 9.25v5.5a3 3 0 001.53 2.59l5.24 2.97c1.11.535 2.73-.384 2.73-1.72V4.06zM15.5 12c0-1.657.895-3.095 2.223-3.868l1.277 1.277a6 6 0 010 8.486l-1.277 1.277A3.996 3.996 0 0015.5 12z" />
+                        </svg>
                       )}
                       {chat.source === 'whatsapp' && (
                         <span className="text-xs">
@@ -255,9 +528,73 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         </span>
                       )}
                     </div>
-                     <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">
-                        {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : (chat.lastMsgTime || "")}
-                     </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : (chat.lastMsgTime || "")}</span>
+                      
+                      {/* Three Dot Menu Button */}
+                      <div className="relative">
+                        <button 
+                          data-menu-button="true"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const chatId = chat._id || chat.id;
+                            setOpenMenuId(openMenuId === chatId ? null : chatId);
+                          }}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded-md opacity-0 group-hover:opacity-100 transition-all hover:bg-slate-100"
+                          title="Chat options"
+                        >
+                          <EllipsisVerticalIcon className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Dropdown Menu */}
+                        {openMenuId === (chat._id || chat.id) && (
+                          <div data-menu-content="true" className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                            <button
+                              onClick={(e) => handlePinChat(chat._id || chat.id, e)}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                            >
+                              <MapPinIcon className="w-4 h-4" />
+                              {isChatPinned(chat) ? "Unpin Chat" : "Pin Chat"}
+                            </button>
+                            <button
+                              onClick={(e) => handleMarkAsRead(chat._id || chat.id, e)}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                            >
+                              <CheckCircleIcon className="w-4 h-4" />
+                              Mark as Read
+                            </button>
+                            <button
+                              onClick={(e) => handleMuteChat(chat._id || chat.id, e)}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.586 15H4a1 1 0 01-1-1V4a1 1 0 011-1h5V2a1 1 0 011-1h2a1 1 0 011 1v1h5a1 1 0 011 1v10a1 1 0 01-1 1h-1.586l4.707 4.707a1 1 0 01-1.414 1.414L17 16.414V20a2 2 0 01-2 2h-2a2 2 0 01-2-2v-3.586l-4.707 4.707a1 1 0 01-1.414-1.414L5.586 15z" />
+                              </svg>
+                              {isChatMuted(chat) ? "Unmute Chat" : "Mute Chat"}
+                            </button>
+                            <button
+                              onClick={(e) => handleArchiveChat(chat._id || chat.id, e)}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9-3h4" />
+                              </svg>
+                              Archive
+                            </button>
+                            <div className="border-t border-slate-200 my-1"></div>
+                            <button
+                              onClick={(e) => handleDeleteChat(chat._id || chat.id, e)}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                  </div>
                  <p className="text-xs truncate text-slate-500 font-medium">
                     {chat.lastMsg || "No messages yet"}
@@ -272,9 +609,9 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                          {chat.chatStatus}
                       </span>
                     )}
-                    {chat.unread > 0 && (
+                    {getUnreadCount(chat) > 0 && (
                         <span className="min-w-[1.25rem] h-5 px-1.5 bg-[#22C55E] text-white text-[10px] font-bold flex items-center justify-center rounded-full shadow-sm">
-                            {chat.unread}
+                            {getUnreadCount(chat)}
                         </span>
                     )}
                  </div>
