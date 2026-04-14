@@ -28,6 +28,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   // State for chat options menu
   const [openMenuId, setOpenMenuId] = useState(null);
   const containerRef = useRef(null);
+
+  // State for bulk selection
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedChats, setSelectedChats] = useState(new Set());
   
   // State for chat modifications (pin, mute, archive, delete)
   const [chatModifications, setChatModifications] = useState({
@@ -266,6 +270,66 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       : chat.isMuted;
   };
 
+  const handleBulkMarkAsRead = async () => {
+    if (selectedChats.size === 0) return;
+    
+    // Update UI state with read chats
+    setChatModifications(prev => {
+      const newReadChats = new Set(prev.readChats);
+      selectedChats.forEach(id => newReadChats.add(id));
+      return { ...prev, readChats: newReadChats };
+    });
+    
+    const chatsToUpdate = Array.from(selectedChats);
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+    
+    chatsToUpdate.forEach(async (chatId) => {
+      try {
+        await chatService.markMessagesAsRead(chatId);
+      } catch (error) {
+        console.error("❌ Failed to mark chat as read:", error);
+      }
+    });
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedChats.size === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedChats.size} selected chats?`)) {
+      // Optimistically delete from UI
+      setChatModifications(prev => {
+        const newDeleted = new Set(prev.deleted);
+        selectedChats.forEach(id => newDeleted.add(id));
+        return { ...prev, deleted: newDeleted };
+      });
+      
+      const chatsToDelete = Array.from(selectedChats);
+      setIsSelectionMode(false);
+      setSelectedChats(new Set());
+      
+      chatsToDelete.forEach(async (chatId) => {
+        try {
+          await chatService.deleteChat(chatId);
+        } catch (error) {
+          console.error("❌ Failed to bulk delete chat:", error);
+        }
+      });
+    }
+  };
+
+  const toggleSelection = (chatId, e) => {
+    if (e) e.stopPropagation();
+    setSelectedChats(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(chatId)) {
+        newSet.delete(chatId);
+      } else {
+        newSet.add(chatId);
+      }
+      return newSet;
+    });
+  };
+
   const handleCreateNewChat = async () => {
     // Validate phone number
     if (!newChatPhone || newChatPhone.length !== 10) {
@@ -305,22 +369,170 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     <div className="flex flex-col h-full bg-white relative font-sans">
       
       {/* 1. HEADER */}
-      <div className="h-16 flex items-center justify-between px-5 shrink-0 bg-white z-40 relative">
+      <div className="h-16 flex items-center justify-between px-5 shrink-0 bg-white z-40 relative border-b border-slate-50">
+         {isSelectionMode ? (
+            <div className="flex items-center justify-between w-full">
+               <div className="flex items-center gap-3">
+                  <button 
+                    onClick={() => { setIsSelectionMode(false); setSelectedChats(new Set()); }} 
+                    className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+                  >
+                     <XMarkIcon className="w-5 h-5" />
+                  </button>
+                  <span className="font-bold text-slate-700 text-sm">
+                     {selectedChats.size} selected
+                  </span>
+               </div>
+               <div className="flex items-center gap-1">
+                  <button 
+                     onClick={handleBulkMarkAsRead}
+                     className="p-1.5 text-slate-500 hover:text-[#22C55E] hover:bg-green-50 rounded-md transition-colors" 
+                     title="Mark selected as read"
+                     disabled={selectedChats.size === 0}
+                  >
+                     <CheckCircleIcon className="w-5 h-5" />
+                  </button>
+                  <button 
+                     onClick={handleBulkDelete}
+                     className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" 
+                     title="Delete selected"
+                     disabled={selectedChats.size === 0}
+                  >
+                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+               </div>
+            </div>
+         ) : (
+         <>
          <h2 className="text-xl font-extrabold text-slate-900">Chats</h2>
          
-         {/* ✅ NEW: Custom Chat-Plus Icon matching your screenshot exactly! */}
-         <button 
-            onClick={() => setIsNewChatModalOpen(true)} 
-            className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors" 
-            title="Start New Chat"
-         >
-             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                {/* Chat Bubble Body */}
-                <path d="M21 5.5C21 4.11929 19.8807 3 18.5 3H5.5C4.11929 3 3 4.11929 3 5.5V16.5C3 17.8807 4.11929 19 5.5 19H16.5L21 23.5V5.5Z" fill="currentColor"/>
-                {/* Inner Plus Sign */}
-                <path d="M12 8V14M9 11H15" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-             </svg>
-         </button>
+         <div className="flex items-center gap-2">
+            {/* Filter Dropdown */}
+            <div className="relative">
+               <button 
+                  onClick={() => setOpenMenuId(openMenuId === 'filter-menu' ? null : 'filter-menu')}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+                  title="Filter Chats"
+                  data-menu-button="true"
+               >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 01-.659 1.591l-5.432 5.432a2.25 2.25 0 00-.659 1.591v2.927a2.25 2.25 0 01-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 00-.659-1.591L3.659 7.409A2.25 2.25 0 013 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0112 3z" />
+                  </svg>
+               </button>
+
+               {/* Filter Dropdown Menu */}
+               {openMenuId === 'filter-menu' && (
+                  <div data-menu-content="true" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                     <button
+                        onClick={(e) => { e.stopPropagation(); setActiveTab("Unread"); setOpenMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                        </svg>
+                        Unread chats
+                     </button>
+                     <button
+                        onClick={(e) => { e.stopPropagation(); setActiveTab("Active"); setOpenMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Active chats
+                     </button>
+                     <div className="border-t border-slate-200 my-1"></div>
+                     <button
+                        onClick={(e) => { e.stopPropagation(); setActiveTab("All Chats"); setOpenMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        Clear Filters
+                     </button>
+                  </div>
+               )}
+            </div>
+
+            {/* NEW: Custom Chat-Plus Icon matching your screenshot exactly! */}
+            <button 
+               onClick={() => setIsNewChatModalOpen(true)} 
+               className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors" 
+               title="Start New Chat"
+            >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                   {/* Chat Bubble Body */}
+                   <path d="M21 5.5C21 4.11929 19.8807 3 18.5 3H5.5C4.11929 3 3 4.11929 3 5.5V16.5C3 17.8807 4.11929 19 5.5 19H16.5L21 23.5V5.5Z" fill="currentColor"/>
+                   {/* Inner Plus Sign */}
+                   <path d="M12 8V14M9 11H15" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+            </button>
+            
+            {/* Options Menu Button (Three Dots) */}
+            <div className="relative">
+               <button 
+                  onClick={() => setOpenMenuId(openMenuId === 'header-menu' ? null : 'header-menu')}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-md transition-colors"
+                  title="More Options"
+                  data-menu-button="true"
+               >
+                  <EllipsisVerticalIcon className="w-5 h-5" />
+               </button>
+               
+               {/* Dropdown Menu */}
+               {openMenuId === 'header-menu' && (
+                  <div data-menu-content="true" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                     <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          const ids = displayChats.map(c => c._id || c.id);
+                          setChatModifications(prev => {
+                            const newReadChats = new Set(prev.readChats);
+                            ids.forEach(id => newReadChats.add(id));
+                            return { ...prev, readChats: newReadChats };
+                          });
+                          ids.forEach(async (id) => {
+                             try { await chatService.markMessagesAsRead(id); } catch(err) {}
+                          });
+                          setOpenMenuId(null); 
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <CheckCircleIcon className="w-4 h-4" />
+                        Mark all as read
+                     </button>
+                     <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setOpenMenuId(null); 
+                          setIsSelectionMode(true);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        Select chats
+                     </button>
+                     <div className="border-t border-slate-200 my-1"></div>
+                     <button
+                        onClick={(e) => { 
+                          e.stopPropagation(); 
+                          setOpenMenuId(null); 
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Settings
+                     </button>
+                  </div>
+               )}
+            </div>
+         </div>
+         </>
+         )}
       </div>
 
       {/* --- 🟢 FLOATING NEW CHAT MODAL 🟢 --- */}
@@ -489,20 +701,36 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
          {displayChats.length > 0 ? displayChats.map((chat) => (
            <div 
              key={chat._id || chat.id} 
-             onClick={() => onChatSelect(chat._id || chat.id)}
+             onClick={() => {
+               if (isSelectionMode) {
+                 toggleSelection(chat._id || chat.id);
+               } else {
+                 onChatSelect(chat._id || chat.id);
+               }
+             }}
              className={`
                flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative group
-               ${activeChatId === (chat._id || chat.id) 
+               ${activeChatId === (chat._id || chat.id) && !isSelectionMode
                  ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm" 
                  : "border-l-4 border-l-transparent hover:bg-slate-50"}
+               ${isSelectionMode && selectedChats.has(chat._id || chat.id) ? "bg-slate-50" : ""}
              `}
            >
               {/* Avatar */}
-              <div className="relative shrink-0">
-                <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-12 h-12 rounded-full object-cover" />
-                {chat.status === 'active' && (
-                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
+              <div className="relative shrink-0 flex items-center">
+                {isSelectionMode && (
+                  <div className="mr-3" onClick={(e) => { e.stopPropagation(); toggleSelection(chat._id || chat.id, e); }}>
+                    <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${selectedChats.has(chat._id || chat.id) ? 'bg-[#22C55E] border-[#22C55E]' : 'border-slate-300 bg-white'}`}>
+                      {selectedChats.has(chat._id || chat.id) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                    </div>
+                  </div>
                 )}
+                <div className="relative">
+                  <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-12 h-12 rounded-full object-cover" />
+                  {chat.status === 'active' && (
+                    <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
+                  )}
+                </div>
               </div>
 
               {/* Chat Info */}
@@ -533,6 +761,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                       
                       {/* Three Dot Menu Button */}
                       <div className="relative">
+                        {!isSelectionMode && (
                         <button 
                           data-menu-button="true"
                           onClick={(e) => {
@@ -545,6 +774,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         >
                           <EllipsisVerticalIcon className="w-4 h-4" />
                         </button>
+                        )}
                         
                         {/* Dropdown Menu */}
                         {openMenuId === (chat._id || chat.id) && (
