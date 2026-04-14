@@ -587,7 +587,7 @@ const Chat = () => {
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; } .hide-scrollbar::-webkit-scrollbar { display: none; } `}</style>
 
       {/* LEFT: CONTACT LIST */}
-      <div className={`w-full md:w-[350px] lg:w-[380px] flex flex-col border-r border-slate-100 h-full bg-white shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
+      <div className="w-[330px] md:w-[350px] lg:w-[380px] flex flex-col border-r border-slate-100 h-full bg-white shrink-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -611,7 +611,7 @@ const Chat = () => {
       </div>
 
       {/* MIDDLE: CONVERSATION AREA */}
-      <div className={`flex-1 flex flex-col h-full bg-white relative min-w-0 ${!activeChatId ? 'hidden md:flex' : 'flex'}`}>
+      <div className="flex-1 flex flex-col h-full bg-white relative min-w-0">
         {/* WhatsApp Send Error Banner */}
         {sendError && (
           <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-5 py-3 rounded-2xl shadow-lg max-w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
