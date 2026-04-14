@@ -3,10 +3,10 @@ import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import {
-   PaperClipIcon, FaceSmileIcon, PhoneIcon, EllipsisVerticalIcon,
+   PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
    FolderIcon, ArchiveBoxIcon, LockClosedIcon, StarIcon, CheckCircleIcon,
-   MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, VideoCameraIcon, BoltIcon,
+   MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, BoltIcon,
    ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon,
    UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
 } from "@heroicons/react/24/outline";
@@ -700,8 +700,6 @@ const Conversion = ({
                      <button onClick={() => setIsSearchOpen(true)} className="p-1 rounded-full hover:text-slate-700 transition-colors" title="Search in chat">
                         <MagnifyingGlassIcon className="w-5 h-5" />
                      </button>
-                     <PhoneIcon className="w-6 h-6 cursor-pointer hover:text-slate-700 transition-colors" />
-                     <VideoCameraIcon className="w-7 h-7 cursor-pointer hover:text-slate-700 transition-colors" />
 
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
