@@ -529,7 +529,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                       )}
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : (chat.lastMsgTime || "")}</span>
+                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}</span>
                       
                       {/* Three Dot Menu Button */}
                       <div className="relative">
