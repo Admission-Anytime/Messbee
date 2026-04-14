@@ -78,11 +78,13 @@ const Conversion = ({
    const [showQuickReplies, setShowQuickReplies] = useState(false);
    const [showTemplates, setShowTemplates] = useState(false);
    const [templateSearch, setTemplateSearch] = useState("");
+  const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState("");
    const [templateCategory, setTemplateCategory] = useState("ALL");
    const [selectedTemplateId, setSelectedTemplateId] = useState(null);
    const [isSendingTemplate, setIsSendingTemplate] = useState(false);
    const [isConfirmTemplateModalOpen, setIsConfirmTemplateModalOpen] = useState(false);
    const [confirmTemplate, setConfirmTemplate] = useState(null);
+  const [isConfirmSending, setIsConfirmSending] = useState(false);
    const [deliveryMode, setDeliveryMode] = useState("now");
    const [scheduleDate, setScheduleDate] = useState("");
    const [scheduleTime, setScheduleTime] = useState("12:00");
@@ -154,6 +156,14 @@ const Conversion = ({
       return () => document.removeEventListener("mousedown", handleClickOutside);
    }, []);
 
+  useEffect(() => {
+     const timerId = window.setTimeout(() => {
+        setDebouncedTemplateSearch(templateSearch);
+     }, 180);
+
+     return () => window.clearTimeout(timerId);
+  }, [templateSearch]);
+
    // Sync applied labels from chat data
    useEffect(() => {
       if (data.labels && availableLabels.length > 0) {
@@ -209,28 +219,34 @@ const Conversion = ({
    };
 
    const handleConfirmTemplateSend = async () => {
-      if (!confirmTemplate?.name) return;
+      if (!confirmTemplate?.name || isConfirmSending) return;
+      setIsConfirmSending(true);
       setConfirmSendError("");
 
-      if (deliveryMode === "schedule") {
-         const scheduleValue = `${scheduleDate}T${scheduleTime}`;
-         const scheduledTime = new Date(scheduleValue).getTime();
-         const delayMs = scheduledTime - Date.now();
-         if (!scheduleDate || !scheduleTime || Number.isNaN(scheduledTime) || delayMs <= 0) {
-            setConfirmSendError("Please choose a future date and time.");
+      try {
+         if (deliveryMode === "schedule") {
+            const scheduleValue = `${scheduleDate}T${scheduleTime}`;
+            const scheduledTime = new Date(scheduleValue).getTime();
+            const delayMs = scheduledTime - Date.now();
+            if (!scheduleDate || !scheduleTime || Number.isNaN(scheduledTime) || delayMs <= 0) {
+               setConfirmSendError("Please choose a future date and time.");
+               return;
+            }
+
+            const safeDelay = Math.min(delayMs, 2147483647);
+            const scheduledTemplate = confirmTemplate;
+            window.setTimeout(() => {
+               handleTemplateSelect(scheduledTemplate);
+            }, safeDelay);
+            setIsConfirmTemplateModalOpen(false);
             return;
          }
 
-         const safeDelay = Math.min(delayMs, 2147483647);
-         window.setTimeout(() => {
-            handleTemplateSelect(confirmTemplate);
-         }, safeDelay);
+         await handleTemplateSelect(confirmTemplate);
          setIsConfirmTemplateModalOpen(false);
-         return;
+      } finally {
+         setIsConfirmSending(false);
       }
-
-      await handleTemplateSelect(confirmTemplate);
-      setIsConfirmTemplateModalOpen(false);
    };
 
    const handleFileChange = async (e) => {
@@ -542,19 +558,27 @@ const Conversion = ({
    }, [displayTemplates]);
 
    const filteredTemplates = useMemo(() => {
-      const query = templateSearch.trim().toLowerCase();
+      const query = debouncedTemplateSearch.trim().toLowerCase();
+      const normalizedQuery = query.replace(/[_\-\s]+/g, "");
       return displayTemplates.filter((template) => {
          const category = String(template?.category || "").toUpperCase();
          const name = String(template?.name || "");
          const bodyText = String(template?.bodyText || "");
+         const normalizedName = name.toLowerCase().replace(/[_\-\s]+/g, "");
          const categoryMatch = templateCategory === "ALL" || category === templateCategory;
-         const searchMatch = !query ||
-            name.toLowerCase().includes(query) ||
-            bodyText.toLowerCase().includes(query) ||
-            category.toLowerCase().includes(query);
+
+         // For short inputs, only search in template name to avoid noisy body-text matches like "Hello".
+         let searchMatch = !query || normalizedName.includes(normalizedQuery) || name.toLowerCase().includes(query);
+
+         if (!searchMatch && query.length >= 3) {
+            searchMatch =
+               bodyText.toLowerCase().includes(query) ||
+               category.toLowerCase().includes(query);
+         }
+
          return categoryMatch && searchMatch;
       });
-   }, [displayTemplates, templateCategory, templateSearch]);
+   }, [displayTemplates, templateCategory, debouncedTemplateSearch]);
 
    useEffect(() => {
       if (!showTemplates) return;
@@ -568,11 +592,13 @@ const Conversion = ({
    }, [showTemplates, filteredTemplates, selectedTemplateId]);
 
    const selectedTemplate = useMemo(() => {
-      return filteredTemplates.find((template) => template.id === selectedTemplateId) || filteredTemplates[0] || null;
+      return filteredTemplates.find((template) => template.id === selectedTemplateId) || null;
    }, [filteredTemplates, selectedTemplateId]);
 
-   const previewTitle = selectedTemplate?.name
-      ? selectedTemplate.name.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
+   const previewTemplate = selectedTemplate || filteredTemplates[0] || null;
+
+   const previewTitle = previewTemplate?.name
+      ? previewTemplate.name.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
       : "";
 
    const confirmPreviewText = useMemo(() => {
@@ -946,13 +972,13 @@ const Conversion = ({
                                  </div>
 
                                  <div className="flex-1 p-4 bg-slate-100 flex flex-col gap-4 overflow-hidden">
-                                    {selectedTemplate?.bodyText && (
+                                    {previewTemplate?.bodyText && (
                                        <div className="flex items-start gap-2">
                                           <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
                                              <MegaphoneIcon className="w-4.5 h-4.5 text-emerald-700" />
                                           </div>
                                           <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200">
-                                             {selectedTemplate.bodyText}
+                                             {previewTemplate.bodyText}
                                           </div>
                                        </div>
                                     )}
@@ -1046,21 +1072,25 @@ const Conversion = ({
                                  <span className="text-xs text-slate-500">Message will be dispatched immediately</span>
                               </div>
                            </label>
-                           {deliveryMode === "schedule" && (
-                              <div className="border-2 border-emerald-500 rounded-2xl p-4 bg-white">
-                                 <div className="flex items-start justify-between mb-3">
-                                    <div className="flex items-center gap-3">
-                                       <span className="w-5 h-5 rounded-full border-2 border-emerald-600 flex items-center justify-center">
-                                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-600" />
-                                       </span>
-                                       <div className="flex flex-col">
-                                          <span className="font-bold text-slate-800">Schedule for later</span>
-                                          <span className="text-xs text-slate-500">Select a specific date and time for delivery</span>
-                                       </div>
+                           <label className={`block p-3 rounded-xl bg-slate-100 border-2 cursor-pointer ${deliveryMode === "schedule" ? "border-emerald-300" : "border-transparent"}`}>
+                              <div className="flex items-start justify-between gap-3">
+                                 <div className="flex items-start gap-3">
+                                    <input
+                                       type="radio"
+                                       name="deliveryMode"
+                                       checked={deliveryMode === "schedule"}
+                                       onChange={() => setDeliveryMode("schedule")}
+                                       className="w-5 h-5 mt-0.5 text-emerald-700 focus:ring-emerald-500 border-slate-300"
+                                    />
+                                    <div className="flex flex-col">
+                                       <span className="font-bold text-slate-800">Schedule for later</span>
+                                       <span className="text-xs text-slate-500">Select a specific date and time for delivery</span>
                                     </div>
-                                    <DocumentIcon className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
                                  </div>
-                                 <div className="grid grid-cols-2 gap-3">
+                                 <DocumentIcon className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
+                              </div>
+                              {deliveryMode === "schedule" && (
+                                 <div className="grid grid-cols-2 gap-3 mt-3 pl-8">
                                     <div>
                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Select Date</p>
                                        <input
@@ -1080,8 +1110,8 @@ const Conversion = ({
                                        />
                                     </div>
                                  </div>
-                              </div>
-                           )}
+                              )}
+                           </label>
                         </div>
 
                         <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
@@ -1102,10 +1132,10 @@ const Conversion = ({
                         <button
                            type="button"
                            onClick={handleConfirmTemplateSend}
-                           disabled={isSendingTemplate}
+                           disabled={isSendingTemplate || isConfirmSending}
                            className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
-                           {deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now"}
+                           {isConfirmSending ? "Sending..." : (deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now")}
                            <PaperAirplaneIcon className="w-4 h-4" />
                         </button>
                      </div>
@@ -1208,7 +1238,7 @@ const Conversion = ({
                          )}
                      </div>
                      <div className="w-[320px] border-l border-slate-100 bg-white flex flex-col shrink-0">
-                        <div className="p-6 border-b border-slate-100">
+            <div className="p-6 border-b border-slate-100">
                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Asset Preview</h3>
                            <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
                               {uploadingFile ? (
