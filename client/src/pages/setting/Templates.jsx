@@ -195,9 +195,8 @@ const Templates = ({ activeTab, }) => {
                 disabled={loading}
                 className="flex items-center gap-2 text-gray-600 border border-gray-200 hover:bg-gray-50 px-3 md:px-4 py-2 rounded-lg transition-all font-semibold text-sm disabled:opacity-50"
               >
-                <RotateCw size={16} className={`md:hidden ${loading ? 'animate-spin' : ''}`} />
-                <RotateCw size={18} className={`hidden md:block ${loading ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">{loading ? 'Syncing...' : 'Sync'}</span>
+                <RotateCw size={16} className={loading ? 'animate-spin' : ''} />
+                <span>{loading ? 'Syncing...' : 'Sync'}</span>
               </button>
               
               {/* FIXED BUTTON: Ab yeh direct navigation handle  */}
@@ -205,10 +204,8 @@ const Templates = ({ activeTab, }) => {
                 onClick={() => navigate('/admin/templates/create')} 
                 className="flex items-center gap-1.5 md:gap-2 bg-[#10B981] hover:bg-[#059669] text-white px-3 md:px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm whitespace-nowrap"
               >
-                <Plus size={16} className="md:hidden" />
-                <Plus size={18} className="hidden md:block" />
-                <span className="hidden sm:inline">Create Template</span>
-                <span className="sm:hidden">Create</span>
+                <Plus size={16} />
+                <span>Create Template</span>
               </button>
             </div>
           </div>
@@ -256,7 +253,7 @@ const Templates = ({ activeTab, }) => {
               </div>
             ) : (
               <table className="w-full table-fixed text-left border-collapse">
-                <thead className="bg-gray-50/50 sticky top-0 border-b border-gray-200">
+                <thead className="bg-white sticky top-0 z-10 border-b border-gray-200">
                   <tr>
                     <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
                     <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Update Date</th>
@@ -308,6 +305,7 @@ const Templates = ({ activeTab, }) => {
                   <MobilePreview 
                     name={selectedTemplate?.name} 
                     headerType={selectedTemplate?.headerType || 'None'}
+                    headerMediaUrl={selectedTemplate?.headerMediaUrl || ''}
                     footerText={selectedTemplate?.footerText || ''}
                     buttons={selectedTemplate?.buttons || []}
                     body={selectedTemplate?.bodyText || ''} 
@@ -336,7 +334,7 @@ const Templates = ({ activeTab, }) => {
 };
 
 // --- MOBILE PREVIEW COMPONENT ---
-const MobilePreview = ({ name, body, headerType, footerText, buttons=[] }) => {
+const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons=[] }) => {
   const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
   const isTextHeader = headerType === 'Text';
 
@@ -367,10 +365,35 @@ const MobilePreview = ({ name, body, headerType, footerText, buttons=[] }) => {
       <div className="p-3 sm:p-4 overflow-y-auto flex-1 pb-14 no-scrollbar">
         <div className="bg-white rounded-xl rounded-tl-sm shadow-md overflow-hidden max-w-[94%]">
           {isMedia && (
-            <div className="h-28 sm:h-36 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center text-gray-300 gap-1.5 border-b border-gray-200/50">
-                <ImageIcon size={32} className="opacity-30"/>
-                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{headerType}</span>
-            </div>
+            <>
+              {headerType === 'Image' && headerMediaUrl ? (
+                <img
+                  src={headerMediaUrl}
+                  alt={`${name || 'template'} header`}
+                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/50"
+                />
+              ) : headerType === 'Video' && headerMediaUrl ? (
+                <video
+                  src={headerMediaUrl}
+                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/50 bg-black"
+                  autoPlay
+                  muted
+                  loop
+                  playsInline
+                />
+              ) : headerType === 'Document' && headerMediaUrl ? (
+                <div className="h-28 sm:h-36 w-full border-b border-gray-200/50 bg-red-50 flex flex-col items-center justify-center gap-1.5">
+                  <span className="text-xl">📄</span>
+                  <span className="text-[9px] font-semibold text-red-700 uppercase tracking-wide">Document</span>
+                  <span className="text-[8px] text-red-500 font-medium">Uploaded file preview</span>
+                </div>
+              ) : (
+                <div className="h-28 sm:h-36 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center text-gray-300 gap-1.5 border-b border-gray-200/50">
+                  <ImageIcon size={32} className="opacity-30"/>
+                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{headerType}</span>
+                </div>
+              )}
+            </>
           )}
           <div className="p-3 sm:p-3.5">
             {isTextHeader && (
@@ -407,14 +430,6 @@ const MobilePreview = ({ name, body, headerType, footerText, buttons=[] }) => {
         </div>
       </div>
       
-      {/* WhatsApp Bottom Bar */}
-      <div className="absolute bottom-0 left-0 right-0 bg-[#F0F0F0] px-3 py-2 border-t border-gray-200/50">
-        <div className="bg-white rounded-full px-3 py-2 flex items-center gap-2 shadow-sm">
-          <div className="w-5 h-5 rounded-full bg-gray-200/50"></div>
-          <div className="flex-1 h-3 bg-gray-100 rounded"></div>
-          <div className="w-5 h-5 rounded-full bg-gray-200/50"></div>
-        </div>
-      </div>
     </div>
   </div>
 )};

@@ -1,5 +1,32 @@
 import axios from "../context/axios";
 
+const TEMPLATE_HEADER_PREVIEW_CACHE_KEY = 'templateHeaderPreviewCache';
+const runtimeHeaderPreviewCache = {};
+const MAX_LOCALSTORAGE_PREVIEW_LENGTH = 120000;
+
+const getTemplateHeaderPreviewCache = () => {
+  const runtimeCache = { ...runtimeHeaderPreviewCache };
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(TEMPLATE_HEADER_PREVIEW_CACHE_KEY);
+    const persisted = raw ? JSON.parse(raw) : {};
+    return { ...persisted, ...runtimeCache };
+  } catch (error) {
+    console.warn('⚠️ [TemplateApi] Failed to read template preview cache:', error);
+    return runtimeCache;
+  }
+};
+
+const isRenderableMediaUrl = (value) =>
+  typeof value === 'string' &&
+  (
+    value.startsWith('http://') ||
+    value.startsWith('https://') ||
+    value.startsWith('data:image/') ||
+    value.startsWith('data:video/') ||
+    value.startsWith('data:application/')
+  );
+
 /**
  * WhatsApp Template API Service
  * Manages template creation, fetching, and deletion
@@ -119,6 +146,43 @@ export const saveLocalTemplate = (_template) => {
 };
 
 /**
+ * Save local header preview by template name (client-side fallback)
+ */
+export const saveTemplateHeaderPreview = (templateName, previewData) => {
+  if (typeof window === 'undefined') return;
+  if (!templateName || !previewData) return;
+
+  const normalizedPreview = typeof previewData === 'string'
+    ? { url: previewData, type: 'Image' }
+    : {
+        url: previewData?.url || '',
+        type: previewData?.type || 'Image'
+      };
+
+  if (!normalizedPreview.url) return;
+
+  const normalizedKey = String(templateName).trim().toLowerCase();
+  runtimeHeaderPreviewCache[templateName] = normalizedPreview;
+  runtimeHeaderPreviewCache[normalizedKey] = normalizedPreview;
+
+  try {
+    const cache = getTemplateHeaderPreviewCache();
+    cache[templateName] = normalizedPreview;
+    cache[normalizedKey] = normalizedPreview;
+    const serialized = JSON.stringify(cache);
+
+    // Prevent storage quota overflow for large data URLs (image/video previews).
+    if (serialized.length > MAX_LOCALSTORAGE_PREVIEW_LENGTH) {
+      console.warn('⚠️ [TemplateApi] Preview cache too large for localStorage; using runtime cache only.');
+      return;
+    }
+    localStorage.setItem(TEMPLATE_HEADER_PREVIEW_CACHE_KEY, serialized);
+  } catch (error) {
+    console.warn('⚠️ [TemplateApi] Failed to save template preview cache:', error);
+  }
+};
+
+/**
  * Delete a WhatsApp template from the business account
  * WARNING: This action is permanent and cannot be undone
  * @param {string} templateId - Template ID to delete
@@ -168,17 +232,19 @@ const formatStatus = (status) => {
  */
 export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => {
   console.log('📋 [TemplateApi] Using ONLY WhatsApp API templates');
+  const headerPreviewCache = getTemplateHeaderPreviewCache();
 
   const parseTemplateComponents = (components = []) => {
     const safeComponents = Array.isArray(components) ? components : [];
 
-    const bodyComponent = safeComponents.find((c) => c?.type === 'BODY');
-    const footerComponent = safeComponents.find((c) => c?.type === 'FOOTER');
-    const headerComponent = safeComponents.find((c) => c?.type === 'HEADER');
-    const buttonComponent = safeComponents.find((c) => c?.type === 'BUTTONS');
+    const bodyComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'BODY');
+    const footerComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'FOOTER');
+    const headerComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'HEADER');
+    const buttonComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'BUTTONS');
 
-    const headerType = headerComponent?.format
-      ? String(headerComponent.format).charAt(0) + String(headerComponent.format).slice(1).toLowerCase()
+    const normalizedHeaderFormat = String(headerComponent?.format || '').toUpperCase();
+    const headerType = normalizedHeaderFormat
+      ? normalizedHeaderFormat.charAt(0) + normalizedHeaderFormat.slice(1).toLowerCase()
       : 'None';
 
     const mappedButtons = Array.isArray(buttonComponent?.buttons)
@@ -196,10 +262,18 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         })
       : [];
 
+    const mediaUrlCandidate =
+      headerComponent?.example?.header_handle?.[0] ||
+      headerComponent?.example?.header_url?.[0] ||
+      headerComponent?.example?.url?.[0] ||
+      '';
+    const mediaUrl = isRenderableMediaUrl(mediaUrlCandidate) ? mediaUrlCandidate : '';
+
     return {
       bodyText: bodyComponent?.text || '',
       footerText: footerComponent?.text || '',
       headerType,
+      headerMediaUrl: mediaUrl,
       buttons: mappedButtons
     };
   };
@@ -208,6 +282,31 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
     .filter(template => template && template.id && template.name)
     .map((template) => {
       const componentData = parseTemplateComponents(template.components || []);
+      const normalizedName = String(template.name || '').trim();
+      const cachedPreviewEntry =
+        headerPreviewCache[normalizedName] ||
+        headerPreviewCache[normalizedName.toLowerCase()] ||
+        null;
+      const cachedPreviewUrl =
+        typeof cachedPreviewEntry === 'string'
+          ? cachedPreviewEntry
+          : (cachedPreviewEntry?.url || '');
+      const cachedPreviewType =
+        typeof cachedPreviewEntry === 'string'
+          ? 'Image'
+          : String(cachedPreviewEntry?.type || '').trim();
+      const resolvedHeaderMediaUrl = componentData.headerMediaUrl || cachedPreviewUrl;
+      const templateLevelHeaderType = String(template.header_type || template.headerType || '').toUpperCase();
+      const apiHeaderType = componentData.headerType !== 'None'
+        ? componentData.headerType
+        : (templateLevelHeaderType ? templateLevelHeaderType.charAt(0) + templateLevelHeaderType.slice(1).toLowerCase() : 'None');
+
+      // If API does not return media HEADER metadata but we have cached media preview,
+      // infer its type from cache so list preview can render image/video properly.
+      const resolvedHeaderType = apiHeaderType === 'None' && resolvedHeaderMediaUrl
+        ? (cachedPreviewType || 'Image')
+        : apiHeaderType;
+
       return {
         id: template.id,
         name: template.name,
@@ -230,7 +329,8 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         components: template.components || [],
         bodyText: componentData.bodyText,
         footerText: componentData.footerText,
-        headerType: componentData.headerType,
+        headerType: resolvedHeaderType,
+        headerMediaUrl: resolvedHeaderMediaUrl,
         buttons: componentData.buttons
       };
     });
