@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate } from '../../services/TemplateApi';
+import { createWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
 const Templates = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -178,6 +178,13 @@ const Templates = () => {
     }
   };
 
+  const triggerHeaderMediaPicker = () => {
+    if (!headerFileRef.current) return;
+    // Allow selecting the same file again after "Change" click.
+    headerFileRef.current.value = '';
+    headerFileRef.current.click();
+  };
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
@@ -282,6 +289,11 @@ const Templates = () => {
 
     try {
       const components = [];
+      const mediaHeaderExamples = {
+        Image: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=80',
+        Video: 'https://samplelib.com/lib/preview/mp4/sample-5s.mp4',
+        Document: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
+      };
       
       // Add HEADER component only if valid
       if (formData.headerType && formData.headerType !== 'None') {
@@ -293,19 +305,22 @@ const Templates = () => {
             text: formData.name.substring(0, 60) // Max 60 chars for header
           });
         } else if (formData.headerType === 'Image') {
-          // IMAGE header format: just type and format (no example in creation)
+          // Keep media header payload minimal; invalid sample handles/URLs often trigger
+          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'IMAGE'
           });
         } else if (formData.headerType === 'Video') {
-          // VIDEO header format: just type and format
+          // Keep media header payload minimal; invalid sample handles/URLs often trigger
+          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'VIDEO'
           });
         } else if (formData.headerType === 'Document') {
-          // DOCUMENT header format: just type and format
+          // Keep media header payload minimal; invalid sample handles/URLs often trigger
+          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'DOCUMENT'
@@ -350,8 +365,87 @@ const Templates = () => {
       };
 
       console.log('📤 Sending template payload:', JSON.stringify(templatePayload, null, 2));
+      let createdTemplateResponse = null;
+      try {
+        createdTemplateResponse = await createWhatsAppTemplate(templatePayload);
+      } catch (primaryError) {
+        const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
+        const payloadWithoutHeader = {
+          ...templatePayload,
+          components: templatePayload.components.filter((c) => c.type !== 'HEADER')
+        };
+        const payloadBodyFooterOnly = {
+          ...templatePayload,
+          components: templatePayload.components.filter((c) => c.type === 'BODY' || c.type === 'FOOTER')
+        };
+        const payloadBodyOnlySanitized = {
+          ...templatePayload,
+          components: [{ type: 'BODY', text: strippedBody }]
+        };
 
-      await createWhatsAppTemplate(templatePayload);
+        const isInvalidParameterError = (error) =>
+          String(
+            error?.response?.data?.error?.message ||
+            error?.response?.data?.message ||
+            ''
+          ).toLowerCase().includes('invalid parameter');
+
+        let recovered = false;
+
+        if (hasMediaHeader) {
+          try {
+            console.warn('⚠️ Media header template creation failed, retrying without HEADER component');
+            createdTemplateResponse = await createWhatsAppTemplate(payloadWithoutHeader);
+            toast.warn('Template created without media header sample due to WhatsApp validation constraints.');
+            recovered = true;
+          } catch (errorWithoutHeader) {
+            primaryError = errorWithoutHeader;
+          }
+        }
+
+        if (!recovered && isInvalidParameterError(primaryError)) {
+          try {
+            console.warn('⚠️ Invalid parameter from WhatsApp API, retrying with BODY/FOOTER only');
+            createdTemplateResponse = await createWhatsAppTemplate(payloadBodyFooterOnly);
+            toast.warn('Template created with simplified components due to WhatsApp parameter validation.');
+            recovered = true;
+          } catch (errorBodyFooter) {
+            primaryError = errorBodyFooter;
+          }
+        }
+
+        if (!recovered && isInvalidParameterError(primaryError)) {
+          try {
+            console.warn('⚠️ Invalid parameter persists, retrying with sanitized BODY-only payload');
+            createdTemplateResponse = await createWhatsAppTemplate(payloadBodyOnlySanitized);
+            toast.warn('Template created with BODY-only payload due to WhatsApp parameter validation.');
+            recovered = true;
+          } catch (errorBodyOnly) {
+            primaryError = errorBodyOnly;
+          }
+        }
+
+        if (!recovered) {
+          throw primaryError;
+        }
+      }
+
+      if (['Image', 'Video', 'Document'].includes(formData.headerType)) {
+        const actualCreatedName =
+          createdTemplateResponse?.templateName ||
+          createdTemplateResponse?.data?.name ||
+          waName;
+        const previewByType = {
+          Image: headerMedia?.preview || mediaHeaderExamples.Image,
+          Video: headerMedia?.preview || mediaHeaderExamples.Video,
+          Document: headerMedia?.preview || mediaHeaderExamples.Document
+        };
+
+        saveTemplateHeaderPreview(actualCreatedName, {
+          url: previewByType[formData.headerType],
+          type: formData.headerType
+        });
+      }
       
       // Template created successfully on WhatsApp API
       // No need to save locally - always fetch from API
@@ -363,16 +457,29 @@ const Templates = () => {
     } catch (error) {
       console.error("Template Creation Error:", error?.response?.data || error);
       const waError = error?.response?.data?.error || {};
+      const nestedWaError = waError?.error || {};
       const errorSubcode = waError?.errorSubcode ?? waError?.error_subcode;
-      const errorMsg = waError?.message || error?.response?.data?.message;
+      const errorMsg =
+        waError?.message ||
+        nestedWaError?.message ||
+        waError?.error_user_msg ||
+        nestedWaError?.error_user_msg ||
+        waError?.error_data?.details ||
+        nestedWaError?.error_data?.details ||
+        error?.response?.data?.message;
       const suggestedName = waError?.suggestedName;
       
       // Default error message
-      let errorMessage = error?.response?.data?.message || errorMsg || "Failed to create template on WhatsApp. Please try again.";
+      let errorMessage =
+        errorMsg ||
+        error?.response?.data?.message ||
+        "Failed to create template on WhatsApp. Please try again.";
       
       // Handle specific WhatsApp error codes with actionable guidance
       if (errorSubcode === 2388023) {
         errorMessage = `Template language is being deleted on WhatsApp for this name. Please wait 1-3 minutes and retry with the same name.${suggestedName ? `\n\nSuggested alternate name (manual): ${suggestedName}` : ''}`;
+      } else if (errorSubcode === 2388024) {
+        errorMessage = `Template content already exists in this language for the same name.${suggestedName ? `\n\nTry this alternate name: ${suggestedName}` : '\n\nPlease change template name and retry.'}`;
       }
       
       toast.error(errorMessage);
@@ -584,18 +691,18 @@ const Templates = () => {
 
                         {formData.headerType !== 'None' && formData.headerType !== 'Text' && (
                           <div className="mt-6 space-y-4">
+                            <input 
+                              ref={headerFileRef}
+                              type="file" 
+                              hidden 
+                              accept={formData.headerType === 'Image' ? 'image/*' : formData.headerType === 'Video' ? 'video/*' : '*'}
+                              onChange={handleHeaderMediaUpload}
+                            />
                             {!headerMedia ? (
                               <div 
-                                onClick={() => headerFileRef.current?.click()}
+                                onClick={triggerHeaderMediaPicker}
                                 className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
                               >
-                                <input 
-                                  ref={headerFileRef}
-                                  type="file" 
-                                  hidden 
-                                  accept={formData.headerType === 'Image' ? 'image/*' : formData.headerType === 'Video' ? 'video/*' : '*'}
-                                  onChange={handleHeaderMediaUpload}
-                                />
                                 <div className="flex flex-col items-center gap-2">
                                   <ImageIcon size={32} className="text-gray-400"/>
                                   <p className="text-sm font-semibold text-gray-700">Click to upload {formData.headerType.toLowerCase()}</p>
@@ -632,7 +739,7 @@ const Templates = () => {
                                 </div>
                                 <button 
                                   type="button"
-                                  onClick={() => headerFileRef.current?.click()}
+                                  onClick={triggerHeaderMediaPicker}
                                   className="w-full p-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                                 >
                                   Change {formData.headerType}
