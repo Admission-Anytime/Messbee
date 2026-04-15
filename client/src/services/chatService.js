@@ -125,10 +125,13 @@ const chatService = {
         data: response.data.data || response.data
       };
     } catch (error) {
-      console.error('Error sending media message:', error);
+      const serverData = error.response?.data;
+      console.error('Error sending media message:', serverData || error.message);
       return {
         success: false,
-        error: error.response?.data?.error || error.message
+        error: serverData?.error || error.response?.data?.message || error.message,
+        errorCode: serverData?.errorCode,
+        data: serverData?.data  // The saved (failed) message object from DB
       };
     }
   },
@@ -221,6 +224,7 @@ const chatService = {
       return {
         success: true,
         mediaId: response.data.mediaId,
+        whatsappMediaId: response.data.whatsappMediaId,
         fileUrl: response.data.fileUrl,
         fileName: response.data.fileName,
         mimeType: response.data.mimeType
