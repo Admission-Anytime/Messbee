@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   MagnifyingGlassIcon, 
   ChevronRightIcon, 
   XMarkIcon,
-  DocumentDuplicateIcon,
   MapPinIcon,
   EllipsisVerticalIcon
 } from "@heroicons/react/24/outline";
@@ -11,6 +10,20 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import chatService from "../../services/chatService";
 
 const TABS = ["All Chats", "Mine", "Unread", "Active", "Resolved"];
+const CREATED_AT_FILTERS = [
+  { value: "all", label: "All time" },
+  { value: "today", label: "Today" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "90d", label: "Last 90 days" }
+];
+const LAST_SEEN_FILTERS = [
+  { value: "all", label: "Any time" },
+  { value: "online", label: "Online now" },
+  { value: "24h", label: "Last 24 hours" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" }
+];
 
 const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat }) => {
   const [searchTerm, setSearchTerm] = useState("");
@@ -27,17 +40,61 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   
   // State for chat options menu
   const [openMenuId, setOpenMenuId] = useState(null);
-  const containerRef = useRef(null);
+  const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+
+  const [quickFilters, setQuickFilters] = useState({
+    unreadChats: false,
+    openSessionChats: false,
+    pinnedChats: false,
+    mutedChats: false,
+    unassignedChats: false,
+    whatsappSource: false,
+    archivedChats: false,
+    blockedChats: false
+  });
+
+  const [advancedFilters, setAdvancedFilters] = useState({
+    status: new Set(),
+    labels: new Set(),
+    teamMembers: new Set(),
+    contactSource: new Set(),
+    createdAt: "all",
+    lastSeen: "all"
+  });
 
   // State for bulk selection
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedChats, setSelectedChats] = useState(new Set());
+  const [bulkActionModal, setBulkActionModal] = useState({
+    isOpen: false,
+    type: null
+  });
+  const [bulkActionForm, setBulkActionForm] = useState({
+    status: "",
+    labels: "",
+    customFieldKey: "",
+    customFieldValue: "",
+    teamMember: "",
+    campaignName: "",
+    campaignMode: "now",
+    campaignScheduleAt: ""
+  });
+  const [appNotice, setAppNotice] = useState({
+    isOpen: false,
+    type: "info",
+    message: ""
+  });
   
   // State for chat modifications (pin, mute, archive, delete)
   const [chatModifications, setChatModifications] = useState({
     pinned: {},
     muted: {},
     archived: {},
+    status: {},
+    labels: {},
+    teamMembers: {},
+    customFields: {},
+    unreadForced: {},
     deleted: new Set(),
     readChats: new Set()
   });
@@ -57,6 +114,220 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       return () => document.removeEventListener("mousedown", handleClickOutside);
     }
   }, [openMenuId]);
+
+  useEffect(() => {
+    if (!appNotice.isOpen) return;
+    const timeoutId = setTimeout(() => {
+      setAppNotice((prev) => ({ ...prev, isOpen: false }));
+    }, 3000);
+    return () => clearTimeout(timeoutId);
+  }, [appNotice.isOpen]);
+
+  const normalizedChats = chats || [];
+
+  const toTitleCase = (text) => {
+    if (!text || typeof text !== "string") return "Unknown";
+    return text
+      .replace(/[_-]+/g, " ")
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+      .join(" ");
+  };
+
+  const getChatLabels = (chat) => {
+    const chatId = chat._id || chat.id;
+    if (Array.isArray(chatModifications.labels[chatId])) {
+      return chatModifications.labels[chatId];
+    }
+    if (Array.isArray(chat.labels)) {
+      return chat.labels
+        .map((label) => (typeof label === "string" ? label : label?.name))
+        .filter(Boolean);
+    }
+    if (chat.label && typeof chat.label === "string") {
+      return [chat.label];
+    }
+    return [];
+  };
+
+  const getTeamMember = (chat) => {
+    const chatId = chat._id || chat.id;
+    if (chatModifications.teamMembers[chatId] !== undefined) {
+      return chatModifications.teamMembers[chatId] || "Unassigned";
+    }
+    return (
+      chat?.assignee?.name ||
+      chat?.assignedTo?.name ||
+      chat?.assignedToName ||
+      chat?.agentName ||
+      chat?.ownerName ||
+      "Unassigned"
+    );
+  };
+
+  const getChatSource = (chat) => {
+    return chat?.source || chat?.contactSource || "unknown";
+  };
+
+  const getCreatedDate = (chat) => {
+    const createdValue = chat?.createdAt || chat?.created_at;
+    const date = createdValue ? new Date(createdValue) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  };
+
+  const getLastSeenDate = (chat) => {
+    const lastSeenValue = chat?.lastSeen || chat?.lastSeenAt || chat?.updatedAt;
+    const date = lastSeenValue ? new Date(lastSeenValue) : null;
+    return date && !Number.isNaN(date.getTime()) ? date : null;
+  };
+
+  const getChatUnreadCount = (chat) => {
+    const chatId = chat._id || chat.id;
+    if (chatModifications.unreadForced[chatId]) {
+      return Math.max(1, chat.unread || 0);
+    }
+    if (chatModifications.readChats.has(chatId)) {
+      return 0;
+    }
+    return chat.unread || 0;
+  };
+
+  const getChatStatus = (chat) => {
+    const chatId = chat._id || chat.id;
+    const status = chatModifications.status[chatId] ?? chat.chatStatus ?? chat.status ?? "";
+    return String(status).toLowerCase();
+  };
+
+  const getIsPinned = (chat) => {
+    const chatId = chat._id || chat.id;
+    return chatModifications.pinned[chatId] !== undefined
+      ? chatModifications.pinned[chatId]
+      : !!chat.isPinned;
+  };
+
+  const getIsMuted = (chat) => {
+    const chatId = chat._id || chat.id;
+    return chatModifications.muted[chatId] !== undefined
+      ? chatModifications.muted[chatId]
+      : !!chat.isMuted;
+  };
+
+  const getIsArchived = (chat) => {
+    const chatId = chat._id || chat.id;
+    if (chatModifications.archived[chatId] !== undefined) {
+      return chatModifications.archived[chatId];
+    }
+    return chat.chatStatus === "archived" || !!chat.isArchived;
+  };
+
+  const uniqueLabels = [...new Set(normalizedChats.flatMap((chat) => getChatLabels(chat)))].sort();
+  const uniqueTeamMembers = [...new Set(normalizedChats.map((chat) => getTeamMember(chat)))].sort();
+  const uniqueContactSources = [...new Set(normalizedChats.map((chat) => getChatSource(chat)))].sort();
+  const uniqueStatuses = [
+    ...new Set(
+      normalizedChats
+        .map((chat) => getChatStatus(chat))
+        .filter((status) => !!status)
+    )
+  ].sort();
+
+  const toggleSetFilter = (filterKey, value) => {
+    setAdvancedFilters((prev) => {
+      const nextSet = new Set(prev[filterKey]);
+      if (nextSet.has(value)) {
+        nextSet.delete(value);
+      } else {
+        nextSet.add(value);
+      }
+      return {
+        ...prev,
+        [filterKey]: nextSet
+      };
+    });
+  };
+
+  const toggleQuickFilter = (key) => {
+    setQuickFilters((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const resetQuickFilters = () => {
+    setQuickFilters({
+      unreadChats: false,
+      openSessionChats: false,
+      pinnedChats: false,
+      mutedChats: false,
+      unassignedChats: false,
+      whatsappSource: false,
+      archivedChats: false,
+      blockedChats: false
+    });
+  };
+
+  const resetAdvancedFilters = () => {
+    setAdvancedFilters({
+      status: new Set(),
+      labels: new Set(),
+      teamMembers: new Set(),
+      contactSource: new Set(),
+      createdAt: "all",
+      lastSeen: "all"
+    });
+  };
+
+  const matchesDateFilter = (date, filterValue) => {
+    if (filterValue === "all") return true;
+    if (!date) return false;
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (filterValue === "today") {
+      return date >= startOfToday;
+    }
+
+    const days = Number(filterValue.replace("d", ""));
+    if (!Number.isNaN(days)) {
+      const threshold = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+      return date >= threshold;
+    }
+
+    return true;
+  };
+
+  const matchesLastSeenFilter = (chat, filterValue) => {
+    if (filterValue === "all") return true;
+
+    const lastSeenDate = getLastSeenDate(chat);
+    if (filterValue === "online") {
+      if (chat?.status === "active") return true;
+      if (!lastSeenDate) return false;
+      return new Date().getTime() - lastSeenDate.getTime() <= 5 * 60 * 1000;
+    }
+
+    if (!lastSeenDate) return false;
+
+    const days = filterValue === "24h" ? 1 : Number(filterValue.replace("d", ""));
+    if (!Number.isNaN(days)) {
+      const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+      return lastSeenDate >= threshold;
+    }
+
+    return true;
+  };
+
+  const activeAdvancedFiltersCount =
+    (advancedFilters.createdAt !== "all" ? 1 : 0) +
+    (advancedFilters.lastSeen !== "all" ? 1 : 0) +
+    advancedFilters.status.size +
+    advancedFilters.labels.size +
+    advancedFilters.teamMembers.size +
+    advancedFilters.contactSource.size;
+
+  const activeQuickFiltersCount = Object.values(quickFilters).filter(Boolean).length;
 
   // Handler functions for menu options
   const handleMuteChat = async (chatId, e) => {
@@ -130,9 +401,12 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       setChatModifications(prev => {
         const newReadChats = new Set(prev.readChats);
         newReadChats.add(chatId);
+        const newUnreadForced = { ...prev.unreadForced };
+        delete newUnreadForced[chatId];
         return {
           ...prev,
-          readChats: newReadChats
+          readChats: newReadChats,
+          unreadForced: newUnreadForced
         };
       });
       
@@ -216,17 +490,62 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     }
   };
   
-  const displayChats = (chats || [])
+  const displayChats = (normalizedChats || [])
     .filter((c) => {
       const chatId = c._id || c.id;
-      const matchesSearch = c.name?.toLowerCase().includes(searchTerm.toLowerCase());
+      const searchValue = searchTerm.trim().toLowerCase();
+      const normalizedActiveTab = String(activeTab || "All Chats").toLowerCase();
+      const matchesSearch =
+        searchValue.length === 0 ||
+        c.name?.toLowerCase().includes(searchValue) ||
+        c.phone?.toLowerCase().includes(searchValue) ||
+        c.lastMsg?.toLowerCase().includes(searchValue);
       const isDeleted = chatModifications.deleted.has(chatId);
+      const unreadCount = getChatUnreadCount(c);
+      const chatStatus = getChatStatus(c);
+      const labelList = getChatLabels(c);
+      const teamMember = getTeamMember(c);
+      const contactSource = getChatSource(c);
+      const isPinned = getIsPinned(c);
+      const isMuted = getIsMuted(c);
       
       const isCurrentlyArchived = chatModifications.archived[chatId] !== undefined 
         ? chatModifications.archived[chatId] 
         : (c.chatStatus === 'archived' || c.isArchived);
+      const isCurrentlyBlocked =
+        c.isBlocked ||
+        c.blocked ||
+        chatStatus === "blocked" ||
+        String(c.contactStatus || "").toLowerCase() === "blocked";
+
+      const matchesTab =
+        normalizedActiveTab === "all chats" ||
+        normalizedActiveTab === "all" ||
+        (normalizedActiveTab === "unread" && unreadCount > 0) ||
+        (normalizedActiveTab === "active" && ["open", "active"].includes(chatStatus)) ||
+        (normalizedActiveTab === "resolved" && ["resolved", "closed"].includes(chatStatus)) ||
+        (normalizedActiveTab === "mine" && !!c.isMine);
+
+      const matchesQuickFilters =
+        (!quickFilters.unreadChats || unreadCount > 0) &&
+        (!quickFilters.openSessionChats || ["open", "active"].includes(chatStatus) || c.isSessionOpen) &&
+        (!quickFilters.pinnedChats || isPinned) &&
+        (!quickFilters.mutedChats || isMuted) &&
+        (!quickFilters.unassignedChats || teamMember === "Unassigned") &&
+        (!quickFilters.whatsappSource || String(contactSource).toLowerCase() === "whatsapp") &&
+        (!quickFilters.blockedChats || isCurrentlyBlocked);
+
+      const matchesArchiveVisibility = quickFilters.archivedChats ? isCurrentlyArchived : !isCurrentlyArchived;
+
+      const matchesAdvancedFilters =
+        (advancedFilters.status.size === 0 || advancedFilters.status.has(chatStatus || "unknown")) &&
+        (advancedFilters.labels.size === 0 || labelList.some((label) => advancedFilters.labels.has(label))) &&
+        (advancedFilters.teamMembers.size === 0 || advancedFilters.teamMembers.has(teamMember)) &&
+        (advancedFilters.contactSource.size === 0 || advancedFilters.contactSource.has(contactSource)) &&
+        matchesDateFilter(getCreatedDate(c), advancedFilters.createdAt) &&
+        matchesLastSeenFilter(c, advancedFilters.lastSeen);
         
-      return matchesSearch && !isDeleted && !isCurrentlyArchived;
+      return matchesSearch && !isDeleted && matchesArchiveVisibility && matchesTab && matchesQuickFilters && matchesAdvancedFilters;
     })
     .sort((a, b) => {
       const aId = a._id || a.id;
@@ -247,27 +566,17 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   
   // Helper function to get chat's unread count considering modifications
   const getUnreadCount = (chat) => {
-    const chatId = chat._id || chat.id;
-    if (chatModifications.readChats.has(chatId)) {
-      return 0;
-    }
-    return chat.unread || 0;
+    return getChatUnreadCount(chat);
   };
   
   // Helper function to check if chat is pinned
   const isChatPinned = (chat) => {
-    const chatId = chat._id || chat.id;
-    return chatModifications.pinned[chatId] !== undefined 
-      ? chatModifications.pinned[chatId] 
-      : chat.isPinned;
+    return getIsPinned(chat);
   };
   
   // Helper function to check if chat is muted
   const isChatMuted = (chat) => {
-    const chatId = chat._id || chat.id;
-    return chatModifications.muted[chatId] !== undefined 
-      ? chatModifications.muted[chatId] 
-      : chat.isMuted;
+    return getIsMuted(chat);
   };
 
   const handleBulkMarkAsRead = async () => {
@@ -277,7 +586,11 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     setChatModifications(prev => {
       const newReadChats = new Set(prev.readChats);
       selectedChats.forEach(id => newReadChats.add(id));
-      return { ...prev, readChats: newReadChats };
+      const newUnreadForced = { ...prev.unreadForced };
+      selectedChats.forEach((id) => {
+        delete newUnreadForced[id];
+      });
+      return { ...prev, readChats: newReadChats, unreadForced: newUnreadForced };
     });
     
     const chatsToUpdate = Array.from(selectedChats);
@@ -295,26 +608,357 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handleBulkDelete = () => {
     if (selectedChats.size === 0) return;
-    if (window.confirm(`Are you sure you want to delete ${selectedChats.size} selected chats?`)) {
-      // Optimistically delete from UI
-      setChatModifications(prev => {
-        const newDeleted = new Set(prev.deleted);
-        selectedChats.forEach(id => newDeleted.add(id));
-        return { ...prev, deleted: newDeleted };
+    // Optimistically delete from UI
+    setChatModifications(prev => {
+      const newDeleted = new Set(prev.deleted);
+      selectedChats.forEach(id => newDeleted.add(id));
+      return { ...prev, deleted: newDeleted };
+    });
+    
+    const chatsToDelete = Array.from(selectedChats);
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+    
+    chatsToDelete.forEach(async (chatId) => {
+      try {
+        await chatService.deleteChat(chatId);
+      } catch (error) {
+        console.error("❌ Failed to bulk delete chat:", error);
+      }
+    });
+  };
+
+  const handleBulkMute = async (forcedMuted = null) => {
+    if (selectedChats.size === 0) return;
+
+    const selectedIds = Array.from(selectedChats);
+    const selectedChatMap = new Map(normalizedChats.map((chat) => [chat._id || chat.id, chat]));
+    const targetMuted =
+      forcedMuted === null
+        ? !selectedIds.every((id) => {
+            const chat = selectedChatMap.get(id);
+            return chat ? getIsMuted(chat) : false;
+          })
+        : forcedMuted;
+
+    setChatModifications((prev) => {
+      const nextMuted = { ...prev.muted };
+      selectedIds.forEach((id) => {
+        nextMuted[id] = targetMuted;
       });
-      
-      const chatsToDelete = Array.from(selectedChats);
-      setIsSelectionMode(false);
-      setSelectedChats(new Set());
-      
-      chatsToDelete.forEach(async (chatId) => {
-        try {
-          await chatService.deleteChat(chatId);
-        } catch (error) {
-          console.error("❌ Failed to bulk delete chat:", error);
-        }
+      return { ...prev, muted: nextMuted };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (id) => {
+      const chat = selectedChatMap.get(id);
+      if (!chat) return;
+      const currentMuted = getIsMuted(chat);
+      if (currentMuted === targetMuted) return;
+      try {
+        await chatService.toggleMuteChat(id);
+      } catch (error) {
+        console.error("❌ Failed to bulk mute chat:", error);
+      }
+    });
+  };
+
+  const handleBulkArchive = async (forcedArchived = null) => {
+    if (selectedChats.size === 0) return;
+
+    const selectedIds = Array.from(selectedChats);
+    const selectedChatMap = new Map(normalizedChats.map((chat) => [chat._id || chat.id, chat]));
+    const targetArchived =
+      forcedArchived === null
+        ? !selectedIds.every((id) => {
+            const chat = selectedChatMap.get(id);
+            return chat ? getIsArchived(chat) : false;
+          })
+        : forcedArchived;
+
+    setChatModifications((prev) => {
+      const nextArchived = { ...prev.archived };
+      selectedIds.forEach((id) => {
+        nextArchived[id] = targetArchived;
+      });
+      return { ...prev, archived: nextArchived };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (id) => {
+      const chat = selectedChatMap.get(id);
+      if (!chat) return;
+      const currentArchived = getIsArchived(chat);
+      if (currentArchived === targetArchived) return;
+      try {
+        await chatService.toggleArchiveChat(id);
+      } catch (error) {
+        console.error("❌ Failed to bulk archive chat:", error);
+      }
+    });
+  };
+
+  const handleBulkPin = async (forcedPinned = null) => {
+    if (selectedChats.size === 0) return;
+
+    const selectedIds = Array.from(selectedChats);
+    const selectedChatMap = new Map(normalizedChats.map((chat) => [chat._id || chat.id, chat]));
+    const targetPinned =
+      forcedPinned === null
+        ? !selectedIds.every((id) => {
+            const chat = selectedChatMap.get(id);
+            return chat ? getIsPinned(chat) : false;
+          })
+        : forcedPinned;
+
+    setChatModifications((prev) => {
+      const nextPinned = { ...prev.pinned };
+      selectedIds.forEach((id) => {
+        nextPinned[id] = targetPinned;
+      });
+      return { ...prev, pinned: nextPinned };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (id) => {
+      const chat = selectedChatMap.get(id);
+      if (!chat) return;
+      const currentPinned = getIsPinned(chat);
+      if (currentPinned === targetPinned) return;
+      try {
+        await chatService.toggleChatPin(id);
+      } catch (error) {
+        console.error("❌ Failed to bulk pin chat:", error);
+      }
+    });
+  };
+
+  const handleBulkUpdateStatus = async (statusValue) => {
+    if (selectedChats.size === 0 || !statusValue) return;
+    const normalizedStatus = String(statusValue).toLowerCase();
+    const selectedIds = Array.from(selectedChats);
+
+    setChatModifications((prev) => {
+      const nextStatus = { ...prev.status };
+      selectedIds.forEach((id) => {
+        nextStatus[id] = normalizedStatus;
+      });
+      return { ...prev, status: nextStatus };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (chatId) => {
+      try {
+        await chatService.updateChatStatus(chatId, normalizedStatus);
+      } catch (error) {
+        console.error("❌ Failed to bulk update status:", error);
+      }
+    });
+  };
+
+  const handleBulkAssignLabel = async (labelInput) => {
+    if (selectedChats.size === 0) return;
+    if (!labelInput) return;
+    const labels = labelInput.split(",").map((item) => item.trim()).filter(Boolean);
+    if (labels.length === 0) return;
+
+    const selectedIds = Array.from(selectedChats);
+    setChatModifications((prev) => {
+      const nextLabels = { ...prev.labels };
+      selectedIds.forEach((id) => {
+        nextLabels[id] = labels;
+      });
+      return { ...prev, labels: nextLabels };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (chatId) => {
+      try {
+        await chatService.updateChatLabels(chatId, labels);
+      } catch (error) {
+        console.error("❌ Failed to bulk assign label:", error);
+      }
+    });
+  };
+
+  const handleBulkAssignCustomField = async (fieldKey, fieldValue) => {
+    if (selectedChats.size === 0) return;
+    if (!fieldKey || fieldValue === null || fieldValue === undefined) return;
+
+    const selectedIds = Array.from(selectedChats);
+    setChatModifications((prev) => {
+      const nextCustomFields = { ...prev.customFields };
+      selectedIds.forEach((id) => {
+        nextCustomFields[id] = {
+          ...(nextCustomFields[id] || {}),
+          [fieldKey]: fieldValue
+        };
+      });
+      return { ...prev, customFields: nextCustomFields };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (chatId) => {
+      try {
+        await chatService.updateChatProfile(chatId, { customFields: { [fieldKey]: fieldValue } });
+      } catch (error) {
+        console.error("❌ Failed to bulk assign custom field:", error);
+      }
+    });
+  };
+
+  const handleBulkAssignTeamMember = async (teamName = null) => {
+    if (selectedChats.size === 0) return;
+    const memberName = teamName;
+    if (memberName === null || memberName === undefined) return;
+
+    const selectedIds = Array.from(selectedChats);
+    setChatModifications((prev) => {
+      const nextTeamMembers = { ...prev.teamMembers };
+      selectedIds.forEach((id) => {
+        nextTeamMembers[id] = memberName;
+      });
+      return { ...prev, teamMembers: nextTeamMembers };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+
+    selectedIds.forEach(async (chatId) => {
+      try {
+        await chatService.updateChatProfile(chatId, { assignedToName: memberName || "" });
+      } catch (error) {
+        console.error("❌ Failed to bulk assign team member:", error);
+      }
+    });
+  };
+
+  const handleBulkMarkAsUnread = () => {
+    if (selectedChats.size === 0) return;
+
+    setChatModifications((prev) => {
+      const nextUnreadForced = { ...prev.unreadForced };
+      const nextReadChats = new Set(prev.readChats);
+      selectedChats.forEach((id) => {
+        nextUnreadForced[id] = true;
+        nextReadChats.delete(id);
+      });
+      return {
+        ...prev,
+        unreadForced: nextUnreadForced,
+        readChats: nextReadChats
+      };
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+  };
+
+  const handleBulkStartCampaign = ({ campaignName, campaignMode, campaignScheduleAt }) => {
+    if (selectedChats.size === 0) return;
+
+    const isScheduled = campaignMode === "scheduled" && !!campaignScheduleAt;
+    const scheduleText = isScheduled
+      ? ` Scheduled for ${new Date(campaignScheduleAt).toLocaleString()}.`
+      : "";
+
+    setAppNotice({
+      isOpen: true,
+      type: "success",
+      message: `${campaignName || "Campaign"} queued for ${selectedChats.size} selected chats.${scheduleText}`
+    });
+
+    setIsSelectionMode(false);
+    setSelectedChats(new Set());
+  };
+
+  const handleBulkDeleteContacts = () => {
+    if (selectedChats.size === 0) return;
+    handleBulkDelete();
+  };
+
+  const openBulkActionModal = (type) => {
+    setBulkActionModal({ isOpen: true, type });
+    if (type === "status") {
+      setBulkActionForm((prev) => ({
+        ...prev,
+        status: prev.status || uniqueStatuses[0] || ""
+      }));
+    }
+    if (type === "campaign") {
+      setBulkActionForm((prev) => ({
+        ...prev,
+        campaignName: prev.campaignName || `Campaign ${new Date().toLocaleDateString()}`,
+        campaignMode: prev.campaignMode || "now"
+      }));
+    }
+  };
+
+  const closeBulkActionModal = () => {
+    setBulkActionModal({ isOpen: false, type: null });
+  };
+
+  const submitBulkActionModal = async () => {
+    const { type } = bulkActionModal;
+    if (!type) return;
+
+    if (type === "status") {
+      await handleBulkUpdateStatus(bulkActionForm.status);
+    }
+    if (type === "label") {
+      await handleBulkAssignLabel(bulkActionForm.labels);
+    }
+    if (type === "custom-field") {
+      await handleBulkAssignCustomField(
+        bulkActionForm.customFieldKey,
+        bulkActionForm.customFieldValue
+      );
+    }
+    if (type === "team-member") {
+      await handleBulkAssignTeamMember(bulkActionForm.teamMember);
+    }
+    if (type === "campaign") {
+      handleBulkStartCampaign({
+        campaignName: bulkActionForm.campaignName,
+        campaignMode: bulkActionForm.campaignMode,
+        campaignScheduleAt: bulkActionForm.campaignScheduleAt
       });
     }
+    if (type === "confirm-delete-chats") {
+      handleBulkDelete();
+    }
+    if (type === "confirm-delete-contacts") {
+      handleBulkDeleteContacts();
+    }
+
+    closeBulkActionModal();
+    setOpenMenuId(null);
+  };
+
+  const visibleChatIds = displayChats.map((chat) => chat._id || chat.id);
+  const areAllVisibleSelected =
+    visibleChatIds.length > 0 && visibleChatIds.every((id) => selectedChats.has(id));
+
+  const handleToggleSelectAll = () => {
+    if (visibleChatIds.length === 0) return;
+    setSelectedChats((prev) => {
+      if (areAllVisibleSelected) {
+        return new Set();
+      }
+      return new Set(visibleChatIds);
+    });
   };
 
   const toggleSelection = (chatId, e) => {
@@ -371,35 +1015,207 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       {/* 1. HEADER */}
       <div className="h-16 flex items-center justify-between px-5 shrink-0 bg-white z-40 relative border-b border-slate-50">
          {isSelectionMode ? (
-            <div className="flex items-center justify-between w-full">
-               <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between w-full gap-2">
+               <div className="flex items-center gap-2">
                   <button 
                     onClick={() => { setIsSelectionMode(false); setSelectedChats(new Set()); }} 
                     className="p-1 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
                   >
                      <XMarkIcon className="w-5 h-5" />
                   </button>
-                  <span className="font-bold text-slate-700 text-sm">
-                     {selectedChats.size} selected
-                  </span>
+                  <label className="flex items-center gap-2 text-slate-700 text-sm font-semibold cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={areAllVisibleSelected}
+                      onChange={handleToggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-300 text-[#22C55E] focus:ring-[#22C55E]"
+                      disabled={visibleChatIds.length === 0}
+                    />
+                    <span>
+                      Select all <span className="text-slate-500 font-medium">({selectedChats.size})</span>
+                    </span>
+                  </label>
                </div>
-               <div className="flex items-center gap-1">
-                  <button 
-                     onClick={handleBulkMarkAsRead}
-                     className="p-1.5 text-slate-500 hover:text-[#22C55E] hover:bg-green-50 rounded-md transition-colors" 
-                     title="Mark selected as read"
-                     disabled={selectedChats.size === 0}
+               <div className="relative">
+                  <button
+                    data-menu-button="true"
+                    onClick={() => setOpenMenuId(openMenuId === "bulk-actions-menu" ? null : "bulk-actions-menu")}
+                    className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-md transition-colors inline-flex items-center gap-1.5 disabled:opacity-50"
+                    disabled={selectedChats.size === 0}
                   >
-                     <CheckCircleIcon className="w-5 h-5" />
+                    Bulk actions
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
-                  <button 
-                     onClick={handleBulkDelete}
-                     className="p-1.5 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors" 
-                     title="Delete selected"
-                     disabled={selectedChats.size === 0}
-                  >
-                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
+
+                  {openMenuId === "bulk-actions-menu" && (
+                    <div data-menu-content="true" className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1 max-h-[65vh] overflow-y-auto custom-scrollbar">
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Assignment</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("status");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Assign status
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("label");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Assign label
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("custom-field");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Assign custom field
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("team-member");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Assign team member
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkAssignTeamMember("");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Un-assign team member
+                      </button>
+
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Campaign</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("campaign");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Start campaign
+                      </button>
+
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Conversation State</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkUpdateStatus("open");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Open chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkUpdateStatus("closed");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Close chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkArchive(true);
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Archived chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkArchive(false);
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Unarchived chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkPin(true);
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Pin chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkPin(false);
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Unpin chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkMarkAsRead();
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Mark as read
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkMarkAsUnread();
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Mark as un-read
+                      </button>
+
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Danger Zone</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("confirm-delete-chats");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Delete chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("confirm-delete-contacts");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Delete contacts
+                      </button>
+                    </div>
+                  )}
                </div>
             </div>
          ) : (
@@ -422,9 +1238,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
                {/* Filter Dropdown Menu */}
                {openMenuId === 'filter-menu' && (
-                  <div data-menu-content="true" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
-                     <button
-                        onClick={(e) => { e.stopPropagation(); setActiveTab("Unread"); setOpenMenuId(null); }}
+                  <div data-menu-content="true" className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                  <p className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Quick filters</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleQuickFilter("unreadChats"); setOpenMenuId(null); }}
                         className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                      >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -433,17 +1250,52 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         Unread chats
                      </button>
                      <button
-                        onClick={(e) => { e.stopPropagation(); setActiveTab("Active"); setOpenMenuId(null); }}
+                        onClick={(e) => { e.stopPropagation(); toggleQuickFilter("openSessionChats"); setOpenMenuId(null); }}
                         className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                      >
                         <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        Active chats
+                        Open session chats
                      </button>
+                     <button
+                        onClick={(e) => { e.stopPropagation(); toggleQuickFilter("mutedChats"); setOpenMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5L6 9H3v6h3l5 4V5zm5.414 4.586a2 2 0 010 2.828M19 7l-2 2m0 6l2 2" />
+                        </svg>
+                        Muted chats
+                     </button>
+                     <button
+                        onClick={(e) => { e.stopPropagation(); toggleQuickFilter("unassignedChats"); setOpenMenuId(null); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                     >
+                        <svg className="w-4 h-4 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                        Unassigned chats
+                     </button>
+                  
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setIsAdvancedFilterOpen(true); }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                        </svg>
+                        Advanced filters
+                      </button>
                      <div className="border-t border-slate-200 my-1"></div>
                      <button
-                        onClick={(e) => { e.stopPropagation(); setActiveTab("All Chats"); setOpenMenuId(null); }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveTab("All Chats");
+                          resetQuickFilters();
+                          resetAdvancedFilters();
+                          setOpenMenuId(null);
+                        }}
                         className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                      >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -454,6 +1306,12 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   </div>
                )}
             </div>
+
+            {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
+              <span className="min-w-5 h-5 px-1.5 rounded-full bg-[#22C55E] text-white text-[10px] font-bold flex items-center justify-center">
+                {activeQuickFiltersCount + activeAdvancedFiltersCount}
+              </span>
+            )}
 
             {/* NEW: Custom Chat-Plus Icon matching your screenshot exactly! */}
             <button 
@@ -482,7 +1340,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                
                {/* Dropdown Menu */}
                {openMenuId === 'header-menu' && (
-                  <div data-menu-content="true" className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                <div data-menu-content="true" className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
                      <button
                         onClick={(e) => { 
                           e.stopPropagation(); 
@@ -513,19 +1371,59 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
                         Select chats
                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleQuickFilter("archivedChats");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9-3h4" />
+                        </svg>
+                        {quickFilters.archivedChats ? "Hide archived chats" : "Archived chats"}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleQuickFilter("blockedChats");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 5.636L5.636 18.364M5.636 5.636l12.728 12.728" />
+                        </svg>
+                        {quickFilters.blockedChats ? "Hide blocked chats" : "Blocked chats"}
+                      </button>
                      <div className="border-t border-slate-200 my-1"></div>
                      <button
                         onClick={(e) => { 
                           e.stopPropagation(); 
+                          toggleQuickFilter("pinnedChats");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
+                      >
+                        <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8V4" />
+                        </svg>
+                        {quickFilters.pinnedChats ? "Show all chats (disable pinned)" : "Show pinned chats"}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleQuickFilter("unassignedChats");
                           setOpenMenuId(null); 
                         }}
                         className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <svg className="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197" />
                         </svg>
-                        Settings
+                        {quickFilters.unassignedChats ? "Show all chats (disable unassigned)" : "Show unassigned chats"}
                      </button>
                   </div>
                )}
@@ -534,6 +1432,373 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
          </>
          )}
       </div>
+
+      {appNotice.isOpen && (
+        <div className="px-5 pt-3">
+          <div className={`rounded-xl px-3 py-2 text-xs font-semibold border ${
+            appNotice.type === "success"
+              ? "bg-green-50 text-green-700 border-green-200"
+              : "bg-blue-50 text-blue-700 border-blue-200"
+          }`}>
+            {appNotice.message}
+          </div>
+        </div>
+      )}
+
+      {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
+        <div className="px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
+            {quickFilters.unreadChats && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full">Unread</span>}
+            {quickFilters.openSessionChats && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">Open session</span>}
+            {quickFilters.pinnedChats && <span className="px-2 py-1 bg-yellow-50 text-yellow-700 rounded-full">Pinned</span>}
+            {quickFilters.mutedChats && <span className="px-2 py-1 bg-slate-100 text-slate-700 rounded-full">Muted</span>}
+            {quickFilters.unassignedChats && <span className="px-2 py-1 bg-purple-50 text-purple-700 rounded-full">Unassigned</span>}
+            {quickFilters.whatsappSource && <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded-full">WhatsApp</span>}
+            {quickFilters.archivedChats && <span className="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">Archived</span>}
+            {quickFilters.blockedChats && <span className="px-2 py-1 bg-red-50 text-red-700 rounded-full">Blocked</span>}
+            {advancedFilters.status.size > 0 && <span className="px-2 py-1 bg-slate-100 rounded-full">Status: {advancedFilters.status.size}</span>}
+            {advancedFilters.labels.size > 0 && <span className="px-2 py-1 bg-slate-100 rounded-full">Labels: {advancedFilters.labels.size}</span>}
+            {advancedFilters.teamMembers.size > 0 && <span className="px-2 py-1 bg-slate-100 rounded-full">Team: {advancedFilters.teamMembers.size}</span>}
+            {advancedFilters.contactSource.size > 0 && <span className="px-2 py-1 bg-slate-100 rounded-full">Source: {advancedFilters.contactSource.size}</span>}
+            {advancedFilters.createdAt !== "all" && <span className="px-2 py-1 bg-slate-100 rounded-full">Created: {toTitleCase(advancedFilters.createdAt)}</span>}
+            {advancedFilters.lastSeen !== "all" && <span className="px-2 py-1 bg-slate-100 rounded-full">Last seen: {toTitleCase(advancedFilters.lastSeen)}</span>}
+          </div>
+          <button
+            onClick={() => {
+              resetQuickFilters();
+              resetAdvancedFilters();
+            }}
+            className="text-xs font-bold text-slate-500 hover:text-slate-800"
+          >
+            Clear all
+          </button>
+        </div>
+      )}
+
+      {bulkActionModal.isOpen && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
+          <div className="bg-white w-full max-w-[460px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">
+                {bulkActionModal.type === "status" && "Assign status"}
+                {bulkActionModal.type === "label" && "Assign label"}
+                {bulkActionModal.type === "custom-field" && "Assign custom field"}
+                {bulkActionModal.type === "team-member" && "Assign team member"}
+                {bulkActionModal.type === "campaign" && "Start campaign"}
+                {bulkActionModal.type === "confirm-delete-chats" && "Delete chats"}
+                {bulkActionModal.type === "confirm-delete-contacts" && "Delete contacts"}
+              </h3>
+              <button
+                onClick={closeBulkActionModal}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {bulkActionModal.type === "status" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</label>
+                  {uniqueStatuses.length > 0 ? (
+                    <select
+                      value={bulkActionForm.status}
+                      onChange={(e) => setBulkActionForm((prev) => ({ ...prev, status: e.target.value }))}
+                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                    >
+                      {uniqueStatuses.map((statusValue) => (
+                        <option key={statusValue} value={statusValue}>{toTitleCase(statusValue)}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-500 bg-slate-50">
+                      No status values available in current chats.
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {bulkActionModal.type === "label" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Labels</label>
+                  <input
+                    type="text"
+                    value={bulkActionForm.labels}
+                    onChange={(e) => setBulkActionForm((prev) => ({ ...prev, labels: e.target.value }))}
+                    placeholder="e.g. priority, vip"
+                    className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                  />
+                  <p className="mt-1.5 text-xs text-slate-500">Use comma to add multiple labels.</p>
+                  {uniqueLabels.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {uniqueLabels.slice(0, 8).map((label) => (
+                        <button
+                          key={label}
+                          type="button"
+                          onClick={() => {
+                            const current = bulkActionForm.labels.trim();
+                            const nextValue = current
+                              ? `${current}, ${label}`
+                              : label;
+                            setBulkActionForm((prev) => ({ ...prev, labels: nextValue }));
+                          }}
+                          className="px-2 py-1 text-[11px] font-semibold rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {bulkActionModal.type === "custom-field" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Field name</label>
+                    <input
+                      type="text"
+                      value={bulkActionForm.customFieldKey}
+                      onChange={(e) => setBulkActionForm((prev) => ({ ...prev, customFieldKey: e.target.value }))}
+                      placeholder="e.g. priority"
+                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Field value</label>
+                    <input
+                      type="text"
+                      value={bulkActionForm.customFieldValue}
+                      onChange={(e) => setBulkActionForm((prev) => ({ ...prev, customFieldValue: e.target.value }))}
+                      placeholder="e.g. high"
+                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                    />
+                  </div>
+                </>
+              )}
+
+              {bulkActionModal.type === "team-member" && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Team member</label>
+                  <input
+                    type="text"
+                    value={bulkActionForm.teamMember}
+                    onChange={(e) => setBulkActionForm((prev) => ({ ...prev, teamMember: e.target.value }))}
+                    placeholder="e.g. Agent 1"
+                    className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                  />
+                  {uniqueTeamMembers.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {uniqueTeamMembers.slice(0, 8).map((member) => (
+                        <button
+                          key={member}
+                          type="button"
+                          onClick={() => setBulkActionForm((prev) => ({ ...prev, teamMember: member }))}
+                          className="px-2 py-1 text-[11px] font-semibold rounded-full border border-slate-200 text-slate-600 hover:bg-slate-50"
+                        >
+                          {member}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {bulkActionModal.type === "campaign" && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Campaign name</label>
+                    <input
+                      type="text"
+                      value={bulkActionForm.campaignName}
+                      onChange={(e) => setBulkActionForm((prev) => ({ ...prev, campaignName: e.target.value }))}
+                      placeholder="Campaign name"
+                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Launch mode</label>
+                    <select
+                      value={bulkActionForm.campaignMode}
+                      onChange={(e) => setBulkActionForm((prev) => ({ ...prev, campaignMode: e.target.value }))}
+                      className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                    >
+                      <option value="now">Start now</option>
+                      <option value="scheduled">Schedule</option>
+                    </select>
+                  </div>
+                  {bulkActionForm.campaignMode === "scheduled" && (
+                    <div>
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Schedule at</label>
+                      <input
+                        type="datetime-local"
+                        value={bulkActionForm.campaignScheduleAt}
+                        onChange={(e) => setBulkActionForm((prev) => ({ ...prev, campaignScheduleAt: e.target.value }))}
+                        className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {(bulkActionModal.type === "confirm-delete-chats" || bulkActionModal.type === "confirm-delete-contacts") && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                  {bulkActionModal.type === "confirm-delete-chats"
+                    ? `This will permanently delete ${selectedChats.size} selected chats.`
+                    : `This will permanently delete ${selectedChats.size} selected contacts.`}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2">
+              <button
+                onClick={closeBulkActionModal}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitBulkActionModal}
+                disabled={
+                  (bulkActionModal.type === "status" && !bulkActionForm.status) ||
+                  (bulkActionModal.type === "label" && !bulkActionForm.labels.trim()) ||
+                  (bulkActionModal.type === "custom-field" && (!bulkActionForm.customFieldKey.trim() || !bulkActionForm.customFieldValue.trim())) ||
+                  (bulkActionModal.type === "team-member" && !bulkActionForm.teamMember.trim()) ||
+                  (bulkActionModal.type === "campaign" && !bulkActionForm.campaignName.trim()) ||
+                  (bulkActionModal.type === "campaign" && bulkActionForm.campaignMode === "scheduled" && !bulkActionForm.campaignScheduleAt)
+                }
+                className="px-5 py-2 text-xs font-bold text-white bg-[#22C55E] rounded-lg hover:bg-green-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkActionModal.type === "confirm-delete-chats" || bulkActionModal.type === "confirm-delete-contacts" ? "Confirm" : "Apply"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isAdvancedFilterOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
+          <div className="bg-white w-full max-w-[760px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Advanced filters</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Refine chats by team activity, source and time windows.</p>
+              </div>
+              <button
+                onClick={() => setIsAdvancedFilterOpen(false)}
+                className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-100"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</p>
+                <div className="flex flex-wrap gap-2">
+                  {["open", "active", "resolved", "closed", "pending"].map((statusValue) => (
+                    <button
+                      key={statusValue}
+                      onClick={() => toggleSetFilter("status", statusValue)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-colors ${advancedFilters.status.has(statusValue) ? "bg-[#22C55E] border-[#22C55E] text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {toTitleCase(statusValue)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Labels</p>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueLabels.length > 0 ? uniqueLabels.map((label) => (
+                    <button
+                      key={label}
+                      onClick={() => toggleSetFilter("labels", label)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${advancedFilters.labels.has(label) ? "bg-[#22C55E] border-[#22C55E] text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {label}
+                    </button>
+                  )) : <span className="text-xs text-slate-400">No labels available</span>}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Team members</p>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueTeamMembers.map((member) => (
+                    <button
+                      key={member}
+                      onClick={() => toggleSetFilter("teamMembers", member)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${advancedFilters.teamMembers.has(member) ? "bg-[#22C55E] border-[#22C55E] text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {member}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Contact source</p>
+                <div className="flex flex-wrap gap-2">
+                  {uniqueContactSources.map((sourceValue) => (
+                    <button
+                      key={sourceValue}
+                      onClick={() => toggleSetFilter("contactSource", sourceValue)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${advancedFilters.contactSource.has(sourceValue) ? "bg-[#22C55E] border-[#22C55E] text-white" : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                    >
+                      {toTitleCase(sourceValue)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Created at</p>
+                  <select
+                    value={advancedFilters.createdAt}
+                    onChange={(e) => setAdvancedFilters((prev) => ({ ...prev, createdAt: e.target.value }))}
+                    className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                  >
+                    {CREATED_AT_FILTERS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Last seen</p>
+                  <select
+                    value={advancedFilters.lastSeen}
+                    onChange={(e) => setAdvancedFilters((prev) => ({ ...prev, lastSeen: e.target.value }))}
+                    className="w-full text-sm rounded-xl border border-slate-200 px-3 py-2.5 text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#22C55E] focus:border-[#22C55E]"
+                  >
+                    {LAST_SEEN_FILTERS.map((item) => (
+                      <option key={item.value} value={item.value}>{item.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+              <button
+                onClick={resetAdvancedFilters}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
+              >
+                Reset filters
+              </button>
+              <button
+                onClick={() => setIsAdvancedFilterOpen(false)}
+                className="px-5 py-2.5 text-xs font-bold text-white bg-[#22C55E] rounded-lg hover:bg-green-500 transition-colors"
+              >
+                Apply filters
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- 🟢 FLOATING NEW CHAT MODAL 🟢 --- */}
       {isNewChatModalOpen && (
@@ -830,13 +2095,13 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                     {chat.lastMsg || "No messages yet"}
                  </p>
                  <div className="mt-1.5 flex justify-between items-center">
-                    {chat.chatStatus && (
+                    {getChatStatus(chat) && (
                       <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${
-                        chat.chatStatus === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
-                        chat.chatStatus === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :
+                      getChatStatus(chat) === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
+                      getChatStatus(chat) === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :
                         'text-blue-600 bg-blue-50 border border-blue-200'
                       }`}>
-                         {chat.chatStatus}
+                       {getChatStatus(chat)}
                       </span>
                     )}
                     {getUnreadCount(chat) > 0 && (
