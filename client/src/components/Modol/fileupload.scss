@@ -1,0 +1,30 @@
+@import "../../styles/mixin";
+
+.main-container {
+  @include displayFlex(center, center, 0);
+  flex-direction: column;
+  background-color: $clr-subheading;
+  width: 100%;
+  height: calc(100vh - 132px);
+  backdrop-filter: blur(30px);
+}
+
+.input-card {
+  @include displayFlex(normal, space-between, 1rem);
+  flex-direction: column;
+  background-color: $clr-background;
+  padding: 1rem 3rem;
+  border-radius: 10px;
+  padding: 2rem;
+}
+
+.button {
+  @include displayFlex(normal, space-between, 5rem);
+}
+.top {
+  @include displayFlex(normal, space-between, 5rem);
+
+  #subHeading {
+    font-size: 10px;
+  }
+}
