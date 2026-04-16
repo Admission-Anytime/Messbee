@@ -835,6 +835,28 @@ class WhatsAppService {
       } = templateData;
 
       const preparedComponents = components.map((component) => ({ ...component }));
+      const sanitizeComponents = (inputComponents = []) =>
+        inputComponents
+          .map((component) => ({ ...component }))
+          .filter(Boolean)
+          .filter((component) => {
+            const type = String(component?.type || '').toUpperCase();
+            if (type === 'BUTTONS') {
+              const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
+              const sanitizedButtons = buttons
+                .map((btn) => ({ ...btn }))
+                .filter((btn) => String(btn?.text || '').trim().length > 0)
+                .filter((btn) => {
+                  const btnType = String(btn?.type || '').toUpperCase();
+                  if (btnType === 'URL') return /^https?:\/\//i.test(String(btn?.url || '').trim());
+                  if (btnType === 'PHONE_NUMBER') return String(btn?.phone_number || '').trim().length > 0;
+                  return btnType === 'QUICK_REPLY';
+                });
+              component.buttons = sanitizedButtons;
+              return sanitizedButtons.length > 0;
+            }
+            return true;
+          });
 
       console.log(`📋 Template Creation Request: name="${name}", language="${language}"`);
 
@@ -944,11 +966,11 @@ class WhatsAppService {
         bodyLength: bodyComponent?.text?.length || 0
       });
 
-      const createTemplatePayload = (templateName) => ({
+      const createTemplatePayload = (templateName, payloadComponents = preparedComponents) => ({
         name: templateName,
         category,
         language,
-        components: preparedComponents
+        components: payloadComponents
       });
 
       const generateSuggestedTemplateName = (baseName) => {
@@ -1011,6 +1033,11 @@ class WhatsAppService {
       let response;
       const createdName = name;
       const usedFallbackName = false;
+      const hasMediaHeader = preparedComponents.some((component) => {
+        const type = String(component?.type || '').toUpperCase();
+        const format = String(component?.format || '').toUpperCase();
+        return type === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(format);
+      });
 
       try {
         response = await makeTemplateRequest(name);
@@ -1018,8 +1045,85 @@ class WhatsAppService {
         const errorSubcode = error.response?.data?.error?.error_subcode;
         const isTemplateLanguageBeingDeleted = errorSubcode === 2388023;
         const isCategoryChangeBlockedByDeletion = errorSubcode === 2388025;
+        const isTemplateLanguageAlreadyExists = errorSubcode === 2388024;
+
+        if (isTemplateLanguageAlreadyExists) {
+          const suggestedName = generateSuggestedTemplateName(name);
+          console.warn(`⚠️ Template language already exists for "${name}". Retrying with "${suggestedName}"`);
+          try {
+            response = await makeTemplateRequest(suggestedName);
+            return {
+              success: true,
+              data: response.data,
+              templateName: suggestedName,
+              usedFallbackName: true,
+              originalTemplateName: name
+            };
+          } catch (renameRetryError) {
+            console.error('❌ Retry with suggested name failed:', renameRetryError.response?.data || renameRetryError.message);
+            throw renameRetryError;
+          }
+        }
+
+        if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion && hasMediaHeader) {
+          const componentsWithoutHeader = preparedComponents.filter(
+            (component) => String(component?.type || '').toUpperCase() !== 'HEADER'
+          );
+
+          if (componentsWithoutHeader.length > 0) {
+            console.warn('⚠️ Media header template creation failed. Retrying once without HEADER component.');
+            const originalComponents = [...preparedComponents];
+            preparedComponents.splice(0, preparedComponents.length, ...componentsWithoutHeader);
+            try {
+              response = await makeTemplateRequest(name);
+            } finally {
+              preparedComponents.splice(0, preparedComponents.length, ...originalComponents);
+            }
+
+            return {
+              success: true,
+              data: response.data,
+              templateName: createdName,
+              usedFallbackName: true,
+              originalTemplateName: name
+            };
+          }
+        }
 
         if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion) {
+          const invalidParameter =
+            String(error?.response?.data?.error?.message || '').toLowerCase().includes('invalid parameter');
+
+          if (invalidParameter) {
+            try {
+              const sanitized = sanitizeComponents(preparedComponents).filter((c) => {
+                const type = String(c?.type || '').toUpperCase();
+                return type === 'BODY' || type === 'FOOTER';
+              });
+              if (sanitized.length > 0) {
+                console.warn('⚠️ Retrying template creation with sanitized BODY/FOOTER components');
+                response = await axios.post(
+                  `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+                  createTemplatePayload(name, sanitized),
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${this.accessToken}`,
+                      'Content-Type': 'application/json'
+                    }
+                  }
+                );
+                return {
+                  success: true,
+                  data: response.data,
+                  templateName: createdName,
+                  usedFallbackName: true,
+                  originalTemplateName: name
+                };
+              }
+            } catch (sanitizeRetryError) {
+              console.error('❌ Sanitized retry failed:', sanitizeRetryError.response?.data || sanitizeRetryError.message);
+            }
+          }
           throw error;
         }
 
