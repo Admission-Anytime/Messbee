@@ -260,14 +260,7 @@ const Templates = () => {
       return;
     }
 
-    // Debug: log the formatting
-    console.log('Template name formatting:', {
-      original: inputName,
-      formatted: waName,
-      isValid: /^[a-z0-9_]+$/.test(waName),
-      length: waName.length,
-      originalType: typeof formData.name
-    });
+
 
     // Validate the formatted name meets WhatsApp requirements
     if (!waName || waName.length === 0) {
@@ -364,7 +357,7 @@ const Templates = () => {
         components: components
       };
 
-      console.log('📤 Sending template payload:', JSON.stringify(templatePayload, null, 2));
+
       let createdTemplateResponse = null;
       try {
         createdTemplateResponse = await createWhatsAppTemplate(templatePayload);

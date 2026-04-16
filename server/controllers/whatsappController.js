@@ -167,7 +167,7 @@ exports.verifyWebhook = async (req, res) => {
                         'your_verify_token';
 
     if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-      console.log('✅ Webhook verified successfully');
+
       res.status(200).send(challenge);
     } else {
       console.error('❌ Webhook verification failed');
@@ -196,13 +196,10 @@ exports.handleWebhook = async (req, res) => {
         console.error('❌ Invalid webhook signature');
         return res.sendStatus(403);
       }
-      console.log('✅ Webhook signature verified');
     }
 
     const webhookData = req.body;
-    console.log('📱 Received WhatsApp Webhook:', JSON.stringify(webhookData, null, 2));
     
-    // Log webhook type for debugging
     // Acknowledge immediately so WhatsApp does not retry while we process.
     res.sendStatus(200);
 
@@ -218,17 +215,14 @@ exports.handleWebhook = async (req, res) => {
             if (!value) continue;
 
             if (Array.isArray(value.messages) && value.messages.length > 0) {
-              console.log('📥 INCOMING MESSAGE detected');
             }
 
             if (Array.isArray(value.statuses) && value.statuses.length > 0) {
-              console.log('📊 MESSAGE STATUS UPDATE detected:', value.statuses[0]);
             }
 
             const result = whatsappService.processWebhook({ entry: [{ changes: [change] }] });
 
             if (!result.success) {
-              console.error('Webhook processing failed:', result.error);
               continue;
             }
 
@@ -242,12 +236,9 @@ exports.handleWebhook = async (req, res) => {
           }
         }
       } catch (backgroundError) {
-        console.error('❌ Async webhook processing error:', backgroundError);
       }
     });
   } catch (error) {
-    console.error('❌ Webhook Error:', error);
-    console.error('   Stack:', error.stack);
     // Always return 200 to prevent WhatsApp from retrying
     res.sendStatus(200);
   }
@@ -264,10 +255,6 @@ async function handleIncomingMessage(data) {
     const normalizedFrom = normalizePhoneNumber(from);
     const contactName = contact?.name || contact?.profile?.name || normalizedFrom;
 
-    console.log(`📥 Processing incoming WhatsApp message from ${normalizedFrom} (original: ${from}), type: ${messageType}`);
-    console.log(`   Message ID: ${messageId}`);
-    console.log(`   Contact: ${contactName}`);
-
     // Find or create chat (check both phone and whatsappId with normalized number)
     let chat = await Chat.findOne({ 
       $or: [
@@ -279,7 +266,6 @@ async function handleIncomingMessage(data) {
     });
 
     if (!chat) {
-      console.log(`📝 Creating new chat for ${normalizedFrom}`);
       chat = await Chat.create({
         name: contactName,
         phone: normalizedFrom,
@@ -291,32 +277,25 @@ async function handleIncomingMessage(data) {
         source: 'whatsapp'
       });
       
-      console.log(`✅ Created new chat for ${normalizedFrom}, Chat ID: ${chat._id}`);
-      
       // Emit chat_created event
       try {
         const io = getIO();
         if (io) {
           io.emit('chat_created', chat);
-          console.log(`📡 Emitted chat_created event for new chat`);
         }
       } catch (socketError) {
-        console.error('Socket emit error:', socketError.message);
       }
     } else {
-      console.log(`💬 Found existing chat for ${normalizedFrom}, Chat ID: ${chat._id}`);
       
       // Update with normalized phone if needed
       if (chat.phone !== normalizedFrom || chat.whatsappId !== normalizedFrom) {
         chat.phone = normalizedFrom;
         chat.whatsappId = normalizedFrom;
-        console.log(`   ✓ Updated to normalized phone: ${normalizedFrom}`);
       }
       
       // Update chat status if it was closed
       if (chat.chatStatus === 'closed') {
         chat.chatStatus = 'open';
-        console.log(`   ✓ Reopened closed chat`);
       }
       chat.status = 'active';
       chat.lastActivity = new Date();
@@ -324,7 +303,6 @@ async function handleIncomingMessage(data) {
       // Ensure whatsappId is set (for older chats)
       if (!chat.whatsappId) {
         chat.whatsappId = from;
-        console.log(`   ✓ Updated whatsappId to ${from}`);
       }
     }
 
@@ -480,7 +458,7 @@ async function handleIncomingMessage(data) {
     // Mark message as read on WhatsApp (optional - you may want to do this manually)
     // await whatsappService.markMessageAsRead(messageId);
 
-    console.log(`✅ Message processed successfully: ${messageId}`);
+
   } catch (error) {
     console.error('❌ Error handling incoming message:', error);
   }
@@ -497,8 +475,7 @@ async function handleStatusUpdate(data) {
     const errorCode = firstError?.code;
     const errorMessage = firstError?.title || firstError?.message || firstError?.details || null;
 
-    console.log(`📊 Processing status update: ${status} for message ${messageId}`);
-    console.log(`   Recipient: ${recipientId}, Time: ${new Date(parseInt(timestamp) * 1000).toISOString()}`);
+
 
     // Update message status in database
     const updatePayload = {
@@ -517,7 +494,7 @@ async function handleStatusUpdate(data) {
     );
 
     if (message) {
-      console.log(`✅ Database updated: Message ${message._id} now has status: ${status}`);
+
       
       // Emit status update to frontend
       try {
@@ -530,7 +507,7 @@ async function handleStatusUpdate(data) {
             error: message.error,
             errorCode: errorCode
           });
-          console.log(`📡 Status update emitted to frontend`);
+
         }
       } catch (socketError) {
         console.error('❌ Socket emit error:', socketError.message);
@@ -539,7 +516,7 @@ async function handleStatusUpdate(data) {
       console.warn(`⚠️  Message not found in database: ${messageId}`);
     }
 
-    console.log(`✅ Status updated for message ${messageId}: ${status}`);
+
   } catch (error) {
     console.error('❌ Error handling status update:', error);
   }
@@ -785,29 +762,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
 // @access  Private
 exports.getTemplates = async (req, res, next) => {
   try {
-    console.log('📡 [Server] getTemplates called');
+
     
     const data = await whatsappService.getTemplates();
     
-    console.log('📡 [Server] WhatsApp service returned:', {
-      hasData: !!data,
-      dataType: typeof data,
-      isArray: Array.isArray(data?.data),
-      arrayLength: data?.data?.length || 'N/A'
-    });
+
     
     if (data?.data && Array.isArray(data.data)) {
-      console.log('📡 [Server] Template details:');
-      data.data.forEach((template, idx) => {
-        console.log(`  [${idx + 1}] ${template.name}:`, {
-          id: template.id,
-          status: template.status,
-          status_type: typeof template.status,
-          category: template.category,
-          created_timestamp: template.created_timestamp,
-          rejected_reason: template.rejected_reason
-        });
-      });
+
     }
 
     const templates = Array.isArray(data?.data) ? data.data : [];

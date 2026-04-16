@@ -21,7 +21,7 @@ class WhatsAppService {
     this.syncConfig();
 
     // Log configuration on initialization
-    console.log('🔧 WhatsApp Service initialized');
+
   }
 
   /**
@@ -44,9 +44,9 @@ class WhatsAppService {
         if (businessAccountId) this.businessAccountId = businessAccountId;
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
-        console.log('✅ WhatsApp Config synced from Database');
+
       } else {
-        console.log('ℹ️ WhatsApp Config using Environment Variables');
+
       }
     } catch (error) {
       console.error('❌ Error syncing WhatsApp config from DB:', error.message);
@@ -226,7 +226,7 @@ class WhatsAppService {
         }
       );
       
-      console.log('✅ WhatsApp number registered successfully');
+
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ WhatsApp Register Error:', error.response?.data || error.message);
@@ -252,7 +252,7 @@ class WhatsAppService {
         }
       );
       
-      console.log('✅ WhatsApp number deregistered successfully');
+
       return { success: true, data: response.data };
     } catch (error) {
       console.error('❌ WhatsApp Deregister Error:', error.response?.data || error.message);
@@ -271,8 +271,7 @@ class WhatsAppService {
       // Normalize phone number with country code
       const cleanPhone = normalizePhoneNumber(to);
       
-      console.log(`📤 Sending WhatsApp message to: ${cleanPhone} (original: ${to})`);
-      console.log(`📝 Message content: ${message.substring(0, 50)}${message.length > 50 ? '...' : ''}`);
+
       
       const response = await axios.post(
         `${this.baseURL}/messages`,
@@ -294,8 +293,7 @@ class WhatsAppService {
         }
       );
 
-      console.log(`✅ WhatsApp message sent successfully. Message ID: ${response.data.messages[0].id}`);
-      console.log(`   To: ${cleanPhone}`);
+
 
       if (!response.data?.messages?.length) {
         return {
@@ -332,9 +330,7 @@ class WhatsAppService {
       // Normalize phone number with country code
       const cleanPhone = normalizePhoneNumber(to);
       
-      console.log(`📤 Sending WhatsApp ${mediaType} message to: ${cleanPhone} (original: ${to})`);
-      console.log(`   Media ID: ${mediaId}`);
-      console.log(`   Caption: ${caption || '(none)'}`);
+
       
       const messageData = {
         messaging_product: 'whatsapp',
@@ -361,8 +357,7 @@ class WhatsAppService {
         }
       );
 
-      console.log(`✅ WhatsApp ${mediaType} message sent successfully. Message ID: ${response.data.messages[0].id}`);
-      console.log(`   To: ${cleanPhone}`);
+
 
       if (!response.data?.messages?.length) {
         return {
@@ -396,7 +391,7 @@ class WhatsAppService {
       await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
-      console.log(`📤 Uploading media to WhatsApp: ${filePath}`);
+
       
       const formData = new FormData();
       formData.append('messaging_product', 'whatsapp');
@@ -417,7 +412,7 @@ class WhatsAppService {
         }
       );
 
-      console.log(`✅ Media uploaded successfully. Media ID: ${response.data.id}`);
+
       
       return {
         success: true,
@@ -440,7 +435,7 @@ class WhatsAppService {
       await this.syncConfig(); // Sync before each major operation to stay updated
       this.validateConfig();
       
-      console.log(`📤 Uploading media from URL to WhatsApp: ${fileUrl}`);
+
       
       const response = await axios.post(
         `${this.baseURL}/media`,
@@ -457,7 +452,7 @@ class WhatsAppService {
         }
       );
 
-      console.log(`✅ Media uploaded successfully. Media ID: ${response.data.id}`);
+
       
       return {
         success: true,
@@ -637,29 +632,19 @@ class WhatsAppService {
       const value = changes?.value;
 
       if (!value) {
-        console.log('⚠️  No value in webhook data');
+
         return { success: false, error: 'Invalid webhook data' };
       }
 
       // Log webhook metadata
-      console.log('📋 Webhook Metadata:', {
-        hasMessages: !!value.messages,
-        hasStatuses: !!value.statuses,
-        hasContacts: !!value.contacts,
-        metadata: value.metadata
-      });
+
 
       // Handle incoming messages
       if (value.messages) {
         const message = value.messages[0];
         const contact = value.contacts?.[0];
 
-        console.log('📥 Processing message:', {
-          id: message.id,
-          from: message.from,
-          type: message.type,
-          timestamp: message.timestamp
-        });
+
 
         return {
           success: true,
@@ -682,12 +667,7 @@ class WhatsAppService {
       if (value.statuses) {
         const status = value.statuses[0];
         
-        console.log('📊 Processing status update:', {
-          messageId: status.id,
-          status: status.status,
-          recipientId: status.recipient_id,
-          timestamp: status.timestamp
-        });
+
         
         return {
           success: true,
@@ -702,7 +682,7 @@ class WhatsAppService {
         };
       }
 
-      console.log('⚠️  Unknown webhook type:', Object.keys(value));
+
       return { success: false, error: 'Unknown webhook type' };
     } catch (error) {
       console.error('❌ Webhook Processing Error:', error.message);
@@ -782,8 +762,7 @@ class WhatsAppService {
    */
   async getTemplates() {
     try {
-      console.log('🌐 [WhatsAppService] Fetching templates from WhatsApp Graph API...');
-      console.log('   Endpoint:', `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`);
+
       
       const response = await axios.get(
         `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
@@ -797,21 +776,12 @@ class WhatsAppService {
         }
       );
       
-      console.log('🌐 [WhatsAppService] Raw WhatsApp API response:', JSON.stringify(response.data, null, 2));
+
       
       if (response.data?.data && Array.isArray(response.data.data)) {
-        console.log(`✅ [WhatsAppService] Received ${response.data.data.length} templates from WhatsApp API`);
+
         
-        response.data.data.forEach((template, idx) => {
-          console.log(`\n  Template ${idx + 1}:`);
-          console.log(`    - Name: ${template.name}`);
-          console.log(`    - ID: ${template.id}`);
-          console.log(`    - Status: "${template.status}" (type: ${typeof template.status})`);
-          console.log(`    - Category: ${template.category}`);
-          console.log(`    - Language: ${template.language}`);
-          console.log(`    - Created: ${template.created_timestamp}`);
-          console.log(`    - Quality Score: ${template.quality_score}`);
-        });
+
       }
       
       return response.data;
@@ -858,7 +828,7 @@ class WhatsAppService {
             return true;
           });
 
-      console.log(`📋 Template Creation Request: name="${name}", language="${language}"`);
+
 
       // Validate required fields
       if (!name || !category || !language || !components.length) {
@@ -957,14 +927,7 @@ class WhatsAppService {
         }
       }
 
-      console.log('📋 Creating template:', {
-        name,
-        category,
-        language,
-        componentsCount: preparedComponents.length,
-        hasHeader: !!headerComponent,
-        bodyLength: bodyComponent?.text?.length || 0
-      });
+
 
       const createTemplatePayload = (templateName, payloadComponents = preparedComponents) => ({
         name: templateName,
@@ -986,9 +949,7 @@ class WhatsAppService {
       // Helper function to make the API call with retry logic
       const makeTemplateRequest = async (templateName, retryCount = 0, maxRetries = 5) => {
         try {
-          if (retryCount === 0) {
-            console.log('🚀 Template creation attempt (initial):', templateName);
-          }
+
           
           const response = await axios.post(
             `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
@@ -1001,11 +962,7 @@ class WhatsAppService {
             }
           );
 
-          if (retryCount > 0) {
-            console.log(`✅ SUCCESS on retry ${retryCount}/${maxRetries}: Template "${templateName}" created, ID: ${response.data?.id}`);
-          } else {
-            console.log(`✅ SUCCESS: Template "${templateName}" created on first attempt, ID: ${response.data?.id}`);
-          }
+
           return response;
         } catch (error) {
           // Check error codes for transient WhatsApp API errors
@@ -1286,7 +1243,7 @@ class WhatsAppService {
         }
       );
 
-      console.log('✅ Test template sent successfully to', normalizedPhone);
+
       return {
         success: true,
         messageId: response.data.messages?.[0]?.id,
@@ -1316,11 +1273,7 @@ class WhatsAppService {
         throw new Error('Template name is required to delete a template');
       }
 
-      console.log('🗑️ [Service] Deleting template from WhatsApp:', {
-        templateId,
-        templateName,
-        wabaId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
-      });
+
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
       const response = await axios.delete(
@@ -1336,8 +1289,7 @@ class WhatsAppService {
         }
       );
 
-      console.log('✅ [Service] Template deleted successfully:', templateName);
-      console.log('   Response:', response.data);
+
       
       return {
         success: true,
@@ -1371,7 +1323,7 @@ class WhatsAppService {
         }
       );
 
-      console.log('✅ Template updated successfully:', templateId);
+
       return {
         success: true,
         data: response.data
