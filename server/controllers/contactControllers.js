@@ -334,6 +334,27 @@ exports.importContacts = async (req, res, next) => {
 
     if (!rows.length) return sendError(res, 400, 'CSV file is empty or has no data rows');
 
+    // ── Parse the user-defined field mapping from Step 2 (if provided) ──────────
+    // Shape: { "CSV Column Header": "crmFieldKey" | "skip" }
+    // crmFieldKey values: phone, firstName, lastName, fullName, email, company,
+    //                     city, country, address, status, labels, skip
+    let fieldMapping = null;
+    if (req.body.fieldMapping) {
+      try {
+        fieldMapping = JSON.parse(req.body.fieldMapping);
+      } catch (_) {
+        fieldMapping = null; // fall back to auto-detect
+      }
+    }
+
+    // ── Helper: resolve a CRM field from a row using fieldMapping ────────────────
+    const resolveFromMapping = (row, crmKey) => {
+      if (!fieldMapping) return '';
+      const csvCol = Object.keys(fieldMapping).find(k => fieldMapping[k] === crmKey);
+      if (!csvCol) return '';
+      return (row[csvCol] || '').trim();
+    };
+
     const VALID_STATUSES = ['ACTIVE', 'WARM', 'INACTIVE', 'COLD'];
     const successful = [];
     const failed     = [];
@@ -342,69 +363,89 @@ exports.importContacts = async (req, res, next) => {
       const row      = rows[i];
       const rowIndex = i + 2;
 
-      const name = resolveField(row, [
-        'name', 'fullname', 'full name', 'full_name', 'fullName',
-        'FullName', 'Full Name', 'contactname', 'contact name', 'contact_name',
-      ]);
+      // ── Resolve name ───────────────────────────────────────────────────────────
+      let name = '';
+      if (fieldMapping) {
+        const firstName = resolveFromMapping(row, 'firstName');
+        const lastName  = resolveFromMapping(row, 'lastName');
+        const fullName  = resolveFromMapping(row, 'fullName');
+        name = fullName || [firstName, lastName].filter(Boolean).join(' ');
+      } else {
+        name = resolveField(row, [
+          'name', 'fullname', 'full name', 'full_name', 'fullName',
+          'FullName', 'Full Name', 'contactname', 'contact name', 'contact_name',
+          'firstname', 'first name', 'first_name', 'fname',
+        ]);
+        // Try combining first + last name if separate columns
+        if (!name) {
+          const first = resolveField(row, ['firstname', 'first name', 'first_name', 'fname', 'First Name']);
+          const last  = resolveField(row, ['lastname', 'last name', 'last_name', 'lname', 'Last Name']);
+          name = [first, last].filter(Boolean).join(' ');
+        }
+      }
 
-      const rawPhone = resolveField(row, [
-        'whatsapp', 'whatsappnumber', 'whatsapp number', 'whatsapp_number',
-        'WhatsApp', 'WhatsApp Number',
-        'phone', 'phonenumber', 'phone number', 'phone_number',
-        'Phone', 'Phone Number',
-        'mobile', 'mobilenumber', 'mobile number', 'mobile_number',
-        'contact', 'contactnumber', 'contact number',
-      ]);
+      // ── Resolve phone ──────────────────────────────────────────────────────────
+      const rawPhone = fieldMapping
+        ? resolveFromMapping(row, 'phone')
+        : resolveField(row, [
+            'whatsapp', 'whatsappnumber', 'whatsapp number', 'whatsapp_number',
+            'WhatsApp', 'WhatsApp Number',
+            'phone', 'phonenumber', 'phone number', 'phone_number',
+            'Phone', 'Phone Number',
+            'mobile', 'mobilenumber', 'mobile number', 'mobile_number',
+            'contact', 'contactnumber', 'contact number', 'cell', 'mob',
+          ]);
 
-      const rawAltPhone = resolveField(row, [
-        'alternatephone', 'alternate phone', 'altphone', 'alt phone',
-        'landline', 'telephone', 'tel',
-      ]) || rawPhone;
+      const rawAltPhone = fieldMapping
+        ? resolveFromMapping(row, 'altPhone') || rawPhone
+        : resolveField(row, [
+            'alternatephone', 'alternate phone', 'altphone', 'alt phone',
+            'landline', 'telephone', 'tel',
+          ]) || rawPhone;
 
-      const email = resolveField(row, [
-        'email', 'emailaddress', 'email address', 'email_address',
-        'Email', 'Email Address', 'mail',
-      ]);
+      // ── Resolve remaining fields ───────────────────────────────────────────────
+      const email = fieldMapping
+        ? resolveFromMapping(row, 'email')
+        : resolveField(row, ['email', 'emailaddress', 'email address', 'email_address', 'Email', 'Email Address', 'mail']);
 
-      const company = resolveField(row, [
-        'company', 'companyname', 'company name', 'company_name',
-        'Company', 'Company Name',
-        'organisation', 'organization', 'org',
-        'Organisation', 'Organization',
-      ]);
+      const company = fieldMapping
+        ? resolveFromMapping(row, 'company')
+        : resolveField(row, ['company', 'companyname', 'company name', 'company_name', 'Company', 'Company Name', 'organisation', 'organization', 'org']);
 
-      const institute = resolveField(row, [
-        'institute', 'institution', 'Institute', 'Institution',
-        'school', 'college', 'university',
-      ]);
+      const institute = fieldMapping
+        ? resolveFromMapping(row, 'institute')
+        : resolveField(row, ['institute', 'institution', 'Institute', 'Institution', 'school', 'college', 'university']);
 
-      const city = resolveField(row, [
-        'city', 'City', 'town', 'Town', 'district', 'District',
-      ]);
+      const city = fieldMapping
+        ? resolveFromMapping(row, 'city')
+        : resolveField(row, ['city', 'City', 'town', 'Town', 'district', 'District']);
 
-      const country = resolveField(row, [
-        'country', 'Country',
-        'countrycode', 'country code', 'country_code',
-        'Country Code', 'CountryCode',
-        'nation', 'Nation',
-      ]);
+      const country = fieldMapping
+        ? resolveFromMapping(row, 'country')
+        : resolveField(row, ['country', 'Country', 'countrycode', 'country code', 'country_code', 'Country Code', 'CountryCode', 'nation', 'Nation']);
 
-      const address = resolveField(row, [
-        'address', 'Address',
-        'fulladdress', 'full address', 'full_address',
-        'streetaddress', 'street address', 'street',
-      ]) || [city, country].filter(Boolean).join(', ');
+      const address = fieldMapping
+        ? resolveFromMapping(row, 'address')
+        : resolveField(row, [
+            'address', 'Address', 'fulladdress', 'full address', 'full_address',
+            'streetaddress', 'street address', 'street',
+          ]) || [city, country].filter(Boolean).join(', ');
 
-      const rawStatus  = resolveField(row, ['status', 'Status', 'contactstatus', 'contact status']);
-      const status     = VALID_STATUSES.includes(rawStatus.toUpperCase())
+      const rawStatus = fieldMapping
+        ? resolveFromMapping(row, 'status')
+        : resolveField(row, ['status', 'Status', 'contactstatus', 'contact status']);
+      const status = VALID_STATUSES.includes((rawStatus || '').toUpperCase())
         ? rawStatus.toUpperCase()
         : 'ACTIVE';
 
-      const rawLabels = resolveField(row, ['labels', 'Labels', 'tags', 'Tags', 'label', 'tag']);
-      const labels    = rawLabels
+      const rawLabels = fieldMapping
+        ? resolveFromMapping(row, 'labels')
+        : resolveField(row, ['labels', 'Labels', 'tags', 'Tags', 'label', 'tag']);
+      const labels = rawLabels
         ? rawLabels.split(',').map(l => l.trim()).filter(Boolean)
         : [];
 
+      // ── Validation ─────────────────────────────────────────────────────────────
       if (!name) {
         failed.push({ row: rowIndex, data: JSON.stringify(row), name: 'Unknown', reason: 'Missing name' });
         continue;
@@ -477,4 +518,4 @@ exports.importContacts = async (req, res, next) => {
     cleanupFile();
     next(err);
   }
-};
+};
