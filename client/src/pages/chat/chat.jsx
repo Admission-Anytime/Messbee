@@ -504,36 +504,47 @@ const Chat = () => {
     setIsConfirmModalOpen(true);
   };
 
-  const handleUpdateStatus = async (status) => {
-    if (!activeChatId) return;
+  const handleUpdateStatus = async (chatId, status) => {
+    if (!chatId) return;
     try {
-      const result = await chatService.updateChatStatus(activeChatId, status);
+      const result = await chatService.updateChatStatus(chatId, status);
       if (result.success) {
-        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, chatStatus: status } : c));
+        setChats(prev => prev.map(c => {
+          if ((c._id || c.id) === chatId) {
+            return {
+              ...c,
+              chatStatus: status,
+              isBlocked: status === 'blocked',
+              blocked: status === 'blocked',
+              contactStatus: status === 'blocked' ? 'blocked' : (String(c.contactStatus || '').toLowerCase() === 'blocked' ? status : c.contactStatus)
+            };
+          }
+          return c;
+        }));
       }
     } catch (err) {
       console.error("Error updating status:", err);
     }
   };
 
-  const handleUpdateLabels = async (labels) => {
-    if (!activeChatId) return;
+  const handleUpdateLabels = async (labels, targetChatId = activeChatId) => {
+    if (!targetChatId) return;
     try {
-      const result = await chatService.updateChatLabels(activeChatId, labels);
+      const result = await chatService.updateChatLabels(targetChatId, labels);
       if (result.success) {
-        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, labels: labels } : c));
+        setChats(prev => prev.map(c => c._id === targetChatId ? { ...c, labels: labels } : c));
       }
     } catch (err) {
       console.error("Error updating labels:", err);
     }
   };
 
-  const handleTogglePin = async () => {
-    if (!activeChatId) return;
+  const handleTogglePin = async (targetChatId = activeChatId) => {
+    if (!targetChatId) return;
     try {
-      const result = await chatService.toggleChatPin(activeChatId);
+      const result = await chatService.toggleChatPin(targetChatId);
       if (result.success) {
-        setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, isPinned: !c.isPinned } : c));
+        setChats(prev => prev.map(c => c._id === targetChatId ? { ...c, isPinned: !c.isPinned } : c));
       }
     } catch (err) {
       console.error("Error toggling pin status:", err);
@@ -581,6 +592,9 @@ const Chat = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab}
             onCreateChat={handleCreateChat}
+            onUpdateStatus={handleUpdateStatus}
+            onTogglePin={(chatId) => handleTogglePin(chatId)}
+            onUpdateLabels={(chatId, labels) => handleUpdateLabels(labels, chatId)}
           />
         )}
       </div>
@@ -620,17 +634,24 @@ const Chat = () => {
 
             {/* RIGHT: PROFILE PANEL */}
             {showProfile && (
-              <div className="w-[320px] lg:w-[340px] bg-white h-full shrink-0 hidden xl:block">
-                <UserProfilePanel
-                  data={activeChat}
-                  onClose={() => setShowProfile(false)}
-                  onViewHistory={() => setShowActivityLog(true)}
-                  availableLabels={availableLabels}
-                  statusOptions={statusOptions}
-                  onUpdateProfile={handleUpdateProfile}
-                  onUpdateLabels={handleUpdateLabels}
+              <>
+                {/* Mobile Backdrop */}
+                <div 
+                  className="xl:hidden fixed inset-0 z-40 bg-slate-900/10 backdrop-blur-[2px]" 
+                  onClick={() => setShowProfile(false)} 
                 />
-              </div>
+                <div className="absolute right-0 top-0 z-50 w-[85%] max-w-[340px] bg-white h-full shadow-2xl xl:relative xl:shadow-none xl:block xl:w-[320px] lg:xl:w-[340px] shrink-0 border-l border-slate-100 animate-in slide-in-from-right duration-300">
+                  <UserProfilePanel
+                    data={activeChat}
+                    onClose={() => setShowProfile(false)}
+                    onViewHistory={() => setShowActivityLog(true)}
+                    availableLabels={availableLabels}
+                    statusOptions={statusOptions}
+                    onUpdateProfile={handleUpdateProfile}
+                    onUpdateLabels={handleUpdateLabels}
+                  />
+                </div>
+              </>
             )}
           </div>
         ) : (

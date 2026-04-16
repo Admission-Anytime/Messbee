@@ -636,6 +636,16 @@ const Conversion = ({
       }).toLowerCase();
    };
 
+   const isCurrentlyBlocked = data?.chatStatus === "blocked" || data?.isBlocked || data?.blocked || String(data?.contactStatus || "").toLowerCase() === "blocked";
+
+   useEffect(() => {
+      if (!isCurrentlyBlocked) return;
+      setIsSearchOpen(false);
+      setShowEmojiPicker(false);
+      setShowTemplates(false);
+      setShowQuickReplies(false);
+   }, [isCurrentlyBlocked]);
+
    return (
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
 
@@ -697,9 +707,11 @@ const Conversion = ({
                            <span className="tabular-nums">{sessionRemainingMs > 0 ? sessionCountdown : 'Expired'}</span>
                         </div>
                      )}
-                     <button onClick={() => setIsSearchOpen(true)} className="p-1 rounded-full hover:text-slate-700 transition-colors" title="Search in chat">
-                        <MagnifyingGlassIcon className="w-5 h-5" />
-                     </button>
+                     {!isCurrentlyBlocked && (
+                        <button onClick={() => setIsSearchOpen(true)} className="p-1 rounded-full hover:text-slate-700 transition-colors" title="Search in chat">
+                           <MagnifyingGlassIcon className="w-5 h-5" />
+                        </button>
+                     )}
 
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
@@ -733,9 +745,10 @@ const Conversion = ({
                               <div className="border-t border-slate-100 my-1.5"></div>
 
                               {/* Group 3 */}
-                              <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> Archive Chat
+                              <button onClick={() => { onUpdateStatus && onUpdateStatus(data._id || data.id, data.chatStatus === 'archived' ? 'open' : 'archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
+                                 <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> {data.chatStatus === 'archived' ? 'Unarchive Chat' : 'Archive Chat'}
                               </button>
+
                               <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
                                  <Pin className={`w-4 h-4 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
                               </button>
@@ -749,8 +762,8 @@ const Conversion = ({
                               <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
                                  <UserMinusIcon className="w-4 h-4 text-red-400" /> Delete Contact
                               </button>
-                              <button onClick={() => { onUpdateStatus && onUpdateStatus('blocked'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
-                                 <NoSymbolIcon className="w-4 h-4 text-red-400" /> Block
+                              <button onClick={() => { onUpdateStatus && onUpdateStatus(data._id || data.id, isCurrentlyBlocked ? 'active' : 'blocked'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
+                                 <NoSymbolIcon className="w-4 h-4 text-red-400" /> {isCurrentlyBlocked ? 'Unblock Contact' : 'Block Contact'}
                               </button>
                            </div>
                         )}
@@ -1179,44 +1192,65 @@ const Conversion = ({
                </div>
             ), document.body)}
 
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+            {isCurrentlyBlocked ? (
+               <div className="flex items-center justify-center gap-4 py-12 bg-[#F9FAFB] animate-in fade-in zoom-in-95 duration-200">
+                  <button 
+                     onClick={() => onDeleteChat && onDeleteChat()}
+                     className="flex items-center gap-2.5 border border-slate-200 rounded-full px-10 py-3.5 bg-white text-rose-600 font-bold text-sm shadow-sm hover:shadow-md transition-all active:scale-95 whitespace-nowrap"
+                  >
+                     <TrashIcon className="w-5 h-5 text-rose-500" />
+                     Delete chat
+                  </button>
+                  <button 
+                     onClick={() => onUpdateStatus && onUpdateStatus(data._id || data.id, 'active')}
+                     className="flex items-center gap-2.5 border border-slate-200 rounded-full px-10 py-3.5 bg-white text-emerald-600 font-bold text-sm shadow-sm hover:shadow-md transition-all active:scale-95 whitespace-nowrap"
+                  >
+                     <NoSymbolIcon className="w-5 h-5 text-emerald-500" />
+                     Unblock
+                  </button>
+               </div>
+            ) : (
+               <>
+                  <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
-               <div className="flex items-center gap-0.5 pl-2 shrink-0">
-                  <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                     <PaperClipIcon className="w-5 h-5" />
-                  </button>
-                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                     <FaceSmileIcon className="w-6 h-6" />
-                  </button>
-               </div>
-               <input
-                  type="text"
-                  value={inputText}
-                  onChange={(e) => {
-                     const val = e.target.value;
-                     setInputText(val);
-                     if (val.endsWith("/")) {
-                        setShowTemplates(true);
-                        setShowQuickReplies(false);
-                     }
-                     if (!val.includes("/")) setShowTemplates(false);
-                  }}
-                  placeholder="Type a message..."
-                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
-               />
-               <div className="flex items-center gap-1.5 pr-1 shrink-0">
-                  <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
-                     <ChatBubbleLeftRightIcon className="w-5 h-5" />
-                  </button>
-                  <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
-                     <BoltIcon className="w-5 h-5" />
-                  </button>
-                  <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
-                     <PaperAirplaneIcon className="w-4 h-4" />
-                  </button>
-               </div>
-            </form>
+                  <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
+                     <div className="flex items-center gap-0.5 pl-2 shrink-0">
+                        <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                           <PaperClipIcon className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                           <FaceSmileIcon className="w-6 h-6" />
+                        </button>
+                     </div>
+                     <input
+                        type="text"
+                        value={inputText}
+                        onChange={(e) => {
+                           const val = e.target.value;
+                           setInputText(val);
+                           if (val.endsWith("/")) {
+                              setShowTemplates(true);
+                              setShowQuickReplies(false);
+                           }
+                           if (!val.includes("/")) setShowTemplates(false);
+                        }}
+                        placeholder="Type a message..."
+                        className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
+                     />
+                     <div className="flex items-center gap-1.5 pr-1 shrink-0">
+                        <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
+                           <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
+                           <BoltIcon className="w-5 h-5" />
+                        </button>
+                        <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                           <PaperAirplaneIcon className="w-4 h-4" />
+                        </button>
+                     </div>
+                  </form>
+               </>
+            )}
          </div>
 
          {/* MODALS */}
