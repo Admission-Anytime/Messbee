@@ -1010,10 +1010,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative font-sans">
+    <div className="flex flex-col h-full min-w-0 bg-white relative font-sans">
       
       {/* 1. HEADER */}
-      <div className="h-16 flex items-center justify-between px-5 shrink-0 bg-white z-40 relative border-b border-slate-50">
+      <div className="h-12 xl:h-14 flex items-center justify-between px-3 lg:px-4 xl:px-5 shrink-0 bg-white z-40 relative border-b border-slate-50">
          {isSelectionMode ? (
             <div className="flex items-center justify-between w-full gap-2">
                <div className="flex items-center gap-2">
@@ -1220,7 +1220,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
             </div>
          ) : (
          <>
-         <h2 className="text-xl font-extrabold text-slate-900">Chats</h2>
+         <h2 className="text-lg xl:text-xl font-extrabold text-slate-900">Chats</h2>
          
          <div className="flex items-center gap-2">
             {/* Filter Dropdown */}
@@ -1238,7 +1238,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
                {/* Filter Dropdown Menu */}
                {openMenuId === 'filter-menu' && (
-                  <div data-menu-content="true" className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                  <div data-menu-content="true" className="absolute right-0 mt-2 w-52 xl:w-56 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
                   <p className="px-4 py-2 text-[11px] font-bold text-slate-400 uppercase tracking-wide">Quick filters</p>
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleQuickFilter("unreadChats"); setOpenMenuId(null); }}
@@ -1340,7 +1340,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                
                {/* Dropdown Menu */}
                {openMenuId === 'header-menu' && (
-                <div data-menu-content="true" className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
+                <div data-menu-content="true" className="absolute right-0 mt-2 w-52 xl:w-56 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-lg border border-slate-200 z-50 py-1">
                      <button
                         onClick={(e) => { 
                           e.stopPropagation(); 
@@ -1434,7 +1434,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       </div>
 
       {appNotice.isOpen && (
-        <div className="px-5 pt-3">
+        <div className="px-3 lg:px-4 xl:px-5 pt-3">
           <div className={`rounded-xl px-3 py-2 text-xs font-semibold border ${
             appNotice.type === "success"
               ? "bg-green-50 text-green-700 border-green-200"
@@ -1446,7 +1446,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
-        <div className="px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
+        <div className="px-3 lg:px-4 xl:px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
             {quickFilters.unreadChats && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full">Unread</span>}
             {quickFilters.openSessionChats && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">Open session</span>}
@@ -1477,7 +1477,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       {bulkActionModal.isOpen && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
-          <div className="bg-white w-full max-w-[460px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-white w-full max-w-[460px] max-h-[90vh] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">
                 {bulkActionModal.type === "status" && "Assign status"}
@@ -1496,7 +1496,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 lg:p-6 space-y-4 overflow-y-auto custom-scrollbar">
               {bulkActionModal.type === "status" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</label>
@@ -1650,7 +1650,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2">
+            <div className="px-4 lg:px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2">
               <button
                 onClick={closeBulkActionModal}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
@@ -1678,7 +1678,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       {isAdvancedFilterOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
-          <div className="bg-white w-full max-w-[760px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-white w-full max-w-[760px] max-h-[90vh] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Advanced filters</h3>
@@ -1692,7 +1692,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <div className="p-4 lg:p-6 space-y-6 overflow-y-auto custom-scrollbar">
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</p>
                 <div className="flex flex-wrap gap-2">
@@ -1782,7 +1782,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <div className="px-4 lg:px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
               <button
                 onClick={resetAdvancedFilters}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
@@ -1803,7 +1803,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       {/* --- 🟢 FLOATING NEW CHAT MODAL 🟢 --- */}
       {isNewChatModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-[500px] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+            <div className="bg-white w-full max-w-[500px] max-h-[90vh] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                 
                 {/* Modal Header */}
                 <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
@@ -1814,7 +1814,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 </div>
 
                 {/* Modal Body */}
-                <div className="p-6 space-y-6">
+                <div className="p-4 lg:p-6 space-y-5 lg:space-y-6 overflow-y-auto custom-scrollbar">
                     
                     {/* Error Message */}
                     {createError && (
@@ -1866,7 +1866,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 </div>
 
                 {/* Modal Footer */}
-                <div className="flex items-center justify-end gap-3 px-6 py-4 bg-slate-50/50 border-t border-slate-100 shrink-0">
+                <div className="flex items-center justify-end gap-3 px-4 lg:px-6 py-4 bg-slate-50/50 border-t border-slate-100 shrink-0">
                     <button 
                         onClick={handleCloseModal} 
                         className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-100"
@@ -1901,7 +1901,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       {/* --- 🔴 DELETE CONFIRMATION MODAL 🔴 --- */}
       {chatToDelete && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-[400px] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
+            <div className="bg-white w-full max-w-[400px] max-h-[90vh] rounded-3xl shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden flex flex-col">
                 <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
                     <h3 className="text-base font-bold text-slate-900">Delete Chat</h3>
                     <button onClick={() => setChatToDelete(null)} className="text-slate-400 hover:text-slate-700 p-1.5 rounded-full hover:bg-slate-100 transition-colors -mr-1.5">
@@ -1930,8 +1930,8 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {/* 2. SEARCH BAR */}
-      <div className="px-5 pb-4 shrink-0">
-         <div className="relative bg-slate-50 rounded-xl flex items-center px-4 py-2.5 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
+      <div className="px-3 lg:px-4 xl:px-5 pb-2 xl:pb-3 shrink-0">
+        <div className="relative bg-slate-50 rounded-xl flex items-center px-3 py-2 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
             <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 mr-2" />
             <input 
               type="text" 
@@ -1945,12 +1945,12 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       </div>
 
       {/* 3. FILTER TABS */}
-      <div className="px-5 pb-3 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
+      <div className="px-3 lg:px-4 xl:px-5 pb-2 overflow-x-auto hide-scrollbar flex gap-1.5 xl:gap-2 shrink-0 border-b border-slate-50">
          {TABS.map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
-              className={`px-4 py-1.5 rounded-full text-xs font-bold whitespace-nowrap transition-colors shadow-sm ${
+              className={`px-3 xl:px-4 py-1 rounded-full text-[11px] xl:text-xs font-bold whitespace-nowrap transition-colors shadow-sm ${
                 activeTab === tab 
                   ? "bg-[#22C55E] text-white border border-[#22C55E]" 
                   : "bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100"
@@ -1974,7 +1974,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                }
              }}
              className={`
-               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative group
+               flex gap-2 xl:gap-2.5 px-3 lg:px-4 xl:px-5 py-2 xl:py-2.5 cursor-pointer transition-all border-b border-slate-50 relative group
                ${activeChatId === (chat._id || chat.id) && !isSelectionMode
                  ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm" 
                  : "border-l-4 border-l-transparent hover:bg-slate-50"}
@@ -1991,7 +1991,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   </div>
                 )}
                 <div className="relative">
-                  <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-12 h-12 rounded-full object-cover" />
+                  <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-9 h-9 xl:w-10 xl:h-10 rounded-full object-cover" />
                   {chat.status === 'active' && (
                     <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
                   )}
@@ -1999,10 +1999,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </div>
 
               {/* Chat Info */}
-              <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+              <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
                  <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2 max-w-full overflow-hidden">
-                      <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
+                      <h4 className="text-[13px] xl:text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
                       {isChatPinned(chat) && (
                         <svg className="w-3.5 h-3.5 text-slate-400 shrink-0 rotate-45" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M16 11.232L16 6.5C16 5.119 14.881 4 13.5 4L10.5 4C9.119 4 8 5.119 8 6.5L8 11.232L6.113 15.006C5.556 16.12 6.368 17.5 7.618 17.5L11 17.5L11 21C11 21.552 11.448 22 12 22C12.552 22 13 21.552 13 21L13 17.5L16.382 17.5C17.632 17.5 18.444 16.12 17.887 15.006L16 11.232Z" />
@@ -2091,10 +2091,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                       </div>
                     </div>
                  </div>
-                 <p className="text-xs truncate text-slate-500 font-medium">
+                 <p className="text-[11px] xl:text-xs truncate text-slate-500 font-medium">
                     {chat.lastMsg || "No messages yet"}
                  </p>
-                 <div className="mt-1.5 flex justify-between items-center">
+                 <div className="mt-1 flex justify-between items-center">
                     {getChatStatus(chat) && (
                       <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${
                       getChatStatus(chat) === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
