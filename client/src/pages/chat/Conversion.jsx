@@ -640,7 +640,7 @@ const Conversion = ({
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
 
          {/* 1. HEADER */}
-         <div className="h-20 px-6 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-20 relative shadow-sm">
+         <div className="h-16 lg:h-[68px] px-3 sm:px-4 lg:px-5 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-20 relative shadow-sm">
             {isSearchOpen ? (
                <div className="flex-1 flex items-center gap-3 animate-in fade-in duration-200">
                   <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
@@ -665,21 +665,21 @@ const Conversion = ({
                </div>
             ) : (
                <>
-                  <div className="flex items-center gap-4 cursor-pointer" onClick={onToggleProfile}>
+                  <div className="flex items-center gap-2.5 sm:gap-3 cursor-pointer min-w-0" onClick={onToggleProfile}>
                      <button onClick={(e) => { e.stopPropagation(); onBack(); }} className="md:hidden text-slate-500">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                      </button>
                      <div className="relative">
-                        <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-12 h-12 rounded-full object-cover" />
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
+                        <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-10 h-10 lg:w-11 lg:h-11 rounded-full object-cover" />
+                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#22C55E] border-2 border-white rounded-full"></span>
                      </div>
-                     <div className="flex flex-col justify-center">
-                        <h3 className="text-[15px] font-bold text-slate-900 leading-tight">{data.name}</h3>
-                        <div className="flex items-center gap-2 mt-0.5">
+                     <div className="flex flex-col justify-center min-w-0">
+                        <h3 className="text-[14px] lg:text-[15px] font-bold text-slate-900 leading-tight truncate">{data.name}</h3>
+                        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
                            <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
-                           <span className="text-xs font-medium text-slate-500">Active now</span>
+                           <span className="text-[11px] lg:text-xs font-medium text-slate-500 whitespace-nowrap">Active now</span>
                            <span className="text-slate-300 text-xs">•</span>
-                           <span className="px-2 py-0.5 text-[10px] font-bold rounded-md shadow-sm border" style={{
+                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md shadow-sm border truncate" style={{
                               backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '15') || '#f1f5f9',
                               color: statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color || '#64748b',
                               borderColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '30') || '#e2e8f0'
@@ -690,9 +690,9 @@ const Conversion = ({
                      </div>
                   </div>
 
-                  <div className="flex items-center gap-4 text-slate-400">
+                  <div className="flex items-center gap-2 sm:gap-3 text-slate-400 shrink-0">
                      {data?.source === 'whatsapp' && sessionCountdown && (
-                        <div className={`h-8 px-2.5 rounded-lg border flex items-center gap-2 text-[11px] font-bold tracking-wide shadow-sm ${sessionRemainingMs > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                        <div className={`h-7 px-2 rounded-lg border flex items-center gap-1.5 text-[10px] lg:text-[11px] font-bold tracking-wide shadow-sm ${sessionRemainingMs > 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
                            <ClockIcon className="w-3.5 h-3.5" />
                            <span className="tabular-nums">{sessionRemainingMs > 0 ? sessionCountdown : 'Expired'}</span>
                         </div>
@@ -761,7 +761,7 @@ const Conversion = ({
          </div>
 
           {/* 2. MESSAGES AREA */}
-         <div className="flex-1 overflow-y-auto p-6 space-y-6 z-10 custom-scrollbar bg-white">
+         <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-5 py-3 lg:py-4 space-y-2.5 lg:space-y-3 z-10 custom-scrollbar bg-white">
             
             {data.messages?.map((msg, index) => {
                const msgDate = new Date(msg.createdAt || Date.now()).toDateString();
@@ -771,7 +771,7 @@ const Conversion = ({
                return (
                   <React.Fragment key={index}>
                      {showDateSeparator && (
-                        <div className="flex justify-center my-6">
+                        <div className="flex justify-center my-2.5 lg:my-3">
                            <span className="px-4 py-1.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-bold text-slate-400 uppercase tracking-widest">
                               {formatMessageDate(msg.createdAt || Date.now())}
                            </span>
@@ -782,15 +782,15 @@ const Conversion = ({
                            if (el) messageRefs.current[index] = el;
                            else delete messageRefs.current[index];
                         }}
-                        className={`flex items-end gap-3 ${msg.sender === "me" ? "justify-end" : "justify-start"} ${currentMatchMessageIndex === index ? 'ring-2 ring-emerald-300 rounded-2xl p-1 -m-1' : (searchMatchIndexSet.has(index) ? 'ring-1 ring-emerald-100 rounded-2xl p-1 -m-1' : '')}`}
+                        className={`flex items-end gap-1.5 ${msg.sender === "me" ? "justify-end" : "justify-start"} ${currentMatchMessageIndex === index ? 'ring-2 ring-emerald-300 rounded-2xl p-1 -m-1' : (searchMatchIndexSet.has(index) ? 'ring-1 ring-emerald-100 rounded-2xl p-1 -m-1' : '')}`}
                      >
                         {msg.sender !== "me" && (
-                           <div className="w-8 h-8 rounded-xl bg-[#e2e8f0] overflow-hidden shrink-0 flex items-center justify-center mb-5">
+                           <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-xl bg-[#e2e8f0] overflow-hidden shrink-0 flex items-center justify-center mb-3">
                               <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
                            </div>
                         )}
-                        <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[70%]`}>
-                           <div className={`px-5 py-3 text-sm shadow-sm ${
+                        <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[78%] lg:max-w-[72%]`}>
+                           <div className={`px-4 py-2.5 text-sm shadow-sm ${
                               msg.sender === "me"
                                  ? msg.status === 'failed'
                                     ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
@@ -819,7 +819,7 @@ const Conversion = ({
                                  <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
                               )}
                            </div>
-                           <div className={`text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
+                           <div className={`text-[10px] text-slate-400 mt-0.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
                               {formatMessageTime(msg)}
                               {msg.sender === "me" && (
                                  msg.status === 'failed'
@@ -838,12 +838,12 @@ const Conversion = ({
          </div>
 
          {/* 3. INPUT AREA */}
-         <div className="p-4 bg-white z-20 relative">
+         <div className="p-3 lg:p-4 bg-white z-20 relative border-t border-slate-100">
 
             {!isTemplateOnlyMode && (
-            <div className="flex gap-2 overflow-x-auto hide-scrollbar pb-3 px-1 mb-1">
+            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-2 px-1 mb-1">
                {QUICK_REPLIES_MOCK.map((reply, idx) => (
-                  <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-4 py-1.5 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
+                  <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-3 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[11px] font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
                      {reply}
                   </button>
                ))}
@@ -857,13 +857,13 @@ const Conversion = ({
             )}
 
             {showEmojiPicker && (
-               <div className="absolute bottom-32 right-10 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200" ref={emojiRef}>
+               <div className="absolute bottom-24 right-2 sm:right-8 shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200" ref={emojiRef}>
                   <EmojiPicker onEmojiClick={onEmojiClick} height={350} width={300} />
                </div>
             )}
 
             {showQuickReplies && (
-               <div className="absolute bottom-28 left-6 w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
+               <div className="absolute bottom-28 left-2 right-2 sm:left-6 sm:right-auto sm:w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
                   <div className="p-3 border-b border-slate-100 flex items-center justify-between">
                      <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Quick Replies</h4>
                      <span className="text-[10px] font-bold text-slate-400">{displayQuickReplies.length} REPLIES</span>
@@ -901,8 +901,8 @@ const Conversion = ({
             )}
 
             {showTemplates && typeof document !== "undefined" && createPortal((
-               <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 md:p-5 bg-black/30 backdrop-blur-[2px]">
-                  <div className="bg-slate-50 w-[calc(100vw-240px)] max-w-[900px] h-[calc(100vh-28px)] max-h-[860px] rounded-xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
+               <div className="fixed inset-0 z-[2000] flex items-center justify-center p-2 sm:p-4 md:p-5 bg-black/30 backdrop-blur-[2px]">
+                  <div className="bg-slate-50 w-full max-w-[1280px] h-[94vh] sm:h-[92vh] max-h-[900px] rounded-xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
                      <header className="h-16 flex items-center justify-between px-8 bg-slate-100 border-b border-slate-200">
                         <div className="flex items-center gap-3">
                            <Squares2X2Icon className="w-5 h-5 text-emerald-600" />
@@ -917,8 +917,8 @@ const Conversion = ({
                         </button>
                      </header>
 
-                     <div className="flex-1 flex overflow-hidden">
-                        <div className="w-[58%] border-r border-slate-200 flex flex-col bg-white min-w-0">
+                     <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+                        <div className="w-full lg:w-[58%] border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white min-w-0 min-h-0">
                            <div className="p-6 space-y-4">
                               <div className="relative">
                                  <MagnifyingGlassIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -986,13 +986,13 @@ const Conversion = ({
                            </div>
                         </div>
 
-                        <div className="w-[42%] min-w-[320px] bg-slate-100 flex flex-col items-center justify-center p-4">
-                           <div className="mb-6 text-center">
+                        <div className="w-full lg:w-[42%] lg:min-w-[320px] bg-slate-100 flex flex-col items-center justify-start lg:justify-center p-4 overflow-y-auto min-h-[280px] lg:min-h-0">
+                           <div className="mb-4 lg:mb-6 text-center">
                               <span className="text-[0.65rem] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Live Preview</span>
-                              <h4 className="text-[38px] leading-tight font-extrabold text-slate-700 truncate max-w-[320px]">{previewTitle}</h4>
+                              <h4 className="text-2xl sm:text-3xl lg:text-[38px] leading-tight font-extrabold text-slate-700 truncate max-w-[320px]">{previewTitle}</h4>
                            </div>
 
-                           <div className="w-[275px] h-[520px] bg-[#0f1e3a] rounded-[3rem] p-3 shadow-2xl relative border-4 border-[#1d2f4d]">
+                           <div className="w-[230px] sm:w-[250px] lg:w-[275px] h-[430px] sm:h-[470px] lg:h-[520px] bg-[#0f1e3a] rounded-[3rem] p-3 shadow-2xl relative border-4 border-[#1d2f4d]">
                               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-[#1d2f4d] rounded-b-2xl z-10 flex items-center justify-center">
                                  <div className="w-11 h-1.5 bg-[#334a6f] rounded-full" />
                               </div>
@@ -1030,7 +1030,7 @@ const Conversion = ({
                         </div>
                      </div>
 
-                     <footer className="h-14 px-6 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+                     <footer className="min-h-14 px-4 sm:px-6 py-3 bg-slate-100 border-t border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 text-slate-500">
                            <InformationCircleIcon className="w-4 h-4" />
                            <span className="text-xs font-medium">Compliance-approved template last updated 2 days ago.</span>
@@ -1181,12 +1181,12 @@ const Conversion = ({
 
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
-               <div className="flex items-center gap-0.5 pl-2 shrink-0">
-                  <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+            <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full py-0.5 px-1 shadow-sm transition-all relative overflow-hidden">
+               <div className="flex items-center gap-0.5 pl-1.5 shrink-0">
+                  <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1 transition-colors">
                      <PaperClipIcon className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
+                  <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1 transition-colors">
                      <FaceSmileIcon className="w-6 h-6" />
                   </button>
                </div>
@@ -1203,16 +1203,16 @@ const Conversion = ({
                      if (!val.includes("/")) setShowTemplates(false);
                   }}
                   placeholder="Type a message..."
-                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
+                  className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-2 text-slate-800 placeholder:text-slate-400"
                />
-               <div className="flex items-center gap-1.5 pr-1 shrink-0">
-                  <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
+               <div className="flex items-center gap-1 pr-0.5 shrink-0">
+                  <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1 transition-colors" title="Templates">
                      <ChatBubbleLeftRightIcon className="w-5 h-5" />
                   </button>
-                  <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
+                  <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-1.5 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
                      <BoltIcon className="w-5 h-5" />
                   </button>
-                  <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                  <button type="submit" disabled={!inputText || !inputText.trim()} className="w-9 h-9 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
                      <PaperAirplaneIcon className="w-4 h-4" />
                   </button>
                </div>
@@ -1221,12 +1221,12 @@ const Conversion = ({
 
          {/* MODALS */}
          {isMediaModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 md:p-8 animate-in fade-in duration-200">
-               <div className="bg-white w-full max-w-[1100px] h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                  <div className="h-16 px-6 border-b border-slate-100 flex items-center justify-between shrink-0">
-                     <h2 className="text-xl font-bold text-slate-800">Select Media to Send</h2>
-                     <div className="flex items-center gap-4">
-                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 w-64 hidden md:flex focus-within:ring-1 focus-within:ring-green-500">
+               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
+                  <div className="bg-white w-full max-w-[1200px] h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
+                     <h2 className="text-lg sm:text-xl font-bold text-slate-800">Select Media to Send</h2>
+                     <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
+                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 w-[220px] lg:w-64 hidden md:flex focus-within:ring-1 focus-within:ring-green-500">
                            <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 mr-2" />
                            <input type="text" placeholder="Search assets..." value={mediaSearch} onChange={(e) => setMediaSearch(e.target.value)} className="bg-transparent border-none outline-none text-sm text-slate-700 w-full" />
                         </div>
@@ -1235,24 +1235,26 @@ const Conversion = ({
                         <button onClick={() => setIsMediaModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><XMarkIcon className="w-6 h-6" /></button>
                      </div>
                   </div>
-                  <div className="flex-1 flex overflow-hidden">
-                     <div className="w-60 border-r border-slate-100 flex flex-col justify-between bg-white shrink-0">
+                  <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+                     <div className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col justify-between bg-white shrink-0">
                         <div className="p-4 space-y-1">
+                           <div className="flex lg:block gap-2 overflow-x-auto lg:overflow-visible">
                            {MEDIA_TABS.map(tab => (
-                              <button key={tab.id} onClick={() => setMediaTab(tab.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${mediaTab === tab.id ? 'bg-[#f0fdf4] text-[#16a34a] font-bold' : 'text-slate-600 hover:bg-slate-50 font-medium'}`}>
+                              <button key={tab.id} onClick={() => setMediaTab(tab.id)} className={`w-full min-w-[120px] lg:min-w-0 flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${mediaTab === tab.id ? 'bg-[#f0fdf4] text-[#16a34a] font-bold' : 'text-slate-600 hover:bg-slate-50 font-medium'}`}>
                                  <tab.icon className="w-5 h-5" /> {tab.label}
                               </button>
                            ))}
+                           </div>
                         </div>
                      </div>
-                     <div className="flex-1 bg-[#F8FAFC] p-6 overflow-y-auto custom-scrollbar">
+                     <div className="flex-1 bg-[#F8FAFC] p-4 sm:p-6 overflow-y-auto custom-scrollbar min-h-0">
                          {isLoadingMedia ? (
                             <div className="flex flex-col items-center justify-center h-full">
                                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                                <p className="text-gray-400 mt-4 font-medium italic">Synchronizing assets...</p>
                             </div>
                          ) : filteredMedia.length > 0 ? (
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
+                            <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
                                {filteredMedia.map((item) => (
                                   <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
                                      {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
@@ -1273,8 +1275,8 @@ const Conversion = ({
                             <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
                          )}
                      </div>
-                     <div className="w-[320px] border-l border-slate-100 bg-white flex flex-col shrink-0">
-            <div className="p-6 border-b border-slate-100">
+                     <div className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-slate-100 bg-white flex flex-col shrink-0">
+            <div className="p-4 sm:p-6 border-b border-slate-100">
                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Asset Preview</h3>
                            <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
                               {uploadingFile ? (
@@ -1305,13 +1307,13 @@ const Conversion = ({
                               </div>
                            </div>
                         </div>
-                        <div className="p-6 flex-1 bg-slate-50/50">
+                        <div className="p-4 sm:p-6 flex-1 bg-slate-50/50">
                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Add Caption</p>
                            <textarea value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Type a caption for your message..." className="w-full h-32 p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] resize-none shadow-sm"></textarea>
                         </div>
                      </div>
                   </div>
-                  <div className="h-20 border-t border-slate-100 bg-white px-6 flex items-center justify-end gap-3 shrink-0">
+                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-3 shrink-0">
                      <button onClick={() => setIsMediaModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">Cancel</button>
                      <button onClick={handleSendMedia} className="flex items-center gap-2 px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-green-200"><PaperAirplaneIcon className="w-4 h-4" /> Attach to Chat</button>
                   </div>
