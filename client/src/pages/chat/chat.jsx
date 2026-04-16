@@ -101,7 +101,7 @@ const Chat = () => {
     // ── SOCKET: incoming message from contact ('them') ──────────────────
     socketRef.current.on("receive_message", (data) => {
       const incomingChatId = data.chatId?.toString();
-      console.log('📩 receive_message:', incomingChatId, '| active:', activeChatIdRef.current?.toString());
+
 
       // Add to message list only if viewing that chat
       if (activeChatIdRef.current?.toString() === incomingChatId) {
@@ -141,7 +141,7 @@ const Chat = () => {
     // ── SOCKET: our sent message confirmed by server ────────────────────
     socketRef.current.on("message_sent", (data) => {
       const sentChatId = data.chatId?.toString();
-      console.log('✅ message_sent for chat:', sentChatId);
+
       // Replace temp message with real one
       if (activeChatIdRef.current?.toString() === sentChatId) {
         setMessages(prev =>
@@ -260,11 +260,7 @@ const Chat = () => {
   const handleSendMessage = async (text, media = null) => {
     if (!text?.trim() && !media) return;
 
-    console.log('📤 handleSendMessage called:', {
-      text: text?.substring(0, 50),
-      hasMedia: !!media,
-      activeChatId
-    });
+
 
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     const tempId = 'temp_' + Date.now();
@@ -283,7 +279,7 @@ const Chat = () => {
 
     try {
       // Add temporary message to UI
-      console.log('➕ Adding temporary message to UI:', tempId);
+
       setMessages((prev) => [...prev, tempMessage]);
 
       // Update chat list optimistically - keep active chat in same position
@@ -296,28 +292,28 @@ const Chat = () => {
       });
 
       // Send to backend
-      console.log('🌐 Sending to backend...');
+
       let result;
       if (media) {
         // Determine media type from media object
         const mediaType = media.type || 'image';
-        console.log('📎 Sending media message, type:', mediaType);
+
         result = await chatService.sendMediaMessage(activeChatId, text, media, mediaType);
       } else {
-        console.log('💬 Sending text message');
+
         result = await chatService.sendMessage(activeChatId, text);
       }
 
-      console.log('📬 Backend response:', result);
+
 
       if (result.success) {
-        console.log('✅ Message sent successfully:', result.data._id);
+
         setSendError(null); // clear any previous error
         // Replace temporary message with actual message from server
         setMessages((prev) =>
           prev.map(msg => {
             if (msg._id === tempId) {
-              console.log('🔄 Replacing temp message with real message');
+
               return { ...result.data, status: result.data.status || 'sent' };
             }
             return msg;
@@ -325,7 +321,7 @@ const Chat = () => {
         );
 
         // Emit via socket for real-time updates to other clients
-        console.log('📡 Emitting socket event...');
+
         socketRef.current?.emit("send_message", {
           chatId: activeChatId,
           message: result.data

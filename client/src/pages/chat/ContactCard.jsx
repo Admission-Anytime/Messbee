@@ -332,7 +332,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   // Handler functions for menu options
   const handleMuteChat = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Mute clicked for chat:", chatId);
+
     
     const chat = chats.find(c => (c._id || c.id) === chatId);
     
@@ -353,7 +353,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
       
       setOpenMenuId(null);
-      console.log("✅ Chat muted/unmuted successfully:", chatId);
+
       // API call
       await chatService.toggleMuteChat(chatId);
     } catch (error) {
@@ -363,7 +363,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handleArchiveChat = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Archive clicked for chat:", chatId);
+
     
     const chat = chats.find(c => (c._id || c.id) === chatId);
     
@@ -384,7 +384,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
       
       setOpenMenuId(null);
-      console.log("✅ Chat archived/unarchived successfully:", chatId);
+
       // API call
       await chatService.toggleArchiveChat(chatId);
     } catch (error) {
@@ -394,7 +394,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handleMarkAsRead = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Mark as read clicked for chat:", chatId);
+
     
     try {
       // Update UI state
@@ -411,7 +411,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
       
       setOpenMenuId(null);
-      console.log("✅ Chat marked as read successfully:", chatId);
+
       // API call
       await chatService.markMessagesAsRead(chatId);
     } catch (error) {
@@ -421,7 +421,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handlePinChat = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Pin clicked for chat:", chatId);
+
     
     const chat = chats.find(c => (c._id || c.id) === chatId);
     
@@ -442,7 +442,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
       
       setOpenMenuId(null);
-      console.log("✅ Chat pinned/unpinned successfully:", chatId);
+
       // API call
       await chatService.toggleChatPin(chatId);
     } catch (error) {
@@ -452,7 +452,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handleDeleteChat = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Delete clicked for chat:", chatId);
+
     setOpenMenuId(null);
     setChatToDelete(chatId);
   };
@@ -471,7 +471,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
         };
       });
       
-      console.log("✅ Chat deleted successfully:", chatToDelete);
+
       // API call
       await chatService.deleteChat(chatToDelete);
     } catch (error) {
