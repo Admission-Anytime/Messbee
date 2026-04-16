@@ -439,8 +439,9 @@ async function handleIncomingMessage(data) {
       sender: 'them',
       time: new Date(parseInt(timestamp) * 1000).toLocaleTimeString([], { 
         hour: '2-digit', 
-        minute: '2-digit' 
-      }),
+        minute: '2-digit',
+        hour12: true
+      }).toLowerCase(),
       whatsappMessageId: messageId,
       messageType: messageType,
       mediaUrl: mediaUrl,
@@ -591,8 +592,9 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
     // Save message to database
     const time = new Date().toLocaleTimeString([], { 
       hour: '2-digit', 
-      minute: '2-digit' 
-    });
+      minute: '2-digit',
+      hour12: true
+    }).toLowerCase();
 
     const newMessage = await Message.create({
       chatId: chat._id,
@@ -724,8 +726,9 @@ exports.sendTemplateMessage = async (req, res, next) => {
 
     const time = new Date().toLocaleTimeString([], {
       hour: '2-digit',
-      minute: '2-digit'
-    });
+      minute: '2-digit',
+      hour12: true
+    }).toLowerCase();
 
     const newMessage = await Message.create({
       chatId: chat._id,

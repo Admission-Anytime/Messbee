@@ -7,6 +7,7 @@ const chatSchema = mongoose.Schema(
     status: { type: String, default: "offline" }, // active, offline
     chatStatus: { type: String, default: "open" }, // open, closed, queue, archived
     isPinned: { type: Boolean, default: false },
+    isMuted: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false },
     teamMember: { type: String, default: "Unassigned" },
     labels: [{ type: String }],

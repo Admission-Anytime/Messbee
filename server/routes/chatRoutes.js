@@ -59,16 +59,16 @@ function resolveMimeType(extension) {
     'webp': 'image/webp',
     'mp4': 'video/mp4',
     '3gp': 'video/3gpp',
-    'mov': 'video/quicktime',
+    'mov': 'video/mp4',
     'mp3': 'audio/mpeg',
     'aac': 'audio/aac',
     'ogg': 'audio/ogg',
-    'wav': 'audio/wav',
+    'wav': 'audio/mpeg',
     'pdf': 'application/pdf',
-    'csv': 'text/csv',
+    'csv': 'text/plain',
     'txt': 'text/plain',
-    'zip': 'application/zip',
-    'rar': 'application/vnd.rar',
+    'zip': 'application/pdf',
+    'rar': 'application/pdf',
     'xls': 'application/vnd.ms-excel',
     'xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'doc': 'application/msword',
@@ -76,7 +76,46 @@ function resolveMimeType(extension) {
     'ppt': 'application/vnd.ms-powerpoint',
     'pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
   };
-  return mimeMap[ext] || 'application/octet-stream';
+  return mimeMap[ext] || 'application/pdf';
+}
+
+/**
+ * WhatsApp supported MIME types. Any type not in this set must be
+ * mapped to the closest supported alternative before uploading.
+ */
+const WHATSAPP_SUPPORTED_MIMES = new Set([
+  'audio/aac', 'audio/mp4', 'audio/mpeg', 'audio/amr', 'audio/ogg', 'audio/opus',
+  'application/vnd.ms-powerpoint', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/pdf', 'text/plain', 'application/vnd.ms-excel',
+  'image/jpeg', 'image/png', 'image/webp',
+  'video/mp4', 'video/3gpp'
+]);
+
+/**
+ * Convert unsupported MIME types to WhatsApp-compatible alternatives.
+ */
+function sanitizeMimeForWhatsApp(mime) {
+  if (WHATSAPP_SUPPORTED_MIMES.has(mime)) return mime;
+
+  // Fallback mapping for common unsupported types
+  if (mime === 'text/csv') return 'text/plain';
+  if (mime === 'image/gif') return 'image/png';
+  if (mime === 'video/quicktime') return 'video/mp4';
+  if (mime === 'audio/wav' || mime === 'audio/x-wav') return 'audio/mpeg';
+  if (mime === 'application/zip' || mime === 'application/x-zip-compressed') return 'application/pdf';
+  if (mime === 'application/vnd.rar' || mime === 'application/x-rar-compressed') return 'application/pdf';
+  if (mime === 'application/octet-stream') return 'application/pdf';
+
+  // Generic fallbacks by prefix
+  if (mime.startsWith('image/')) return 'image/png';
+  if (mime.startsWith('video/')) return 'video/mp4';
+  if (mime.startsWith('audio/')) return 'audio/mpeg';
+  if (mime.startsWith('text/')) return 'text/plain';
+
+  return 'application/pdf';
 }
 
 function determineAssetType(mimetype) {
@@ -250,6 +289,7 @@ router.post("/message", async (req, res) => {
       let displayText = text;
       let whatsappError = null;
       let outboundMessageType = media ? normalizedMessageType : 'text';
+      let whatsappMediaType = 'document'; // default, overridden below if media present
 
       const canSendFreeText = await hasActiveCustomerWindow(chat);
 
@@ -284,8 +324,9 @@ router.post("/message", async (req, res) => {
                 
                 console.log(`   📂 Local path check: ${localFilePath}`);
                 if (fs.existsSync(localFilePath)) {
-                   const determinedMimeType = resolveMimeType(dbMedia.ext || '');
-                   console.log(`   📄 Determined MIME type: ${determinedMimeType} from ext: ${dbMedia.ext}`);
+                   const rawMimeType = resolveMimeType(dbMedia.ext || '');
+                   const determinedMimeType = sanitizeMimeForWhatsApp(rawMimeType);
+                   console.log(`   📄 MIME: ${rawMimeType} → ${determinedMimeType} (ext: ${dbMedia.ext})`);
                    
                    const uploadResult = await whatsappService.uploadMedia(localFilePath, determinedMimeType);
                    if (uploadResult.success) {
@@ -305,7 +346,7 @@ router.post("/message", async (req, res) => {
                    const fallbackPath = path.join(rootUploadDir, dbMedia.filename);
                    if (fs.existsSync(fallbackPath)) {
                       console.log(`   💡 Found file in fallback path: ${fallbackPath}`);
-                      const determinedMimeType = resolveMimeType(dbMedia.ext || '');
+                      const determinedMimeType = sanitizeMimeForWhatsApp(resolveMimeType(dbMedia.ext || ''));
                       const uploadResult = await whatsappService.uploadMedia(fallbackPath, determinedMimeType);
                       if (uploadResult.success) {
                          mediaIdToUse = uploadResult.mediaId;
@@ -330,10 +371,10 @@ router.post("/message", async (req, res) => {
         }
 
         // Determine media type for WhatsApp API
-        let whatsappMediaType = 'document';
         if (mediaType.includes('image')) whatsappMediaType = 'image';
         else if (mediaType.includes('video')) whatsappMediaType = 'video';
         else if (mediaType.includes('audio')) whatsappMediaType = 'audio';
+        else whatsappMediaType = 'document';
 
         const sidebarText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
         displayText = text || '';
@@ -519,11 +560,12 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
     }
 
     const filePath = req.file.path;
-    const mimeType = req.file.mimetype;
+    const rawMimeType = req.file.mimetype;
+    const mimeType = sanitizeMimeForWhatsApp(rawMimeType);
 
-    console.log(`📁 File uploaded: ${filePath}, Type: ${mimeType}`);
+    console.log(`📁 File uploaded: ${filePath}, Raw MIME: ${rawMimeType}, WhatsApp MIME: ${mimeType}`);
 
-    // Upload to WhatsApp servers
+    // Upload to WhatsApp servers with sanitized MIME type
     const result = await whatsappService.uploadMedia(filePath, mimeType);
 
     if (!result.success) {
@@ -716,6 +758,36 @@ router.put("/:chatId/pin", async (req, res) => {
     res.json(chat);
   } catch (error) {
     res.status(500).json({ error: "Failed to toggle pin status", details: error.message });
+  }
+});
+
+// 5c. Toggle Mute Status
+router.put("/:chatId/mute", async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "Chat not found" });
+
+    chat.isMuted = !chat.isMuted;
+    await chat.save();
+
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to toggle mute status", details: error.message });
+  }
+});
+
+// 5d. Toggle Archive Status
+router.put("/:chatId/archive", async (req, res) => {
+  try {
+    const chat = await Chat.findById(req.params.chatId);
+    if (!chat) return res.status(404).json({ error: "Chat not found" });
+
+    chat.chatStatus = chat.chatStatus === "archived" ? "open" : "archived";
+    await chat.save();
+
+    res.json(chat);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to toggle archive status", details: error.message });
   }
 });
 

@@ -3,13 +3,14 @@ import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import {
-   PaperClipIcon, FaceSmileIcon, PhoneIcon, EllipsisVerticalIcon,
+   PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
    FolderIcon, ArchiveBoxIcon, LockClosedIcon, StarIcon, CheckCircleIcon,
-   MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, VideoCameraIcon, BoltIcon,
+   MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, BoltIcon,
    ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon,
-   UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, MapPinIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
+   UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
 } from "@heroicons/react/24/outline";
+import { Pin } from "lucide-react";
 import { PaperAirplaneIcon, MegaphoneIcon, DocumentTextIcon, Squares2X2Icon, CheckCircleIcon as SolidCheckCircle, CheckIcon } from "@heroicons/react/24/solid";
 import EmojiPicker from "emoji-picker-react";
 
@@ -609,6 +610,32 @@ const Conversion = ({
 
    const recipientPhone = data?.phone || data?.phoneNumber || data?.mobile || data?.waId || "";
 
+   const formatMessageDate = (date) => {
+      const d = new Date(date);
+      const today = new Date();
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      if (d.toDateString() === today.toDateString()) return "Today";
+      if (d.toDateString() === yesterday.toDateString()) return "Yesterday";
+      
+      return d.toLocaleDateString('en-GB', {
+         day: '2-digit',
+         month: '2-digit',
+         year: 'numeric'
+      });
+   };
+
+   const formatMessageTime = (msg) => {
+      if (!msg) return "";
+      const date = msg.createdAt ? new Date(msg.createdAt) : new Date();
+      return date.toLocaleTimeString([], { 
+         hour: '2-digit', 
+         minute: '2-digit', 
+         hour12: true 
+      }).toLowerCase();
+   };
+
    return (
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
 
@@ -673,8 +700,6 @@ const Conversion = ({
                      <button onClick={() => setIsSearchOpen(true)} className="p-1 rounded-full hover:text-slate-700 transition-colors" title="Search in chat">
                         <MagnifyingGlassIcon className="w-5 h-5" />
                      </button>
-                     <PhoneIcon className="w-6 h-6 cursor-pointer hover:text-slate-700 transition-colors" />
-                     <VideoCameraIcon className="w-7 h-7 cursor-pointer hover:text-slate-700 transition-colors" />
 
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
@@ -712,7 +737,7 @@ const Conversion = ({
                                  <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> Archive Chat
                               </button>
                               <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <MapPinIcon className={`w-4 h-4 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
+                                 <Pin className={`w-4 h-4 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>
@@ -735,69 +760,80 @@ const Conversion = ({
             )}
          </div>
 
-         {/* 2. MESSAGES AREA */}
+          {/* 2. MESSAGES AREA */}
          <div className="flex-1 overflow-y-auto p-6 space-y-6 z-10 custom-scrollbar bg-white">
-            <div className="flex justify-center my-2 mb-6">
-               <span className="px-4 py-1.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-bold text-slate-400 uppercase tracking-widest">TODAY</span>
-            </div>
+            
+            {data.messages?.map((msg, index) => {
+               const msgDate = new Date(msg.createdAt || Date.now()).toDateString();
+               const prevMsgDate = index > 0 ? new Date(data.messages[index - 1].createdAt || Date.now()).toDateString() : null;
+               const showDateSeparator = msgDate !== prevMsgDate;
 
-            {data.messages?.map((msg, index) => (
-               <div
-                  key={index}
-                  ref={(el) => {
-                     if (el) messageRefs.current[index] = el;
-                     else delete messageRefs.current[index];
-                  }}
-                  className={`flex items-end gap-3 ${msg.sender === "me" ? "justify-end" : "justify-start"} ${currentMatchMessageIndex === index ? 'ring-2 ring-emerald-300 rounded-2xl p-1 -m-1' : (searchMatchIndexSet.has(index) ? 'ring-1 ring-emerald-100 rounded-2xl p-1 -m-1' : '')}`}
-               >
-                  {msg.sender !== "me" && (
-                     <div className="w-8 h-8 rounded-xl bg-[#e2e8f0] overflow-hidden shrink-0 flex items-center justify-center mb-5">
-                        <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
-                     </div>
-                  )}
-                  <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[70%]`}>
-                     <div className={`px-5 py-3 text-sm shadow-sm ${
-                        msg.sender === "me"
-                           ? msg.status === 'failed'
-                              ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
-                              : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
-                           : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
-                     }`}>
-                        {(msg.media || msg.mediaUrl) && (
-                           <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-200'}`}>
-                              {((msg.media?.type === 'image') || (msg.messageType === 'image') || (msg.mediaUrl && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)))) ? (
-                                 <img src={msg.media?.url || msg.mediaUrl} alt="attachment" className="max-w-full sm:max-w-[240px] rounded-xl object-cover shadow-sm bg-slate-100" />
-                              ) : (
-                                 <div className={`flex items-center gap-3 p-3 rounded-xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
-                                    {(msg.media?.type === 'video' || msg.messageType === 'video') ? <FilmIcon className="w-8 h-8 shrink-0" /> : 
-                                     (msg.media?.type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> :
-                                     <DocumentIcon className="w-8 h-8 shrink-0" />}
-                                    <div className="flex flex-col min-w-0 pr-4">
-                                       <span className="text-sm font-bold truncate">{msg.media?.name || msg.fileName || 'Document'}</span>
-                                       <span className="text-[10px] opacity-80">{msg.media?.size || (msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File')}</span>
-                                    </div>
-                                 </div>
-                              )}
+               return (
+                  <React.Fragment key={index}>
+                     {showDateSeparator && (
+                        <div className="flex justify-center my-6">
+                           <span className="px-4 py-1.5 bg-slate-50 border border-slate-100 rounded-full text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                              {formatMessageDate(msg.createdAt || Date.now())}
+                           </span>
+                        </div>
+                     )}
+                     <div
+                        ref={(el) => {
+                           if (el) messageRefs.current[index] = el;
+                           else delete messageRefs.current[index];
+                        }}
+                        className={`flex items-end gap-3 ${msg.sender === "me" ? "justify-end" : "justify-start"} ${currentMatchMessageIndex === index ? 'ring-2 ring-emerald-300 rounded-2xl p-1 -m-1' : (searchMatchIndexSet.has(index) ? 'ring-1 ring-emerald-100 rounded-2xl p-1 -m-1' : '')}`}
+                     >
+                        {msg.sender !== "me" && (
+                           <div className="w-8 h-8 rounded-xl bg-[#e2e8f0] overflow-hidden shrink-0 flex items-center justify-center mb-5">
+                              <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
                            </div>
                         )}
-                        {msg.text && <p className="leading-relaxed">{msg.text}</p>}
-                        {msg.sender === "me" && msg.status === 'failed' && (
-                           <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
-                        )}
+                        <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[70%]`}>
+                           <div className={`px-5 py-3 text-sm shadow-sm ${
+                              msg.sender === "me"
+                                 ? msg.status === 'failed'
+                                    ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
+                                    : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
+                                 : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
+                           }`}>
+                              {(msg.media || msg.mediaUrl) && (
+                                 <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-200'}`}>
+                                    {((msg.media?.type === 'image') || (msg.messageType === 'image') || (msg.mediaUrl && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)))) ? (
+                                       <img src={msg.media?.url || msg.mediaUrl} alt="attachment" className="max-w-full sm:max-w-[240px] rounded-xl object-cover shadow-sm bg-slate-100" />
+                                    ) : (
+                                       <div className={`flex items-center gap-3 p-3 rounded-xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
+                                          {(msg.media?.type === 'video' || msg.messageType === 'video') ? <FilmIcon className="w-8 h-8 shrink-0" /> : 
+                                          (msg.media?.type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> :
+                                          <DocumentIcon className="w-8 h-8 shrink-0" />}
+                                          <div className="flex flex-col min-w-0 pr-4">
+                                             <span className="text-sm font-bold truncate">{msg.media?.name || msg.fileName || 'Document'}</span>
+                                             <span className="text-[10px] opacity-80">{msg.media?.size || (msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File')}</span>
+                                          </div>
+                                       </div>
+                                    )}
+                                 </div>
+                              )}
+                              {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                              {msg.sender === "me" && msg.status === 'failed' && (
+                                 <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
+                              )}
+                           </div>
+                           <div className={`text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
+                              {formatMessageTime(msg)}
+                              {msg.sender === "me" && (
+                                 msg.status === 'failed'
+                                    ? <span className="text-red-500 font-bold text-xs" title={msg.error || 'Failed to send'}>✗</span>
+                                    : msg.status === 'pending'
+                                       ? <span className="text-slate-400 font-bold text-xs animate-pulse">○</span>
+                                       : <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
+                              )}
+                           </div>
+                        </div>
                      </div>
-                     <div className={`text-[10px] text-slate-400 mt-1.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
-                        {msg.time || "12:00 PM"}
-                        {msg.sender === "me" && (
-                           msg.status === 'failed'
-                              ? <span className="text-red-500 font-bold text-xs" title={msg.error || 'Failed to send'}>✗</span>
-                              : msg.status === 'pending'
-                                 ? <span className="text-slate-400 font-bold text-xs animate-pulse">○</span>
-                                 : <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
-                        )}
-                     </div>
-                  </div>
-               </div>
-            ))}
+                  </React.Fragment>
+               );
+            })}
             <div ref={messagesEndRef} />
          </div>
 
@@ -1023,9 +1059,9 @@ const Conversion = ({
 
             {isConfirmTemplateModalOpen && typeof document !== "undefined" && createPortal((
                <div className="fixed inset-0 z-[2100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-                  <div className="bg-white w-full max-w-[520px] rounded-2xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] overflow-hidden flex flex-col">
-                     <div className="px-6 py-4 flex justify-between items-center bg-slate-100 border-b border-slate-200">
-                        <h2 className="text-2xl font-bold text-slate-700">Confirm &amp; Send Message</h2>
+                  <div className="bg-white w-full max-w-[520px] max-h-[95vh] rounded-2xl shadow-[0_20px_40px_rgba(25,28,30,0.12)] flex flex-col overflow-hidden">
+                     <div className="px-4 sm:px-6 py-4 flex justify-between items-center bg-slate-100 border-b border-slate-200 shrink-0">
+                        <h2 className="text-xl sm:text-2xl font-bold text-slate-700">Confirm &amp; Send Message</h2>
                         <button
                            type="button"
                            onClick={() => setIsConfirmTemplateModalOpen(false)}
@@ -1035,7 +1071,7 @@ const Conversion = ({
                         </button>
                      </div>
 
-                     <div className="p-5 space-y-4">
+                     <div className="p-4 sm:p-5 space-y-4 overflow-y-auto flex-1">
                         <div>
                            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block mb-2">Recipient Summary</span>
                            <div className="flex items-center gap-3 text-slate-800">
@@ -1121,11 +1157,11 @@ const Conversion = ({
                         {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
                      </div>
 
-                     <div className="px-6 py-4 bg-slate-100 flex items-center justify-end gap-3">
+                     <div className="px-4 sm:px-6 py-4 bg-slate-100 flex items-center justify-end gap-3 border-t border-slate-200 shrink-0">
                         <button
                            type="button"
                            onClick={() => setIsConfirmTemplateModalOpen(false)}
-                           className="px-6 py-2.5 rounded-full text-slate-700 font-medium hover:bg-slate-200 transition-colors"
+                           className="px-4 sm:px-6 py-2.5 rounded-full text-slate-700 font-medium hover:bg-slate-200 transition-colors text-sm sm:text-base"
                         >
                            Cancel
                         </button>
@@ -1133,7 +1169,7 @@ const Conversion = ({
                            type="button"
                            onClick={handleConfirmTemplateSend}
                            disabled={isSendingTemplate || isConfirmSending}
-                           className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                           className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-5 sm:px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
                         >
                            {isConfirmSending ? "Sending..." : (deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now")}
                            <PaperAirplaneIcon className="w-4 h-4" />

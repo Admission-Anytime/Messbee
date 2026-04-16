@@ -43,7 +43,7 @@ const corsOptions = {
 
     const allowedOrigins = [
       'http://localhost:5173',
-      process.env.CLIENT_URL
+      process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : null
     ].filter(Boolean);
 
     // Allow any subdomain or explicitly allowed origins

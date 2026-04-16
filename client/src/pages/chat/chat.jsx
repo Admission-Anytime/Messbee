@@ -266,7 +266,7 @@ const Chat = () => {
       activeChatId
     });
 
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
     const tempId = 'temp_' + Date.now();
 
     // Create temporary message for immediate UI update

@@ -125,10 +125,13 @@ const chatService = {
         data: response.data.data || response.data
       };
     } catch (error) {
-      console.error('Error sending media message:', error);
+      const serverData = error.response?.data;
+      console.error('Error sending media message:', serverData || error.message);
       return {
         success: false,
-        error: error.response?.data?.error || error.message
+        error: serverData?.error || error.response?.data?.message || error.message,
+        errorCode: serverData?.errorCode,
+        data: serverData?.data  // The saved (failed) message object from DB
       };
     }
   },
@@ -221,6 +224,7 @@ const chatService = {
       return {
         success: true,
         mediaId: response.data.mediaId,
+        whatsappMediaId: response.data.whatsappMediaId,
         fileUrl: response.data.fileUrl,
         fileName: response.data.fileName,
         mimeType: response.data.mimeType
@@ -401,6 +405,63 @@ const chatService = {
       };
     } catch (error) {
       console.error('Error fetching media assets:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Mute / Unmute a chat
+   */
+  async toggleMuteChat(chatId) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/mute`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error toggling mute status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Archive / Unarchive a chat
+   */
+  async toggleArchiveChat(chatId) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/archive`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error toggling archive status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Delete a chat
+   */
+  async deleteChat(chatId) {
+    try {
+      const response = await axios.delete(`/chats/${chatId}`);
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error deleting chat:', error);
       return {
         success: false,
         error: error.response?.data?.message || error.message
