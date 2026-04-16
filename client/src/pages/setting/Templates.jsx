@@ -33,16 +33,12 @@ const Templates = ({ activeTab, }) => {
   const loadTemplates = useCallback(async () => {
     setLoading(true);
     try {
-      console.log('📥 [Templates.jsx] Fetching templates from WhatsApp API...');
       
       const whatsappTemplates = await fetchWhatsAppTemplates();
-      console.log('📥 [Templates.jsx] WhatsApp response:', whatsappTemplates);
       
       const templatesArray = whatsappTemplates.data?.data || [];
-      console.log('📥 [Templates.jsx] Templates array:', templatesArray);
       
       const formatted = mergeTemplates(templatesArray, []);
-      console.log('📥 [Templates.jsx] Formatted templates:', formatted);
       
       setTemplates(formatted);
       
@@ -50,12 +46,10 @@ const Templates = ({ activeTab, }) => {
         setSelectedTemplate((prev) => prev || formatted[0]);
       }
       
-      console.log('✅ [Templates.jsx] Templates loaded successfully');
       toast.success('Templates synced from WhatsApp', {
         toastId: 'templates-sync-success',
       });
     } catch (error) {
-      console.error('❌ [Templates.jsx] Error loading templates:', error);
       toast.error('Failed to load templates from WhatsApp', {
         toastId: 'templates-sync-error',
       });
@@ -107,7 +101,6 @@ const Templates = ({ activeTab, }) => {
     try {
       // Only WhatsApp templates (from API) can be deleted via API
       // All templates are now from WhatsApp API
-      console.log('🗑️ Deleting WhatsApp template:', { id, name: templateToDelete.name });
       await deleteWhatsAppTemplate(id, templateToDelete.name);
       
       const updatedTemplates = templates.filter(t => t.id !== id);
