@@ -11,35 +11,40 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon as CheckCircleSolid } from "@heroicons/react/24/solid";
 
-/* ─── API helper ─────────────────────────────────────────────────────────────────
-   Sends the CSV file as multipart/form-data to POST /api/contacts/import.
-   JWT is read from localStorage key "token".
-   Returns: { success, total, successful, failed, failedRows, message }
-────────────────────────────────────────────────────────────────────────────────── */
-const API_BASE = import.meta.env.VITE_API_URL
-  ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")  // strip trailing /api if present
-  : "";  // empty string → relative paths handled by Vite proxy
-
-// ✅ FIX: Match backend MAX_FILE_SIZE env var (default 5MB = 5 * 1024 * 1024)
-// Backend .env has MAX_FILE_SIZE=5242880 (5MB). We now enforce the same limit.
+// ✅ Match backend MAX_FILE_SIZE env var (default 5MB)
 const MAX_FILE_BYTES = parseInt(import.meta.env.VITE_MAX_FILE_SIZE || "5242880");
 
-const uploadCSV = async (file) => {
-  const token = localStorage.getItem("token");
-  const formData = new FormData();
-  formData.append("file", file);
+/* ─── Client-side CSV parser ──────────────────────────────────────────────────
+   Reads the file in-browser to extract headers + up to 3 sample data rows.
+   No upload happens here — the actual upload occurs in Step 2 (mapFields.jsx)
+   after the user confirms their field mappings.
+────────────────────────────────────────────────────────────────────────────────── */
+const parseCSVHeaders = (text) => {
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if (lines.length < 1) return { headers: [], sampleRows: [] };
 
-  // Do NOT set Content-Type — browser sets it automatically with the correct boundary
-  const res = await fetch(`${API_BASE}/api/contacts/import`, {
-    method: "POST",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",   // send accessToken cookie too
-    body: formData,
+  const splitCSVLine = (line) => {
+    const values = [];
+    let cur = "", inQ = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQ = !inQ; }
+      else if (ch === ',' && !inQ) { values.push(cur.trim().replace(/^"|"$/g, "")); cur = ""; }
+      else { cur += ch; }
+    }
+    values.push(cur.trim().replace(/^"|"$/g, ""));
+    return values;
+  };
+
+  const headers    = splitCSVLine(lines[0]);
+  const sampleRows = lines.slice(1, 4).map((line) => {
+    const vals = splitCSVLine(line);
+    const row  = {};
+    headers.forEach((h, i) => { row[h] = vals[i] || ""; });
+    return row;
   });
 
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || `Import failed (${res.status})`);
-  return data;
+  return { headers, sampleRows };
 };
 
 /* ─── Step Indicator ─────────────────────────────────────────────────────────── */
@@ -166,36 +171,31 @@ export default function ImportContacts() {
   const formatSize = (b) =>
     b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
 
-  /* ── Upload → backend → navigate to Review ── */
+  /* ── Parse CSV client-side → navigate to Step 2 (Map Fields) ── */
   const handleNext = async () => {
     if (!file) return;
     setUploading(true);
     setFileError("");
     try {
-      const result = await uploadCSV(file);
+      // Read the file as text in-browser (no network call yet)
+      const text = await file.text();
+      const { headers, sampleRows } = parseCSVHeaders(text);
 
-      // ✅ Pass real server result to ReviewSummary via router state
-      // Shape must match what ReviewSummary expects:
-      // { fileName, fileSize, total, successful, failed, failedRows, message }
-      navigate("/admin/contacts/review", {
-        state: {
-          fileName: file.name,
-          fileSize: file.size,
-          total: result.total,
-          successful: result.successful,
-          failed: result.failed,
-          failedRows: result.failedRows ?? [],   // [{ row, data, name, reason }]
-          message: result.message,
-        },
+      if (!headers.length) {
+        setFileError("Could not read CSV headers. Please check your file format.");
+        setUploading(false);
+        return;
+      }
+
+      // Navigate to Step 2 — pass the File object + parsed header/sample data
+      navigate("/admin/contacts/map-fields", {
+        state: { file, headers, sampleRows },
       });
     } catch (err) {
-      // ✅ FIX: Show a more helpful error if it's an auth issue
-      if (err.message.includes("401") || err.message.toLowerCase().includes("unauthorized")) {
-        setFileError("Session expired. Please log in again and retry.");
-      } else {
-        setFileError(err.message || "Import failed. Please check your file and try again.");
-      }
-    } finally { setUploading(false); }
+      setFileError(err.message || "Failed to read the file. Please try again.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const maxMB = (MAX_FILE_BYTES / 1048576).toFixed(0);
@@ -361,7 +361,7 @@ export default function ImportContacts() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                   </svg>
-                  Uploading…
+                  Parsing…
                 </>
               ) : (
                 <>Next: Map Fields<ArrowRightIcon className="w-4 h-4" /></>

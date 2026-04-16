@@ -857,9 +857,17 @@ exports.createTemplate = async (req, res, next) => {
     });
 
     if (!result.success) {
+      const detailedMessage =
+        result?.error?.message ||
+        result?.error?.error?.message ||
+        result?.error?.error_user_msg ||
+        result?.error?.error?.error_user_msg ||
+        result?.error?.error_data?.details ||
+        result?.error?.error?.error_data?.details ||
+        'Failed to create template';
       return res.status(400).json({
         success: false,
-        message: 'Failed to create template',
+        message: detailedMessage,
         error: result.error
       });
     }
@@ -867,7 +875,10 @@ exports.createTemplate = async (req, res, next) => {
     res.status(201).json({
       success: true,
       message: 'Template created successfully',
-      data: result.data
+      data: result.data,
+      templateName: result.templateName || name,
+      originalTemplateName: result.originalTemplateName || name,
+      usedFallbackName: !!result.usedFallbackName
     });
   } catch (error) {
     next(error);

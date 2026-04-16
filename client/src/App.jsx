@@ -45,7 +45,8 @@ const InvoiceView = lazy(() => import("./pages/PlanPricing/InvoiceView"));
 const Contact = lazy(() => import(/* webpackPrefetch: true */ "./pages/contats/contact"));
 const StatusPage = lazy(() => import("./pages/contats/Status/StatusPage"));
 const ImportContacts = lazy(() => import("./pages/contats/importContact"));
-const ReviewSummary = lazy(() => import("./pages/contats/reviewSummary"));
+const MapFields      = lazy(() => import("./pages/contats/mapFields"));
+const ReviewSummary  = lazy(() => import("./pages/contats/reviewSummary"));
 
 // --- LAZY LOADED SETTINGS ---
 const Wapi = lazy(() => import("./pages/setting/Wapi"));
@@ -228,15 +229,10 @@ function App() {
             path="/admin/contacts/crm"
             element={<Placeholder title="CRM Pipeline" />}
           />
-          {/* ── Import Contacts Route ── */}
-          <Route
-            path="/admin/contacts/import"
-            element={<ImportContacts />}
-          />{" "}
-          <Route
-            path="/admin/contacts/review"
-            element={<ReviewSummary />}
-          />{" "}
+          {/* ── Import Contacts Flow: Step 1 → Step 2 → Step 3 ── */}
+          <Route path="/admin/contacts/import"     element={<ImportContacts />} />
+          <Route path="/admin/contacts/map-fields" element={<MapFields />} />
+          <Route path="/admin/contacts/review"     element={<ReviewSummary />} />
           {/* 5. Templates */}
           <Route path="/admin/templates/list" element={<Templates />} />
           <Route path="/admin/campaigns/templates" element={<Templates />} />
