@@ -354,7 +354,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
 
       setOpenMenuId(null);
-      console.log("✅ Chat muted/unmuted successfully:", chatId);
+
       // API call
       await chatService.toggleMuteChat(chatId);
     } catch (error) {
@@ -385,7 +385,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
 
       setOpenMenuId(null);
-      console.log("✅ Chat archived/unarchived successfully:", chatId);
+
       // API call
       await chatService.toggleArchiveChat(chatId);
     } catch (error) {
@@ -412,7 +412,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
 
       setOpenMenuId(null);
-      console.log("✅ Chat marked as read successfully:", chatId);
+
       // API call
       await chatService.markMessagesAsRead(chatId);
     } catch (error) {
@@ -443,7 +443,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       });
 
       setOpenMenuId(null);
-      console.log("✅ Chat pinned/unpinned successfully:", chatId);
+
       // API call
       if (onTogglePin) {
         onTogglePin(chatId);
@@ -457,7 +457,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const handleDeleteChat = async (chatId, e) => {
     e.stopPropagation();
-    console.log("✅ Delete clicked for chat:", chatId);
+
     setOpenMenuId(null);
     setChatToDelete(chatId);
   };
@@ -1490,7 +1490,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
-        <div className="px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
+        <div className="px-3 lg:px-4 xl:px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
             {quickFilters.unreadChats && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full">Unread</span>}
             {quickFilters.openSessionChats && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">Open session</span>}
@@ -1521,7 +1521,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       {bulkActionModal.isOpen && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
-          <div className="bg-white w-full max-w-[460px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-white w-full max-w-[460px] max-h-[90vh] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">
                 {bulkActionModal.type === "status" && "Assign status"}
@@ -1540,7 +1540,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-4 lg:p-6 space-y-4 overflow-y-auto custom-scrollbar">
               {bulkActionModal.type === "status" && (
                 <div>
                   <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</label>
@@ -1694,7 +1694,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               )}
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2">
+            <div className="px-4 lg:px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-end gap-2">
               <button
                 onClick={closeBulkActionModal}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100"
@@ -1722,7 +1722,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       {isAdvancedFilterOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/35 backdrop-blur-sm px-4">
-          <div className="bg-white w-full max-w-[760px] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden">
+          <div className="bg-white w-full max-w-[760px] max-h-[90vh] rounded-2xl border border-slate-200 shadow-2xl overflow-hidden flex flex-col">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Advanced filters</h3>
@@ -1736,7 +1736,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </button>
             </div>
 
-            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
+            <div className="p-4 lg:p-6 space-y-6 overflow-y-auto custom-scrollbar">
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</p>
                 <div className="flex flex-wrap gap-2">
@@ -1826,7 +1826,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
+            <div className="px-4 lg:px-6 py-4 border-t border-slate-100 bg-slate-50/60 flex items-center justify-between">
               <button
                 onClick={resetAdvancedFilters}
                 className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900"
@@ -2117,22 +2117,8 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9-3h4" />
                           </svg>
-                          {getIsArchived(chat) ? "Unarchive" : "Archive"}
+                          Archive
                         </button>
-                        <button
-                          onClick={(e) => handleBlockChat(chat._id || chat.id, e)}
-                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                          </svg>
-                          {(chatModifications.blocked[chat._id || chat.id] !== undefined
-                            ? chatModifications.blocked[chat._id || chat.id]
-                            : (chat.isBlocked || chat.blocked || getChatStatus(chat) === "blocked" || String(chat.contactStatus || "").toLowerCase() === "blocked"))
-                            ? "Unblock Contact"
-                            : "Block Contact"}
-                        </button>
-
                         <div className="border-t border-slate-200 my-1"></div>
                         <button
                           onClick={(e) => handleDeleteChat(chat._id || chat.id, e)}

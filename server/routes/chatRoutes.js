@@ -170,7 +170,7 @@ router.post("/", async (req, res) => {
     // Normalize phone numbers
     const normalizedPhone = normalizePhoneNumber(phone || whatsappId);
 
-    console.log(`📝 Creating/finding chat for: ${normalizedPhone} (original: ${phone || whatsappId})`);
+
 
     // Check if chat already exists (check both normalized and original)
     const existingChat = await Chat.findOne({
@@ -183,14 +183,14 @@ router.post("/", async (req, res) => {
     });
 
     if (existingChat) {
-      console.log(`✅ Chat already exists for ${normalizedPhone}: ${existingChat._id}`);
+
 
       // Update the chat with normalized phone if needed
       if (existingChat.phone !== normalizedPhone) {
         existingChat.phone = normalizedPhone;
         existingChat.whatsappId = normalizedPhone;
         await existingChat.save();
-        console.log(`   ✓ Updated phone to normalized format: ${normalizedPhone}`);
+
       }
 
       return res.json({
@@ -215,14 +215,14 @@ router.post("/", async (req, res) => {
       lastMsgTime: ""
     });
 
-    console.log(`✅ Created new chat for ${normalizedPhone}: ${newChat._id}`);
+
 
     // Emit socket event for new chat
     try {
       const io = getIO();
       if (io) {
         io.emit("chat_created", newChat);
-        console.log(`📡 Emitted chat_created event`);
+
       }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
@@ -259,12 +259,7 @@ router.post("/message", async (req, res) => {
   const { chatId, text, sender, time, media, mediaType } = req.body;
 
   try {
-    console.log(`📨 Sending message to chat ${chatId}:`, {
-      sender,
-      hasText: !!text,
-      hasMedia: !!media,
-      mediaType
-    });
+
 
     // Get chat info
     const chat = await Chat.findById(chatId);
@@ -273,7 +268,7 @@ router.post("/message", async (req, res) => {
       return res.status(404).json({ error: "Chat not found" });
     }
 
-    console.log(`💬 Chat found: ${chat.name} (${chat.phone}), Source: ${chat.source}`);
+
 
     // Determine message time
     const msgTime = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -301,7 +296,7 @@ router.post("/message", async (req, res) => {
         });
       }
 
-      console.log(`📱 Sending WhatsApp message via recipient: ${whatsappRecipient} (whatsappId: ${chat.whatsappId}, phone: ${chat.phone})`);
+
 
       // Handle media messages
       if (media && mediaType) {
@@ -310,23 +305,23 @@ router.post("/message", async (req, res) => {
         // If the mediaId looks like a MongoDB ObjectId, it's likely a local gallery image
         // We MUST use its whatsappMediaId instead, or upload it to WhatsApp if missing.
         if (mediaIdToUse && (mongoose.Types.ObjectId.isValid(mediaIdToUse) || (mediaIdToUse.length === 24 && /^[0-9a-fA-F]+$/.test(mediaIdToUse)))) {
-          console.log(`🔍 Detected database ID for media: ${mediaIdToUse}. Resolving WhatsApp Media ID...`);
+
           const dbMedia = await Media.findById(mediaIdToUse);
           if (dbMedia) {
              if (dbMedia.whatsappMediaId) {
                 mediaIdToUse = dbMedia.whatsappMediaId;
-                console.log(`   ✓ Found existing WhatsApp Media ID: ${mediaIdToUse}`);
+
              } else {
-                console.log(`   ! No WhatsApp Media ID found for "${dbMedia.name}". Uploading to WhatsApp...`);
+
                 // Try to find the file locally and upload it
                 const uploadDir = process.env.UPLOAD_PATH || path.resolve(__dirname, '../../uploads');
                 const localFilePath = path.join(uploadDir, dbMedia.filename);
                 
-                console.log(`   📂 Local path check: ${localFilePath}`);
+
                 if (fs.existsSync(localFilePath)) {
                    const rawMimeType = resolveMimeType(dbMedia.ext || '');
                    const determinedMimeType = sanitizeMimeForWhatsApp(rawMimeType);
-                   console.log(`   📄 MIME: ${rawMimeType} → ${determinedMimeType} (ext: ${dbMedia.ext})`);
+
                    
                    const uploadResult = await whatsappService.uploadMedia(localFilePath, determinedMimeType);
                    if (uploadResult.success) {
@@ -334,7 +329,7 @@ router.post("/message", async (req, res) => {
                       // Cache it for next time
                       dbMedia.whatsappMediaId = mediaIdToUse;
                       await dbMedia.save();
-                      console.log(`   ✓ Uploaded successfully. New WhatsApp Media ID: ${mediaIdToUse}`);
+
                    } else {
                       console.error(`   ✗ WhatsApp upload failed:`, JSON.stringify(uploadResult.error));
                       return res.status(500).json({ error: "Failed to upload gallery asset to WhatsApp", details: uploadResult.error });
@@ -345,7 +340,7 @@ router.post("/message", async (req, res) => {
                    const rootUploadDir = path.resolve(process.cwd(), 'uploads');
                    const fallbackPath = path.join(rootUploadDir, dbMedia.filename);
                    if (fs.existsSync(fallbackPath)) {
-                      console.log(`   💡 Found file in fallback path: ${fallbackPath}`);
+
                       const determinedMimeType = sanitizeMimeForWhatsApp(resolveMimeType(dbMedia.ext || ''));
                       const uploadResult = await whatsappService.uploadMedia(fallbackPath, determinedMimeType);
                       if (uploadResult.success) {
@@ -398,7 +393,7 @@ router.post("/message", async (req, res) => {
         const result = await whatsappService.sendTextMessage(whatsappRecipient, text);
         if (result.success) {
           whatsappResult = result;
-          console.log(`✅ WhatsApp message sent to ${whatsappRecipient}`);
+
         } else {
           whatsappError = result.error;
           console.error(`❌ WhatsApp text send failed for ${whatsappRecipient}:`, JSON.stringify(result.error));
@@ -563,7 +558,7 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
     const rawMimeType = req.file.mimetype;
     const mimeType = sanitizeMimeForWhatsApp(rawMimeType);
 
-    console.log(`📁 File uploaded: ${filePath}, Raw MIME: ${rawMimeType}, WhatsApp MIME: ${mimeType}`);
+
 
     // Upload to WhatsApp servers with sanitized MIME type
     const result = await whatsappService.uploadMedia(filePath, mimeType);
@@ -597,7 +592,7 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
       whatsappMediaId: result.mediaId
     });
 
-    console.log(`✅ Asset saved to Media Gallery: ${media._id}`);
+
 
     res.json({
       success: true,

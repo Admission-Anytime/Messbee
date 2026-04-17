@@ -37,18 +37,7 @@ const isRenderableMediaUrl = (value) =>
  */
 export const fetchWhatsAppTemplates = async () => {
   try {
-    console.log('🌐 [TemplateApi] Fetching templates from /whatsapp/templates...');
     const { data } = await axios.get("/whatsapp/templates");
-    
-    console.log('🌐 [TemplateApi] Raw API response:', data);
-    console.log('🌐 [TemplateApi] Response structure:', {
-      success: data.success,
-      dataExists: !!data.data,
-      dataIsArray: Array.isArray(data.data),
-      dataLength: data.data?.length || 'N/A',
-      firstItem: data.data?.[0],
-      firstItemStatus: data.data?.[0]?.status
-    });
     
     return data;
   } catch (error) {
@@ -88,9 +77,7 @@ export const sendTemplateMessage = async (chatId, templateName, languageCode = '
  */
 export const createWhatsAppTemplate = async (templateData) => {
   try {
-    console.log('🌐 [TemplateApi] Creating template with payload:', JSON.stringify(templateData, null, 2));
     const { data } = await axios.post("/whatsapp/templates", templateData);
-    console.log('🌐 [TemplateApi] Template created successfully:', data);
     return data;
   } catch (error) {
     console.error("❌ [TemplateApi] Error creating WhatsApp template:", error.response?.data || error.message);
@@ -190,13 +177,11 @@ export const saveTemplateHeaderPreview = (templateName, previewData) => {
  */
 export const deleteWhatsAppTemplate = async (templateId, templateName) => {
   try {
-    console.log('🗑️ [TemplateApi] Deleting WhatsApp template:', { templateId, templateName });
     const { data } = await axios.delete(`/whatsapp/templates/${templateId}`, {
       data: {
         templateName
       }
     });
-    console.log('✅ [TemplateApi] Template deleted successfully:', data);
     return data;
   } catch (error) {
     console.error("❌ [TemplateApi] Error deleting WhatsApp template:", error.response?.data || error.message);
@@ -231,7 +216,7 @@ const formatStatus = (status) => {
  * No local storage - always use WhatsApp API as source of truth
  */
 export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => {
-  console.log('📋 [TemplateApi] Using ONLY WhatsApp API templates');
+
   const headerPreviewCache = getTemplateHeaderPreviewCache();
 
   const parseTemplateComponents = (components = []) => {
@@ -335,6 +320,6 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
       };
     });
 
-  console.log('✅ [TemplateApi] Formatted templates:', formatted.length, 'templates from WhatsApp API');
+
   return formatted;
 };
