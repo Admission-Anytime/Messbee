@@ -4,6 +4,22 @@ const TEMPLATE_HEADER_PREVIEW_CACHE_KEY = 'templateHeaderPreviewCache';
 const runtimeHeaderPreviewCache = {};
 const MAX_LOCALSTORAGE_PREVIEW_LENGTH = 120000;
 
+// --- Template Date Cache (persists creation date per template ID) ---
+const TEMPLATE_DATE_CACHE_KEY = 'templateDateCache';
+
+const getTemplateDateCache = () => {
+  try {
+    const raw = localStorage.getItem(TEMPLATE_DATE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+};
+
+const saveTemplateDateCache = (cache) => {
+  try {
+    localStorage.setItem(TEMPLATE_DATE_CACHE_KEY, JSON.stringify(cache));
+  } catch { /* ignore quota errors */ }
+};
+
 const getTemplateHeaderPreviewCache = () => {
   const runtimeCache = { ...runtimeHeaderPreviewCache };
   if (typeof window === 'undefined') return {};
@@ -298,17 +314,34 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         category: template.category || 'General',
         status: formatStatus(template.status),
         language: template.language || 'en',
-        updated: template.created_timestamp 
-          ? new Date(template.created_timestamp * 1000).toLocaleDateString('en-GB', { 
-              day: '2-digit', 
-              month: 'short', 
-              year: 'numeric' 
-            })
-          : new Date().toLocaleDateString('en-GB', { 
-              day: '2-digit', 
-              month: 'short', 
-              year: 'numeric' 
-            }),
+        updated: (() => {
+          const dateCache = getTemplateDateCache();
+          const templateId = String(template.id);
+
+          // 1. Check if WhatsApp API gave a real timestamp
+          const ts = template.last_updated_time || template.updated_time || template.created_time || template.created_timestamp;
+          if (ts) {
+            const ms = ts > 1e10 ? ts : ts * 1000;
+            const dateStr = new Date(ms).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            // Save to cache so it stays consistent
+            if (!dateCache[templateId]) {
+              dateCache[templateId] = dateStr;
+              saveTemplateDateCache(dateCache);
+            }
+            return dateStr;
+          }
+
+          // 2. Already seen this template before? Use cached date (stays fixed forever)
+          if (dateCache[templateId]) {
+            return dateCache[templateId];
+          }
+
+          // 3. First time seeing this template — record today as its date and save it
+          const todayStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+          dateCache[templateId] = todayStr;
+          saveTemplateDateCache(dateCache);
+          return todayStr;
+        })(),
         source: 'whatsapp',
         quality_score: template.quality_score || 'N/A',
         components: template.components || [],
