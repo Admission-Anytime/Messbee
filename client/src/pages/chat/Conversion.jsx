@@ -1309,10 +1309,10 @@ const Conversion = ({
                             <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
                          )}
                      </div>
-                     <div className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-slate-100 bg-white flex flex-col shrink-0">
-            <div className="p-4 sm:p-6 border-b border-slate-100">
-                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Asset Preview</h3>
-                           <div className="aspect-video bg-slate-50 rounded-xl mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
+                     <div className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-slate-100 bg-white flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
+            <div className="p-4 sm:p-6 pb-2 sm:pb-3 border-b border-slate-50">
+                           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-4">Asset Preview</h3>
+                           <div className="aspect-video bg-slate-50 rounded-xl mb-3 sm:mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
                               {uploadingFile ? (
                                  <div className="flex flex-col items-center justify-center">
                                     <div className="w-8 h-8 border-4 border-[#22C55E] border-t-transparent rounded-full animate-spin"></div>
@@ -1327,23 +1327,38 @@ const Conversion = ({
                                  <img src={activeMedia.url} alt="" className="w-full h-full object-cover" />
                               ) : (
                                  <div className="text-center">
-                                    {activeMedia?.type === 'video' ? <FilmIcon className="w-16 h-16 text-blue-300" /> :
+                                       {activeMedia?.type === 'video' ? <FilmIcon className="w-16 h-16 text-blue-300" /> :
                                      activeMedia?.type === 'audio' ? <MusicalNoteIcon className="w-16 h-16 text-blue-300" /> :
                                      <DocumentIcon className="w-16 h-16 text-blue-300" />}
                                  </div>
                               )}
                            </div>
-                           <div className="space-y-4">
-                              <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">File Name</p><p className="text-sm font-bold text-slate-800 break-words">{activeMedia?.name}</p></div>
-                              <div className="grid grid-cols-2 gap-4">
-                                 <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Size</p><p className="text-sm font-bold text-slate-800">{activeMedia?.size}</p></div>
-                                 {activeMedia?.res && <div><p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Resolution</p><p className="text-sm font-bold text-slate-800">{activeMedia?.res}</p></div>}
+                           <div className="space-y-3">
+                              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                                 <div className="flex items-start justify-between gap-4">
+                                    <div className="flex-1 min-w-0">
+                                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">File Name</p>
+                                       <p className="text-[14px] font-bold text-slate-800 break-all leading-tight">{activeMedia?.name}</p>
+                                    </div>
+                                    <div className="flex gap-4 shrink-0">
+                                       <div className="flex flex-col items-start">
+                                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Size</p>
+                                          <span className="text-[13px] font-black text-[#22C55E] bg-green-50 px-2 py-1 rounded-md border border-green-100 leading-none">{activeMedia?.size}</span>
+                                       </div>
+                                       {activeMedia?.res && (
+                                          <div className="flex flex-col items-start">
+                                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Res</p>
+                                             <span className="text-[13px] font-black text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100 leading-none">{activeMedia?.res}</span>
+                                          </div>
+                                       )}
+                                    </div>
+                                 </div>
                               </div>
                            </div>
                         </div>
-                        <div className="p-4 sm:p-6 flex-1 bg-slate-50/50">
+                        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex-1 bg-slate-50/40">
                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Add Caption</p>
-                           <textarea value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Type a caption for your message..." className="w-full h-32 p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] resize-none shadow-sm"></textarea>
+                           <textarea value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Type a caption for your message..." className="w-full h-24 sm:h-32 p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] resize-none shadow-sm"></textarea>
                         </div>
                      </div>
                   </div>
