@@ -703,54 +703,54 @@ const Conversion = ({
 
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
-                           <EllipsisVerticalIcon className="w-6 h-6 cursor-pointer" />
+                           <EllipsisVerticalIcon className="w-5 h-5 sm:w-6 sm:h-6 cursor-pointer" />
                         </button>
 
                         {isMenuOpen && (
-                           <div className="absolute right-0 top-10 w-60 bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                           <div className="absolute right-0 top-10 w-[min(17rem,calc(100vw-1rem))] sm:w-60 max-h-[72vh] overflow-y-auto bg-white border border-slate-100 shadow-xl rounded-2xl py-2 z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                               {/* Group 1 */}
-                              <button onClick={() => { onToggleProfile(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <UserIcon className="w-4 h-4 text-slate-400" /> View Profile
+                              <button onClick={() => { onToggleProfile(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <UserIcon className="w-4 h-4 shrink-0 text-slate-400" /> View Profile
                               </button>
-                              <button onClick={() => { setIsLabelModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <TagIcon className="w-4 h-4 text-slate-400" /> Manage Labels
+                              <button onClick={() => { setIsLabelModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <TagIcon className="w-4 h-4 shrink-0 text-slate-400" /> Manage Labels
                               </button>
-                              <button onClick={() => { setIsChangeStatusModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between font-medium transition-colors">
-                                 <div className="flex items-center gap-3"><ArrowsRightLeftIcon className="w-4 h-4 text-slate-400" /> Change Status</div>
-                                 <ChevronRightIcon className="w-3 h-3 text-slate-400" />
+                              <button onClick={() => { setIsChangeStatusModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center justify-between font-medium transition-colors whitespace-nowrap">
+                                 <div className="flex items-center gap-2.5 sm:gap-3"><ArrowsRightLeftIcon className="w-4 h-4 shrink-0 text-slate-400" /> Change Status</div>
+                                 <ChevronRightIcon className="w-3 h-3 shrink-0 text-slate-400" />
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>
 
                               {/* Group 2 */}
-                              <button onClick={() => { onViewHistory && onViewHistory(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <ClockIcon className="w-4 h-4 text-slate-400" /> View Full History
+                              <button onClick={() => { onViewHistory && onViewHistory(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <ClockIcon className="w-4 h-4 shrink-0 text-slate-400" /> View Full History
                               </button>
-                              <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <UserPlusIcon className="w-4 h-4 text-slate-400" /> Assign Agent
+                              <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <UserPlusIcon className="w-4 h-4 shrink-0 text-slate-400" /> Assign Agent
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>
 
                               {/* Group 3 */}
-                              <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <ArchiveBoxIcon className="w-4 h-4 text-slate-400" /> Archive Chat
+                              <button onClick={() => { onUpdateStatus && onUpdateStatus('archived'); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <ArchiveBoxIcon className="w-4 h-4 shrink-0 text-slate-400" /> Archive Chat
                               </button>
-                              <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-3 font-medium transition-colors">
-                                 <Pin className={`w-4 h-4 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
+                              <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <Pin className={`w-4 h-4 shrink-0 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>
 
                               {/* Group 4: Destructive Actions */}
-                              <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
-                                 <TrashIcon className="w-4 h-4 text-red-400" /> Clear Chat History
+                              <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <TrashIcon className="w-4 h-4 shrink-0 text-red-400" /> Clear Chat History
                               </button>
-                              <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
-                                 <UserMinusIcon className="w-4 h-4 text-red-400" /> Delete Contact
+                              <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <UserMinusIcon className="w-4 h-4 shrink-0 text-red-400" /> Delete Contact
                               </button>
-                              <button onClick={() => { onUpdateStatus && onUpdateStatus('blocked'); setIsMenuOpen(false); }} className="w-full text-left px-4 py-2.5 text-xs text-red-500 hover:bg-red-50 flex items-center gap-3 font-medium transition-colors">
-                                 <NoSymbolIcon className="w-4 h-4 text-red-400" /> Block
+                              <button onClick={() => { onUpdateStatus && onUpdateStatus('blocked'); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <NoSymbolIcon className="w-4 h-4 shrink-0 text-red-400" /> Block
                               </button>
                            </div>
                         )}
