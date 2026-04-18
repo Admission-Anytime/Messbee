@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
+import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import {
    PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
@@ -110,6 +111,7 @@ const Conversion = ({
    const [uploadingFile, setUploadingFile] = useState(false);
    const [uploadError, setUploadError] = useState(null);
    const [countdownNow, setCountdownNow] = useState(Date.now());
+   const [presenceNow, setPresenceNow] = useState(Date.now());
 
    // Applied labels local state for the modal
    const [appliedLabels, setAppliedLabels] = useState([]);
@@ -462,6 +464,14 @@ const Conversion = ({
       return () => clearInterval(timerId);
    }, [sessionExpiryMs]);
 
+   useEffect(() => {
+      const timerId = setInterval(() => {
+         setPresenceNow(Date.now());
+      }, 30000);
+
+      return () => clearInterval(timerId);
+   }, []);
+
    const sessionCountdown = useMemo(() => {
       if (sessionRemainingMs === null) return null;
 
@@ -609,6 +619,7 @@ const Conversion = ({
    }, [confirmTemplate, data?.name]);
 
    const recipientPhone = data?.phone || data?.phoneNumber || data?.mobile || data?.waId || "";
+   const presenceInfo = useMemo(() => getPresenceInfo(data, presenceNow), [data, presenceNow]);
 
    const formatMessageDate = (date) => {
       const d = new Date(date);
@@ -681,13 +692,13 @@ const Conversion = ({
                      </button>
                      <div className="relative">
                         <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-10 h-10 lg:w-11 lg:h-11 rounded-full object-cover" />
-                        <span className="absolute bottom-0 right-0 w-3 h-3 bg-[#22C55E] border-2 border-white rounded-full"></span>
+                        <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
                      </div>
                      <div className="flex flex-col justify-center min-w-0">
                         <h3 className="text-[14px] lg:text-[15px] font-bold text-slate-900 leading-tight truncate">{data.name}</h3>
                         <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                           <span className="w-2 h-2 rounded-full bg-[#22C55E]"></span>
-                           <span className="text-[11px] lg:text-xs font-medium text-slate-500 whitespace-nowrap">Active now</span>
+                           <span className={`w-2 h-2 rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
+                           <span className="text-[11px] lg:text-xs font-medium text-slate-500 whitespace-nowrap truncate">{presenceInfo.label}</span>
                            <span className="text-slate-300 text-xs">•</span>
                            <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md shadow-sm border truncate" style={{
                               backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '15') || '#f1f5f9',
