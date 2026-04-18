@@ -207,6 +207,29 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       : !!chat.isPinned;
   };
 
+  const formatChatTime = (updatedAt) => {
+    if (!updatedAt) return "";
+    const date = new Date(updatedAt);
+    if (isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfToday.getDate() - 1);
+
+    if (date >= startOfToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    } else if (date >= startOfYesterday) {
+      return "Yesterday";
+    } else {
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+  };
+
   const getIsMuted = (chat) => {
     const chatId = chat._id || chat.id;
     return chatModifications.muted[chatId] !== undefined
@@ -2065,7 +2088,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || formatChatTime(chat.updatedAt)}</span>
 
                   {/* Three Dot Menu Button */}
                   <div className="relative">
