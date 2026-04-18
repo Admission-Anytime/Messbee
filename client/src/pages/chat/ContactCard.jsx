@@ -1490,7 +1490,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
-        <div className="px-3 lg:px-4 xl:px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
+        <div className="px-3 lg:px-4 xl:px-5 pb-2 flex items-center justify-between gap-2 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
             {quickFilters.unreadChats && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full">Unread</span>}
             {quickFilters.openSessionChats && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">Open session</span>}
@@ -1974,7 +1974,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {/* 2. SEARCH BAR */}
-      <div className="px-5 pb-4 shrink-0">
+      <div className="px-5 pb-2 shrink-0">
         <div className="relative bg-slate-50 rounded-xl flex items-center px-4 py-2.5 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
           <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 mr-2" />
           <input
@@ -1989,7 +1989,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       </div>
 
       {/* 3. FILTER TABS */}
-      <div className="px-5 pb-3 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
+      <div className="px-5 pb-2 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
         {TABS.map((tab) => (
           <button
             key={tab}
@@ -2017,7 +2017,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               }
             }}
             className={`
-               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative group
+               flex gap-2.5 px-4 py-2.5 cursor-pointer transition-all border-b border-slate-50 relative group
                ${activeChatId === (chat._id || chat.id) && !isSelectionMode
                 ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm"
                 : "border-l-4 border-l-transparent hover:bg-slate-50"}
@@ -2042,7 +2042,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
             </div>
 
             {/* Chat Info */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden">
                   <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
@@ -2137,7 +2137,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               <p className="text-xs truncate text-slate-500 font-medium">
                 {chat.lastMsg || "No messages yet"}
               </p>
-              <div className="mt-1.5 flex justify-between items-center">
+              <div className="mt-1 flex justify-between items-center">
                 {getChatStatus(chat) && (
                   <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${getChatStatus(chat) === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
                       getChatStatus(chat) === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :
