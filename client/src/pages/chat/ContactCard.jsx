@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import chatService from "../../services/chatService";
+import { getPresenceInfo } from "../../utils/presence";
 
 const TABS = ["All Chats", "Mine", "Unread", "Active", "Resolved"];
 const CREATED_AT_FILTERS = [
@@ -41,6 +42,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   // State for chat options menu
   const [openMenuId, setOpenMenuId] = useState(null);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+  const [presenceNow, setPresenceNow] = useState(Date.now());
 
   const [quickFilters, setQuickFilters] = useState({
     unreadChats: false,
@@ -124,6 +126,14 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     return () => clearTimeout(timeoutId);
   }, [appNotice.isOpen]);
 
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setPresenceNow(Date.now());
+    }, 60000);
+
+    return () => clearInterval(timerId);
+  }, []);
+
   const normalizedChats = chats || [];
 
   const toTitleCase = (text) => {
@@ -178,9 +188,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   };
 
   const getLastSeenDate = (chat) => {
-    const lastSeenValue = chat?.lastSeen || chat?.lastSeenAt || chat?.updatedAt;
-    const date = lastSeenValue ? new Date(lastSeenValue) : null;
-    return date && !Number.isNaN(date.getTime()) ? date : null;
+    return getPresenceInfo(chat, presenceNow).lastSeenDate;
   };
 
   const getChatUnreadCount = (chat) => {
@@ -302,9 +310,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   const matchesLastSeenFilter = (chat, filterValue) => {
     if (filterValue === "all") return true;
 
+    const presenceInfo = getPresenceInfo(chat, presenceNow);
     const lastSeenDate = getLastSeenDate(chat);
     if (filterValue === "online") {
-      if (chat?.status === "active") return true;
+      if (presenceInfo.isOnline) return true;
       if (!lastSeenDate) return false;
       return new Date().getTime() - lastSeenDate.getTime() <= 5 * 60 * 1000;
     }
@@ -2035,7 +2044,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               )}
               <div className="relative">
                 <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-12 h-12 rounded-full object-cover" />
-                {chat.status === 'active' && (
+                {getPresenceInfo(chat, presenceNow).isOnline && (
                   <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
                 )}
               </div>
