@@ -14,7 +14,6 @@ import {
   ChevronRightIcon,
   FunnelIcon,
   UserCircleIcon,
-  PencilSquareIcon,
   TrashIcon,
   TagIcon,
   ArrowPathIcon,
@@ -69,8 +68,6 @@ const updateContact     = (id, data) => apiFetch("PUT",    `/api/contacts/${id}`
 const deleteContact     = (id)       => apiFetch("DELETE", `/api/contacts/${id}`);
 const bulkDelete        = (ids)      => apiFetch("DELETE", "/api/contacts/bulk-delete", { ids });
 const createCustomField = (data)     => apiFetch("POST",   "/api/custom-fields",        data);
-// Used to sync deletions made on the Custom Fields management page
-const fetchCustomFields = ()         => apiFetch("GET",    "/api/custom-fields");
 
 /* ─── Static config ──────────────────────────────────────────────────────────── */
 const BASE_COLUMNS = [
@@ -230,7 +227,7 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
   return (
     <div className="fixed inset-0 z-[700] flex justify-end font-sans">
       <div className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-[400px] bg-white h-full shadow-2xl flex flex-col">
+      <div className="relative w-full max-w-[400px] bg-white h-full shadow-2xl flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -390,7 +387,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
   return (
     <div className="fixed inset-0 z-[700] flex items-center justify-center font-sans">
       <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative bg-white rounded-2xl shadow-2xl w-[520px] max-h-[90vh] flex flex-col overflow-hidden">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-[92vw] max-w-[520px] max-h-[90vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <Avatar initials={form.initials} color={form.color} size="sm" />
@@ -478,7 +475,7 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
     .filter(r => r.value);
 
   return (
-    <div className="w-72 flex-shrink-0 border-l border-gray-100 bg-white flex flex-col animate-in slide-in-from-right duration-200">
+    <div className="w-64 xl:w-72 flex-shrink-0 border-l border-gray-100 bg-white flex flex-col animate-in slide-in-from-right duration-200">
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Profile</span>
         <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-md text-gray-400 hover:text-gray-600 transition-colors">
@@ -609,7 +606,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
   return (
     <div className="fixed inset-0 z-[600] flex justify-end font-sans">
       <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={onClose} />
-      <div className="relative w-[420px] bg-white h-full shadow-2xl flex flex-col">
+      <div className="relative w-full max-w-[420px] bg-white h-full shadow-2xl flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -1087,15 +1084,15 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete }) {
   if (selectedCount === 0) return null;
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[500] animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans">
-      <div className="bg-white border border-gray-100 shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-2xl flex items-center p-2 min-w-[550px]">
-        <div className="flex items-center gap-3 px-5 border-r border-gray-100 mr-2">
+      <div className="bg-white border border-gray-100 shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-2xl flex flex-wrap items-center p-2 w-[min(92vw,820px)]">
+        <div className="flex items-center gap-3 px-4 sm:px-5 border-r border-gray-100 mr-2">
           <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center font-bold text-green-600 text-lg">{selectedCount}</div>
           <div className="flex flex-col">
             <span className="text-sm font-bold text-gray-900 leading-none">Contacts</span>
             <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">selected</span>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-1 px-2">
+        <div className="flex items-center gap-1 flex-1 px-2 min-w-[240px]">
           <button className="flex flex-col items-center justify-center px-4 py-2 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors group">
             <TagIcon className="w-5 h-5 mb-1 group-hover:text-green-600" />
             <span className="text-[11px] font-bold">Add Label</span>
@@ -1109,7 +1106,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete }) {
             <span className="text-[11px] font-bold leading-tight text-center">Send<br />Campaign</span>
           </button>
         </div>
-        <div className="flex items-center gap-2 pl-4 pr-2 border-l border-gray-100">
+        <div className="flex items-center gap-2 pl-3 sm:pl-4 pr-2 border-l border-gray-100 ml-auto">
           <button onClick={onDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors">
             <TrashIcon className="w-5 h-5" />Delete
           </button>
@@ -1297,6 +1294,7 @@ export default function ContactsCRM() {
   const orderedVisibleCols = allColumns.filter(col =>
     col.isCustom ? true : visibleColumns.includes(col.key)
   );
+  const hasFilters = activeFilterCount > 0 || filterStatus !== "All Contacts" || Boolean(searchQuery.trim());
 
   const filterTags = [
     ...advFilters.statuses.map(s => ({
@@ -1332,7 +1330,7 @@ export default function ContactsCRM() {
   };
 
   return (
-    <div className="font-sans bg-gray-50 min-h-screen p-7 box-border pb-32">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border pb-28 sm:pb-32">
 
       {editingContact && (
         <EditContactModal
@@ -1350,21 +1348,21 @@ export default function ContactsCRM() {
       />
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 leading-snug">Contact</h1>
-          <p className="text-xs text-gray-400 mt-1">Click a row to view profile. Click edit/delete to manage contacts.</p>
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Contacts</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage people, labels, and custom fields from one place.</p>
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex gap-2.5 flex-wrap w-full lg:w-auto">
           <button
             onClick={() => navigate("/admin/contacts/import")}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-700 text-sm font-semibold hover:border-green-500 transition-colors"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-gray-700 text-[13px] font-bold hover:border-emerald-500 hover:text-emerald-700 transition-all shadow-sm active:translate-y-px flex-1 lg:flex-none"
           >
             <ArrowUpTrayIcon className="w-4 h-4" />Import Contacts
           </button>
           <button
             onClick={() => setIsDrawerOpen(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-semibold shadow-sm shadow-green-200 transition-colors"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-[13px] font-bold transition-all shadow-md active:translate-y-px flex-1 lg:flex-none"
           >
             <PlusIcon className="w-4 h-4 stroke-[3]" />Add Contact
           </button>
@@ -1372,11 +1370,11 @@ export default function ContactsCRM() {
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
 
         {/* Filter bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap">
-          <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
+          <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
             <span className="text-sm text-gray-500 font-medium">Filter Status:</span>
             <div className="relative">
               <select
@@ -1430,16 +1428,38 @@ export default function ContactsCRM() {
                 />
               )}
             </div>
+            {hasFilters && (
+              <button
+                onClick={() => {
+                  setFilterStatus("All Contacts");
+                  setSearchQuery("");
+                  applyFilters({ statuses: [], labels: [] });
+                  setCurrentPage(1);
+                }}
+                className="text-xs text-red-500 font-semibold hover:bg-red-50 px-2.5 py-1.5 rounded-md transition-colors"
+              >
+                Reset All Filters
+              </button>
+            )}
           </div>
-          <div className="relative">
+          <div className="relative w-full sm:w-72 xl:w-60 xl:ml-auto">
             <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
             <input
               type="text"
               placeholder="Search contacts..."
               value={searchQuery}
               onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-8 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 w-52 outline-none focus:border-green-400 transition-colors"
+              className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 w-full outline-none focus:border-green-400 transition-colors"
             />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                title="Clear search"
+              >
+                <XMarkIcon className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1465,9 +1485,9 @@ export default function ContactsCRM() {
         )}
 
         {/* Table + Profile Panel */}
-        <div className="flex">
+        <div className="flex min-w-0">
           <div className="flex-1 overflow-x-auto min-w-0">
-            <table className="w-full border-collapse min-w-[500px]">
+            <table className="w-full border-collapse min-w-[760px] xl:min-w-[980px]">
               <thead>
                 <tr className="bg-gray-50">
                   <th className="w-11 px-4 py-3 text-center border-b-2 border-gray-100">
@@ -1500,9 +1520,36 @@ export default function ContactsCRM() {
                 ) : contacts.length === 0 ? (
                   <tr>
                     <td colSpan={orderedVisibleCols.length + 2} className="text-center py-14">
-                      <div className="flex flex-col items-center text-gray-400">
-                        <UserCircleIcon className="w-12 h-12 mb-3 opacity-30" />
-                        <p className="text-sm font-medium">No contacts found.</p>
+                      <div className="flex flex-col items-center text-gray-400 max-w-sm mx-auto">
+                        <div className="w-16 h-16 rounded-2xl bg-gray-50 border border-gray-100 flex items-center justify-center mb-3">
+                          <UserCircleIcon className="w-10 h-10 opacity-40" />
+                        </div>
+                        <p className="text-base font-semibold text-gray-700">No contacts found</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          {hasFilters
+                            ? "Try clearing filters or adjusting your search query."
+                            : "Add your first contact to start building your CRM list."}
+                        </p>
+                        <div className="flex items-center gap-2 mt-4">
+                          {hasFilters && (
+                            <button
+                              onClick={() => {
+                                setFilterStatus("All Contacts");
+                                setSearchQuery("");
+                                applyFilters({ statuses: [], labels: [] });
+                              }}
+                              className="px-3.5 py-2 rounded-lg border border-gray-200 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                            >
+                              Clear Filters
+                            </button>
+                          )}
+                          <button
+                            onClick={() => setIsDrawerOpen(true)}
+                            className="px-3.5 py-2 rounded-lg bg-green-500 text-white text-sm font-semibold hover:bg-green-600"
+                          >
+                            Add Contact
+                          </button>
+                        </div>
                       </div>
                     </td>
                   </tr>
@@ -1513,8 +1560,8 @@ export default function ContactsCRM() {
                     <tr
                       key={contact._id}
                       onClick={e => handleRowClick(contact, e)}
-                      className={`border-b border-gray-50 transition-colors duration-100 cursor-pointer
-                        ${isActive ? "bg-green-50 border-l-2 border-l-green-400" : isSelected ? "bg-green-50" : "bg-white hover:bg-gray-50"}`}
+                      className={`group border-b border-gray-50 transition-colors duration-100 cursor-pointer
+                        ${isActive ? "bg-green-50 border-l-2 border-l-green-400" : isSelected ? "bg-green-50" : "bg-white hover:bg-slate-50"}`}
                     >
                       <td className="w-11 px-4 py-3.5 text-center">
                         <CircularCheckbox
@@ -1532,14 +1579,14 @@ export default function ContactsCRM() {
                           <button
                             onClick={e => { e.stopPropagation(); setEditingContact(contact); }}
                             title="Edit"
-                            className="action-btn p-1.5 rounded-md text-gray-400 hover:text-blue-500 transition-colors"
+                            className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                           </button>
                           <button
                             onClick={e => { e.stopPropagation(); handleDeleteSingle(contact._id); }}
                             title="Delete"
-                            className="action-btn p-1.5 rounded-md text-gray-400 hover:text-red-500 transition-colors"
+                            className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                           </button>

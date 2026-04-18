@@ -172,225 +172,335 @@ const QuickReply = () => {
   }
 
   return (
-    <div className="flex h-screen w-full font-sans bg-white text-slate-700 overflow-hidden">
-      
-      <div className="flex-1 flex flex-col min-w-0 border-r border-gray-100">
-        <div className="p-4 md:p-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800">Quick Replies</h1>
-          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="w-full sm:w-auto flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-semibold transition-all shadow-sm active:scale-95">
-            <Plus size={20} /> Create Quick Reply
-          </button>
+    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+      <div className="flex flex-col xl:flex-row gap-6">
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
+              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
+                Total: {replies.length}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                resetForm();
+                setIsModalOpen(true);
+              }}
+              className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+            >
+              <Plus size={18} /> Add Quick Reply
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+            {loading ? (
+              <table className="w-full table-fixed text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-200">
+                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
+                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
+                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
+                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <tr key={i}>
+                      <td className="px-4 md:px-6 py-4"><div className="h-6 w-20 md:w-24 bg-gray-200 animate-pulse rounded-md" /></td>
+                      <td className="px-4 md:px-6 py-4"><div className="h-4 w-4/5 bg-gray-200 animate-pulse rounded" /></td>
+                      <td className="px-4 md:px-6 py-4"><div className="h-5 w-12 md:w-16 bg-gray-200 animate-pulse rounded-md" /></td>
+                      <td className="px-4 md:px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : replies.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400 px-4">
+                <Type size={52} className="mb-3 text-gray-300" />
+                <p className="text-lg font-semibold text-gray-600">No quick replies found</p>
+                <p className="text-sm mt-1">Create your first quick reply to speed up responses.</p>
+              </div>
+            ) : (
+              <table className="w-full table-fixed text-left border-collapse">
+                <thead>
+                  <tr className="bg-gray-50/50 border-b border-gray-200">
+                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
+                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
+                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
+                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {replies.map((reply, idx) => (
+                    <tr
+                      key={reply._id || idx}
+                      onClick={() => setActivePreview(reply)}
+                      className={`transition-colors cursor-pointer ${activePreview?._id === reply._id ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'}`}
+                    >
+                      <td className="px-4 md:px-6 py-4">
+                        <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                          {reply.shortcut}
+                        </span>
+                      </td>
+                      <td className="px-4 md:px-6 py-4 text-[13px] text-gray-600 font-medium">
+                        <p className="truncate md:pr-2">{reply.content || 'Media only quick reply'}</p>
+                      </td>
+                      <td className="px-4 md:px-6 py-4">
+                        <span className="inline-flex rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-blue-600">
+                          {reply.type}
+                        </span>
+                      </td>
+                      <td className="px-4 md:px-6 py-4 text-right">
+                        <div className="flex justify-end gap-3 text-gray-400">
+                          <button
+                            onClick={(e) => handleEdit(e, idx)}
+                            className="hover:text-blue-500 transition-colors"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => openDeleteConfirmation(e, reply._id)}
+                            className="hover:text-red-500 transition-colors"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         </div>
 
-        <div className="px-6 flex-1 overflow-auto">
-          <table className="w-full text-left border-separate border-spacing-y-2">
-            <thead>
-              <tr className="text-[11px] font-bold uppercase text-gray-400 tracking-wider">
-                <th className="px-4 pb-2">Shortcut</th>
-                <th className="px-4 pb-2">Message Content</th>
-                <th className="px-4 pb-2">Type</th>
-                <th className="px-4 pb-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {replies.map((reply, idx) => (
-                <tr 
-                  key={reply._id || idx} 
-                  onClick={() => setActivePreview(reply)}
-                  className={`group cursor-pointer transition-all ${activePreview === reply ? 'bg-emerald-50/60 shadow-sm' : 'hover:bg-slate-50'}`}
-                >
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">{reply.shortcut}</span>
-                  </td>
-                  <td className="px-4 py-4">
-                    <p className="text-sm text-gray-600 truncate max-w-[200px] md:max-w-xs">{reply.content || "Media Only"}</p>
-                  </td>
-                  <td className="px-4 py-4">
-                    <span className="text-[10px] font-black px-2 py-0.5 rounded-md border border-blue-200 bg-blue-50 text-blue-500 uppercase">{reply.type}</span>
-                  </td>
-                  <td className="px-4 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={(e) => handleEdit(e, idx)} className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"><Pencil size={16} /></button>
-                      {/*  Trigger Confirmation Card */}
-                      <button onClick={(e) => openDeleteConfirmation(e, reply._id)} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+        <div className="hidden xl:block xl:w-[360px] 2xl:w-[420px]">
+          <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-bold tracking-wide uppercase text-gray-500">Reply Preview</h2>
+              <span className="text-[11px] text-gray-400 font-semibold">WhatsApp style</span>
+            </div>
+
+            <div className="relative mx-auto w-[230px] h-[460px] 2xl:w-[280px] 2xl:h-[560px] bg-slate-900 rounded-[2.7rem] border-[9px] border-slate-800 shadow-2xl overflow-hidden transition-all">
+              <div className="h-full w-full bg-[#f0f2f5] flex flex-col">
+                <div className="bg-[#00a884] p-4 pt-9 flex items-center gap-2.5 text-white">
+                  <User size={20} className="bg-white/20 rounded-full p-1" />
+                  <p className="text-xs font-semibold">Preview Chat</p>
+                </div>
+                <div className="flex-1 p-4 flex flex-col justify-end">
+                  {previewData ? (
+                    <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-[12px] leading-relaxed max-w-[86%] animate-in slide-in-from-left duration-300">
+                      {previewData.type !== 'TEXT' && (
+                        <div className="mb-2 min-h-32 bg-slate-100 rounded-lg overflow-hidden flex flex-col items-center justify-center border border-slate-200">
+                          {getPreviewImage() ? (
+                            <img src={getPreviewImage()} alt="preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <>
+                              <ImageIcon size={24} className="text-slate-300" />
+                              <span className="text-[9px] mt-1 uppercase font-bold text-slate-400">{previewData.type} placeholder</span>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      <p className="whitespace-pre-wrap text-slate-700">{previewData.content || 'Your quick reply message preview appears here.'}</p>
+                      {previewData.buttonText && (
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center text-blue-500 text-[11px] font-semibold gap-1">
+                          <ExternalLink size={12} /> {previewData.buttonText}
+                        </div>
+                      )}
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                  ) : (
+                    <div className="bg-white p-3 rounded-xl shadow-sm text-[12px] text-gray-400 max-w-[86%]">
+                      Select any quick reply to view its preview.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* PREVIEW SIDEBAR */}
-      <div className="hidden lg:flex w-[380px] xl:w-[450px] bg-slate-50 flex-col items-center justify-center p-10">
-         <div className="relative w-[280px] h-[580px] bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden scale-90 xl:scale-100 transition-transform">
-            <div className="h-full w-full bg-[#f0f2f5] flex flex-col">
-                <div className="bg-[#00a884] p-4 pt-10 flex items-center gap-3 text-white">
-                  <User size={24} className="bg-white/20 rounded-full p-1"/>
-                  <div className="flex-1"><p className="text-xs font-bold">Preview Chat</p></div>
-                </div>
-                <div className="flex-1 p-4 space-y-4">
-                   {previewData && (
-                     <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
-                        {previewData.type !== 'TEXT' && (
-                          <div className="mb-2 min-h-32 bg-slate-100 rounded-lg overflow-hidden flex flex-col items-center justify-center border border-slate-200">
-                            {getPreviewImage() ? (
-                                <img src={getPreviewImage()} alt="preview" className="w-full h-full object-cover" />
-                            ) : (
-                                <>
-                                    <ImageIcon size={24} className="text-slate-300" />
-                                    <span className="text-[9px] mt-1 uppercase font-bold text-slate-400">{previewData.type} Placeholder</span>
-                                </>
-                            )}
-                          </div>
-                        )}
-                        <p className="whitespace-pre-wrap leading-relaxed">{previewData.content}</p>
-                        {previewData.buttonText && (
-                          <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center text-blue-500 font-bold gap-1">
-                            <ExternalLink size={12} /> {previewData.buttonText}
-                          </div>
-                        )}
-                     </div>
-                   )}
-                </div>
-            </div>
-         </div>
-      </div>
-
-      {/* ✅ DELETE CONFIRMATION CARD (MODAL) */}
       {isDeleteModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center animate-in zoom-in-95 duration-200">
-            <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertTriangle size={32} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[360px] animate-in zoom-in duration-200 p-6 text-center">
+            <div className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-red-100">
+              <AlertTriangle size={28} />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2">Confirm Delete</h3>
-            <p className="text-sm text-slate-500 mb-6">Are you sure you want to remove this quick reply? This action cannot be undone.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm font-bold text-slate-400 hover:bg-slate-50 transition-all">Cancel</button>
-              <button onClick={handleConfirmDelete} className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-200 transition-all active:scale-95">Yes, Delete</button>
+            <h3 className="text-[18px] font-bold text-gray-800 mb-2">Delete Quick Reply?</h3>
+            <p className="text-[13px] font-medium text-gray-500 mb-8 px-2 leading-relaxed">
+              This action will permanently remove the quick reply.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmDelete}
+                className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px"
+              >
+                Confirm
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* CREATE/EDIT MODAL AREA */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-w-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden max-h-[100vh] sm:max-h-[90vh]">
-            
-            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-[100] p-0 sm:p-4">
+          <div className="bg-white w-full h-full sm:h-auto sm:max-w-3xl sm:max-h-[92vh] sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-200">
+            <div className="sticky top-0 bg-white flex justify-between items-center px-6 py-4 border-b z-10">
               <div>
-                <h2 className="text-xl font-extrabold text-slate-800">Create Multi-Format Quick Reply</h2>
-                <p className="text-xs text-gray-400 font-medium">Configure your automated response and content.</p>
+                <h2 className="text-[18px] font-bold text-gray-800">{editingIndex !== null ? 'Edit Quick Reply' : 'Add New Quick Reply'}</h2>
+                <p className="text-[12px] text-gray-500 font-medium mt-0.5">Set message, media, and shortcut in one place.</p>
               </div>
-              <button onClick={closeModal} className="p-2 hover:bg-slate-100 rounded-full transition-colors"><X size={22} /></button>
+              <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light transition-colors leading-none">
+                <X size={20} />
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
-              {/* Type Selection */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-7">
               <div>
-                <label className="text-sm font-bold text-slate-700 mb-4 block">Response Type</label>
-                <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+                <label className="text-[13px] font-bold text-gray-700 mb-3 block">Response Type</label>
+                <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar">
                   {[
-                    { id: 'TEXT', label: 'TEXT', icon: <Type size={18}/> },
-                    { id: 'IMAGE', label: 'IMAGE', icon: <ImageIcon size={18}/> },
-                    { id: 'STICKER', label: 'STICKER', icon: <Sticker size={18}/> },
-                    { id: 'AUDIO', label: 'AUDIO', icon: <Music size={18}/> },
-                    { id: 'VIDEO', label: 'VIDEO', icon: <VideoIcon size={18}/> },
-                    { id: 'FILE', label: 'FILE', icon: <FileText size={18}/> },
-                    { id: 'CTA URL', label: 'CTA URL', icon: <Link size={18}/> }
+                    { id: 'TEXT', label: 'TEXT', icon: <Type size={17} /> },
+                    { id: 'IMAGE', label: 'IMAGE', icon: <ImageIcon size={17} /> },
+                    { id: 'STICKER', label: 'STICKER', icon: <Sticker size={17} /> },
+                    { id: 'AUDIO', label: 'AUDIO', icon: <Music size={17} /> },
+                    { id: 'VIDEO', label: 'VIDEO', icon: <VideoIcon size={17} /> },
+                    { id: 'FILE', label: 'FILE', icon: <FileText size={17} /> },
+                    { id: 'CTA URL', label: 'CTA URL', icon: <Link size={17} /> }
                   ].map((type) => (
-                    <button 
-                      key={type.id} 
-                      onClick={() => { setSelectedType(type.id); setSelectedFile(null); }}
-                      className={`flex flex-col items-center justify-center min-w-[70px] h-[70px] rounded-2xl border-2 transition-all ${selectedType === type.id ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-100 text-gray-400 hover:border-gray-200'}`}
+                    <button
+                      key={type.id}
+                      onClick={() => {
+                        setSelectedType(type.id);
+                        setSelectedFile(null);
+                      }}
+                      className={`flex flex-col items-center justify-center min-w-[74px] h-[74px] rounded-xl border transition-all ${selectedType === type.id ? 'border-emerald-500 bg-emerald-50 text-emerald-600' : 'border-gray-200 text-gray-500 hover:border-gray-300'}`}
                     >
                       {type.icon}
-                      <span className="text-[9px] font-black mt-1 uppercase">{type.label}</span>
+                      <span className="text-[9px] font-bold mt-1 uppercase">{type.label}</span>
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* Shortcut & CTA Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm font-bold text-slate-700 mb-2 block">Shortcut</label>
+                  <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">Shortcut</label>
                   <div className="relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 font-bold group-focus-within:text-emerald-500">/</span>
-                    <input type="text" value={shortcut} onChange={(e) => setShortcut(e.target.value)} placeholder="welcome" className="w-full pl-8 pr-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm" />
+                    <input
+                      type="text"
+                      value={shortcut}
+                      onChange={(e) => setShortcut(e.target.value)}
+                      placeholder="welcome"
+                      className="w-full border border-gray-200 rounded-xl pl-8 pr-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
+                    />
                   </div>
                 </div>
-                
+
                 {(selectedType === 'CTA URL' || selectedType === 'IMAGE') && (
                   <>
                     <div>
-                      <label className="text-sm font-bold text-slate-700 mb-2 block">Button Text (Optional)</label>
-                      <input type="text" value={buttonText} onChange={(e) => setButtonText(e.target.value)} placeholder="e.g. Visit" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none text-sm" />
+                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">Button Text (Optional)</label>
+                      <input
+                        type="text"
+                        value={buttonText}
+                        onChange={(e) => setButtonText(e.target.value)}
+                        placeholder="e.g. Visit"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
+                      />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-sm font-bold text-slate-700 mb-2 block">URL (Optional)</label>
-                      <input type="text" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://" className="w-full px-4 py-3 rounded-xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none text-sm" />
+                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">URL (Optional)</label>
+                      <input
+                        type="text"
+                        value={url}
+                        onChange={(e) => setUrl(e.target.value)}
+                        placeholder="https://"
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
+                      />
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Message Content Area */}
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <label className="text-sm font-bold text-slate-700">Message Content</label>
-                  <span className="text-[10px] font-bold text-gray-300">{message.length} / 4096</span>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-[13px] font-bold text-gray-700">Message Content</label>
+                  <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{message.length} / 4096</span>
                 </div>
-                <div className="flex gap-2 mb-3">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {['customer_name', 'agent_name', 'order_id'].map((v) => (
-                    <button key={v} onClick={() => setMessage(p => p + ` {{${v}}}`)} className="px-3 py-1.5 border border-gray-100 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-emerald-500 transition-colors">
-                      <span className="text-emerald-500 mr-1">{"{"}</span>{v}<span className="text-emerald-500 ml-1">{"}"}</span>
+                    <button
+                      key={v}
+                      onClick={() => setMessage((p) => p + ` {{${v}}}`)}
+                      className="px-3 py-1.5 border border-gray-200 rounded-lg text-[10px] font-bold text-slate-500 hover:bg-slate-50 hover:text-emerald-500 transition-colors"
+                    >
+                      <span className="text-emerald-500 mr-1">{'{'}</span>
+                      {v}
+                      <span className="text-emerald-500 ml-1">{'}'}</span>
                     </button>
                   ))}
                 </div>
-                <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows="5" className="w-full px-4 py-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-emerald-500 focus:bg-white outline-none transition-all text-sm resize-none" placeholder="Type message..."></textarea>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  rows="5"
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium resize-none bg-gray-50/30 leading-relaxed"
+                  placeholder="Type message..."
+                />
               </div>
 
-              {/* Media Upload Area */}
               {selectedType !== 'TEXT' && (
                 <div>
-                  <label className="text-sm font-bold text-slate-700 mb-2 block">Media Upload</label>
-                  <input 
-                    type="file" 
-                    ref={fileInputRef} 
-                    onChange={handleFileChange} 
-                    className="hidden" 
+                  <label className="text-[13px] font-bold text-gray-700 mb-2 block">Media Upload</label>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
                     accept={selectedType === 'IMAGE' ? 'image/*' : selectedType === 'AUDIO' ? 'audio/*' : selectedType === 'VIDEO' ? 'video/*' : '*/*'}
                   />
-                  <div 
+                  <button
+                    type="button"
                     onClick={() => fileInputRef.current.click()}
-                    className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center bg-slate-50 hover:bg-emerald-50/30 transition-all cursor-pointer group ${selectedFile ? 'border-emerald-400 bg-emerald-50/50 shadow-inner' : 'border-gray-200 hover:border-emerald-200'}`}
+                    className={`w-full border-2 border-dashed rounded-2xl p-7 flex flex-col items-center justify-center transition-all group ${selectedFile ? 'border-emerald-400 bg-emerald-50/50 shadow-inner' : 'border-gray-200 bg-gray-50 hover:bg-emerald-50/30 hover:border-emerald-200'}`}
                   >
-                    <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-emerald-500 mb-3 transition-transform group-active:scale-90">
-                      <Upload size={24} />
+                    <div className="w-11 h-11 bg-white rounded-full shadow-sm flex items-center justify-center text-gray-400 group-hover:text-emerald-500 mb-3 transition-transform group-active:scale-95">
+                      <Upload size={22} />
                     </div>
-                    <p className="text-xs font-bold text-slate-600 text-center">
+                    <p className="text-[12px] font-semibold text-slate-600 text-center">
                       {selectedFile ? (
                         <span className="text-emerald-600">Selected: {selectedFile.name}</span>
                       ) : (
-                        <>Drag and drop your file here, or <span className="text-emerald-500 underline">browse</span></>
+                        <>
+                          Drag and drop your file here, or <span className="text-emerald-500 underline">browse</span>
+                        </>
                       )}
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-1 uppercase font-black tracking-widest">
-                      Max 16MB
-                    </p>
-                  </div>
+                    <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-widest">Max 16MB</p>
+                  </button>
                 </div>
               )}
             </div>
 
-            <div className="p-6 border-t border-gray-100 flex justify-end items-center gap-4 bg-white">
-              <button onClick={closeModal} className="px-6 py-2.5 text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors">Cancel</button>
-              <button onClick={handleSave} className="px-8 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold shadow-lg shadow-emerald-200 transition-all active:scale-95">
-                {editingIndex !== null ? 'Update Quick Reply' : 'Save'}
+            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
+              <button onClick={closeModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px"
+              >
+                {editingIndex !== null ? 'Update Quick Reply' : 'Save Quick Reply'}
               </button>
             </div>
           </div>
