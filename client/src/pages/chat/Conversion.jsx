@@ -1195,7 +1195,7 @@ const Conversion = ({
             {isCurrentlyBlocked ? (
                <div className="flex items-center justify-center gap-4 py-12 bg-[#F9FAFB] animate-in fade-in zoom-in-95 duration-200">
                   <button 
-                     onClick={() => onDeleteChat && onDeleteChat()}
+                     onClick={() => onClearChat && onClearChat()}
                      className="flex items-center gap-2.5 border border-slate-200 rounded-full px-10 py-3.5 bg-white text-rose-600 font-bold text-sm shadow-sm hover:shadow-md transition-all active:scale-95 whitespace-nowrap"
                   >
                      <TrashIcon className="w-5 h-5 text-rose-500" />
