@@ -456,18 +456,20 @@ const Chat = () => {
       confirmText: "Clear History",
       type: "danger",
       onConfirm: async () => {
+        setIsConfirmModalOpen(false);
+        
+        // Optimistic UI Update
+        setMessages([]);
+        setChats(prev => prev.map(c => (c._id || c.id) === activeChatId ? { ...c, lastMsg: "Chat history cleared" } : c));
+
         try {
           const result = await chatService.clearChatHistory(activeChatId);
-          if (result.success) {
-            setMessages([]);
-            setChats(prev => prev.map(c => c._id === activeChatId ? { ...c, lastMsg: "Chat history cleared" } : c));
-          } else {
-            console.error("Failed to clear chat:", result.error);
+          if (!result.success) {
+            console.error("Failed to clear chat on server:", result.error);
           }
         } catch (err) {
           console.error("Error clearing chat:", err);
         }
-        setIsConfirmModalOpen(false);
       }
     });
     setIsConfirmModalOpen(true);
@@ -502,21 +504,25 @@ const Chat = () => {
 
   const handleUpdateStatus = async (chatId, status) => {
     if (!chatId) return;
+
+    // Optimistic UI update
+    setChats(prev => prev.map(c => {
+      if ((c._id || c.id) === chatId) {
+        return {
+          ...c,
+          chatStatus: status,
+          isBlocked: status === 'blocked',
+          blocked: status === 'blocked',
+          contactStatus: status === 'blocked' ? 'blocked' : (String(c.contactStatus || '').toLowerCase() === 'blocked' ? status : c.contactStatus)
+        };
+      }
+      return c;
+    }));
+
     try {
       const result = await chatService.updateChatStatus(chatId, status);
-      if (result.success) {
-        setChats(prev => prev.map(c => {
-          if ((c._id || c.id) === chatId) {
-            return {
-              ...c,
-              chatStatus: status,
-              isBlocked: status === 'blocked',
-              blocked: status === 'blocked',
-              contactStatus: status === 'blocked' ? 'blocked' : (String(c.contactStatus || '').toLowerCase() === 'blocked' ? status : c.contactStatus)
-            };
-          }
-          return c;
-        }));
+      if (!result.success) {
+        console.error("Failed to update status on server:", result.error);
       }
     } catch (err) {
       console.error("Error updating status:", err);

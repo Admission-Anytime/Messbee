@@ -1,9 +1,10 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { fetchWhatsAppTemplates, mergeTemplates, deleteWhatsAppTemplate } from '../../services/TemplateApi';
+import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 
 const Templates = ({ activeTab, }) => {
   const navigate = useNavigate();
@@ -224,6 +225,7 @@ const Templates = ({ activeTab, }) => {
               <option>Approved</option>
               <option>Pending</option>
               <option>Rejected</option>
+              <option>Blocked</option>
             </select>
           </div>
 
@@ -264,7 +266,7 @@ const Templates = ({ activeTab, }) => {
                       <td className="px-2 md:px-3 py-3"><span className="inline-block max-w-full truncate px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-600" title={temp.category || 'General'}>{temp.category || 'General'}</span></td>
                       <td className="px-2 md:px-3 py-3 text-center">
                           <div className="flex items-center justify-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${temp.status === 'Approved' ? 'bg-green-500' : temp.status === 'Rejected' ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
+                              <div className={`w-2 h-2 rounded-full ${temp.status === 'Approved' ? 'bg-green-500' : (temp.status === 'Rejected' || temp.status === 'Blocked') ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
                               <span className="text-[13px] font-semibold text-gray-700">{temp.status || 'Pending'}</span>
                           </div>
                       </td>
@@ -275,6 +277,20 @@ const Templates = ({ activeTab, }) => {
                       </td>
                       <td className="px-2 md:px-3 py-3">
                           <div className="flex items-center justify-center gap-3">
+                              <button 
+                                  onClick={(e) => { e.stopPropagation(); navigate('/admin/templates/create', { state: { isEditing: true, templateData: temp } }); }} 
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+                                  title="Edit template"
+                              >
+                                  <Pencil size={18} />
+                              </button>
+                              <button 
+                                  onClick={(e) => { e.stopPropagation(); navigate('/admin/templates/create', { state: { isEditing: false, isDuplicate: true, templateData: temp } }); }} 
+                                  className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" 
+                                  title="Duplicate template"
+                              >
+                                  <Copy size={18} />
+                              </button>
                               <button onClick={(e) => handleDeleteClick(e, temp.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete template">
                                   <Trash2 size={18} />
                               </button>
@@ -330,6 +346,9 @@ const Templates = ({ activeTab, }) => {
 const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons=[] }) => {
   const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
   const isTextHeader = headerType === 'Text';
+
+  // Format WhatsApp Markdown to HTML for preview
+  const formattedBody = formatWhatsAppMarkdown(body);
 
   return (
   <div className="relative w-[220px] sm:w-[260px] h-[420px] sm:h-[460px] bg-gradient-to-b from-[#0F172A] to-[#1e293b] rounded-[2rem] sm:rounded-[2.5rem] border-[6px] sm:border-[8px] border-[#0F172A] shadow-2xl overflow-hidden font-sans flex flex-col">
@@ -397,7 +416,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
             )}
             
             {/* Using dangerouslySetInnerHTML to properly render formatting like bold/strikethrough/emojis stored by CreateTemplate */}
-            <div className="text-[11px] sm:text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: body }}></div>
+            <div className="text-[11px] sm:text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formattedBody }}></div>
             
             {footerText && (
               <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-2 leading-tight">{footerText}</p>

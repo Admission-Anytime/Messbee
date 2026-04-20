@@ -89,6 +89,21 @@ export const createWhatsAppTemplate = async (templateData) => {
 };
 
 /**
+ * Update an existing template in WhatsApp Business Account
+ */
+export const updateWhatsAppTemplate = async (templateId, templateData) => {
+  try {
+    const { data } = await axios.put(`/whatsapp/templates/${templateId}`, templateData);
+    return data;
+  } catch (error) {
+    console.error("❌ [TemplateApi] Error updating WhatsApp template:", error.response?.data || error.message);
+    if (error.response?.data?.error) {
+      console.error("   WhatsApp API Error:", JSON.stringify(error.response.data.error, null, 2));
+    }
+    throw error;
+  }
+};
+/**
  * Get template details
  */
 export const getTemplateDetails = async (templateId) => {
@@ -254,12 +269,22 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
       '';
     const mediaUrl = isRenderableMediaUrl(mediaUrlCandidate) ? mediaUrlCandidate : '';
 
+    // Extract body variable samples if present
+    const bodySamples = {};
+    if (bodyComponent?.example?.body_text?.[0]) {
+      const samples = bodyComponent.example.body_text[0];
+      samples.forEach((sample, idx) => {
+        bodySamples[idx + 1] = sample;
+      });
+    }
+
     return {
       bodyText: bodyComponent?.text || '',
       footerText: footerComponent?.text || '',
       headerType,
       headerMediaUrl: mediaUrl,
-      buttons: mappedButtons
+      buttons: mappedButtons,
+      bodySamples
     };
   };
 
@@ -316,7 +341,8 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         footerText: componentData.footerText,
         headerType: resolvedHeaderType,
         headerMediaUrl: resolvedHeaderMediaUrl,
-        buttons: componentData.buttons
+        buttons: componentData.buttons,
+        bodySamples: componentData.bodySamples
       };
     });
 
