@@ -290,7 +290,7 @@ const MainHeading = ({ onMenuClick }) => {
               )}
            </div>
            
-           <button onClick={() => navigate('/admin/help/faqs')} className="p-2 rounded-full hover:bg-slate-50 hover:text-slate-800 transition-colors" title="FAQs">
+           <button onClick={() => navigate('/admin/help/faq')} className="p-2 rounded-full hover:bg-slate-50 hover:text-slate-800 transition-colors" title="FAQs">
               <QuestionMarkCircleIcon className="w-6 h-6" />
            </button>
            

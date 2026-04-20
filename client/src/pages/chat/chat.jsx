@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useContext } from "react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
 import ContactCard from "./ContactCard";
 import Conversion from "./Conversion";
@@ -10,6 +10,7 @@ import StatusApi from "../../services/StatusApi";
 import QuickReplyApi from "../../services/QuickReplyApi";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
+import { ChatContext } from "../../context/ChatContext";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
@@ -18,6 +19,7 @@ const SOCKET_URL =
     : 'http://localhost:5000');
 
 const Chat = () => {
+  const { fetchChats: refreshGlobalUnread } = useContext(ChatContext);
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -134,6 +136,8 @@ const Chat = () => {
           },
           ...prevChats.slice(idx + 1)
         ];
+        // Sync global unread count
+        refreshGlobalUnread();
         return updated;
       });
     });
@@ -237,6 +241,8 @@ const Chat = () => {
             chat._id === activeChatId ? { ...chat, unread: 0 } : chat
           )
         );
+        // Sync global unread count
+        refreshGlobalUnread();
       } catch (err) {
         console.error("Error fetching messages:", err);
       }

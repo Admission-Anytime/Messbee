@@ -4,6 +4,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { userContext } from "../../context/Context";
+import { ChatContext } from "../../context/ChatContext";
 
 // --- LOGO ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png";
@@ -17,7 +18,6 @@ const MENU_ITEMS = [
         title: "Chats",
         path: "/admin/chat",
         icon: "feather:message-circle",
-        badge: "10+",
       },
       {
         title: "Contacts & CRM",
@@ -158,6 +158,9 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
     );
   }
 
+  const { unreadCount } = useContext(ChatContext);
+  const displayBadge = item.title === "Chats" ? (unreadCount > 0 ? (unreadCount > 99 ? "99+" : unreadCount) : null) : item.badge;
+
   return (
     <div className="mb-1">
       <Link to={item.path} className={`group flex items-center px-4 py-3 transition-all duration-200 ${active ? activeClass : inactiveClass}`}>
@@ -165,7 +168,7 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
           <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
           <div className="flex items-center justify-between w-full">
             <span className="truncate text-[14px] font-medium">{item.title}</span>
-            {item.badge && <span className="bg-[#00B050] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">{item.badge}</span>}
+            {displayBadge && <span className="bg-[#00B050] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">{displayBadge}</span>}
           </div>
         </div>
       </Link>
