@@ -1266,40 +1266,40 @@ const Conversion = ({
 
          {/* MODALS */}
          {isMediaModalOpen && (
-               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-2 sm:p-4 md:p-6 animate-in fade-in duration-200">
-                  <div className="bg-white w-full max-w-[1200px] h-[92vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
-                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 shrink-0">
-                     <h2 className="text-lg sm:text-xl font-bold text-slate-800">Select Media to Send</h2>
-                     <div className="flex items-center gap-3 sm:gap-4 flex-wrap justify-end">
-                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 w-[220px] lg:w-64 hidden md:flex focus-within:ring-1 focus-within:ring-green-500">
+               <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm p-1.5 sm:p-3 md:p-4 animate-in fade-in duration-200">
+                  <div className="bg-white w-full max-w-[1200px] h-[96vh] sm:h-[92vh] rounded-xl sm:rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2 shrink-0">
+                     <h2 className="text-base sm:text-xl font-bold text-slate-800">Select Media to Send</h2>
+                     <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-end w-full sm:w-auto">
+                        <div className="relative flex items-center bg-slate-50 border border-slate-200 rounded-lg px-3 py-1.5 w-full sm:w-[220px] lg:w-64 focus-within:ring-1 focus-within:ring-green-500 order-3 sm:order-none">
                            <MagnifyingGlassIcon className="w-4 h-4 text-slate-400 mr-2" />
                            <input type="text" placeholder="Search assets..." value={mediaSearch} onChange={(e) => setMediaSearch(e.target.value)} className="bg-transparent border-none outline-none text-sm text-slate-700 w-full" />
                         </div>
-                        <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 bg-[#22C55E] text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-green-500 transition-colors shadow-sm"><ArrowUpTrayIcon className="w-4 h-4" /> Upload New</button>
+                        <button onClick={() => fileInputRef.current.click()} className="flex items-center gap-2 bg-[#22C55E] text-white px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-bold hover:bg-green-500 transition-colors shadow-sm"><ArrowUpTrayIcon className="w-4 h-4" /> Upload New</button>
                         <div className="w-px h-6 bg-slate-200"></div>
                         <button onClick={() => setIsMediaModalOpen(false)} className="text-slate-400 hover:text-slate-700 p-1"><XMarkIcon className="w-6 h-6" /></button>
                      </div>
                   </div>
                   <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
                      <div className="w-full lg:w-60 border-b lg:border-b-0 lg:border-r border-slate-100 flex flex-col justify-between bg-white shrink-0">
-                        <div className="p-4 space-y-1">
+                        <div className="p-3 space-y-1">
                            <div className="flex lg:block gap-2 overflow-x-auto lg:overflow-visible">
                            {MEDIA_TABS.map(tab => (
-                              <button key={tab.id} onClick={() => setMediaTab(tab.id)} className={`w-full min-w-[120px] lg:min-w-0 flex items-center gap-3 px-4 py-3 rounded-xl text-sm transition-colors ${mediaTab === tab.id ? 'bg-[#f0fdf4] text-[#16a34a] font-bold' : 'text-slate-600 hover:bg-slate-50 font-medium'}`}>
+                              <button key={tab.id} onClick={() => setMediaTab(tab.id)} className={`w-full min-w-[110px] lg:min-w-0 flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm transition-colors ${mediaTab === tab.id ? 'bg-[#f0fdf4] text-[#16a34a] font-bold' : 'text-slate-600 hover:bg-slate-50 font-medium'}`}>
                                  <tab.icon className="w-5 h-5" /> {tab.label}
                               </button>
                            ))}
                            </div>
                         </div>
                      </div>
-                     <div className="flex-1 bg-[#F8FAFC] p-4 sm:p-6 overflow-y-auto custom-scrollbar min-h-0">
+                     <div className="flex-1 bg-[#F8FAFC] p-3 sm:p-4 overflow-y-auto custom-scrollbar min-h-[240px] lg:min-h-0">
                          {isLoadingMedia ? (
                             <div className="flex flex-col items-center justify-center h-full">
                                <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                                <p className="text-gray-400 mt-4 font-medium italic">Synchronizing assets...</p>
                             </div>
                          ) : filteredMedia.length > 0 ? (
-                            <div className="grid grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 sm:gap-5">
+                            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4 gap-2.5 sm:gap-4">
                                {filteredMedia.map((item) => (
                                   <div key={item.id} onClick={() => setSelectedMediaId(item.id)} className={`bg-white rounded-xl p-2 cursor-pointer transition-all border-2 ${selectedMediaId === item.id ? 'border-[#22C55E] shadow-md relative' : 'border-transparent shadow-sm hover:border-slate-200'}`}>
                                      {selectedMediaId === item.id && <div className="absolute top-3 right-3 bg-white rounded-full z-10 shadow-sm"><SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /></div>}
@@ -1320,10 +1320,10 @@ const Conversion = ({
                             <div className="flex flex-col items-center justify-center h-full text-slate-400"><DocumentIcon className="w-16 h-16 mb-4 text-slate-300" /><p className="font-semibold text-slate-500">No media found</p></div>
                          )}
                      </div>
-                     <div className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-slate-100 bg-white flex flex-col shrink-0 overflow-y-auto custom-scrollbar">
-            <div className="p-4 sm:p-6 pb-2 sm:pb-3 border-b border-slate-50">
+                     <div className="w-full lg:w-[320px] border-t lg:border-t-0 lg:border-l border-slate-100 bg-white flex flex-col shrink-0 overflow-y-auto custom-scrollbar max-h-[36vh] lg:max-h-none">
+            <div className="p-3 sm:p-4 pb-2 border-b border-slate-50">
                            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2 sm:mb-4">Asset Preview</h3>
-                           <div className="aspect-video bg-slate-50 rounded-xl mb-3 sm:mb-5 overflow-hidden flex items-center justify-center border border-slate-100 relative">
+                           <div className="aspect-video bg-slate-50 rounded-xl mb-3 sm:mb-4 overflow-hidden flex items-center justify-center border border-slate-100 relative">
                               {uploadingFile ? (
                                  <div className="flex flex-col items-center justify-center">
                                     <div className="w-8 h-8 border-4 border-[#22C55E] border-t-transparent rounded-full animate-spin"></div>
@@ -1345,7 +1345,7 @@ const Conversion = ({
                               )}
                            </div>
                            <div className="space-y-3">
-                              <div className="bg-slate-50 border border-slate-100 p-3 rounded-xl">
+                              <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-xl">
                                  <div className="flex items-start justify-between gap-4">
                                     <div className="flex-1 min-w-0">
                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">File Name</p>
@@ -1367,13 +1367,13 @@ const Conversion = ({
                               </div>
                            </div>
                         </div>
-                        <div className="p-4 sm:p-6 pt-3 sm:pt-4 flex-1 bg-slate-50/40">
+                        <div className="p-3 sm:p-4 pt-2.5 sm:pt-3 flex-1 bg-slate-50/40">
                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Add Caption</p>
                            <textarea value={mediaCaption} onChange={(e) => setMediaCaption(e.target.value)} placeholder="Type a caption for your message..." className="w-full h-24 sm:h-32 p-3 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-[#22C55E]/20 focus:border-[#22C55E] resize-none shadow-sm"></textarea>
                         </div>
                      </div>
                   </div>
-                  <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-slate-100 bg-white flex items-center justify-end gap-3 shrink-0">
+                  <div className="px-3 sm:px-5 py-2.5 sm:py-3 border-t border-slate-100 bg-white flex items-center justify-end gap-2.5 shrink-0">
                      <button onClick={() => setIsMediaModalOpen(false)} className="px-5 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">Cancel</button>
                      <button onClick={handleSendMedia} className="flex items-center gap-2 px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-md shadow-green-200"><PaperAirplaneIcon className="w-4 h-4" /> Attach to Chat</button>
                   </div>
