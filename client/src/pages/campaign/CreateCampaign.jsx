@@ -128,7 +128,7 @@ const CreateCampaign = () => {
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
                 toast.success(scheduleOption === 'now' ? 'Campaign launched successfully!' : 'Campaign scheduled successfully!');
-                navigate('/admin/campaigns');
+                navigate('/admin/campaign-success');
             }
         } catch (error) {
             console.error('Error launching campaign:', error);

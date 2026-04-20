@@ -1,13 +1,46 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isPrefEditing, setIsPrefEditing] = useState(false);
+  const [show2FA, setShow2FA] = useState(false);
+  const [method, setMethod] = useState("app");
+  const [step, setStep] = useState(1);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsStep, setSmsStep] = useState(1);
 
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(null);
+  const inputsRef = useRef([]);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [timeLeft, setTimeLeft] = useState(59);
+
+ const handleOtpChange = (e, index) => {
+  const value = e.target.value.replace(/[^0-9]/g, "");
+
+  const newOtp = [...otp];
+  newOtp[index] = value;
+  setOtp(newOtp);
+
+  if (value && index < 5) {
+    inputsRef.current[index + 1].focus();
+  }
+};
+
+const handleKeyDown = (e, index) => {
+  if (e.key === "Backspace") {
+    const newOtp = [...otp];
+
+    if (otp[index]) {
+      newOtp[index] = "";
+      setOtp(newOtp);
+    } else if (index > 0) {
+      inputsRef.current[index - 1].focus();
+    }
+  }
+};
 
   const [formData, setFormData] = useState({
     name: "Alex Rivera",
@@ -42,6 +75,24 @@ const UserProfile = () => {
       toast.success("Profile photo updated");
     }
   };
+  useEffect(() => {
+  if (smsStep === 2) {
+    inputsRef.current[0]?.focus();
+  }
+}, [smsStep]);
+
+useEffect(() => {
+  if (smsStep !== 2) return;
+
+  const timer = setInterval(() => {
+    setTimeLeft((prev) => {
+      if (prev === 0) return 0;
+      return prev - 1;
+    });
+  }, 1000);
+
+  return () => clearInterval(timer);
+}, [smsStep]);
 
   return (
     <div className="p-8 max-w-5xl mx-auto bg-[#f6f8fb] min-h-screen">
@@ -338,7 +389,11 @@ const UserProfile = () => {
                     Protect your account by requiring an extra security code during login.
                   </p>
                   <button
-                    onClick={() => toast.info("2FA soon")}
+                    onClick={() => {
+                      setShow2FA(true);
+                       setStep(1); // reset step
+                       setMethod("app"); // optional reset
+                          }}
                     className="px-4 py-2 bg-gray-100 text-gray-800 text-sm font-bold rounded-xl hover:bg-gray-200 transition-all"
                   >
                     Configure 2FA
@@ -349,6 +404,599 @@ const UserProfile = () => {
           </div>
         </div>
       </div>
+  {show2FA && (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center">
+  <div className="flex justify-center">
+    <div className="w-full max-w-sm py-6 px-5 bg-white rounded-2xl border border-gray-200 shadow-[0_10px_40px_rgba(0,0,0,0.08)]">
+
+      {step === 1 && (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              
+              {/* Shield Icon */}
+              <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 1l7 3v5c0 5-3.5 9-7 10-3.5-1-7-5-7-10V4l7-3z" clipRule="evenodd"/>
+                </svg>
+              </div>
+
+              <p className="font-semibold text-gray-800">MessBee</p>
+            </div>
+
+            {/* Help Icon */}
+            <button className="text-gray-400 hover:text-black">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M18 10A8 8 0 11.001 10 8 8 0 0118 10zm-8-3a2 2 0 00-2 2h2a1 1 0 112 0c0 .552-.448 1-1 1h-1v2h1a3 3 0 000-6zm-1 8h2v-2H9v2z"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Title */}
+          <h2 className="text-xl font-bold text-gray-900 mb-2">
+            Secure your account with 2FA
+          </h2>
+
+          <p className="text-sm text-gray-500 mb-6">
+            Two-factor authentication adds an extra layer of security to your
+            account by requiring more than just a password to log in.
+          </p>
+
+          {/* OPTION 1 */}
+          <div
+            onClick={() => {
+            setMethod("app"); // only select
+            }}
+            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-4 transition ${
+              method === "app"
+                ? "border-green-500 bg-green-50"
+                : "border-gray-200"
+            }`}
+          >
+            <div className="mt-1">
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  method === "app"
+                    ? "border-green-500"
+                    : "border-gray-300"
+                }`}
+              >
+                {method === "app" && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <svg className="w-5 h-5 text-green-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M10 2a5 5 0 00-5 5v2H4a2 2 0 00-2 2v5a2 2 0 002 2h12a2 2 0 002-2v-5a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm-3 7V7a3 3 0 016 0v2H7z"/>
+              </svg>
+
+              <div>
+                <p className="font-medium text-gray-800">
+                  Authenticator App (Recommended)
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Use an app like Google Authenticator to generate unique security codes
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* OPTION 2 */}
+          <div
+            onClick={() => {
+           setMethod("sms");
+           }}
+            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer mb-6 transition ${
+              method === "sms"
+                ? "border-green-500 bg-green-50"
+                : "border-gray-200"
+            }`}
+          >
+            <div className="mt-1">
+              <div
+                className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                  method === "sms"
+                    ? "border-green-500"
+                    : "border-gray-300"
+                }`}
+              >
+                {method === "sms" && (
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <svg className="w-5 h-5 text-gray-600 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 5a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H6l-4 3V5z"/>
+              </svg>
+
+              <div>
+                <p className="font-medium text-gray-800">SMS Verification</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Receive a security code via text message to your registered phone number
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* CONTINUE BUTTON */}
+          <button
+               onClick={() => {
+            if (method === "app") {
+            setStep(2);
+               } else if (method === "sms") {
+              setShow2FA(false);     // CLOSE current modal
+              setShowSmsModal(true); // OPEN SMS modal
+              }
+              }}
+            className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold shadow-md transition"
+          >
+            Continue
+          </button>
+
+          {/* FOOTER */}
+          <p
+            onClick={() => setShow2FA(false)}
+            className="text-center text-sm text-black mt-4 cursor-pointer"
+          >
+            I'll do this later
+          </p>
+
+          {/* PROGRESS */}
+          <div className="flex justify-center gap-1 mt-3">
+            <div className="w-6 h-1 bg-green-500 rounded-full"></div>
+            <div className="w-2 h-1 bg-gray-300 rounded-full"></div>
+            <div className="w-2 h-1 bg-gray-300 rounded-full"></div>
+          </div>
+        
+        </>
+      )}
+
+      {step === 2 && method === "app" && (
+  <>
+    {/* Header */}
+    <div className="flex items-center justify-between mb-4">
+  
+
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
+          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 1l7 3v5c0 5-3.5 9-7 10-3.5-1-7-5-7-10V4l7-3z" clipRule="evenodd"/>
+          </svg>
+        </div>
+        <p className="font-semibold text-gray-800">MessBee</p>
+      </div>
+    
+
+      {/* Close */}
+
+      <button
+    onClick={() => setShow2FA(false)}
+    className="text-gray-400 hover:text-black text-xl"
+  >
+    ✕
+  </button>
+    </div>
+
+    {/* Title */}
+    <h2 className="text-lg font-bold text-gray-900 text-center mb-2">
+      Set up Authenticator App
+    </h2>
+
+    {/* Steps */}
+    <p className="text-sm text-gray-500 text-center mb-6">
+      1. Scan this QR code with your authenticator app (like Google Authenticator or Authy). <br />
+      2. Enter the 6-digit code generated by the app.
+    </p>
+
+    {/* QR BOX */}
+<div className="flex justify-center mb-4">
+  <div className="p-3 rounded-xl border bg-gray-50 shadow-sm">
+    <div className="w-24 h-24 flex items-center justify-center rounded-lg">
+      <img
+        src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=MessBee-2FA-Demo"
+        alt="QR Code"
+        className="w-full h-full object-contain"
+      />
+    </div>
+  </div>
+</div>
+
+    {/* Verification Code */}
+    <p className="text-xs text-gray-400 text-center mb-2 uppercase tracking-wider">
+      Verification Code
+    </p>
+
+    {/* OTP Inputs */}
+    <div className="flex justify-center gap-2 mb-4">
+      {[...Array(6)].map((_, i) => (
+  <input
+    key={i}
+    maxLength={1}
+    ref={(el) => (inputsRef.current[i] = el)}
+    onChange={(e) => handleOtpChange(e, i)}
+    className="w-8 h-10 text-center border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-green-500"
+  />
+))}
+    </div>
+
+    {/* Manual entry */}
+    <p className="text-center text-sm text-green-600 mb-6 cursor-pointer">
+      Can't scan? Enter code manually
+    </p>
+
+    {/* Verify Button */}
+    <button
+      onClick={() => setStep(3)}
+      
+      className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-xl font-semibold shadow-md transition"
+    >
+      Verify & Continue →
+    </button>
+    <button
+      onClick={() => setStep(1)}
+      className="w-full mt-3 bg-gray-100 py-2 rounded-xl font-medium"
+    >
+      Back
+     </button>
+
+    {/* Footer Step Indicator */}
+    <p className="text-center text-xs text-gray-400 mt-4">
+      Step 2 of 3: Security Verification
+    </p>
+  </>
+)}
+      {step === 3 && (
+  <>
+    {/* Header */}
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+        <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 2a8 8 0 100 16 8 8 0 000-16z"/>
+        </svg>
+      </div>
+      <div>
+        <p className="font-semibold text-gray-800 text-sm">
+          Save your recovery codes
+        </p>
+        <p className="text-xs text-gray-400">
+          Final step to secure your account
+        </p>
+      </div>
+    </div>
+
+    {/* Warning Box */}
+    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-xs text-gray-600">
+      <div className="flex gap-2 items-start">
+        <span className="text-orange-500">⚠</span>
+        <p>
+          Recovery codes are used to access your account if you lose your
+          authentication device. Store these in a safe place like a password manager!
+        </p>
+      </div>
+    </div>
+
+    {/* Codes Grid */}
+    <div className="grid grid-cols-3 gap-2 mb-4">
+      {[
+        "ABCD-1234","EFGH-5678","IJKL-9012",
+        "MNOP-3456","QRST-7890","UVWX-1122",
+        "YZAB-3344","CDER-5566","GHTY-7788",
+        "PLMK-9900","QWER-1212","ASDF-3434"
+      ].map((code, i) => (
+        <div
+          key={i}
+          className="bg-gray-100 text-gray-700 text-xs py-2 rounded-md text-center font-medium"
+        >
+          {code}
+        </div>
+      ))}
+    </div>
+
+    {/* Buttons */}
+    <div className="flex gap-3 mb-4">
+      <button className="flex-1 border rounded-lg py-2 text-sm bg-white hover:bg-gray-50">
+        ⬇ Download PDF
+      </button>
+      <button className="flex-1 border rounded-lg py-2 text-sm bg-white hover:bg-gray-50">
+        📋 Copy to clipboard
+      </button>
+    </div>
+
+    {/* Checkbox */}
+    <div className="mb-4 text-xs text-gray-600">
+      <label className="flex items-start gap-2">
+        <input type="checkbox" className="mt-1" />
+        <span>
+          I have saved my recovery codes <br />
+          <span className="text-gray-400">
+            I understand that these codes are the only way to recover my account if I lose my device.
+          </span>
+        </span>
+      </label>
+    </div>
+
+    {/* Complete Button */}
+    <button
+      onClick={() => {
+        toast.success("2FA Enabled Successfully");
+        setShow2FA(false);
+        setStep(1);
+      }}
+      className="w-full bg-green-500 hover:bg-green-600 text-white py-2.5 rounded-lg font-semibold"
+    >
+      Complete Setup ✓
+    </button>
+
+    {/* Back */}
+    <p
+      onClick={() => setStep(2)}
+      className="text-center text-xs text-gray-400 mt-3 cursor-pointer"
+    >
+      ← Back to security settings
+    </p>
+  </>
+)}
+    </div>
+                    </div>
+                  </div>
+                )}
+    {showSmsModal && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+    <div className="bg-white rounded-2xl shadow-xl p-6 w-[380px]">
+
+  {/* STEP 1 */}
+  {smsStep === 1 && (
+    <>
+      <div className="text-center mb-4">
+        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mx-auto mb-2 font-bold">
+          SMS
+        </div>
+        <h2 className="text-lg font-bold">Set up SMS Verification</h2>
+        <p className="text-sm text-gray-500 mt-1">
+          Enter your phone number to receive a 6-digit security code
+        </p>
+      </div>
+
+      <div className="mt-4">
+        <label className="text-sm font-medium">Phone Number</label>
+        <div className="flex mt-1">
+          <select className="border rounded-l-lg px-2">
+            <option>+91</option>
+          </select>
+          <input
+            type="text"
+            placeholder="98765 43210"
+            className="border rounded-r-lg px-3 py-2 w-full outline-none"
+          />
+        </div>
+      </div>
+
+      <div className="bg-yellow-100 text-yellow-800 text-xs p-3 rounded-lg mt-3">
+        A message with a verification code will be sent to this number.
+      </div>
+
+      <button
+        onClick={() => {
+          toast.success("OTP Sent");
+          setSmsStep(2);
+        }}
+        className="w-full bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg mt-4"
+      >
+        Send Verification Code →
+      </button>
+
+      <p
+        onClick={() => {
+          setShowSmsModal(false);
+          setShow2FA(true);
+        }}
+        className="text-center text-sm text-gray-500 mt-3 cursor-pointer"
+      >
+        ← Back to selection
+      </p>
+    </>
+  )}
+
+  {/* STEP 2 (YOUR CODE HERE) */}
+  {smsStep === 2 && (
+  <>
+    {/* LOGO */}
+    <div className="flex justify-center mb-3">
+      <div className="flex items-center gap-2">
+        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 2a8 8 0 100 16 8 8 0 000-16z"/>
+          </svg>
+        </div>
+        <span className="font-semibold text-gray-800">MessBee</span>
+      </div>
+    </div>
+
+    {/* TITLE */}
+    <h2 className="text-xl font-bold text-gray-900 text-center">
+      Verify your identity
+    </h2>
+
+    {/* SUBTEXT */}
+    <p className="text-sm text-gray-500 text-center mt-2 mb-5">
+      We've sent a 6-digit security code to your registered phone number{" "}
+      <span className="font-medium text-gray-700">+91 •••• 4412</span>
+    </p>
+
+    {/* OTP INPUTS */}
+    <div className="flex justify-center gap-3 mb-4">
+  {[...Array(6)].map((_, i) => (
+    <input
+      key={i}
+      maxLength={1}
+      value={otp[i]}
+      ref={(el) => (inputsRef.current[i] = el)}
+      onChange={(e) => handleOtpChange(e, i)}
+      onKeyDown={(e) => handleKeyDown(e, i)}
+      className="w-12 h-12 text-center border border-gray-300 rounded-xl text-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+    />
+  ))}
+</div>
+
+
+    {/* RESEND */}
+    <p className="text-sm text-center text-gray-500 mb-2">
+      Didn’t receive the code?{" "}
+      <span
+  onClick={() => {
+    setTimeLeft(59);
+    setOtp(["", "", "", "", "", ""]);
+    inputsRef.current[0]?.focus();
+    toast.success("Code resent!");
+  }}
+  className="text-green-600 font-medium cursor-pointer"
+>
+  Resend code
+    </span>
+    </p>
+
+    {/* TIMER */}
+    <div className="flex justify-center mb-5">
+      <div className="bg-gray-100 text-gray-600 text-xs px-3 py-1 rounded-full flex items-center gap-2">
+        ⏱ 00:{timeLeft.toString().padStart(2, "0")} REMAINING
+      </div>
+    </div>
+
+{/* BUTTON */}
+<button
+  onClick={() => {
+    const enteredOtp = otp.join("");
+
+    if (enteredOtp.length < 6) {
+    toast.error("Enter complete OTP");
+    return;
+  }
+
+  if (enteredOtp !== "123456") {
+    toast.error("Invalid OTP");
+    return;
+  }
+
+  setSmsStep(3); // 👈 THIS LINE IS THE KEY
+  }}
+      className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold shadow-md transition"
+    >
+      Verify & Continue →
+    </button>
+
+    {/* PROGRESS */}
+    <div className="flex justify-center gap-2 mt-6">
+      <div className="w-6 h-1 bg-green-500 rounded-full"></div>
+      <div className="w-6 h-1 bg-green-500 rounded-full"></div>
+      <div className="w-6 h-1 bg-gray-300 rounded-full"></div>
+    </div>
+
+    <p className="text-xs text-center text-gray-400 mt-2">
+      STEP 2 OF 3
+    </p>
+  </>
+)}
+
+
+{smsStep === 3 && (
+  <>
+    {/* HEADER */}
+    <div className="flex items-center gap-2 mb-4">
+      <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+        <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+      </div>
+      <div>
+        <p className="font-semibold text-gray-800 text-sm">
+          Save your recovery codes
+        </p>
+        <p className="text-xs text-gray-400">
+          Final step to secure your account
+        </p>
+      </div>
+    </div>
+
+    {/* WARNING BOX */}
+    <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4 text-xs text-gray-600">
+      <div className="flex gap-2 items-start">
+        <span className="text-orange-500">⚠</span>
+        <p>
+          Recovery codes are used to access your account if you lose your
+          authentication device. Store these in a safe place like a password manager!
+        </p>
+      </div>
+    </div>
+
+    {/* CODES GRID (12 like design) */}
+    <div className="grid grid-cols-3 gap-2 mb-4">
+      {[
+        "ABCD-1234","EFGH-5678","IJKL-9012",
+        "MNOP-3456","QRST-7890","UVWX-1122",
+        "YZAB-3344","CDER-5566","GHTY-7788",
+        "PLMK-9900","QWER-1212","ASDF-3434"
+      ].map((code, i) => (
+        <div
+          key={i}
+          className="bg-gray-100 text-gray-700 text-xs py-2 rounded-md text-center font-medium"
+        >
+          {code}
+        </div>
+      ))}
+    </div>
+
+    {/* ACTION BUTTONS */}
+    <div className="flex gap-3 mb-4">
+      <button className="flex-1 border rounded-lg py-2 text-sm bg-white hover:bg-gray-50">
+        ⬇ Download PDF
+      </button>
+      <button className="flex-1 border rounded-lg py-2 text-sm bg-white hover:bg-gray-50">
+        📋 Copy to clipboard
+      </button>
+    </div>
+
+    {/* CHECKBOX */}
+    <div className="mb-4 text-xs text-gray-600">
+      <label className="flex items-start gap-2">
+        <input type="checkbox" className="mt-1" />
+        <span>
+          I have saved my recovery codes <br />
+          <span className="text-gray-400">
+            I understand that these codes are the only way to recover my account if I lose my device.
+          </span>
+        </span>
+      </label>
+    </div>
+
+    {/* COMPLETE BUTTON */}
+    <button
+      onClick={() => {
+        toast.success("2FA Enabled Successfully ✅");
+        setShowSmsModal(false);
+        setSmsStep(1);
+        setOtp(["", "", "", "", "", ""]);
+      }}
+      className="w-full bg-green-500 hover:bg-green-600 text-white py-3 rounded-xl font-semibold"
+    >
+      Complete Setup ✓
+    </button>
+
+    {/* BACK */}
+    <p
+      onClick={() => setSmsStep(2)}
+      className="text-center text-xs text-gray-400 mt-3 cursor-pointer"
+    >
+      ← Back to verification
+    </p>
+  </>
+)}
+</div>
+
+    </div>
+    )}
     </div>
   );
 };

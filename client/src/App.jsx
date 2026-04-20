@@ -25,6 +25,7 @@ const NotificationPage = lazy(() => import("./pages/Notification/NotificationPag
 const Chat = lazy(() => import(/* webpackPrefetch: true */ "./pages/chat/chat"));
 const Campaign = lazy(() => import("./pages/campaign/campaign"));
 const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
+const CampaignLaunchSuccess = lazy(() => import("./pages/campaign/CampaignLaunchSuccess"));
 const Automation = lazy(() => import("./pages/automation/automation"));
 const Analytic = lazy(() => import("./pages/analytic/analytic"));
 
@@ -252,6 +253,7 @@ function App() {
           <Route path="/admin/campaign" element={<Campaign />} />
           <Route path="/admin/campaigns" element={<Campaign />} />
           <Route path="/admin/campaign/create" element={<CreateCampaign />} />
+          <Route path="/admin/campaign-success" element={<CampaignLaunchSuccess />} />
           <Route
             path="/admin/campaigns/bulk"
             element={<Placeholder title="Bulk Send" />}
