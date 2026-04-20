@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw } from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, ChevronLeft, Phone, Video, Smile, Paperclip, Send, CheckCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { fetchWhatsAppTemplates, mergeTemplates, deleteWhatsAppTemplate } from '../../services/TemplateApi';
 
@@ -330,87 +330,109 @@ const Templates = ({ activeTab, }) => {
 const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons=[] }) => {
   const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
   const isTextHeader = headerType === 'Text';
+  const previewName = name || 'Business Update';
 
   return (
-  <div className="relative w-[220px] sm:w-[260px] h-[420px] sm:h-[460px] bg-gradient-to-b from-[#0F172A] to-[#1e293b] rounded-[2rem] sm:rounded-[2.5rem] border-[6px] sm:border-[8px] border-[#0F172A] shadow-2xl overflow-hidden font-sans flex flex-col">
-    {/* Phone notch */}
-    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-6 bg-[#0F172A] rounded-b-2xl z-10"></div>
-    
+  <div className="relative w-full max-w-[240px] sm:max-w-[276px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+    <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
+
+    {/* Dynamic island */}
+    <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />
+
     {/* Screen content */}
-    <div className="h-full bg-[#E5DDD5] pt-8 sm:pt-10 relative flex flex-col">
-      {/* WhatsApp Header */}
-      <div className="bg-[#075E54] px-3 sm:px-4 py-3 sm:py-3.5 flex items-center gap-2 sm:gap-3 shadow-md shrink-0">
-        <div className="w-8 h-8 sm:w-9 sm:h-9 bg-white/30 rounded-full flex items-center justify-center">
-          <span className="text-white text-xs font-bold">BA</span>
-        </div>
-        <div className="flex-1">
-          <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight">Business AI</p>
-          <p className="text-white/70 text-[8px] sm:text-[9px] font-semibold">online</p>
-        </div>
-        <div className="flex gap-3 sm:gap-4">
-          <div className="w-1 h-1 bg-white/60 rounded-full"></div>
-          <div className="w-1 h-1 bg-white/60 rounded-full"></div>
-          <div className="w-1 h-1 bg-white/60 rounded-full"></div>
+    <div className="h-full bg-[#e7ddd1] pt-7 sm:pt-8 relative flex flex-col">
+      {/* Wallpaper texture */}
+      <div className="absolute inset-0 opacity-[0.22] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 24px 24px, #c7bbb0 1.2px, transparent 1.2px)', backgroundSize: '22px 22px' }}></div>
+
+      {/* Status bar aligned around notch */}
+      <div className="absolute top-1.5 sm:top-2 inset-x-0 z-40 px-4 sm:px-5 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-[#0b1118] pointer-events-none">
+        <span>9:41</span>
+        <div className="flex items-center gap-1.5 text-[#1f2937]">
+          <span>5G</span>
+          <span className="inline-flex items-center gap-[2px]">
+            <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+            <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+            <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+          </span>
         </div>
       </div>
-      
+
+      {/* WhatsApp Header */}
+      <div className="relative z-10 bg-[#0b6a61] px-3 sm:px-3.5 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-2.5 shadow-lg shrink-0">
+        <button className="text-white/90 text-base leading-none" type="button" aria-label="Back">
+          <ChevronLeft size={16} />
+        </button>
+        <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-[#14b8a6] to-[#0f766e] rounded-full flex items-center justify-center border border-white/20 shrink-0">
+          <span className="text-white text-[11px] sm:text-xs font-bold">MB</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">MessBee Business</p>
+          <p className="text-white/80 text-[9px] sm:text-[10px] font-medium">verified business</p>
+        </div>
+        <div className="flex gap-2.5 text-white/90 text-sm items-center">
+          <Video size={14} />
+          <Phone size={14} />
+        </div>
+      </div>
+
       {/* Chat Area */}
-      <div className="p-3 sm:p-4 overflow-y-auto flex-1 pb-14 no-scrollbar">
-        <div className="bg-white rounded-xl rounded-tl-sm shadow-md overflow-hidden max-w-[94%]">
+      <div className="relative z-10 p-2.5 sm:p-3 overflow-y-auto flex-1 pb-10 sm:pb-11 no-scrollbar">
+        <div className="bg-white rounded-2xl rounded-tl-md shadow-[0_12px_24px_-14px_rgba(15,23,42,0.65)] overflow-hidden max-w-[95%] border border-[#eef1f4]">
           {isMedia && (
             <>
               {headerType === 'Image' && headerMediaUrl ? (
                 <img
                   src={headerMediaUrl}
                   alt={`${name || 'template'} header`}
-                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/50"
+                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/70"
                 />
               ) : headerType === 'Video' && headerMediaUrl ? (
                 <video
                   src={headerMediaUrl}
-                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/50 bg-black"
+                  className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/70 bg-black"
                   autoPlay
                   muted
                   loop
                   playsInline
                 />
               ) : headerType === 'Document' && headerMediaUrl ? (
-                <div className="h-28 sm:h-36 w-full border-b border-gray-200/50 bg-red-50 flex flex-col items-center justify-center gap-1.5">
+                <div className="h-28 sm:h-36 w-full border-b border-gray-200/70 bg-red-50 flex flex-col items-center justify-center gap-1.5">
                   <span className="text-xl">📄</span>
                   <span className="text-[9px] font-semibold text-red-700 uppercase tracking-wide">Document</span>
                   <span className="text-[8px] text-red-500 font-medium">Uploaded file preview</span>
                 </div>
               ) : (
-                <div className="h-28 sm:h-36 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center text-gray-300 gap-1.5 border-b border-gray-200/50">
+                <div className="h-28 sm:h-36 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center text-gray-300 gap-1.5 border-b border-gray-200/70">
                   <ImageIcon size={32} className="opacity-30"/>
                   <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{headerType}</span>
                 </div>
               )}
             </>
           )}
-          <div className="p-3 sm:p-3.5">
+          <div className="p-2.5 sm:p-3">
             {isTextHeader && (
-              <p className="text-[12px] sm:text-[14px] text-gray-900 font-bold mb-1.5 leading-tight">{name || 'Header Text'}</p>
+              <p className="text-[12px] sm:text-[13px] text-gray-900 font-bold mb-1 leading-tight">{previewName}</p>
             )}
             {!isTextHeader && (
-              <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold mb-1.5 uppercase tracking-tight opacity-75 break-all leading-tight">{name}</p>
+              <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold mb-1.5 uppercase tracking-tight opacity-75 break-all leading-tight">{previewName}</p>
             )}
             
             {/* Using dangerouslySetInnerHTML to properly render formatting like bold/strikethrough/emojis stored by CreateTemplate */}
             <div className="text-[11px] sm:text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: body }}></div>
             
             {footerText && (
-              <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-2 leading-tight">{footerText}</p>
+              <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-1.5 leading-tight">{footerText}</p>
             )}
 
-            <div className="flex items-center justify-end gap-1 mt-1">
+            <div className="flex items-center justify-end gap-1 mt-1.5">
               <span className="text-[8px] text-gray-400 font-medium">12:30 PM</span>
+              <CheckCheck size={11} className="text-[#34b7f1]" />
             </div>
           </div>
           
           {buttons && buttons.length > 0 && buttons.map((btn, idx) => (
             <div key={idx} className="bg-gray-50 p-2 border-t border-gray-100">
-               <button className="text-sm text-[#00A884] font-bold flex items-center justify-center gap-2 w-full py-2.5 md:py-3 bg-white rounded-xl shadow-sm border border-gray-100">
+               <button className="text-sm text-[#008069] font-bold flex items-center justify-center gap-2 w-full py-2.5 md:py-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-[#f8fffd] transition-colors">
                   {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <span className="text-[14px]">↗</span> : 
                    btn.type === 'Call phone number' ? <span className="text-[14px]">📞</span> :
                    btn.type === 'Copy offer code' ? <span className="text-[14px]">📋</span> : 
@@ -422,7 +444,19 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
           
         </div>
       </div>
-      
+
+      {/* Message composer */}
+      <div className="relative z-10 px-2 sm:px-2.5 pb-2 sm:pb-2.5">
+        <div className="bg-white/95 backdrop-blur rounded-full border border-white/70 shadow-sm px-3 py-2 min-h-[36px] sm:min-h-[40px] flex items-center gap-2">
+          <Smile size={15} className="text-gray-400" />
+          <span className="text-[11px] sm:text-[12px] text-gray-400 font-medium flex-1">Type a message</span>
+          <Paperclip size={15} className="text-gray-400" />
+          <span className="text-white bg-[#00a884] w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full inline-flex items-center justify-center">
+            <Send size={11} />
+          </span>
+        </div>
+      </div>
+
     </div>
   </div>
 )};

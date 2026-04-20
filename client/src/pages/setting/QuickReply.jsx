@@ -3,7 +3,7 @@ import axios from '../../context/axios';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
-  User, Upload, X, Pencil, Trash2, ExternalLink, AlertTriangle 
+  Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, Phone, Smile, Paperclip, Send, CheckCheck 
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState'; 
@@ -96,6 +96,29 @@ const QuickReply = () => {
   const previewData = isModalOpen 
     ? { content: message, type: selectedType, buttonText, url } 
     : activePreview;
+
+  const previewHeaderType = (() => {
+    switch (previewData?.type) {
+      case 'IMAGE':
+        return 'Image';
+      case 'VIDEO':
+        return 'Video';
+      case 'FILE':
+      case 'AUDIO':
+      case 'STICKER':
+        return 'Document';
+      case 'TEXT':
+        return 'Text';
+      default:
+        return 'None';
+    }
+  })();
+
+  const previewButtons = previewData?.type === 'CTA URL'
+    ? [{ type: 'Visit Website', text: previewData?.buttonText || 'Open Link' }]
+    : [];
+
+  const previewMediaUrl = getPreviewImage() || '';
 
   const handleSave = async () => {
     // Validation
@@ -277,47 +300,14 @@ const QuickReply = () => {
 
         <div className="hidden xl:block xl:w-[360px] 2xl:w-[420px]">
           <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-bold tracking-wide uppercase text-gray-500">Reply Preview</h2>
-              <span className="text-[11px] text-gray-400 font-semibold">WhatsApp style</span>
-            </div>
-
-            <div className="relative mx-auto w-[230px] h-[460px] 2xl:w-[280px] 2xl:h-[560px] bg-slate-900 rounded-[2.7rem] border-[9px] border-slate-800 shadow-2xl overflow-hidden transition-all">
-              <div className="h-full w-full bg-[#f0f2f5] flex flex-col">
-                <div className="bg-[#00a884] p-4 pt-9 flex items-center gap-2.5 text-white">
-                  <User size={20} className="bg-white/20 rounded-full p-1" />
-                  <p className="text-xs font-semibold">Preview Chat</p>
-                </div>
-                <div className="flex-1 p-4 flex flex-col justify-end">
-                  {previewData ? (
-                    <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-[12px] leading-relaxed max-w-[86%] animate-in slide-in-from-left duration-300">
-                      {previewData.type !== 'TEXT' && (
-                        <div className="mb-2 min-h-32 bg-slate-100 rounded-lg overflow-hidden flex flex-col items-center justify-center border border-slate-200">
-                          {getPreviewImage() ? (
-                            <img src={getPreviewImage()} alt="preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <>
-                              <ImageIcon size={24} className="text-slate-300" />
-                              <span className="text-[9px] mt-1 uppercase font-bold text-slate-400">{previewData.type} placeholder</span>
-                            </>
-                          )}
-                        </div>
-                      )}
-                      <p className="whitespace-pre-wrap text-slate-700">{previewData.content || 'Your quick reply message preview appears here.'}</p>
-                      {previewData.buttonText && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-center text-blue-500 text-[11px] font-semibold gap-1">
-                          <ExternalLink size={12} /> {previewData.buttonText}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="bg-white p-3 rounded-xl shadow-sm text-[12px] text-gray-400 max-w-[86%]">
-                      Select any quick reply to view its preview.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <MobilePreview
+              name={previewData?.shortcut || '/quick-reply'}
+              headerType={previewHeaderType}
+              headerMediaUrl={previewMediaUrl}
+              footerText={previewData?.url || ''}
+              buttons={previewButtons}
+              body={previewData?.content || 'Your quick reply message preview appears here.'}
+            />
           </div>
         </div>
       </div>
@@ -506,6 +496,131 @@ const QuickReply = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons = [] }) => {
+  const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
+  const isTextHeader = headerType === 'Text';
+  const previewName = name || 'Business Update';
+
+  return (
+    <div className="relative w-full max-w-[240px] sm:max-w-[276px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+      <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
+
+      <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />
+
+      <div className="h-full bg-[#e7ddd1] pt-7 sm:pt-8 relative flex flex-col">
+        <div className="absolute inset-0 opacity-[0.22] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 24px 24px, #c7bbb0 1.2px, transparent 1.2px)', backgroundSize: '22px 22px' }}></div>
+
+        <div className="absolute top-1.5 sm:top-2 inset-x-0 z-40 px-4 sm:px-5 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-[#0b1118] pointer-events-none">
+          <span>9:41</span>
+          <div className="flex items-center gap-1.5 text-[#1f2937]">
+            <span>5G</span>
+            <span className="inline-flex items-center gap-[2px]">
+              <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+              <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+              <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+            </span>
+          </div>
+        </div>
+
+        <div className="relative z-10 bg-[#0b6a61] px-3 sm:px-3.5 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-2.5 shadow-lg shrink-0">
+          <button className="text-white/90 text-base leading-none" type="button" aria-label="Back">
+            <ChevronLeft size={16} />
+          </button>
+          <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-[#14b8a6] to-[#0f766e] rounded-full flex items-center justify-center border border-white/20 shrink-0">
+            <span className="text-white text-[11px] sm:text-xs font-bold">MB</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">MessBee Business</p>
+            <p className="text-white/80 text-[9px] sm:text-[10px] font-medium">verified business</p>
+          </div>
+          <div className="flex gap-2.5 text-white/90 text-sm items-center">
+            <VideoIcon size={14} />
+            <Phone size={14} />
+          </div>
+        </div>
+
+        <div className="relative z-10 p-2.5 sm:p-3 overflow-y-auto flex-1 pb-10 sm:pb-11 no-scrollbar">
+          <div className="bg-white rounded-2xl rounded-tl-md shadow-[0_12px_24px_-14px_rgba(15,23,42,0.65)] overflow-hidden max-w-[95%] border border-[#eef1f4]">
+            {isMedia && (
+              <>
+                {headerType === 'Image' && headerMediaUrl ? (
+                  <img
+                    src={headerMediaUrl}
+                    alt={`${name || 'template'} header`}
+                    className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/70"
+                  />
+                ) : headerType === 'Video' && headerMediaUrl ? (
+                  <video
+                    src={headerMediaUrl}
+                    className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/70 bg-black"
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                  />
+                ) : headerType === 'Document' && headerMediaUrl ? (
+                  <div className="h-28 sm:h-36 w-full border-b border-gray-200/70 bg-red-50 flex flex-col items-center justify-center gap-1.5">
+                    <span className="text-xl">📄</span>
+                    <span className="text-[9px] font-semibold text-red-700 uppercase tracking-wide">Document</span>
+                    <span className="text-[8px] text-red-500 font-medium">Uploaded file preview</span>
+                  </div>
+                ) : (
+                  <div className="h-28 sm:h-36 bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col items-center justify-center text-gray-300 gap-1.5 border-b border-gray-200/70">
+                    <ImageIcon size={32} className="opacity-30" />
+                    <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wider">{headerType}</span>
+                  </div>
+                )}
+              </>
+            )}
+            <div className="p-2.5 sm:p-3">
+              {isTextHeader && (
+                <p className="text-[12px] sm:text-[13px] text-gray-900 font-bold mb-1 leading-tight">{previewName}</p>
+              )}
+              {!isTextHeader && (
+                <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold mb-1.5 uppercase tracking-tight opacity-75 break-all leading-tight">{previewName}</p>
+              )}
+
+              <div className="text-[11px] sm:text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: body }}></div>
+
+              {footerText && (
+                <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-1.5 leading-tight break-all">{footerText}</p>
+              )}
+
+              <div className="flex items-center justify-end gap-1 mt-1.5">
+                <span className="text-[8px] text-gray-400 font-medium">12:30 PM</span>
+                <CheckCheck size={11} className="text-[#34b7f1]" />
+              </div>
+            </div>
+
+            {buttons && buttons.length > 0 && buttons.map((btn, idx) => (
+              <div key={idx} className="bg-gray-50 p-2 border-t border-gray-100">
+                <button className="text-sm text-[#008069] font-bold flex items-center justify-center gap-2 w-full py-2.5 md:py-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-[#f8fffd] transition-colors">
+                  {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <span className="text-[14px]">↗</span> :
+                    btn.type === 'Call phone number' ? <span className="text-[14px]">📞</span> :
+                      btn.type === 'Copy offer code' ? <span className="text-[14px]">📋</span> :
+                        <span className="text-[14px]">↩️</span>}
+                  {btn.text || 'Action Button'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 px-2 sm:px-2.5 pb-2 sm:pb-2.5">
+          <div className="bg-white/95 backdrop-blur rounded-full border border-white/70 shadow-sm px-3 py-2 min-h-[36px] sm:min-h-[40px] flex items-center gap-2">
+            <Smile size={15} className="text-gray-400" />
+            <span className="text-[11px] sm:text-[12px] text-gray-400 font-medium flex-1">Type a message</span>
+            <Paperclip size={15} className="text-gray-400" />
+            <span className="text-white bg-[#00a884] w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full inline-flex items-center justify-center">
+              <Send size={11} />
+            </span>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
