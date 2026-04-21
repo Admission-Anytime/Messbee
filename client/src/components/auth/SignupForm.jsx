@@ -71,7 +71,8 @@ export const SignupForm = () => {
       const response = await requestSignupOTP(
         formData.name,
         formData.email,
-        formData.password
+        formData.password,
+        number
       );
 
       if (response.success) {

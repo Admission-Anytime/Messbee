@@ -5,6 +5,8 @@ import axios from "../../context/axios";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
+  const { user, updateUser } = useContext(userContext);
+  
   const [isEditing, setIsEditing] = useState(false);
   const [isPrefEditing, setIsPrefEditing] = useState(false);
   const [show2FA, setShow2FA] = useState(false);
@@ -14,7 +16,7 @@ const UserProfile = () => {
   const [smsStep, setSmsStep] = useState(1);
 
   const fileInputRef = useRef(null);
-  const [profileImage, setProfileImage] = useState(null);
+  const [profileImage, setProfileImage] = useState(user?.avatar || null);
   const inputsRef = useRef([]);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(59);
@@ -44,7 +46,7 @@ const handleKeyDown = (e, index) => {
   }
 };
 
-  const { user, updateUser } = useContext(userContext);
+
 
   const [formData, setFormData] = useState({
     name: user?.name || "Alex Rivera",
@@ -66,6 +68,7 @@ const handleKeyDown = (e, index) => {
         email: user.email || "",
         phone: sanitizedPhone || "**********",
       });
+      setProfileImage(user.avatar || null);
       setPreferences({
         timezone: user.timezone || "(GMT+05:30) India Standard Time",
         language: user.language || "English (United States)",
@@ -166,20 +169,21 @@ useEffect(() => {
       <div className="bg-white rounded-2xl border border-gray-100 p-8 mb-8 shadow-sm">
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden shadow-md bg-green-100 flex items-center justify-center text-4xl font-bold text-green-700">
+            <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden shadow-md bg-green-500 flex items-center justify-center text-4xl font-bold text-white uppercase">
               {profileImage ? (
                 <img
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  src={profileImage}
+                  src={profileImage.startsWith('blob:') ? profileImage : profileImage}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
                 />
-              ) : (
-                <img
-                  alt="Avatar"
-                  className="w-full h-full object-cover"
-                  src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMvK1ou6j6LgAUikPCeA1692LVrW1OoL0mtmrC46N-5_dPhBEcwT53cRSg2yxtDQDUFr7FzxzyKcy7M9pLAcwEdKbZCBXkIuhWHUADaEflwkqrSnl1NzONtDYM9UcipwMk_U9I3uomlb-nlC-CN7E4EIXP4fq50skX36wAcXPag5yGl82jNRpLnt-E2qs15aCx6PCpaddPJQLtR6SGeZnHo7Sn0OTGOhlUgIIMq4mpXNFpTneLSxYvzmULh931WiCPEjYgpuK3t6dQ"
-                />
-              )}
+              ) : null}
+              <div className={`w-full h-full flex items-center justify-center ${profileImage ? 'hidden' : ''}`}>
+                {user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'A'}
+              </div>
             </div>
             <button
               onClick={() => fileInputRef.current.click()}
@@ -288,10 +292,10 @@ useEffect(() => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  readOnly={!isEditing || user?.isEmailVerified}
-                  className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium ${
+                  readOnly={true}
+                  className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium cursor-not-allowed opacity-70 ${
                     isEditing
-                      ? (user?.isEmailVerified ? "bg-gray-100 cursor-not-allowed opacity-70" : "bg-gray-50 border border-gray-300") + " rounded-xl text-sm px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                      ? "bg-gray-100 border border-gray-300 rounded-xl text-sm px-3 py-2"
                       : "bg-transparent border-transparent p-0 text-base"
                   }`}
                 />

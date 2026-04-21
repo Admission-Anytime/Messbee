@@ -5,11 +5,12 @@ import axios from "../context/axios";
 /**
  * Request OTP for signup
  */
-export const requestSignupOTP = async (name, email, password) => {
+export const requestSignupOTP = async (name, email, password, phone) => {
   const { data } = await axios.post("/auth/signup/request-otp", {
     name,
     email,
     password,
+    phone,
   });
   return data;
 };

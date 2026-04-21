@@ -56,7 +56,7 @@ const clearTokenCookies = (res) => {
  */
 exports.requestSignupOTP = async (req, res, next) => {
   try {
-    const { email, name, password } = req.body;
+    const { email, name, password, phone } = req.body;
 
     // Validation
     if (!email || !name || !password) {
@@ -83,6 +83,7 @@ exports.requestSignupOTP = async (req, res, next) => {
       // Update existing unverified user
       existingUser.name = name;
       existingUser.password = password;
+      existingUser.phone = phone;
       existingUser.otp = otp;
       existingUser.otpExpiry = otpExpiry;
       existingUser.otpAttempts = 0;
@@ -93,6 +94,7 @@ exports.requestSignupOTP = async (req, res, next) => {
         email,
         name,
         password,
+        phone,
         otp,
         otpExpiry,
         isEmailVerified: false,
@@ -230,6 +232,7 @@ exports.verifySignupOTP = async (req, res, next) => {
           email: user.email,
           role: user.role,
           avatar: user.avatar,
+          phone: user.phone,
           subscriptionPlan: user.subscriptionPlan
         }
       }
