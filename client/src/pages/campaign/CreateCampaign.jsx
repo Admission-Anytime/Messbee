@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
 import LabelApi from '../../services/LabelApi';
 import StatusApi from '../../services/StatusApi';
 import axios from '../../context/axios';
+import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
@@ -21,6 +22,7 @@ const CreateCampaign = () => {
     const [statusOptions, setStatusOptions] = useState([]);
     const [totalContacts, setTotalContacts] = useState(0);
     const [estimatedCount, setEstimatedCount] = useState(0);
+    const [templates, setTemplates] = useState([]);
 
     // Initial Data Fetch
     useEffect(() => {
@@ -44,6 +46,33 @@ const CreateCampaign = () => {
         };
         fetchInitialData();
     }, []);
+
+    const loadTemplates = useCallback(async () => {
+        try {
+            const whatsappTemplates = await fetchWhatsAppTemplates();
+            const approvedTemplates = whatsappTemplates.approvedTemplates || whatsappTemplates.data?.approvedTemplates || [];
+            const formatted = mergeTemplates(approvedTemplates, []).map((template) => ({
+                id: template.id,
+                name: template.name,
+                status: String(template.status || 'Pending').toLowerCase(),
+                preview: template.bodyText || '',
+                language: template.language || 'en_US',
+                lastUsed: template.updated || 'Never',
+                category: template.category || 'General'
+            }));
+
+            setTemplates(formatted);
+            if (formatted.length > 0) {
+                setSelectedTemplate((prev) => prev || formatted[0].id);
+            }
+        } catch (error) {
+            console.error('Failed to fetch approved templates:', error);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadTemplates();
+    }, [loadTemplates]);
 
     // Step 1 State
     const [selectedOption, setSelectedOption] = useState('all');
@@ -78,7 +107,7 @@ const CreateCampaign = () => {
         updateEstimatedCount();
     }, [selectedOption, selectedLabels, selectedStatus]);
 
-    const [selectedTemplate, setSelectedTemplate] = useState('new_food_menu');
+    const [selectedTemplate, setSelectedTemplate] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
 
     // Step 3 State
@@ -116,7 +145,8 @@ const CreateCampaign = () => {
 
             const campaignData = {
                 name: campaignName,
-                messageTemplate: selectedTemplate, // Use name or ID based on backend expectation
+                messageTemplate: activeTemplate?.name || selectedTemplate,
+                templateLanguage: activeTemplate?.language || 'en_US',
                 status: scheduleOption === 'now' ? 'active' : 'scheduled',
                 scheduledDate: scheduleOption === 'later' ? new Date(`${scheduledDate}T${scheduledTime}`) : null,
                 audienceFilter: {
@@ -129,6 +159,8 @@ const CreateCampaign = () => {
             if (res.success) {
                 toast.success(scheduleOption === 'now' ? 'Campaign launched successfully!' : 'Campaign scheduled successfully!');
                 navigate('/admin/campaign-success');
+            } else {
+                toast.error(res.message || 'Failed to launch campaign');
             }
         } catch (error) {
             console.error('Error launching campaign:', error);
@@ -143,7 +175,8 @@ const CreateCampaign = () => {
             setIsSavingDraft(true);
             const campaignData = {
                 name: campaignName,
-                messageTemplate: selectedTemplate,
+                messageTemplate: activeTemplate?.name || selectedTemplate,
+                templateLanguage: activeTemplate?.language || 'en_US',
                 status: 'draft',
                 audienceFilter: {
                     tags: selectedOption === 'labels' ? selectedLabels : [],
@@ -154,6 +187,8 @@ const CreateCampaign = () => {
             if (res.success) {
                 toast.success('Campaign saved as draft!');
                 navigate('/admin/campaigns');
+            } else {
+                toast.error(res.message || 'Failed to save draft');
             }
         } catch (error) {
             console.error('Error saving draft:', error);
@@ -162,49 +197,6 @@ const CreateCampaign = () => {
             setIsSavingDraft(false);
         }
     };
-
-    const templates = [
-        {
-            id: 'new_food_menu',
-            status: 'approved',
-            name: 'new_food_menu',
-            preview: "Hey {{1}}! We've just rolled out a brand new menu that's bursting with Italian flavors. 🍕 To celebrate this, we are offering a 20% discount!",
-            lastUsed: '2 days ago',
-            category: 'Marketing'
-        },
-        {
-            id: 'food_order_on_the_way',
-            status: 'approved',
-            name: 'food_order_on_th...',
-            preview: "Hey {{1}}! Your pizza adventure is officially on its way! 🍕🚀 \n\nExpect the mouthwatering goodness to arrive at your doorstep by {{2}}!",
-            lastUsed: '1 day ago',
-            category: 'Utility'
-        },
-        {
-            id: 'food_order_delivered',
-            status: 'approved',
-            name: 'food_order_deliv...',
-            preview: "Hey {{1}}! Your order from {{2}} has been successfully delivered to your doorstep. 🍔🍟 \n\nWe hope you're as hungry as we are...",
-            lastUsed: '5 days ago',
-            category: 'Utility'
-        },
-        {
-            id: 'food_order_confirmed',
-            status: 'approved',
-            name: 'food_order_confi...',
-            preview: "Your Food Order is confirmed. Hey {{1}}! Thank you for placing an order with {{2}}. Our talented chefs are busy cooking...",
-            lastUsed: 'Never',
-            category: 'Utility'
-        },
-        {
-            id: 'holiday_package_v1',
-            status: 'approved',
-            name: 'holiday_package_v1',
-            preview: "Ready for your next adventure? 🏖️ Book our exclusive Bali package today and get a complimentary spa voucher!",
-            lastUsed: 'Never',
-            category: 'Marketing'
-        }
-    ];
 
     const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
     const prevStep = () => {
@@ -215,7 +207,7 @@ const CreateCampaign = () => {
         }
     };
 
-    const activeTemplate = templates.find(t => t.id === selectedTemplate);
+    const activeTemplate = templates.find(t => t.id === selectedTemplate) || templates[0] || null;
 
     return (
         <div className="min-h-screen bg-white font-sans">
@@ -535,7 +527,7 @@ const CreateCampaign = () => {
                                         {activeTemplate && (
                                             <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
                                                 <p className="whitespace-pre-wrap leading-relaxed mb-2">
-                                                    {activeTemplate.preview.split(/(\{\{.*?\}\})/).map((part, index) =>
+                                                    {(activeTemplate?.preview || '').split(/(\{\{.*?\}\})/).map((part, index) =>
                                                         part.startsWith('{{') ? (
                                                             <span key={index} className="text-emerald-600 font-bold bg-emerald-50 px-1 rounded mx-0.5">{part}</span>
                                                         ) : (
@@ -677,7 +669,7 @@ const CreateCampaign = () => {
                                     <div className="flex justify-between items-start">
                                         <span className="text-gray-500 text-sm">Template</span>
                                         <a href="#" className="font-bold text-emerald-500 text-right flex items-center gap-1 hover:text-emerald-600">
-                                            {selectedTemplate} <ExternalLink className="w-3 h-3" />
+                                            {activeTemplate?.name || selectedTemplate} <ExternalLink className="w-3 h-3" />
                                         </a>
                                     </div>
                                     <div className="flex justify-between items-start">

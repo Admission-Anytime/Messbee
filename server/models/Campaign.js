@@ -13,6 +13,10 @@ const CampaignSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a message template']
   },
+  templateLanguage: {
+    type: String,
+    default: 'en_US'
+  },
   status: {
     type: String,
     enum: ['draft', 'scheduled', 'active', 'paused', 'completed'],
