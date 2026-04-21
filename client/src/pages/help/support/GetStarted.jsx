@@ -323,7 +323,7 @@ export default function GetStarted() {
 
       <div className="mt-auto pt-6 pb-4 flex flex-col-reverse md:flex-row justify-between items-center text-xs text-slate-400 font-medium border-t border-slate-100 gap-4 px-8">
 
-        <p>© 2024 whatsapp API Platform. All rights reserved @ MessBee.</p>
+        <p>© 2026 whatsapp API Platform. All rights reserved @ MessBee.</p>
 
         <div className="flex gap-6">
 

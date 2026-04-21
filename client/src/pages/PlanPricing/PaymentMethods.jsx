@@ -72,37 +72,37 @@ const PaymentMethods = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] pb-20 relative">
+   <div className="min-h-screen bg-[#F8FAFC] p-3 sm:p-4 lg:p-5 xl:p-6 font-['Urbanist'] pb-12 lg:pb-14 relative">
       
       {/* ✅ FIXED: High Z-Index for Toasts */}
       <ToastContainer style={{ zIndex: 99999 }} position="top-right" />
 
-      <div className="max-w-7xl mx-auto space-y-8">
+      <div className="max-w-7xl mx-auto space-y-6">
         
         {/* --- HEADER --- */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
            <div>
               <h1 className="text-2xl font-bold text-slate-900">Payment Methods</h1>
               <p className="text-sm text-slate-500">Manage your cards, UPI IDs, and billing information.</p>
            </div>
            <button 
              onClick={() => setIsModalOpen(true)}
-             className="px-6 py-2.5 bg-[#00B050] hover:bg-[#009b45] text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-100 flex items-center gap-2 transition-all active:scale-95"
+             className="w-full md:w-auto px-5 py-2.5 bg-[#00B050] hover:bg-[#009b45] text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 transition-all active:scale-95"
            >
               <PlusIcon className="w-5 h-5" /> Add Payment Method
            </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-3 gap-4 lg:gap-5 xl:gap-6">
            
            {/* --- LEFT COLUMN: PAYMENT METHODS --- */}
-           <div className="lg:col-span-2 space-y-8">
+           <div className="lg:col-span-3 xl:col-span-2 space-y-6">
               
               {/* Default Method */}
               <section>
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Default Payment Method</h3>
+                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Default Payment Method</h3>
                  {methods.filter(m => m.isDefault).map(method => (
-                    <div key={method.id} className="bg-white p-6 rounded-2xl border border-emerald-500 shadow-md shadow-emerald-50 flex items-center justify-between transition-all">
+                    <div key={method.id} className="bg-white p-5 rounded-2xl border border-emerald-500 shadow-md shadow-emerald-50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition-all">
                        <div className="flex items-center gap-4">
                           <div className="w-12 h-8 bg-slate-900 rounded-md flex items-center justify-center text-white text-[10px] font-bold">
                              {method.brand}
@@ -122,10 +122,10 @@ const PaymentMethods = () => {
 
               {/* Saved Cards */}
               <section>
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">Saved Cards</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Saved Cards</h3>
+                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {methods.filter(m => !m.isDefault).map(method => (
-                       <div key={method.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                       <div key={method.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
                           <div className="flex justify-between items-start mb-4">
                              <div className="w-10 h-7 bg-gray-100 rounded flex items-center justify-center text-slate-500 text-[9px] font-bold">{method.brand}</div>
                              <button className="text-slate-300 hover:text-slate-500"><EllipsisVerticalIcon className="w-5 h-5" /></button>
@@ -143,10 +143,10 @@ const PaymentMethods = () => {
 
               {/* UPI IDs */}
               <section>
-                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">UPI IDs</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">UPI IDs</h3>
+                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {upiMethods.map(upi => (
-                       <div key={upi.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+                       <div key={upi.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
                           <div className="flex justify-between items-start mb-4">
                              <div className="w-8 h-8 bg-indigo-50 rounded-full flex items-center justify-center text-indigo-500"><QrCodeIcon className="w-4 h-4" /></div>
                              <button className="text-slate-300 hover:text-slate-500"><EllipsisVerticalIcon className="w-5 h-5" /></button>
@@ -164,10 +164,10 @@ const PaymentMethods = () => {
            </div>
 
            {/* --- RIGHT COLUMN: BILLING DETAILS --- */}
-           <div className="space-y-6">
+           <div className="lg:col-span-2 xl:col-span-1 space-y-4">
               
               {/* Billing Address Card */}
-              <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+              <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm">
                  <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-slate-900">Billing Details</h3>
                     <button onClick={handleEditBilling} className="text-xs font-bold text-emerald-600 hover:underline">Edit</button>
@@ -193,7 +193,7 @@ const PaymentMethods = () => {
                     </div>
                  </div>
 
-                 <div className="mt-6 bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-start gap-3">
+                 <div className="mt-5 bg-blue-50 border border-blue-100 p-3 rounded-xl flex items-start gap-2.5">
                     <CheckCircleIcon className="w-5 h-5 text-blue-500 shrink-0 mt-0.5" />
                     <p className="text-xs text-blue-700 leading-relaxed">
                        Your billing information is included in all your invoices. Ensure these details are correct for tax compliance.
@@ -202,7 +202,7 @@ const PaymentMethods = () => {
               </div>
 
               {/* Security Badge */}
-              <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+              <div className="bg-slate-50 p-5 rounded-2xl border border-slate-100">
                  <div className="flex items-center gap-2 mb-2">
                     <ShieldCheckIcon className="w-5 h-5 text-slate-400" />
                     <h3 className="font-bold text-slate-700">Secure Payments</h3>

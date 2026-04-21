@@ -9,6 +9,7 @@ import {
   PaperClipIcon,
   TrashIcon
 } from "@heroicons/react/24/outline";
+import { getPresenceInfo } from "../../utils/presence";
 
 const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], statusOptions = [], onUpdateProfile, onUpdateLabels }) => {
   
@@ -72,6 +73,17 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
   // --- 2. STATE FOR NOTES ---
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState("");
+  const [presenceNow, setPresenceNow] = useState(Date.now());
+
+  React.useEffect(() => {
+    const timerId = setInterval(() => {
+      setPresenceNow(Date.now());
+    }, 30000);
+
+    return () => clearInterval(timerId);
+  }, []);
+
+  const presenceInfo = React.useMemo(() => getPresenceInfo(data, presenceNow), [data, presenceNow]);
 
   // --- HANDLERS ---
   const handleEditChange = (e) => {
@@ -166,11 +178,12 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
         <div className="p-8 flex flex-col items-center border-b border-slate-50">
           <div className="relative mb-4">
               <img src={data?.avatar || `https://ui-avatars.com/api/?name=${profileData.name.replace(' ', '+')}&background=f3f4f6&color=6b7280`} alt="" className="w-24 h-24 rounded-2xl shadow-sm object-cover" />
-              <span className="absolute -bottom-1 -right-1 w-5 h-5 bg-[#22C55E] border-[3px] border-white rounded-full"></span>
+              <span className={`absolute -bottom-1 -right-1 w-5 h-5 border-[3px] border-white rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
           </div>
           
           <h2 className="text-lg font-extrabold text-slate-900 text-center">{profileData.name}</h2>
           <p className="text-xs text-slate-500 font-medium mb-1">{profileData.phone}</p>
+          <p className="text-[11px] text-slate-500 font-medium mb-2">{presenceInfo.label}</p>
           {profileData.email && (
             <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium mb-4">
               <AtSymbolIcon className="w-3 h-3 text-slate-400" />

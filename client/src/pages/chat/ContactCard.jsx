@@ -8,6 +8,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import chatService from "../../services/chatService";
+import { getPresenceInfo } from "../../utils/presence";
 
 const TABS = ["All Chats", "Mine", "Unread", "Active", "Resolved"];
 const CREATED_AT_FILTERS = [
@@ -41,6 +42,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   // State for chat options menu
   const [openMenuId, setOpenMenuId] = useState(null);
   const [isAdvancedFilterOpen, setIsAdvancedFilterOpen] = useState(false);
+  const [presenceNow, setPresenceNow] = useState(Date.now());
 
   const [quickFilters, setQuickFilters] = useState({
     unreadChats: false,
@@ -124,6 +126,14 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     return () => clearTimeout(timeoutId);
   }, [appNotice.isOpen]);
 
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      setPresenceNow(Date.now());
+    }, 60000);
+
+    return () => clearInterval(timerId);
+  }, []);
+
   const normalizedChats = chats || [];
 
   const toTitleCase = (text) => {
@@ -178,9 +188,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   };
 
   const getLastSeenDate = (chat) => {
-    const lastSeenValue = chat?.lastSeen || chat?.lastSeenAt || chat?.updatedAt;
-    const date = lastSeenValue ? new Date(lastSeenValue) : null;
-    return date && !Number.isNaN(date.getTime()) ? date : null;
+    return getPresenceInfo(chat, presenceNow).lastSeenDate;
   };
 
   const getChatUnreadCount = (chat) => {
@@ -205,6 +213,29 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     return chatModifications.pinned[chatId] !== undefined
       ? chatModifications.pinned[chatId]
       : !!chat.isPinned;
+  };
+
+  const formatChatTime = (updatedAt) => {
+    if (!updatedAt) return "";
+    const date = new Date(updatedAt);
+    if (isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfYesterday = new Date(startOfToday);
+    startOfYesterday.setDate(startOfToday.getDate() - 1);
+
+    if (date >= startOfToday) {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    } else if (date >= startOfYesterday) {
+      return "Yesterday";
+    } else {
+      return date.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
   };
 
   const getIsMuted = (chat) => {
@@ -302,9 +333,10 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   const matchesLastSeenFilter = (chat, filterValue) => {
     if (filterValue === "all") return true;
 
+    const presenceInfo = getPresenceInfo(chat, presenceNow);
     const lastSeenDate = getLastSeenDate(chat);
     if (filterValue === "online") {
-      if (chat?.status === "active") return true;
+      if (presenceInfo.isOnline) return true;
       if (!lastSeenDate) return false;
       return new Date().getTime() - lastSeenDate.getTime() <= 5 * 60 * 1000;
     }
@@ -1504,7 +1536,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {(activeQuickFiltersCount > 0 || activeAdvancedFiltersCount > 0) && (
-        <div className="px-3 lg:px-4 xl:px-5 pb-3 flex items-center justify-between gap-2 border-b border-slate-100">
+        <div className="px-3 lg:px-4 xl:px-5 pb-2 flex items-center justify-between gap-2 border-b border-slate-100">
           <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-600">
             {quickFilters.unreadChats && <span className="px-2 py-1 bg-green-50 text-green-700 rounded-full">Unread</span>}
             {quickFilters.openSessionChats && <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-full">Open session</span>}
@@ -1988,7 +2020,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       )}
 
       {/* 2. SEARCH BAR */}
-      <div className="px-5 pb-4 shrink-0">
+      <div className="px-5 pb-2 shrink-0">
         <div className="relative bg-slate-50 rounded-xl flex items-center px-4 py-2.5 border border-slate-100 focus-within:border-slate-300 focus-within:bg-white transition-all">
           <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 mr-2" />
           <input
@@ -2003,7 +2035,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       </div>
 
       {/* 3. FILTER TABS */}
-      <div className="px-5 pb-3 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
+      <div className="px-5 pb-2 overflow-x-auto hide-scrollbar flex gap-2 shrink-0 border-b border-slate-50">
         {TABS.map((tab) => (
           <button
             key={tab}
@@ -2031,7 +2063,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               }
             }}
             className={`
-               flex gap-3 px-5 py-4 cursor-pointer transition-all border-b border-slate-50 relative group
+               flex gap-2.5 px-4 py-2.5 cursor-pointer transition-all border-b border-slate-50 relative group
                ${activeChatId === (chat._id || chat.id) && !isSelectionMode
                 ? "bg-green-50 border-l-4 border-l-[#22C55E] shadow-sm"
                 : "border-l-4 border-l-transparent hover:bg-slate-50"}
@@ -2049,14 +2081,14 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               )}
               <div className="relative">
                 <img src={chat.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(chat.name)}&background=random`} alt="" className="w-12 h-12 rounded-full object-cover" />
-                {chat.status === 'active' && (
+                {getPresenceInfo(chat, presenceNow).isOnline && (
                   <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-[#22C55E] border-2 border-white rounded-full"></span>
                 )}
               </div>
             </div>
 
             {/* Chat Info */}
-            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1">
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-0.5">
               <div className="flex justify-between items-start">
                 <div className="flex items-center gap-2 max-w-full overflow-hidden">
                   <h4 className="text-sm font-bold text-slate-900 truncate">{chat.name}</h4>
@@ -2079,7 +2111,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
+                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || formatChatTime(chat.updatedAt)}</span>
 
                   {/* Three Dot Menu Button */}
                   <div className="relative">
@@ -2160,7 +2192,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               <p className="text-xs truncate text-slate-500 font-medium">
                 {chat.lastMsg || "No messages yet"}
               </p>
-              <div className="mt-1.5 flex justify-between items-center">
+              <div className="mt-1 flex justify-between items-center">
                 {getChatStatus(chat) && (
                   <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${getChatStatus(chat) === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
                       getChatStatus(chat) === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :

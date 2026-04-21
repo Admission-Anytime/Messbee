@@ -255,7 +255,7 @@ function Dashboard() {
 
          {/* 5. FOOTER */}
          <div className="mt-auto pt-10 pb-4 flex flex-col-reverse md:flex-row justify-between items-center text-xs text-slate-400 font-medium border-t border-slate-100 gap-4">
-            <p>&copy; 2024 whatsapp API Platform. All rights reserved @ MessBee.</p>
+            <p>&copy; 2026 whatsapp API Platform. All rights reserved @ MessBee.</p>
             <div className="flex gap-6">
                <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
                <a href="#" className="hover:text-slate-600 transition-colors">Terms of Service</a>
