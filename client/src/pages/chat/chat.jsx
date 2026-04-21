@@ -567,7 +567,7 @@ const Chat = () => {
   if (error && !loading) return <ErrorState onRetry={() => window.location.reload()} message={error} />;
 
   if (showActivityLog) {
-    return <ActivityLog onBack={() => setShowActivityLog(false)} />;
+    return <ActivityLog data={activeChat} onBack={() => setShowActivityLog(false)} />;
   }
 
   return (

@@ -8,10 +8,17 @@ import {
   MegaphoneIcon
 } from "@heroicons/react/24/outline";
 
-// ✅ Receives 'onBack' as a prop from Chat.jsx
-const ActivityLog = ({ onBack }) => {
+// ✅ Receives 'onBack' and 'data' as props from Chat.jsx
+const ActivityLog = ({ onBack, data }) => {
   const [activeTab, setActiveTab] = useState("All Activity");
   const tabs = ["All Activity", "Messages", "Status Updates", "Campaigns", "Notes"];
+
+  const formatPhone = (phone) => {
+    if (!phone) return "**********";
+    const digits = phone.replace(/\D/g, "");
+    if (!digits) return "**********";
+    return digits.slice(0, 10);
+  };
 
   return (
     <div className="h-full flex flex-col bg-[#F9FAFB] w-full font-sans text-slate-900 overflow-hidden">
@@ -31,15 +38,15 @@ const ActivityLog = ({ onBack }) => {
           <div className="w-px h-8 bg-slate-200 hidden sm:block"></div>
           
           <div className="flex items-center gap-3">
-            <img src="https://ui-avatars.com/api/?name=Priyanshu+Raghuvanshi&background=0D8ABC&color=fff" alt="" className="w-10 h-10 rounded-full object-cover" />
+            <img src={data?.avatar || `https://ui-avatars.com/api/?name=${(data?.name || 'User').replace(' ', '+')}&background=0D8ABC&color=fff`} alt="" className="w-10 h-10 rounded-full object-cover" />
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-sm font-extrabold text-slate-900">Priyanshu Raghuvanshi</h2>
+                <h2 className="text-sm font-extrabold text-slate-900">{data?.name || "Unknown User"}</h2>
                 <span className="px-2 py-0.5 bg-[#f0fdf4] text-[#16a34a] text-[9px] font-bold rounded uppercase tracking-widest border border-[#bbf7d0]">
-                  Warm Lead
+                  {data?.chatStatus || "Warm Lead"}
                 </span>
               </div>
-              <p className="text-xs text-slate-500 font-medium">+91 98765 43210</p>
+              <p className="text-xs text-slate-500 font-medium">{formatPhone(data?.phone || data?.whatsappId)}</p>
             </div>
           </div>
         </div>

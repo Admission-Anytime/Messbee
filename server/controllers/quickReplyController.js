@@ -3,7 +3,8 @@ const QuickReply = require('../models/QuickReply');
 // 1. Get all quick replies
 exports.getQuickReplies = async (req, res) => {
     try {
-        const replies = await QuickReply.find().sort({ createdAt: -1 });
+        const user = req.user?._id;
+        const replies = await QuickReply.find({ user }).sort({ createdAt: -1 });
         res.status(200).json(replies || []);
     } catch (err) {
         console.error('❌ Error fetching quick replies:', err.message);
@@ -15,19 +16,20 @@ exports.getQuickReplies = async (req, res) => {
 exports.createQuickReply = async (req, res) => {
     try {
         const { shortcut, content, type } = req.body;
+        const user = req.user?._id;
         
         // Validation
         if (!shortcut || shortcut.trim() === '') {
             return res.status(400).json({ message: 'Shortcut is required' });
         }
 
-        // Check for duplicate shortcut
-        const existingReply = await QuickReply.findOne({ shortcut });
+        // Check for duplicate shortcut for THIS USER
+        const existingReply = await QuickReply.findOne({ shortcut, user });
         if (existingReply) {
-            return res.status(400).json({ message: `Shortcut "${shortcut}" already exists` });
+            return res.status(400).json({ message: `Shortcut "${shortcut}" already exists for your account` });
         }
 
-        const data = { ...req.body };
+        const data = { ...req.body, user };
         if (req.file) {
             data.mediaUrl = `/uploads/${req.file.filename}`;
             console.log(`📎 File uploaded: ${req.file.filename}`);
@@ -52,10 +54,11 @@ exports.updateQuickReply = async (req, res) => {
     try {
         const { id } = req.params;
         
-        // Check if reply exists
-        const existingReply = await QuickReply.findById(id);
+        // Check if reply exists and belongs to user
+        const user = req.user?._id;
+        const existingReply = await QuickReply.findOne({ _id: id, user });
         if (!existingReply) {
-            return res.status(404).json({ message: 'Quick reply not found' });
+            return res.status(404).json({ message: 'Quick reply not found or access denied' });
         }
 
         const data = { ...req.body };
@@ -86,10 +89,11 @@ exports.deleteQuickReply = async (req, res) => {
     try {
         const { id } = req.params;
         
-        const deletedReply = await QuickReply.findByIdAndDelete(id);
+        const user = req.user?._id;
+        const deletedReply = await QuickReply.findOneAndDelete({ _id: id, user });
         
         if (!deletedReply) {
-            return res.status(404).json({ message: 'Quick reply not found' });
+            return res.status(404).json({ message: 'Quick reply not found or access denied' });
         }
         
         console.log(`✅ Deleted quick reply: ${deletedReply.shortcut}`);

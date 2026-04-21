@@ -231,22 +231,37 @@ exports.updateContact = async (req, res, next) => {
     if (!isValidObjectId(req.params.id))
       return sendError(res, 400, 'Invalid contact ID format');
 
-    const allowed = ['name','whatsapp','phone','email','company','institute','address','city','country','status','labels','initials','color'];
+    const existingContact = await Contact.findOne({ _id: req.params.id, user: req.user.id });
+    if (!existingContact) return sendError(res, 404, 'Contact not found');
+
+    // If verified, block core identity updates
+    if (existingContact.isVerified) {
+      const coreFields = ['name', 'whatsapp', 'phone', 'email'];
+      const isEditingCore = coreFields.some(f => req.body[f] !== undefined && req.body[f] !== existingContact[f]);
+      if (isEditingCore) {
+        return sendError(res, 403, 'This contact is verified and locked. Core details cannot be changed.');
+      }
+    }
+
+    const allowed = ['name','whatsapp','phone','email','company','institute','address','city','country','status','labels','initials','color', 'isVerified'];
     const updates = {};
     allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
 
     if (Object.keys(updates).length === 0)
       return sendError(res, 400, 'No valid fields provided for update');
 
+    // Prevent un-verifying once verified
+    if (existingContact.isVerified && updates.isVerified === false) {
+      delete updates.isVerified;
+    }
+
     if (updates.whatsapp !== undefined) {
       const normalized = normalizePhone(updates.whatsapp);
       if (!normalized) return sendError(res, 400, 'Invalid WhatsApp number');
-      if (normalized.replace(/\D/g, '').length < 10)
-        return sendError(res, 400, 'WhatsApp number must have at least 10 digits');
       updates.whatsapp = normalized;
     }
 
-    if (updates.name && !updates.initials)
+    if (updates.name && !updates.initials && !existingContact.isVerified)
       updates.initials = updates.name.trim().substring(0, 2).toUpperCase();
 
     const contact = await Contact.findOneAndUpdate(
@@ -254,7 +269,6 @@ exports.updateContact = async (req, res, next) => {
       updates,
       { new: true, runValidators: true }
     );
-    if (!contact) return sendError(res, 404, 'Contact not found');
 
     return res.json({ success: true, data: toClientContact(contact) });
   } catch (err) {

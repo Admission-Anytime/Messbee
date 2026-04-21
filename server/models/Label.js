@@ -33,7 +33,7 @@ const LabelSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-    userId: {
+    user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
     }

@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { getPayments } from "../../services/CommerceApi";
+import { toast } from "react-toastify";
 
 const PaymentList = () => {
-  const [loading] = useState(false);
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(false);
+
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
 
@@ -10,68 +14,28 @@ const PaymentList = () => {
     setIsDetailsModalOpen(true);
   };
 
-  const data = [
-    {
-      key: "1",
-      number: "+91 98765 43210",
-      name: "Rohit Sharma",
-      refId: "TXN_20260219_A8F",
-      amount: "1,249.00",
-      currency: "INR",
-      status: "Paid",
-      date: "19-02-2026 14:32",
-    },
-    {
-      key: "2",
-      number: "+91 98765 43211",
-      name: "Virat Kohli",
-      refId: "TXN_20260219_B9G",
-      amount: "2,500.00",
-      currency: "INR",
-      status: "Pending",
-      date: "19-02-2026 15:45",
-    },
-    {
-      key: "3",
-      number: "+91 98765 43212",
-      name: "MS Dhoni",
-      refId: "TXN_20260219_C1H",
-      amount: "899.00",
-      currency: "INR",
-      status: "Failed",
-      date: "19-02-2026 16:20",
-    },
-    {
-      key: "4",
-      number: "+91 98765 43213",
-      name: "Hardik Pandya",
-      refId: "TXN_20260219_D2I",
-      amount: "3,200.00",
-      currency: "INR",
-      status: "Paid",
-      date: "20-02-2026 10:15",
-    },
-    {
-      key: "5",
-      number: "+91 98765 43214",
-      name: "KL Rahul",
-      refId: "TXN_20260219_E3J",
-      amount: "1,750.00",
-      currency: "INR",
-      status: "Paid",
-      date: "20-02-2026 11:30",
-    },
-    {
-      key: "6",
-      number: "+91 98765 43215",
-      name: "Jasprit Bumrah",
-      refId: "TXN_20260219_F4K",
-      amount: "4,100.00",
-      currency: "INR",
-      status: "Pending",
-      date: "20-02-2026 13:45",
-    },
-  ];
+  const fetchPayments = async () => {
+    setLoading(true);
+    try {
+      const response = await getPayments();
+      if (response.success) {
+        setData(response.data.map(p => ({ 
+          ...p, 
+          key: p._id,
+          amount: p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
+          date: new Date(p.date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+        })));
+      }
+    } catch (error) {
+      toast.error("Failed to fetch payments");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPayments();
+  }, []);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -162,7 +126,7 @@ const PaymentList = () => {
               {data.map((payment) => (
                 <tr key={payment.key} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
-                    <div className="font-semibold text-gray-900 text-[13px]">{payment.number}</div>
+                    <div className="font-semibold text-gray-900 text-[13px]">{payment.number || "**********"}</div>
                     <div className="text-xs text-gray-500 mt-0.5">{payment.name}</div>
                   </td>
                   <td className="px-6 py-4">

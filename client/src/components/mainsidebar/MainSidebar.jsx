@@ -212,7 +212,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { logoutUser } = useContext(userContext);
+  const { logoutUser, user } = useContext(userContext);
   const handleLogout = async () => { await logoutUser(); navigate("/login"); };
 
   const filteredMenuItems = useMemo(() => {
@@ -321,15 +321,18 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
               <div className="px-4 py-2 border-b border-slate-50">
                 <div className="flex items-center gap-2 mb-1">
                   <Icon icon="feather:user" className="w-4 h-4 text-slate-400" />
-                  <span className="text-sm font-bold text-slate-800">Arshlan (Team Member)</span>
+                  <span className="text-sm font-bold text-slate-800">{user?.name || "User"} ({user?.role || "Member"})</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Icon icon="feather:mail" className="w-4 h-4 text-slate-400" />
-                  <span className="text-[12px] font-medium text-slate-500">arshlan@messbee.com</span>
+                  <span className="text-[12px] font-medium text-slate-500">{user?.email || "user@messbee.com"}</span>
                 </div>
               </div>
 
-              <button className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-slate-600 transition-colors">
+              <button 
+                onClick={() => navigate('/admin/profile/business')}
+                className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-slate-600 transition-colors w-full text-left"
+              >
                 <Icon icon="feather:grid" className="w-4 h-4" />
                 <span className="text-sm font-bold">Business profile</span>
               </button>
@@ -349,13 +352,13 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                   <span className="text-[12px] font-bold text-slate-400">Plan</span>
                   <span className="px-2 py-0.5 bg-emerald-50 text-emerald-600 text-[10px] font-bold rounded-full border border-emerald-100">Active</span>
                 </div>
-                <div className="flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <Icon icon="feather:award" className="w-4 h-4 text-emerald-500" />
-                    <span className="text-sm font-bold text-emerald-600">Custom</span>
+                    <span className="text-sm font-bold text-emerald-600">{user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</span>
                   </div>
-                  <span className="text-sm font-bold text-emerald-500">43 days left</span>
-                </div>
+                  <span className="text-sm font-bold text-emerald-500">
+                    {user?.subscriptionEndDate ? `${Math.ceil((new Date(user.subscriptionEndDate) - new Date()) / (1000 * 60 * 60 * 24))} days left` : "No expiry"}
+                  </span>
               </div>
 
               <div className="px-2 pt-2 border-t border-slate-50 flex flex-col">
@@ -375,12 +378,12 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             <div className="bg-[#F8FAFC] rounded-xl p-2.5 mb-2 border border-slate-50 shadow-sm">
               <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan: Custom</p>
-                  <h4 className="text-[13px] font-extrabold text-slate-900">Standard</h4>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan: {user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</p>
+                  <h4 className="text-[13px] font-extrabold text-slate-900">{user?.planName || "Standard"}</h4>
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[13px] font-extrabold text-[#10B981]">₹617.56</span>
+                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.wccCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
@@ -391,14 +394,18 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full bg-[#E2E8F0] flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                   <Icon icon="feather:user" className="w-6 h-6 text-slate-500" />
+                   {user?.avatar ? (
+                     <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                   ) : (
+                     <Icon icon="feather:user" className="w-6 h-6 text-slate-500" />
+                   )}
                 </div>
                 <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-[#10B981] border-2 border-white rounded-full"></span>
               </div>
               {isOpen && (
                 <div className="flex flex-col truncate">
-                  <span className="text-[14px] font-bold text-slate-900 truncate">Arshlan</span>
-                  <span className="text-[11px] font-medium text-slate-400 truncate">Team member</span>
+                  <span className="text-[14px] font-bold text-slate-900 truncate">{user?.name || "User"}</span>
+                  <span className="text-[11px] font-medium text-slate-400 truncate">{user?.role || "Member"}</span>
                 </div>
               )}
             </div>

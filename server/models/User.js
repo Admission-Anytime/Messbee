@@ -51,13 +51,33 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isPhoneVerified: {
+    type: Boolean,
+    default: false
+  },
   subscriptionPlan: {
     type: String,
-    enum: ['free', 'basic', 'premium', 'enterprise'],
+    enum: ['free', 'basic', 'premium', 'enterprise', 'custom'],
     default: 'free'
+  },
+  planName: {
+    type: String,
+    default: 'Standard'
+  },
+  wccCredit: {
+    type: Number,
+    default: 0
   },
   subscriptionEndDate: {
     type: Date
+  },
+  timezone: {
+    type: String,
+    default: '(GMT+05:30) India Standard Time'
+  },
+  language: {
+    type: String,
+    default: 'English (United States)'
   },
   // OTP fields for authentication
   otp: {

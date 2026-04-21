@@ -3,12 +3,11 @@ const mongoose = require('mongoose');
 const QuickReplySchema = new mongoose.Schema({
     shortcut: { 
         type: String, 
-        required: [true, 'Shortcut is mandatory'], 
-        unique: true 
+        required: [true, 'Shortcut is mandatory']
     },
     content: { 
         type: String, 
-        required: false // ❌ Ab agar content khali hai tab bhi error nahi aayega
+        required: false
     },
     type: { 
         type: String, 
@@ -26,7 +25,16 @@ const QuickReplySchema = new mongoose.Schema({
     color: { 
         type: String,
         default: 'bg-emerald-100 text-emerald-600' 
+    },
+    user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
     }
 }, { timestamps: true });
+
+// Shortcut unique per user
+QuickReplySchema.index({ shortcut: 1, user: 1 }, { unique: true });
+
 
 module.exports = mongoose.model('QuickReply', QuickReplySchema);
