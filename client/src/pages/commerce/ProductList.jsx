@@ -1,8 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getProducts, createProduct, updateProduct, deleteProduct } from "../../services/CommerceApi";
+import { toast } from "react-toastify";
 
 const ProductList = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [loading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -14,53 +16,26 @@ const ProductList = () => {
     stock: "",
     img: ""
   });
-  const [dataSource, setDataSource] = useState([
-    {
-      key: "1",
-      name: "Classic Oxford Shirt",
-      sku: "AP-OX-2024-WT",
-      category: "Apparel",
-      price: "1,899",
-      stock: 42,
-      img: "https://via.placeholder.com/150?text=Shirt",
-    },
-    {
-      key: "2",
-      name: "Genuine Leather Belt",
-      sku: "AC-LB-0012-BR",
-      category: "Accessories",
-      price: "2,450",
-      stock: 8,
-      img: "https://via.placeholder.com/150?text=Belt",
-    },
-    {
-      key: "3",
-      name: "Premium Silk Scarf",
-      sku: "AC-SS-9912-FL",
-      category: "Accessories",
-      price: "999",
-      stock: 0,
-      img: "https://via.placeholder.com/150?text=Scarf",
-    },
-    {
-      key: "4",
-      name: "Designer Sunglasses",
-      sku: "AC-SG-8821-BK",
-      category: "Accessories",
-      price: "3,299",
-      stock: 15,
-      img: "https://via.placeholder.com/150?text=Sunglasses",
-    },
-    {
-      key: "5",
-      name: "Cotton Denim Jeans",
-      sku: "AP-DJ-5544-BL",
-      category: "Apparel",
-      price: "2,199",
-      stock: 28,
-      img: "https://via.placeholder.com/150?text=Jeans",
-    },
-  ]);
+  const [dataSource, setDataSource] = useState([]);
+
+  // Fetch products from API
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const response = await getProducts();
+      if (response.success) {
+        setDataSource(response.data.map(p => ({ ...p, key: p._id })));
+      }
+    } catch (error) {
+      toast.error("Failed to fetch products");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   // Pre-fill form when editing
   React.useEffect(() => {
@@ -104,44 +79,39 @@ const ProductList = () => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     // Validation
     if (!formData.name || !formData.sku || !formData.category || !formData.price || !formData.stock) {
-      alert("Please fill in all required fields");
+      toast.warning("Please fill in all required fields");
       return;
     }
 
-    if (editingProduct) {
-      // Update existing product
-      setDataSource(prev => prev.map(product => 
-        product.key === editingProduct.key
-          ? {
-              ...product,
-              name: formData.name,
-              sku: formData.sku,
-              category: formData.category,
-              price: formData.price,
-              stock: parseInt(formData.stock),
-              img: formData.img
-            }
-          : product
-      ));
-    } else {
-      // Add new product
-      const newProduct = {
-        key: (dataSource.length + 1).toString(),
+    try {
+      const productData = {
         name: formData.name,
         sku: formData.sku,
         category: formData.category,
-        price: formData.price,
+        price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
-        img: formData.img || "https://via.placeholder.com/150?text=Product"
+        img: formData.img
       };
-      setDataSource(prev => [...prev, newProduct]);
-    }
 
-    // Close drawer and reset form
-    closeDrawer();
+      if (editingProduct) {
+        const response = await updateProduct(editingProduct._id, productData);
+        if (response.success) {
+          toast.success("Product updated successfully");
+        }
+      } else {
+        const response = await createProduct(productData);
+        if (response.success) {
+          toast.success("Product added successfully");
+        }
+      }
+      fetchProducts();
+      closeDrawer();
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to save product");
+    }
   };
 
   const getStockStatus = (stock) => {
@@ -155,9 +125,17 @@ const ProductList = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const executeDelete = () => {
+  const executeDelete = async () => {
     if (productToDelete) {
-      setDataSource(prev => prev.filter(product => product.key !== productToDelete.key));
+      try {
+        const response = await deleteProduct(productToDelete._id);
+        if (response.success) {
+          toast.success("Product deleted successfully");
+          fetchProducts();
+        }
+      } catch (error) {
+        toast.error("Failed to delete product");
+      }
     }
     setIsDeleteModalOpen(false);
     setProductToDelete(null);

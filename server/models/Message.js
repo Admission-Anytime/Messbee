@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const messageSchema = mongoose.Schema(
   {
     chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", required: true },
+    user: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     text: { type: String, default: "" },
     sender: { type: String, enum: ["me", "them"], required: true }, // 'me' = admin, 'them' = user
     time: { type: String }, // e.g. "12:05 PM"

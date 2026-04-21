@@ -9,6 +9,7 @@ const chatSchema = mongoose.Schema(
     isPinned: { type: Boolean, default: false },
     isMuted: { type: Boolean, default: false },
     isBlocked: { type: Boolean, default: false },
+    isVerified: { type: Boolean, default: false },
     teamMember: { type: String, default: "Unassigned" },
     labels: [{ type: String }],
     avatar: { type: String },
@@ -39,7 +40,8 @@ const chatSchema = mongoose.Schema(
         date: String
       }
     ],
-    tags: [{ type: String }]
+    tags: [{ type: String }],
+    user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
   { timestamps: true }
 );

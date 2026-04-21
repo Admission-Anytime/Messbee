@@ -3,7 +3,14 @@ const Label = require('../models/Label');
 // 1. Get all labels
 exports.getLabels = async (req, res) => {
     try {
-        const labels = await Label.find().sort({ createdAt: -1 });
+        const user = req.user?._id;
+        // Find labels belonging to this user OR system labels
+        const labels = await Label.find({
+            $or: [
+                { user: user },
+                { isSystem: true }
+            ]
+        }).sort({ createdAt: -1 });
         res.status(200).json(labels || []);
     } catch (err) {
         console.error('❌ Error fetching labels:', err.message);
@@ -14,7 +21,7 @@ exports.getLabels = async (req, res) => {
 // 2. Create new label
 exports.createLabel = async (req, res) => {
     try {
-        const { name, desc, color, bg, text, isSystem, userId } = req.body;
+        const { name, desc, color, bg, text, isSystem, user } = req.body;
         
         // Validation
         if (!name || name.trim() === '') {
@@ -36,7 +43,7 @@ exports.createLabel = async (req, res) => {
             text: text || 'text-emerald-800',
             creator,
             isSystem: isSystem || false,
-            userId: userId || req.user?._id
+            user: req.user?._id
         });
         
         const savedLabel = await newLabel.save();
@@ -60,9 +67,10 @@ exports.updateLabel = async (req, res) => {
             return res.status(400).json({ message: 'Label name cannot exceed 25 characters' });
         }
 
-        const label = await Label.findById(id);
+        const user = req.user?._id;
+        const label = await Label.findOne({ _id: id, user });
         if (!label) {
-            return res.status(404).json({ message: 'Label not found' });
+            return res.status(404).json({ message: 'Label not found or access denied' });
         }
 
         // Update fields
@@ -87,9 +95,10 @@ exports.deleteLabel = async (req, res) => {
     try {
         const { id } = req.params;
         
-        const label = await Label.findById(id);
+        const user = req.user?._id;
+        const label = await Label.findOne({ _id: id, user });
         if (!label) {
-            return res.status(404).json({ message: 'Label not found' });
+            return res.status(404).json({ message: 'Label not found or access denied' });
         }
 
         await Label.findByIdAndDelete(id);

@@ -149,7 +149,7 @@ router.use(protect);
 // 1. Get All Chats (Sidebar)
 router.get("/", async (req, res) => {
   try {
-    const chats = await Chat.find().sort({ isPinned: -1, updatedAt: -1 });
+    const chats = await Chat.find({ user: req.user.id }).sort({ isPinned: -1, updatedAt: -1 });
     res.json(chats);
   } catch (error) {
     res.status(500).json(error);
@@ -172,8 +172,9 @@ router.post("/", async (req, res) => {
 
 
 
-    // Check if chat already exists (check both normalized and original)
+    // Check if chat already exists for THIS user
     const existingChat = await Chat.findOne({
+      user: req.user.id,
       $or: [
         { phone: normalizedPhone },
         { whatsappId: normalizedPhone },
@@ -200,7 +201,7 @@ router.post("/", async (req, res) => {
       });
     }
 
-    // Create new chat with normalized phone
+    // Create new chat with normalized phone and current userId
     const newChat = await Chat.create({
       name: name || normalizedPhone,
       phone: normalizedPhone,
@@ -212,7 +213,8 @@ router.post("/", async (req, res) => {
       teamMember: "Unassigned",
       unread: 0,
       lastMsg: "",
-      lastMsgTime: ""
+      lastMsgTime: "",
+      user: req.user.id
     });
 
 
@@ -244,6 +246,11 @@ router.post("/", async (req, res) => {
 // 2. Get Messages for a specific Chat
 router.get("/messages/:chatId", async (req, res) => {
   try {
+    // Step 1: Verify this chat belongs to the user
+    const chat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
+
+    // Step 2: Fetch messages
     const messages = await Message.find({
       chatId: req.params.chatId,
       isDeleted: false
@@ -261,11 +268,11 @@ router.post("/message", async (req, res) => {
   try {
 
 
-    // Get chat info
-    const chat = await Chat.findById(chatId);
+    // Get chat info and verify ownership
+    const chat = await Chat.findOne({ _id: chatId, user: req.user.id });
     if (!chat) {
-      console.error(`❌ Chat not found: ${chatId}`);
-      return res.status(404).json({ error: "Chat not found" });
+      console.error(`❌ Chat not found or access denied: ${chatId}`);
+      return res.status(404).json({ error: "Chat not found or access denied" });
     }
 
 
@@ -417,6 +424,7 @@ router.post("/message", async (req, res) => {
         fileName: media?.fileName,
         caption: text,
         status: msgStatus,
+        user: req.user.id,
         error: whatsappError ? JSON.stringify(whatsappError).substring(0, 200) : undefined
       });
 
@@ -467,7 +475,6 @@ router.post("/message", async (req, res) => {
     if (!text && !media) {
       return res.status(400).json({ error: "Message text or media is required" });
     }
-
     const newMessage = await Message.create({
       chatId,
       text,
@@ -478,7 +485,8 @@ router.post("/message", async (req, res) => {
       mediaType: mediaType,
       mediaId: media?.id || media?.mediaId,
       fileName: media?.fileName,
-      status: sender === "them" ? "delivered" : "sent"
+      status: sender === "them" ? "delivered" : "sent",
+      user: req.user.id
     });
 
     // Update Chat Metadata — fix: use proper $inc operator
@@ -527,11 +535,12 @@ router.post("/message", async (req, res) => {
 // 4. Mark messages as read
 router.put("/:chatId/read", async (req, res) => {
   try {
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.chatId,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.chatId, user: req.user.id },
       { unread: 0 },
       { new: true }
     );
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
     // Mark all unread messages as read
     await Message.updateMany(
@@ -656,9 +665,9 @@ router.post("/send-template", async (req, res) => {
   try {
     const { chatId, templateName, languageCode, components } = req.body;
 
-    const chat = await Chat.findById(chatId);
+    const chat = await Chat.findOne({ _id: chatId, user: req.user.id });
     if (!chat) {
-      return res.status(404).json({ error: "Chat not found" });
+      return res.status(404).json({ error: "Chat not found or access denied" });
     }
 
     if (chat.source !== "whatsapp" || !chat.whatsappId) {
@@ -730,11 +739,12 @@ router.post("/send-template", async (req, res) => {
 router.put("/:chatId/status", async (req, res) => {
   try {
     const { chatStatus } = req.body;
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.chatId,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.chatId, user: req.user.id },
       { chatStatus },
       { new: true }
     );
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
     res.json(chat);
   } catch (error) {
     res.status(500).json(error);
@@ -744,8 +754,8 @@ router.put("/:chatId/status", async (req, res) => {
 // 5b. Toggle Pin Status
 router.put("/:chatId/pin", async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
-    if (!chat) return res.status(404).json({ error: "Chat not found" });
+    const chat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
     chat.isPinned = !chat.isPinned;
     await chat.save();
@@ -759,8 +769,8 @@ router.put("/:chatId/pin", async (req, res) => {
 // 5c. Toggle Mute Status
 router.put("/:chatId/mute", async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
-    if (!chat) return res.status(404).json({ error: "Chat not found" });
+    const chat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
     chat.isMuted = !chat.isMuted;
     await chat.save();
@@ -774,8 +784,8 @@ router.put("/:chatId/mute", async (req, res) => {
 // 5d. Toggle Archive Status
 router.put("/:chatId/archive", async (req, res) => {
   try {
-    const chat = await Chat.findById(req.params.chatId);
-    if (!chat) return res.status(404).json({ error: "Chat not found" });
+    const chat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
     chat.chatStatus = chat.chatStatus === "archived" ? "open" : "archived";
     await chat.save();
@@ -790,11 +800,12 @@ router.put("/:chatId/archive", async (req, res) => {
 router.put("/:chatId/assign", async (req, res) => {
   try {
     const { teamMember } = req.body;
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.chatId,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.chatId, user: req.user.id },
       { teamMember },
       { new: true }
     );
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
     res.json(chat);
   } catch (error) {
     res.status(500).json(error);
@@ -804,8 +815,22 @@ router.put("/:chatId/assign", async (req, res) => {
 // 7. Update profile details
 router.put("/:chatId/profile", async (req, res) => {
   try {
-    const { name, phone, whatsappId, email, chatStatus, customFields, notes } = req.body;
+    const { name, phone, whatsappId, email, chatStatus, customFields, notes, isVerified } = req.body;
     
+    const existingChat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!existingChat) return res.status(404).json({ error: "Chat not found or access denied" });
+
+    // If verified, block core identity updates
+    if (existingChat.isVerified) {
+      const coreFieldsEdit = (name !== undefined && name !== existingChat.name) || 
+                           (phone !== undefined && phone !== existingChat.phone) || 
+                           (whatsappId !== undefined && whatsappId !== existingChat.whatsappId);
+      
+      if (coreFieldsEdit) {
+        return res.status(403).json({ error: "This chat is verified and locked. Core details cannot be changed." });
+      }
+    }
+
     const updateData = {};
     if (name !== undefined) updateData.name = name;
     if (phone !== undefined) updateData.phone = phone;
@@ -814,12 +839,19 @@ router.put("/:chatId/profile", async (req, res) => {
     if (chatStatus !== undefined) updateData.chatStatus = chatStatus;
     if (customFields !== undefined) updateData.customFields = customFields;
     if (notes !== undefined) updateData.notes = notes;
+    if (isVerified !== undefined) {
+      // Prevent un-verifying once verified
+      if (!(existingChat.isVerified && isVerified === false)) {
+        updateData.isVerified = isVerified;
+      }
+    }
 
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.chatId,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.chatId, user: req.user.id },
       { $set: updateData },
       { new: true }
     );
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
     
     // Emit socket event to notify other clients
     try {
@@ -842,11 +874,12 @@ router.put("/:chatId/profile", async (req, res) => {
 router.put("/:chatId/labels", async (req, res) => {
   try {
     const { labels } = req.body;
-    const chat = await Chat.findByIdAndUpdate(
-      req.params.chatId,
+    const chat = await Chat.findOneAndUpdate(
+      { _id: req.params.chatId, user: req.user.id },
       { labels },
       { new: true }
     );
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
     res.json(chat);
   } catch (error) {
     res.status(500).json(error);
@@ -856,16 +889,19 @@ router.put("/:chatId/labels", async (req, res) => {
 // 9. Clear Chat History (Soft delete all messages)
 router.delete("/:chatId/messages", async (req, res) => {
   try {
+    // Verify ownership first
+    const chat = await Chat.findOne({ _id: req.params.chatId, user: req.user.id });
+    if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
+
     await Message.updateMany(
-      { chatId: req.params.chatId },
+      { chatId: req.params.chatId, user: req.user.id },
       { isDeleted: true, deletedAt: new Date() }
     );
 
     // Update chat last message
-    await Chat.findByIdAndUpdate(req.params.chatId, {
-      lastMsg: "Chat history cleared",
-      unread: 0
-    });
+    chat.lastMsg = "Chat history cleared";
+    chat.unread = 0;
+    await chat.save();
 
     res.json({ success: true, message: "Chat history cleared" });
   } catch (error) {
@@ -878,15 +914,15 @@ router.delete("/:chatId", async (req, res) => {
   try {
     const chatId = req.params.chatId;
 
-    // Delete all messages associated with this chat
-    await Message.deleteMany({ chatId });
-
-    // Delete the chat itself
-    const deletedChat = await Chat.findByIdAndDelete(chatId);
+    // Verify ownership and delete
+    const deletedChat = await Chat.findOneAndDelete({ _id: chatId, user: req.user.id });
 
     if (!deletedChat) {
-      return res.status(404).json({ error: "Chat not found" });
+      return res.status(404).json({ error: "Chat not found or access denied" });
     }
+
+    // Delete all messages associated with this chat for this user
+    await Message.deleteMany({ chatId, user: req.user.id });
 
     res.json({ success: true, message: "Chat and associated messages deleted" });
   } catch (error) {

@@ -408,7 +408,15 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
                 <input
                   type="text"
                   value={form[key] || ""}
-                  onChange={e => setForm({ ...form, [key]: e.target.value })}
+                  onChange={e => {
+                    let val = e.target.value;
+                    if (key === "phone" || key === "whatsapp") {
+                      val = val.replace(/\D/g, '').slice(0, 10);
+                    }
+                    setForm({ ...form, [key]: val });
+                  }}
+                  placeholder={(key === "phone" || key === "whatsapp") ? "**********" : ""}
+                  maxLength={(key === "phone" || key === "whatsapp") ? 10 : undefined}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition-colors"
                 />
               </div>
@@ -653,10 +661,11 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                   </div>
                   <input
                     type="text"
-                    placeholder="Enter WhatsApp Number"
+                    placeholder="**********"
                     className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition-colors"
                     value={formData.whatsapp}
-                    onChange={e => setFormData({ ...formData, whatsapp: e.target.value })}
+                    onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                    maxLength={10}
                   />
                 </div>
               </div>
@@ -1314,14 +1323,24 @@ export default function ContactsCRM() {
       return <span className="text-gray-500 text-sm">{row?.value || <span className="text-gray-300 text-xs italic">—</span>}</span>;
     }
     switch (col.key) {
-      case "name":      return <div className="flex items-center gap-2.5"><Avatar initials={contact.initials} color={contact.color} size="sm" /><span className="font-medium text-gray-900">{contact.name}</span></div>;
-      case "whatsapp":  return <span className="text-gray-500 text-sm">{contact.whatsapp}</span>;
+      case "name":      return (
+        <div className="flex items-center gap-2.5">
+          <Avatar initials={contact.initials} color={contact.color} size="sm" />
+          <span className="font-medium text-gray-900 truncate">{contact.name}</span>
+          {contact.isVerified && (
+            <svg className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24">
+              <path fillRule="evenodd" d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
+            </svg>
+          )}
+        </div>
+      );
+      case "whatsapp":  return <span className="text-gray-500 text-sm">{contact.whatsapp || "**********"}</span>;
       case "status":    return <StatusBadge status={contact.status} />;
       case "labels":    return contact.labels?.length === 0 ? <span className="text-gray-300 text-xs italic">No labels</span> : <>{contact.labels.map(l => <LabelBadge key={l} label={l} />)}</>;
       case "email":     return <span className="text-gray-500 text-sm">{contact.email}</span>;
       case "institute": return <span className="text-gray-500 text-sm">{contact.institute}</span>;
       case "address":   return <span className="text-gray-500 text-sm">{contact.address}</span>;
-      case "phone":     return <span className="text-gray-500 text-sm">{contact.phone}</span>;
+      case "phone":     return <span className="text-gray-500 text-sm">{contact.phone || "**********"}</span>;
       case "company":   return <span className="text-gray-500 text-sm">{contact.company}</span>;
       case "city":      return <span className="text-gray-500 text-sm">{contact.city}</span>;
       case "country":   return <span className="text-gray-500 text-sm">{contact.country}</span>;

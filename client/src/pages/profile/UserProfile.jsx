@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 import { ToastContainer, toast } from "react-toastify";
+import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
@@ -42,21 +44,45 @@ const handleKeyDown = (e, index) => {
   }
 };
 
+  const { user, updateUser } = useContext(userContext);
+
   const [formData, setFormData] = useState({
-    name: "Alex Rivera",
-    email: "alex.rivera@messbee.com",
-    phone: "+1 (555) 902-4412",
+    name: user?.name || "Alex Rivera",
+    email: user?.email || "alex.rivera@messbee.com",
+    phone: user?.phone || "**********", // Default phone if missing
   });
 
   const [preferences, setPreferences] = useState({
-    timezone: "(GMT-08:00) Pacific Time (US & Canada)",
-    language: "English (United States)",
+    timezone: user?.timezone || "(GMT+05:30) India Standard Time",
+    language: user?.language || "English (United States)",
   });
 
+  // Update formData when user changes
+  useEffect(() => {
+    if (user) {
+      const sanitizedPhone = user.phone ? user.phone.replace(/\D/g, "").slice(0, 10) : "";
+      setFormData({
+        name: user.name || "",
+        email: user.email || "",
+        phone: sanitizedPhone || "**********",
+      });
+      setPreferences({
+        timezone: user.timezone || "(GMT+05:30) India Standard Time",
+        language: user.language || "English (United States)",
+      });
+    }
+  }, [user]);
+
   const handleChange = (e) => {
+    let value = e.target.value;
+    
+    if (e.target.name === "phone") {
+      value = value.replace(/\D/g, "").slice(0, 10);
+    }
+
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value,
+      [e.target.name]: value,
     });
   };
 
@@ -67,12 +93,50 @@ const handleKeyDown = (e, index) => {
     });
   };
 
-  const handleImageUpload = (e) => {
+
+  const handleSaveProfile = async () => {
+    try {
+      const response = await axios.put("/users/profile", formData);
+      if (response.data.success) {
+        updateUser(response.data.data);
+        setIsEditing(false);
+        toast.success("Profile updated successfully");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to update profile");
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    try {
+      const response = await axios.put("/users/profile", preferences);
+      if (response.data.success) {
+        updateUser(response.data.data);
+        setIsPrefEditing(false);
+        toast.success("Preferences saved successfully");
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to save preferences");
+    }
+  };
+
+  const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
-      setProfileImage(imageUrl);
-      toast.success("Profile photo updated");
+      const formData = new FormData();
+      formData.append("avatar", file);
+      try {
+        const response = await axios.post("/users/avatar", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (response.data.success) {
+          updateUser(response.data.data.user);
+          setProfileImage(URL.createObjectURL(file));
+          toast.success("Profile photo updated");
+        }
+      } catch (error) {
+        toast.error("Failed to upload avatar");
+      }
     }
   };
   useEffect(() => {
@@ -147,8 +211,8 @@ useEffect(() => {
                   Verified Agent
                 </span>
               </div>
-              <p className="text-gray-500 md:mb-0">
-                Senior Technical Consultant • Joined January 2023
+              <p className="text-gray-500 md:mb-0 text-sm">
+                {user?.role || "Member"} • Joined {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : "Recently"}
               </p>
             </div>
             <div className="flex flex-wrap gap-3 justify-center">
@@ -188,10 +252,7 @@ useEffect(() => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setIsEditing(false);
-                    toast.success("Changes saved");
-                  }}
+                  onClick={handleSaveProfile}
                   className="text-green-600 text-sm font-semibold hover:underline"
                 >
                   Save
@@ -227,40 +288,56 @@ useEffect(() => {
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  readOnly={!isEditing}
+                  readOnly={!isEditing || user?.isEmailVerified}
                   className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium ${
                     isEditing
-                      ? "bg-gray-50 border border-gray-300 rounded-xl text-sm px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500"
+                      ? (user?.isEmailVerified ? "bg-gray-100 cursor-not-allowed opacity-70" : "bg-gray-50 border border-gray-300") + " rounded-xl text-sm px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500"
                       : "bg-transparent border-transparent p-0 text-base"
                   }`}
                 />
-                <div
-                  className={`transition-all duration-300 overflow-hidden flex items-center ${
-                    isEditing ? "opacity-0 w-0" : "opacity-100 w-auto"
-                  }`}
-                >
-                  <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase whitespace-nowrap">
-                    Verified
-                  </span>
-                </div>
+                {(user?.isEmailVerified || !isEditing) && (
+                  <div
+                    className={`transition-all duration-300 overflow-hidden flex items-center ${
+                      isEditing && !user?.isEmailVerified ? "opacity-0 w-0" : "opacity-100 w-auto"
+                    }`}
+                  >
+                    <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded uppercase whitespace-nowrap flex items-center gap-1">
+                      {user?.isEmailVerified && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>}
+                      Verified
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider flex items-center justify-between">
                 Phone Number
+                {user?.isPhoneVerified && <span className="text-[10px] text-green-600 font-bold bg-green-50 px-1.5 py-0.5 rounded border border-green-100 flex items-center gap-1 uppercase tracking-normal">
+                  <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" /></svg>
+                  Verified
+                </span>}
               </label>
-              <input
-                type="text"
-                name="phone"
-                value={formData.phone}
-                onChange={handleChange}
-                readOnly={!isEditing}
-                className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium ${
-                  isEditing
-                    ? "bg-gray-50 border border-gray-300 rounded-xl text-sm px-3 py-2 focus:border-green-500 focus:ring-1 focus:ring-green-500"
-                    : "bg-transparent border-transparent p-0 text-base"
-                }`}
-              />
+              <div className={`flex items-center transition-all duration-300 ${isEditing ? "bg-gray-50 border border-gray-300 overflow-hidden rounded-xl h-10" : "bg-transparent border-transparent"}`}>
+                {(isEditing || (formData.phone && formData.phone !== "**********")) && (
+                  <span className={`inline-flex items-center text-sm font-bold text-gray-500 transition-all ${isEditing ? "px-3 bg-gray-100 h-full border-r border-gray-200" : "pr-2"}`}>
+                    +91
+                  </span>
+                )}
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  readOnly={!isEditing || user?.isPhoneVerified}
+                  maxLength={10}
+                  placeholder="**********"
+                  className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium ${
+                    isEditing
+                      ? (user?.isPhoneVerified ? "bg-gray-100 cursor-not-allowed opacity-70" : "bg-transparent px-3 py-2")
+                      : "bg-transparent border-transparent p-0 text-base"
+                  }`}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -285,10 +362,7 @@ useEffect(() => {
                   Cancel
                 </button>
                 <button
-                  onClick={() => {
-                    setIsPrefEditing(false);
-                    toast.success("Preferences saved");
-                  }}
+                  onClick={handleSavePreferences}
                   className="text-green-600 text-sm font-semibold hover:underline"
                 >
                   Save Changes
@@ -316,6 +390,7 @@ useEffect(() => {
                 <option>(GMT-05:00) Eastern Time (US & Canada)</option>
                 <option>(GMT+00:00) London</option>
                 <option>(GMT+01:00) Paris</option>
+                <option>(GMT+05:30) India Standard Time</option>
               </select>
             </div>
             <div className="space-y-2">

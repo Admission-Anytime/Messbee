@@ -29,7 +29,7 @@ const StatusSchema = new mongoose.Schema({
         type: String,
         default: 'https://i.pravatar.cc/150?u=default'
     },
-    userId: {
+    user: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true
@@ -37,6 +37,6 @@ const StatusSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Add index for faster queries
-StatusSchema.index({ userId: 1, createdAt: -1 });
+StatusSchema.index({ user: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Status', StatusSchema);

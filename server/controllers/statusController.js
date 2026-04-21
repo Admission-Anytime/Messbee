@@ -3,8 +3,8 @@ const Status = require('../models/Status');
 // 1. Get all statuses for a user
 exports.getStatuses = async (req, res) => {
     try {
-        const userId = req.user._id;
-        const statuses = await Status.find({ userId }).sort({ createdAt: -1 });
+        const user = req.user._id;
+        const statuses = await Status.find({ user }).sort({ createdAt: -1 });
         res.status(200).json(statuses || []);
     } catch (err) {
         console.error('❌ Error fetching statuses:', err.message);
@@ -16,7 +16,7 @@ exports.getStatuses = async (req, res) => {
 exports.createStatus = async (req, res) => {
     try {
         const { name, description, color, isActive } = req.body;
-        const userId = req.user._id;
+        const user = req.user._id;
         
         // Validation
         if (!name || name.trim() === '') {
@@ -28,7 +28,7 @@ exports.createStatus = async (req, res) => {
         }
 
         // Check plan limit (5 statuses per user)
-        const statusCount = await Status.countDocuments({ userId });
+        const statusCount = await Status.countDocuments({ user });
         if (statusCount >= 5) {
             return res.status(403).json({ 
                 message: 'Status limit reached. You can only create up to 5 statuses. Please upgrade your plan.',
@@ -47,12 +47,12 @@ exports.createStatus = async (req, res) => {
             isActive: isActive !== undefined ? isActive : true,
             createdBy,
             avatar,
-            userId
+            user
         });
         
         const savedStatus = await newStatus.save();
         
-        console.log(`✅ Created status: ${savedStatus.name} for user ${userId}`);
+        console.log(`✅ Created status: ${savedStatus.name} for user ${user}`);
         res.status(201).json(savedStatus);
     } catch (err) {
         console.error('❌ Error creating status:', err.message);
@@ -65,14 +65,14 @@ exports.updateStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { name, description, color, isActive } = req.body;
-        const userId = req.user._id;
+        const user = req.user._id;
 
         // Validation
         if (name && name.length > 50) {
             return res.status(400).json({ message: 'Status name cannot exceed 50 characters' });
         }
 
-        const status = await Status.findOne({ _id: id, userId });
+        const status = await Status.findOne({ _id: id, user });
         if (!status) {
             return res.status(404).json({ message: 'Status not found or you do not have permission to update it' });
         }
@@ -85,7 +85,7 @@ exports.updateStatus = async (req, res) => {
 
         const updatedStatus = await status.save();
         
-        console.log(`✅ Updated status: ${updatedStatus.name} for user ${userId}`);
+        console.log(`✅ Updated status: ${updatedStatus.name} for user ${user}`);
         res.status(200).json(updatedStatus);
     } catch (err) {
         console.error('❌ Error updating status:', err.message);
@@ -97,16 +97,16 @@ exports.updateStatus = async (req, res) => {
 exports.deleteStatus = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user._id;
+        const user = req.user._id;
 
-        const status = await Status.findOne({ _id: id, userId });
+        const status = await Status.findOne({ _id: id, user });
         if (!status) {
             return res.status(404).json({ message: 'Status not found or you do not have permission to delete it' });
         }
 
         await Status.findByIdAndDelete(id);
         
-        console.log(`✅ Deleted status: ${status.name} for user ${userId}`);
+        console.log(`✅ Deleted status: ${status.name} for user ${user}`);
         res.status(200).json({ message: 'Status deleted successfully', id });
     } catch (err) {
         console.error('❌ Error deleting status:', err.message);
@@ -118,9 +118,9 @@ exports.deleteStatus = async (req, res) => {
 exports.getStatusById = async (req, res) => {
     try {
         const { id } = req.params;
-        const userId = req.user._id;
+        const user = req.user._id;
 
-        const status = await Status.findOne({ _id: id, userId });
+        const status = await Status.findOne({ _id: id, user });
         if (!status) {
             return res.status(404).json({ message: 'Status not found' });
         }

@@ -1924,7 +1924,6 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 />
               </div>
 
-              {/* Enter Number */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2">WhatsApp Number *</label>
                 <div className="flex focus-within:ring-1 focus-within:ring-[#22C55E] focus-within:border-[#22C55E] rounded-xl transition-all shadow-sm">
@@ -1933,7 +1932,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   </span>
                   <input
                     type="text"
-                    placeholder="Enter 10-digit number"
+                    placeholder="**********"
                     value={newChatPhone}
                     onChange={(e) => setNewChatPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                     className="flex-1 min-w-0 block w-full px-4 py-3 rounded-r-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none"
@@ -1942,7 +1941,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                     maxLength={10}
                   />
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Enter the WhatsApp number without country code</p>
+                <p className="mt-1 text-xs text-slate-500">Enter the 10-digit WhatsApp number without country code</p>
               </div>
 
               {/* Info Box */}

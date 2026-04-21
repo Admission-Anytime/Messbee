@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { getProducts, createProduct, updateProduct, deleteProduct } from "../../services/CommerceApi";
+import { toast } from "react-toastify";
 
 /* ─── Add Product Drawer ─────────────────────────────────────────────────────── */
 function AddProductDrawer({ isOpen, onClose, onAdd, editingProduct }) {
@@ -307,7 +309,6 @@ function AddProductDrawer({ isOpen, onClose, onAdd, editingProduct }) {
 }
 
 const Inventory = () => {
-  const [loading] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [isAddDrawerOpen, setIsAddDrawerOpen] = useState(false);
@@ -327,69 +328,64 @@ const Inventory = () => {
     setIsAddDrawerOpen(false);
     setEditingProduct(null);
   };
-  const [products, setProducts] = useState([
-    {
-      key: "1",
-      product: {
-        name: "Premium Wireless Headphones",
-        desc: "v2.0 Noise Cancelling",
-        img: "https://via.placeholder.com/150?text=Headphones",
-      },
-      sku: "SKU-WH-992",
-      stock: 84,
-      goal: 100,
-      price: "₹4,499.00",
-      category: "Electronics",
-      status: "In stock",
-      shop: true,
-    },
-    {
-      key: "2",
-      product: {
-        name: "Smart Watch Series 7",
-        desc: "Limited Edition Blue",
-        img: "https://via.placeholder.com/150?text=Watch",
-      },
-      sku: "SKU-SW-001",
-      stock: 8,
-      goal: 50,
-      price: "₹18,999.00",
-      category: "Gadgets",
-      status: "Low Stock",
-      shop: true,
-    },
-    {
-      key: "3",
-      product: {
-        name: "Pro Graphics Tablet",
-        desc: "Stylus Included",
-        img: "https://via.placeholder.com/150?text=Tablet",
-      },
-      sku: "SKU-TB-512",
-      stock: 0,
-      goal: 20,
-      price: "₹32,500.00",
-      category: "Professional",
-      status: "OUT OF STOCK",
-      shop: false,
-    },
-  ]);
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  // Stats Data
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const response = await getProducts();
+      if (response.success) {
+        setProducts(response.data.map(p => ({ ...p, key: p._id, product: { name: p.name, desc: p.description, img: p.img } })));
+      }
+    } catch (error) {
+      toast.error("Failed to fetch inventory");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  // Stats Data calculated dynamically
+  const totalProducts = products.length;
+  const outOfStock = products.filter(p => p.stock === 0).length;
+  const revenue = products.reduce((acc, p) => acc + (p.price * (p.goal - p.stock > 0 ? p.goal - p.stock : 0)), 0);
+
   const cards = [
-    { title: "TOTAL PRODUCTS", value: "1,429", change: "+12%", color: "blue" },
-    { title: "OUT OF STOCK", value: "12", change: "+12%", color: "red" },
-    { title: "REVENUE", value: "₹4.8L", change: "+12%", color: "green" },
+    { title: "TOTAL PRODUCTS", value: totalProducts.toLocaleString(), change: "+0%", color: "blue" },
+    { title: "OUT OF STOCK", value: outOfStock.toString(), change: "+0%", color: "red" },
+    { title: "EST. REVENUE", value: `₹${(revenue/100000).toFixed(1)}L`, change: "+0%", color: "green" },
   ];
 
-  const handleAddProduct = async (newProduct) => {
-    // Simulate API call
-    return new Promise((resolve) => {
-      setTimeout(() => {
-        setProducts(prev => [newProduct, ...prev]);
-        resolve();
-      }, 500);
-    });
+  const handleAddProduct = async (newProductData) => {
+    try {
+      const apiData = {
+        name: newProductData.product.name,
+        description: newProductData.product.desc,
+        img: newProductData.product.img,
+        sku: newProductData.sku,
+        stock: newProductData.stock,
+        goal: newProductData.goal,
+        price: parseFloat(newProductData.price?.replace(/[₹,]/g, "") || "0"),
+        category: newProductData.category,
+        shop: newProductData.shop
+      };
+
+      if (editingProduct) {
+        await updateProduct(editingProduct._id, apiData);
+        toast.success("Product updated");
+      } else {
+        await createProduct(apiData);
+        toast.success("Product added");
+      }
+      fetchProducts();
+    } catch (error) {
+      toast.error("Failed to save product");
+      throw error;
+    }
   };
 
   const confirmDelete = (product) => {
@@ -397,8 +393,16 @@ const Inventory = () => {
     setIsDeleteModalOpen(true);
   };
 
-  const executeDelete = () => {
-    // Handle delete logic here
+  const executeDelete = async () => {
+    if (productToDelete) {
+      try {
+        await deleteProduct(productToDelete._id);
+        toast.success("Product deleted");
+        fetchProducts();
+      } catch (error) {
+        toast.error("Failed to delete product");
+      }
+    }
     setIsDeleteModalOpen(false);
     setProductToDelete(null);
   };

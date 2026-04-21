@@ -4,6 +4,7 @@ const Message = require('../models/Message');
 const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
+const Template = require('../models/Template');
 
 /**
  * WhatsApp Webhook Controller
@@ -413,6 +414,7 @@ async function handleIncomingMessage(data) {
     // Create message record
     const newMessage = await Message.create({
       chatId: chat._id,
+      user: chat.user, // Associate message with chat's owner
       text: messageText,
       sender: 'them',
       time: new Date(parseInt(timestamp) * 1000).toLocaleTimeString([], { 
@@ -765,22 +767,25 @@ exports.getTemplates = async (req, res, next) => {
 
     
     const data = await whatsappService.getTemplates();
+    const allTemplates = Array.isArray(data?.data) ? data.data : [];
     
 
     
-    if (data?.data && Array.isArray(data.data)) {
+    // Get templates owned by this user from our DB
+    const userTemplates = await Template.find({ user: req.user.id });
+    const userTemplateNames = new Set(userTemplates.map(t => t.name));
 
-    }
+    // Filter Graph API templates to only show those owned by this user
+    const filteredTemplates = allTemplates.filter(t => userTemplateNames.has(t.name));
 
-    const templates = Array.isArray(data?.data) ? data.data : [];
-    const approvedTemplates = templates.filter((template) => template.status === 'APPROVED');
-    const nonApprovedTemplates = templates.filter((template) => template.status !== 'APPROVED');
+    const approvedTemplates = filteredTemplates.filter((template) => template.status === 'APPROVED');
+    const nonApprovedTemplates = filteredTemplates.filter((template) => template.status !== 'APPROVED');
     
     res.status(200).json({
       success: true,
-      data: data,
+      data: { data: filteredTemplates },
       summary: {
-        total: templates.length,
+        total: filteredTemplates.length,
         approved: approvedTemplates.length,
         nonApproved: nonApprovedTemplates.length
       },
@@ -834,11 +839,23 @@ exports.createTemplate = async (req, res, next) => {
       });
     }
 
+    // Save template ownership to our DB
+    const templateName = result.templateName || name;
+    await Template.create({
+      name: templateName,
+      whatsappTemplateId: result.data?.id,
+      category: category || 'MARKETING',
+      language: language || 'en_US',
+      components: components || [],
+      user: req.user.id,
+      status: 'PENDING'
+    });
+
     res.status(201).json({
       success: true,
       message: 'Template created successfully',
       data: result.data,
-      templateName: result.templateName || name,
+      templateName: templateName,
       originalTemplateName: result.originalTemplateName || name,
       usedFallbackName: !!result.usedFallbackName
     });
