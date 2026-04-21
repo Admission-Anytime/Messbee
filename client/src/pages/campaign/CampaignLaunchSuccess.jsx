@@ -5,7 +5,6 @@ const CampaignLaunchSuccess = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ Dynamic data (fallback if nothing passed)
   const {
     campaignName = "Dev Demo Q3",
     contacts = 1248,
@@ -15,7 +14,6 @@ const CampaignLaunchSuccess = () => {
 
   const [isLive, setIsLive] = useState(true);
 
-  // Optional: fake pulse / status effect
   useEffect(() => {
     const timer = setTimeout(() => setIsLive(true), 500);
     return () => clearTimeout(timer);
@@ -30,22 +28,24 @@ const CampaignLaunchSuccess = () => {
 
       <div className="max-w-2xl w-full text-center space-y-8">
 
-        {/* 🔥 Glow + Success Icon */}
-        <div className="relative inline-flex items-center justify-center">
-          
-          {/* Glow */}
-          <div className="absolute inset-0 bg-green-500/20 rounded-full blur-3xl scale-[1.8] animate-pulse"></div>
-
-          {/* Outer Circle */}
-          <div className="relative w-24 h-24 bg-green-100 dark:bg-green-900 rounded-full flex items-center justify-center border-4 border-white dark:border-slate-800 shadow-xl">
-
-            {/* Inner Circle */}
-            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-green-500/30">
-              <span className="material-symbols-outlined text-4xl font-bold">
-                check
-              </span>
-            </div>
-          </div>
+        {/* ✅ Clean Success Icon */}
+        <div className="flex items-center justify-center">
+         <div className="w-16 h-16 rounded-full bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-[0_8px_25px_rgba(34,197,94,0.4)]">
+       <svg
+         xmlns="http://www.w3.org/2000/svg"
+         className="w-8 h-8 text-white"
+  fill="none"
+        viewBox="0 0 24 24"
+         stroke="currentColor"
+          strokeWidth={3}
+          >
+         <path
+            strokeLinecap="round"
+          strokeLinejoin="round"
+          d="M5 13l4 4L19 7"
+          />
+        </svg>
+       </div>  
         </div>
 
         {/* 🧠 Heading */}
@@ -108,44 +108,61 @@ const CampaignLaunchSuccess = () => {
         </div>
 
         {/* 🎯 Buttons */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
+        <div className="max-w-md mx-auto flex gap-3 pt-4">
 
           <button
             onClick={() => navigate("/admin/analytic")}
-            className="w-full sm:w-auto px-8 py-3.5 bg-green-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+            className="flex-1 px-6 py-2.5 bg-green-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-500/20 active:scale-95"
           >
-            <span className="material-symbols-outlined text-lg">
-              insights
-            </span>
+            <svg
+          xmlns="http://www.w3.org/2000/svg"
+         className="w-5 h-5"
+          fill="none"
+           viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+          >
+        <path
+         strokeLinecap="round"
+          strokeLinejoin="round"
+         d="M3 17l6-6 4 4 8-8"
+          />
+          </svg>
             View Live Analytics
           </button>
 
           <button
             onClick={() => navigate("/admin/campaign")}
-            className="w-full sm:w-auto px-8 py-3.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2"
+            className="flex-1 px-6 py-2.5 bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
           >
-            <span className="material-symbols-outlined text-lg">
-              arrow_back
-            </span>
+            <svg
+            xmlns="http://www.w3.org/2000/svg"
+            className="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+            >
+          <path
+          strokeLinecap="round"
+        strokeLinejoin="round"
+         d="M15 19l-7-7 7-7"
+        />
+       </svg>
             Back to Campaigns
           </button>
         </div>
 
         {/* Footer */}
-        <p className="text-[11px] text-slate-400 font-medium">
-          A confirmation report will be sent to your registered email once completed.
+               {/* Footer */}
+        <p className="text-[10px] text-slate-400 font-normal text-center max-w-md mx-auto whitespace-nowrap overflow-hidden text-ellipsis">
+          A confirmation report will be sent to your email once completed.
         </p>
       </div>
 
-      {/* 🌙 Dark Mode Toggle */}
-      <button
-        onClick={toggleTheme}
-        className="fixed bottom-6 right-6 w-12 h-12 bg-slate-800 dark:bg-white text-white dark:text-slate-800 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform z-[60]"
-      >
-        <span className="material-symbols-outlined">contrast</span>
-      </button>
+
     </div>
-  );
+);
 };
 
 export default CampaignLaunchSuccess;
