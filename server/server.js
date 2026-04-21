@@ -47,7 +47,7 @@ const corsOptions = {
     ].filter(Boolean);
 
     // Allow any subdomain or explicitly allowed origins
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));

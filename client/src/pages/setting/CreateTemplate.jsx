@@ -3,14 +3,19 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
-const Templates = () => {
+import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
+import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
+const CreateTemplate = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ✅ KEY FIX: gallery vs direct create
+  const isEditing = location.state?.isEditing;
+  const isDuplicate = location.state?.isDuplicate;
+  const templateData = location.state?.templateData;
+
+  // ✅ KEY FIX: gallery vs direct create vs edit
   const [view, setView] = useState(
-    location.state?.editTemplate ? 'content' : (location.state?.fromGallery ? 'setup' : 'choose')
+    isEditing ? 'content' : (isDuplicate || location.state?.fromGallery ? 'setup' : 'choose')
   );
 
   const [templateType, setTemplateType] = useState('CUSTOM');
@@ -19,8 +24,16 @@ const Templates = () => {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [bodyVariables, setBodyVariables] = useState([]);
-  const [bodySamples, setBodySamples] = useState({});
-  const [headerMedia, setHeaderMedia] = useState(null);
+  const [bodySamples, setBodySamples] = useState(location.state?.templateData?.bodySamples || {});
+  const [headerMedia, setHeaderMedia] = useState(
+    location.state?.templateData?.headerMediaUrl 
+      ? { 
+          preview: location.state.templateData.headerMediaUrl, 
+          type: location.state.templateData.headerType?.toLowerCase() || 'image',
+          name: 'Existing Media'
+        } 
+      : null
+  );
   const headerFileRef = useRef(null);
 
   const EMOJIS = [
@@ -33,13 +46,14 @@ const Templates = () => {
   // Initialize editor with bodyText on mount
   useEffect(() => {
     if (editorRef.current) {
-      editorRef.current.innerHTML = formData.bodyText;
+      // Ensure we render the markdown as HTML in the editor
+      editorRef.current.innerHTML = formatWhatsAppMarkdown(formData.bodyText);
       const plainText = editorRef.current.innerText;
       setCharCount(plainText.length);
       syncBodyVariableState(plainText);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]); // re-run when view changes so editor always has initial content
+  }, [view]);
 
   const extractBodyVariables = (text = '') => {
     const matches = text.match(/\{\{\s*(\d+)\s*\}\}/g) || [];
@@ -103,17 +117,28 @@ const Templates = () => {
   };
 
   const [formData, setFormData] = useState({
-    category: 'Marketing',
-    name: '',
-    language: 'English (US)',
+    category: (location.state?.templateData?.category 
+      ? location.state.templateData.category.charAt(0).toUpperCase() + location.state.templateData.category.slice(1).toLowerCase() 
+      : 'Marketing'),
+    name: location.state?.templateData?.name || '',
+    language: location.state?.templateData?.language || 'English (US)',
     offerTitle: '20% OFF',
-    headerType: 'None',
-    bodyText: 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
-    footerText: 'Reply STOP to opt out',
+    headerType: location.state?.templateData?.headerType || 'None',
+    bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
+    footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
     expirationDate: '24h',
   });
 
+  // Prepopulate buttons if editing
+  useEffect(() => {
+    if (location.state?.templateData?.buttons) {
+      setButtons(location.state.templateData.buttons);
+    }
+  }, [location.state]);
+
   const handleCategoryChange = (cat) => {
+    if (formData.category === cat) return; // Skip if no change
+    
     let newBody = '';
     if (cat === 'Marketing') {
       newBody = 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!';
@@ -210,7 +235,48 @@ const Templates = () => {
     }
     
     const bodyText = formData.bodyText.trim();
-    const strippedBody = editorRef.current ? editorRef.current.innerText : bodyText.replace(/<[^>]+>/g, '');
+    
+    // Convert HTML formatting to WhatsApp Markdown formatting
+    let markdownBody = bodyText;
+    if (editorRef.current) {
+        let html = editorRef.current.innerHTML;
+        // Convert breaks to newlines
+        html = html.replace(/<br\s*\/?>/gi, '\n');
+        html = html.replace(/<\/div>/gi, '\n');
+        html = html.replace(/<\/p>/gi, '\n');
+        // Replace formats with trimmed content inside markers to ensure WhatsApp compatibility
+        // WhatsApp markdown markers (*, _, ~) must be immediately adjacent to non-whitespace characters
+        const formatReplacer = (marker) => (match, tag, content) => {
+            // Strip any internal HTML tags first
+            const textOnly = content.replace(/<[^>]+>/g, '');
+            // Get leading and trailing whitespace
+            const leading = textOnly.match(/^\s*/)[0];
+            const trailing = textOnly.match(/\s*$/)[0];
+            // Trim the core content
+            const trimmed = textOnly.trim();
+            
+            // If there's content, return it with markers tight around the trimmed text, 
+            // and original spacing preserved OUTSIDE the markers.
+            if (trimmed) {
+                return `${leading}${marker}${trimmed}${marker}${trailing}`;
+            }
+            return textOnly;
+        };
+
+        html = html.replace(/<(b|strong)>([\s\S]*?)<\/\1>/gi, formatReplacer('*'));
+        html = html.replace(/<(i|em)>([\s\S]*?)<\/\1>/gi, formatReplacer('_'));
+        html = html.replace(/<(strike|s)>([\s\S]*?)<\/\1>/gi, formatReplacer('~'));
+        // Strip remaining tags
+        html = html.replace(/<[^>]+>/g, '');
+        // Decode HTML entities (e.g. &nbsp;)
+        const textarea = document.createElement('textarea');
+        textarea.innerHTML = html;
+        markdownBody = textarea.value.trim();
+    } else {
+        markdownBody = bodyText.replace(/<[^>]+>/g, '');
+    }
+    
+    const strippedBody = markdownBody;
     const templateVariables = extractBodyVariables(strippedBody);
 
     if (bodyText.length < 20) {
@@ -249,11 +315,17 @@ const Templates = () => {
         inputName = String(formData.name || '');
       }
       
-      // Ensure inputName is always a string before calling methods
+      // Ensure waName is always a string before calling methods
       inputName = String(inputName).trim();
       
       // Format the name
       waName = inputName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+      // Force waName to originalName if editing to ensure we update the existing template
+      const originalName = typeof templateData?.name === 'string' ? templateData.name : '';
+      if (isEditing && originalName) {
+        waName = originalName;
+      }
     } catch (err) {
       console.error('Error processing template name:', err);
       toast.error("Error processing template name. Please try again.");
@@ -302,21 +374,24 @@ const Templates = () => {
           // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
-            format: 'IMAGE'
+            format: 'IMAGE',
+            example: { header_url: [mediaHeaderExamples.Image] }
           });
         } else if (formData.headerType === 'Video') {
           // Keep media header payload minimal; invalid sample handles/URLs often trigger
           // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
-            format: 'VIDEO'
+            format: 'VIDEO',
+            example: { header_url: [mediaHeaderExamples.Video] }
           });
         } else if (formData.headerType === 'Document') {
           // Keep media header payload minimal; invalid sample handles/URLs often trigger
           // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
-            format: 'DOCUMENT'
+            format: 'DOCUMENT',
+            example: { header_url: [mediaHeaderExamples.Document] }
           });
         }
       }
@@ -359,8 +434,20 @@ const Templates = () => {
 
 
       let createdTemplateResponse = null;
+      const originalName = typeof templateData?.name === 'string' ? templateData.name : '';
+      
+      const submitTemplate = async (payload) => {
+        if (isEditing && templateData?.id) {
+          console.log(`Updating existing template: ${originalName} (ID: ${templateData.id})`);
+          return await updateWhatsAppTemplate(templateData.id, { components: payload.components });
+        }
+        
+        console.log(`Creating new template: ${waName}`);
+        return await createWhatsAppTemplate(payload);
+      };
+
       try {
-        createdTemplateResponse = await createWhatsAppTemplate(templatePayload);
+        createdTemplateResponse = await submitTemplate(templatePayload);
       } catch (primaryError) {
         const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
         const payloadWithoutHeader = {
@@ -388,8 +475,8 @@ const Templates = () => {
         if (hasMediaHeader) {
           try {
             console.warn('⚠️ Media header template creation failed, retrying without HEADER component');
-            createdTemplateResponse = await createWhatsAppTemplate(payloadWithoutHeader);
-            toast.warn('Template created without media header sample due to WhatsApp validation constraints.');
+            createdTemplateResponse = await submitTemplate(payloadWithoutHeader);
+            toast.warn('Template saved without media header sample due to WhatsApp validation constraints.');
             recovered = true;
           } catch (errorWithoutHeader) {
             primaryError = errorWithoutHeader;
@@ -399,8 +486,8 @@ const Templates = () => {
         if (!recovered && isInvalidParameterError(primaryError)) {
           try {
             console.warn('⚠️ Invalid parameter from WhatsApp API, retrying with BODY/FOOTER only');
-            createdTemplateResponse = await createWhatsAppTemplate(payloadBodyFooterOnly);
-            toast.warn('Template created with simplified components due to WhatsApp parameter validation.');
+            createdTemplateResponse = await submitTemplate(payloadBodyFooterOnly);
+            toast.warn('Template saved with simplified components due to WhatsApp parameter validation.');
             recovered = true;
           } catch (errorBodyFooter) {
             primaryError = errorBodyFooter;
@@ -410,8 +497,8 @@ const Templates = () => {
         if (!recovered && isInvalidParameterError(primaryError)) {
           try {
             console.warn('⚠️ Invalid parameter persists, retrying with sanitized BODY-only payload');
-            createdTemplateResponse = await createWhatsAppTemplate(payloadBodyOnlySanitized);
-            toast.warn('Template created with BODY-only payload due to WhatsApp parameter validation.');
+            createdTemplateResponse = await submitTemplate(payloadBodyOnlySanitized);
+            toast.warn('Template saved with BODY-only payload due to WhatsApp parameter validation.');
             recovered = true;
           } catch (errorBodyOnly) {
             primaryError = errorBodyOnly;
@@ -440,9 +527,8 @@ const Templates = () => {
         });
       }
       
-      // Template created successfully on WhatsApp API
-      // No need to save locally - always fetch from API
-      showToast("Template submitted successfully to WhatsApp!");
+      // Template saved/updated successfully
+      showToast(isEditing ? "Template updated successfully!" : "Template submitted successfully to WhatsApp!");
       setTimeout(() => {
         navigate('/admin/templates/list');
       }, 1500);
@@ -555,23 +641,32 @@ const Templates = () => {
       <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
         <div className="max-w-3xl mx-auto space-y-5 pb-20">
           <div className="flex items-center justify-between mb-4">
-            <button onClick={() => setView('choose')} className="flex items-center gap-2 text-gray-500 font-semibold hover:text-gray-800 text-sm transition-colors">
-                <ArrowLeft size={16}/> Back
+            <button
+              onClick={() => view === 'setup' ? (isEditing || isDuplicate ? navigate('/admin/templates/list') : setView('choose')) : setView('setup')}
+              className="flex items-center gap-2 text-gray-500 font-semibold hover:text-gray-800 text-sm transition-colors"
+            >
+                <ArrowLeft size={16}/> {view === 'setup' && (isEditing || isDuplicate) ? 'Back to Templates' : 'Back'}
             </button>
             <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                {view === 'setup' ? 'Step 1 of 2: Setup' : 'Step 2 of 2: Content'}
+                {view === 'setup' ? (isEditing ? 'Step 1 of 2: Edit Setup' : 'Step 1 of 2: Setup') : (isEditing ? 'Step 2 of 2: Edit Content' : 'Step 2 of 2: Content')}
             </div>
           </div>
 
           {view === 'setup' ? (
             <div className="space-y-5">
                 <div className="bg-white rounded-xl p-6 md:p-8 border border-gray-200 shadow-sm space-y-4 md:space-y-5">
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">Set Up Your Template</h2>
+                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">
+                      {isEditing ? 'Edit Your Template' : 'Set Up Your Template'}
+                    </h2>
                     <div className="space-y-2">
                         <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Choose Category</label>
                         <div className="bg-gray-50 p-1 rounded-xl flex flex-wrap gap-1 border border-gray-100">
                             {['Marketing', 'Utility', 'Authentication'].map(cat => (
-                                <button key={cat} onClick={() => handleCategoryChange(cat)} className={`flex-1 min-w-[100px] py-3 md:py-4 px-3 rounded-lg flex items-center justify-center gap-2 text-xs md:text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400'}`}>
+                                <button 
+                                  key={cat} 
+                                  onClick={() => handleCategoryChange(cat)} 
+                                  className={`flex-1 min-w-[100px] py-3 md:py-4 px-3 rounded-lg flex items-center justify-center gap-2 text-xs md:text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
                                     {cat === 'Marketing' && <Send size={12}/>} {cat}
                                 </button>
                             ))}
@@ -606,7 +701,14 @@ const Templates = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Template Name</label>
-                            <input type="text" placeholder="Enter template name..." className="w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                            <input 
+                              type="text" 
+                              placeholder="Enter template name..." 
+                              disabled={isEditing}
+                              value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
+                              className={`w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              onChange={(e) => setFormData({...formData, name: e.target.value})} 
+                            />
                             {formData.name && (
                               <div className="text-xs text-gray-500 mt-1">
                                 <span className="text-gray-600 font-medium">WhatsApp name:</span>{' '}
@@ -618,7 +720,15 @@ const Templates = () => {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Languages</label>
-                            <select className="w-full p-4 md:p-5 border border-gray-200 rounded-lg bg-white outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"><option>English (US)</option><option>Hindi</option></select>
+                            <select 
+                              disabled={isEditing}
+                              className={`w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              value={formData.language} 
+                              onChange={(e) => setFormData({...formData, language: e.target.value})}
+                            >
+                                <option>English (US)</option>
+                                <option>Hindi</option>
+                            </select>
                         </div>
                     </div>
 
@@ -630,7 +740,6 @@ const Templates = () => {
             </div>
           ) : (
             <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-500">
-                {(formData.category === 'Marketing' || templateType === 'LIMITED_TIME_OFFER') && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
                         <div className="w-6 h-6 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"><Clock size={14}/></div>
@@ -641,21 +750,26 @@ const Templates = () => {
                             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Name your template</label>
                             <input 
                               type="text" 
+                              disabled={isEditing}
                               value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
                               onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                              className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                             />
                         </div>
                         <div className="space-y-3">
                             <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Select language</label>
-                            <select className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" value={formData.language} onChange={(e) => setFormData({...formData, language: e.target.value})}>
+                            <select 
+                              disabled={isEditing}
+                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              value={formData.language} 
+                              onChange={(e) => setFormData({...formData, language: e.target.value})}
+                            >
                                 <option>English (US)</option>
                                 <option>Hindi</option>
                             </select>
                         </div>
                     </div>
                 </div>
-                )}
                 {formData.category !== 'Authentication' && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm mt-5">
                     <div className="mb-8 border-b border-gray-100 pb-6">
@@ -913,16 +1027,16 @@ const Templates = () => {
                 </div>
                 )}
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-6">
-                    <button onClick={() => setView('setup')} className="text-gray-500 font-semibold text-sm hover:text-gray-800 transition-colors px-4 py-2 order-2 sm:order-1">Previous Step</button>
+                    <button onClick={() => setView('setup')} className="text-gray-500 font-semibold text-sm hover:text-gray-800 transition-colors px-4 py-2 order-2 sm:order-1">← Previous Step</button>
 
                     <button onClick={handleSubmit} disabled={isSubmitting} className="w-full sm:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all order-1 sm:order-2 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
                       {isSubmitting ? (
                         <>
                           <RotateCw size={16} className="animate-spin" />
-                          Submitting...
+                          {isEditing ? 'Saving...' : 'Submitting...'}
                         </>
                       ) : (
-                        'Submit Template'
+                        isEditing ? 'Save Changes' : 'Submit Template'
                       )}
                     </button>
                 </div>
@@ -1024,7 +1138,7 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
           )}
           <div className="p-4 md:p-5">
             <p className="text-xs text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name || 'TEMPLATE_NAME'}]</p>
-            <p className="text-sm md:text-base text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-line">{body}</p>
+            <div className="text-sm md:text-base text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
             
             {isLimited && (
                 <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-100 flex items-center justify-between">
@@ -1048,4 +1162,4 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
   </div>
 );
 
-export default Templates;
+export default CreateTemplate;

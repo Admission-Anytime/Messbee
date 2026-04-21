@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
 import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
+import { formatWhatsAppMarkdown } from "../../utils/markdownParser";
 import {
    PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
@@ -845,7 +846,12 @@ const Conversion = ({
                                     )}
                                  </div>
                               )}
-                              {msg.text && <p className="leading-relaxed">{msg.text}</p>}
+                              {msg.text && (
+                                 <div 
+                                    className="leading-relaxed whitespace-pre-wrap" 
+                                    dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(msg.text) }} 
+                                 />
+                              )}
                               {msg.sender === "me" && msg.status === 'failed' && (
                                  <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
                               )}
@@ -1004,7 +1010,10 @@ const Conversion = ({
                                              Approved
                                           </span>
                                        </div>
-                                       <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{bodyPreview}</p>
+                                       <div 
+                                          className="text-xs text-slate-500 leading-relaxed line-clamp-2"
+                                          dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(bodyPreview) }}
+                                       />
                                        <div className="mt-3 flex gap-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest">
                                           <span>{template.category || "General"}</span>
                                           <span>{template.language || "en_US"}</span>
@@ -1044,9 +1053,10 @@ const Conversion = ({
                                           <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
                                              <MegaphoneIcon className="w-4.5 h-4.5 text-emerald-700" />
                                           </div>
-                                          <div className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200">
-                                             {previewTemplate.bodyText}
-                                          </div>
+                                          <div 
+                                             className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200 whitespace-pre-wrap"
+                                             dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(previewTemplate.bodyText) }}
+                                          />
                                        </div>
                                     )}
                                  </div>
@@ -1121,7 +1131,10 @@ const Conversion = ({
                                  <SolidCheckCircle className="w-3.5 h-3.5 text-emerald-700" />
                               </div>
                               <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
-                                 <p className="text-sm text-slate-800 leading-relaxed">{confirmPreviewText}</p>
+                                 <div 
+                                    className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap"
+                                    dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(confirmPreviewText) }}
+                                 />
                                  <div className="flex items-center justify-end gap-1 mt-2">
                                     <span className="text-[10px] text-slate-500">{new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                                     <CheckIcon className="w-3.5 h-3.5 text-emerald-500" />

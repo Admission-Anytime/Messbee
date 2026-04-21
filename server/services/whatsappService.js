@@ -1005,21 +1005,16 @@ class WhatsAppService {
         const isTemplateLanguageAlreadyExists = errorSubcode === 2388024;
 
         if (isTemplateLanguageAlreadyExists) {
-          const suggestedName = generateSuggestedTemplateName(name);
-          console.warn(`⚠️ Template language already exists for "${name}". Retrying with "${suggestedName}"`);
-          try {
-            response = await makeTemplateRequest(suggestedName);
-            return {
-              success: true,
-              data: response.data,
-              templateName: suggestedName,
-              usedFallbackName: true,
+          return {
+            success: false,
+            error: {
+              message: `A template with the name "${name}" already exists. Please use a different name or edit the existing template.`,
+              code: error.response?.data?.error?.code,
+              errorSubcode: isTemplateLanguageAlreadyExists,
+              title: 'Template Already Exists',
               originalTemplateName: name
-            };
-          } catch (renameRetryError) {
-            console.error('❌ Retry with suggested name failed:', renameRetryError.response?.data || renameRetryError.message);
-            throw renameRetryError;
-          }
+            }
+          };
         }
 
         if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion && hasMediaHeader) {

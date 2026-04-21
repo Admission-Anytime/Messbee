@@ -544,21 +544,23 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
     try {
       setOpenMenuId(null);
+      
+      // Optimistic UI update
+      setChatModifications(prev => ({
+        ...prev,
+        blocked: {
+          ...prev.blocked,
+          [chatId]: !isCurrentlyBlocked
+        },
+        status: {
+          ...prev.status,
+          [chatId]: newStatus
+        }
+      }));
+
       if (onUpdateStatus) {
         onUpdateStatus(chatId, newStatus);
       } else {
-        // Optimistic UI for local component without parent sync
-        setChatModifications(prev => ({
-          ...prev,
-          blocked: {
-            ...prev.blocked,
-            [chatId]: !isCurrentlyBlocked
-          },
-          status: {
-            ...prev.status,
-            [chatId]: newStatus
-          }
-        }));
         await chatService.updateChatStatus(chatId, newStatus);
       }
     } catch (error) {
