@@ -197,7 +197,7 @@ function AddProductDrawer({ isOpen, onClose, onSave, editingProduct }) {
                 placeholder="Enter product description"
                 value={formData.desc}
                 onChange={(e) => updateField("desc", e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
+                className="w-full rounded-lg border border-gray-300 px-3.5 py-2.5 text-sm text-gray-800 outline-none transition-all placeholder:text-gray-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
               />
             </div>
 
