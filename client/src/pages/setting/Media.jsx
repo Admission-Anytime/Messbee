@@ -4,6 +4,7 @@ import axios from "../../context/axios";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TABS = ["All Assets", "Images", "Videos", "Documents", "Audio"];
+const MEDIA_VIEW_MODE_KEY = "messbee_media_view_mode";
 
 const BADGE_CONFIG = {
   IMAGE:   { label: "Image",    bg: "bg-emerald-100", text: "text-emerald-700", dot: "bg-emerald-400" },
@@ -36,6 +37,11 @@ function getAssetType(file) {
 function formatBytes(bytes) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function withPdfPreviewParams(url) {
+  if (!url) return "";
+  return `${url}${url.includes("?") ? "&" : "?"}toolbar=0&navpanes=0&scrollbar=0`;
 }
 
 // ─── Delete Confirm Modal ──────────────────────────────────────────────────────
@@ -97,6 +103,8 @@ function TypeBadge({ type, size = "sm" }) {
 function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const fi = FILE_ICONS[asset.type] || FILE_ICONS.IMAGE;
+  const previewSrc = asset.thumb || ((asset.type === "IMAGE" || asset.type === "VIDEO") ? asset.url : "");
+  const pdfPreviewSrc = asset.type === "PDF" ? withPdfPreviewParams(asset.url) : "";
 
   if (viewMode === "list") {
     return (
@@ -169,8 +177,22 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
 
       {/* Thumbnail */}
       <div className="relative h-40 bg-gray-50 flex items-center justify-center overflow-hidden">
-        {asset.thumb ? (
-          <img src={asset.thumb} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        {previewSrc && asset.type === "IMAGE" ? (
+          <img src={previewSrc} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : previewSrc && asset.type === "VIDEO" ? (
+          <video
+            src={previewSrc}
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : asset.type === "AUDIO" && asset.url ? (
+          <div className="w-full h-full flex items-center justify-center p-3 bg-violet-50">
+            <audio src={asset.url} controls className="w-full max-w-[92%] h-9" preload="metadata" />
+          </div>
+        ) : asset.type === "PDF" && pdfPreviewSrc ? (
+          <iframe title={asset.name} src={pdfPreviewSrc} className="w-full h-full border-0" />
         ) : (
           <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center ${fi.color}`}>{fi.icon("w-8 h-8")}</div>
         )}
@@ -248,16 +270,41 @@ function NewAssetCard({ onClick }) {
 }
 
 // ─── Upload File Row ────────────────────────────────────────────────────────────
-function UploadFileRow({ file, onCompleted }) {
+function UploadFileRow({ file, preError, onCompleted }) {
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("uploading"); // uploading | processing | done | error
+  const [errorMessage, setErrorMessage] = useState("");
+  const [localPreview, setLocalPreview] = useState("");
   const fi = FILE_ICONS[getAssetType(file)] || FILE_ICONS.IMAGE;
+  const fileType = getAssetType(file);
   // Guard: prevent React 18 StrictMode double-invoke from uploading twice
   const didUpload = useRef(false);
 
   useEffect(() => {
+    if (!["IMAGE", "VIDEO", "AUDIO", "PDF"].includes(fileType)) {
+      setLocalPreview("");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setLocalPreview(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [file, fileType]);
+
+  useEffect(() => {
     if (didUpload.current) return; // already started
     didUpload.current = true;
+
+    if (preError) {
+      setStatus("error");
+      setErrorMessage(preError);
+      setProgress(100);
+      onCompleted(null);
+      return;
+    }
 
     const uploadFile = async () => {
       try {
@@ -267,7 +314,7 @@ function UploadFileRow({ file, onCompleted }) {
         const response = await axios.post("/media", formData, {
           onUploadProgress: (progressEvent) => {
             if (progressEvent.total) {
-              const pct = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+              const pct = Math.min(100, Math.max(0, Math.round((progressEvent.loaded * 100) / progressEvent.total)));
               setProgress(pct);
               if (pct >= 100) setStatus("processing");
             }
@@ -281,19 +328,21 @@ function UploadFileRow({ file, onCompleted }) {
         } else {
           setStatus("error");
           const msg = response.data?.message || "Upload failed";
+          setErrorMessage(msg);
           toast.error(`${file.name}: ${msg}`);
           onCompleted(null);
         }
       } catch (err) {
         setStatus("error");
         const msg = err.response?.data?.message || err.message || "Upload failed";
+        setErrorMessage(msg);
         toast.error(`${file.name}: ${msg}`);
         onCompleted(null);
       }
     };
 
     uploadFile();
-  }, []);
+  }, [file, onCompleted, preError]);
 
   const statusIcon = status === "done"
     ? <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
@@ -306,23 +355,43 @@ function UploadFileRow({ file, onCompleted }) {
   const barColor = status === "error" ? "bg-red-400" : "bg-green-500";
 
   return (
-    <div className={`border rounded-xl px-4 py-3 ${
+    <div className={`border rounded-xl px-4 py-3 overflow-hidden ${
       status === "done" ? "bg-green-50 border-green-100" :
       status === "error" ? "bg-red-50 border-red-100" :
       "bg-white border-gray-100"
     }`}>
       <div className="flex items-center gap-3 mb-2">
-        <div className={`w-9 h-9 rounded-lg ${fi.bg} flex items-center justify-center flex-shrink-0 ${fi.color}`}>{fi.icon("w-5 h-5")}</div>
+        <div className={`w-10 h-10 rounded-lg overflow-hidden flex items-center justify-center flex-shrink-0 ${localPreview ? "bg-gray-100" : `${fi.bg} ${fi.color}`}`}>
+          {localPreview && fileType === "IMAGE" ? (
+            <img src={localPreview} alt={file.name} className="w-full h-full object-cover" />
+          ) : localPreview && fileType === "VIDEO" ? (
+            <video src={localPreview} className="w-full h-full object-cover" muted playsInline preload="metadata" />
+          ) : localPreview && fileType === "AUDIO" ? (
+            <div className="w-full h-full flex items-center justify-center bg-violet-100 text-violet-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+            </div>
+          ) : localPreview && fileType === "PDF" ? (
+            <div className="w-full h-full flex items-center justify-center bg-blue-100 text-blue-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+            </div>
+          ) : (
+            fi.icon("w-5 h-5")
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-gray-800 truncate">{file.name}</p>
-          <p className="text-xs text-gray-400">{formatBytes(file.size)}</p>
+          {status === "error" && errorMessage ? (
+            <p className="text-xs text-red-500 truncate">{errorMessage}</p>
+          ) : (
+            <p className="text-xs text-gray-400">{formatBytes(file.size)}</p>
+          )}
         </div>
         {statusIcon}
       </div>
       <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
         <div
           className={`h-full ${barColor} rounded-full transition-all duration-200`}
-          style={{ width: `${progress}%` }}
+          style={{ width: `${Math.min(100, Math.max(0, progress))}%` }}
         />
       </div>
     </div>
@@ -339,12 +408,13 @@ const TAB_ACCEPT = {
 };
 
 // ─── Upload Modal ───────────────────────────────────────────────────────────────
-function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets" }) {
+function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets", existingAssets = [] }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploadFiles, setUploadFiles] = useState([]);
   const [completedCount, setCompletedCount] = useState(0); // files that finished (success OR error)
   const [successAssets, setSuccessAssets] = useState([]);  // only successfully uploaded assets
   const fileInputRef = useRef();
+  const rollingBackRef = useRef(false);
 
   useEffect(() => {
     if (!open) {
@@ -355,10 +425,59 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
   }, [open]);
 
   const handleFiles = (files) => {
-    const valid = Array.from(files).filter((f) => f.size <= 25 * 1024 * 1024);
-    const oversized = Array.from(files).filter((f) => f.size > 25 * 1024 * 1024);
-    if (oversized.length) toast.error(`${oversized.length} file(s) exceed 25MB limit`);
-    if (valid.length) setUploadFiles((prev) => [...prev, ...valid]);
+    const incoming = Array.from(files || []);
+    if (!incoming.length) return;
+
+    const normalizeName = (name) => String(name || "").trim().toLowerCase();
+    const existingNameSet = new Set(
+      existingAssets
+        .map((a) => normalizeName(a?.name))
+        .filter(Boolean)
+    );
+
+    const queuedSignatureSet = new Set(
+      uploadFiles.map((entry) => `${normalizeName(entry.file?.name)}__${entry.file?.size}__${entry.file?.type}`)
+    );
+
+    const batchSignatureSet = new Set();
+    const nextEntries = [];
+    let oversizedCount = 0;
+    let duplicateCount = 0;
+
+    incoming.forEach((file, idx) => {
+      if (file.size > 25 * 1024 * 1024) {
+        oversizedCount += 1;
+        return;
+      }
+
+      const nameKey = normalizeName(file.name);
+      const signature = `${nameKey}__${file.size}__${file.type}`;
+      const isDuplicate =
+        existingNameSet.has(nameKey) ||
+        queuedSignatureSet.has(signature) ||
+        batchSignatureSet.has(signature);
+
+      if (isDuplicate) {
+        duplicateCount += 1;
+        nextEntries.push({
+          id: `${Date.now()}-dup-${idx}-${file.name}`,
+          file,
+          preError: `Duplicate file: ${file.name}`,
+        });
+        return;
+      }
+
+      batchSignatureSet.add(signature);
+      nextEntries.push({
+        id: `${Date.now()}-ok-${idx}-${file.name}`,
+        file,
+        preError: "",
+      });
+    });
+
+    if (oversizedCount) toast.error(`${oversizedCount} file(s) exceed 25MB limit`);
+    if (duplicateCount) toast.error(`${duplicateCount} duplicate file(s) skipped`);
+    if (nextEntries.length) setUploadFiles((prev) => [...prev, ...nextEntries]);
   };
 
   const handleDrop = (e) => {
@@ -385,15 +504,39 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
     }
   };
 
+  const handleRequestClose = async () => {
+    if (rollingBackRef.current) return;
+
+    const uploadedThisSession = successAssets
+      .map((asset) => asset?._id || asset?.id)
+      .filter(Boolean);
+
+    if (uploadedThisSession.length > 0) {
+      try {
+        rollingBackRef.current = true;
+        await Promise.allSettled(
+          uploadedThisSession.map((id) => axios.delete(`/media/${id}`))
+        );
+        toast.info("Upload canceled. Files were not saved.");
+      } catch (err) {
+        // Ignore rollback failures here to keep close flow reliable.
+      } finally {
+        rollingBackRef.current = false;
+      }
+    }
+
+    onClose();
+  };
+
   // Done is enabled when every queued file has completed (success OR error)
   const allDone = uploadFiles.length > 0 && completedCount >= uploadFiles.length;
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/30 backdrop-blur-sm" onClick={handleRequestClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[92vh] overflow-hidden flex flex-col"
         style={{ animation: "popIn 0.25s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -403,16 +546,16 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
             <h3 className="text-xl font-bold text-gray-900">Upload Assets</h3>
             <p className="text-sm text-gray-400 mt-0.5">Max file size 25MB</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition text-xl">×</button>
+          <button onClick={handleRequestClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition text-xl">×</button>
         </div>
 
-        <div className="px-6 pb-6">
+        <div className="px-6 pb-6 overflow-y-auto">
           {/* Drop Zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
             onDragLeave={() => setDragOver(false)}
             onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center gap-3 transition-all duration-200 mb-5 ${
+            className={`border-2 border-dashed rounded-2xl p-5 sm:p-8 flex flex-col items-center gap-3 transition-all duration-200 mb-5 ${
               dragOver ? "border-green-400 bg-green-50" : "border-green-200 bg-green-50/40"
             }`}
           >
@@ -462,11 +605,12 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
                   </span>
                 )}
               </div>
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
-                {uploadFiles.map((file, idx) => (
+              <div className="space-y-3 max-h-56 sm:max-h-64 overflow-y-auto pr-1">
+                {uploadFiles.map((entry) => (
                   <UploadFileRow
-                    key={`${file.name}-${idx}`}
-                    file={file}
+                    key={entry.id}
+                    file={entry.file}
+                    preError={entry.preError}
                     onCompleted={handleFileCompleted}
                   />
                 ))}
@@ -477,7 +621,7 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
           {/* Footer */}
           <div className="flex items-center justify-end gap-3">
             <button
-              onClick={onClose}
+              onClick={handleRequestClose}
               className="px-5 py-2 text-sm font-semibold text-gray-600 hover:text-gray-800 transition"
             >
               Cancel
@@ -503,7 +647,11 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function MediaGallery() {
   const [activeTab, setActiveTab] = useState("All Assets");
-  const [viewMode, setViewMode] = useState("grid"); // grid | list
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window === "undefined") return "grid";
+    const saved = window.localStorage.getItem(MEDIA_VIEW_MODE_KEY);
+    return saved === "list" || saved === "grid" ? saved : "grid";
+  }); // grid | list
   const [search, setSearch] = useState("");
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -530,6 +678,12 @@ export default function MediaGallery() {
   useEffect(() => {
     fetchMedia();
   }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(MEDIA_VIEW_MODE_KEY, viewMode);
+    }
+  }, [viewMode]);
 
   const handleSelect = (id) => {
     setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
@@ -613,6 +767,7 @@ export default function MediaGallery() {
         onClose={() => setShowUpload(false)}
         onUploadComplete={handleUploadComplete}
         activeTab={activeTab}
+        existingAssets={assets}
       />
 
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -718,9 +873,9 @@ export default function MediaGallery() {
 
           {/* Assets Grid / List */}
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-4 gap-4" style={{ animation: "fadeUp 0.3s ease" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animation: "fadeUp 0.3s ease" }}>
               {loading ? (
-                <div className="col-span-4 py-20 flex flex-col items-center justify-center">
+                <div className="col-span-full py-20 flex flex-col items-center justify-center">
                   <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
                   <p className="text-gray-400 mt-4 font-medium">Loading assets...</p>
                 </div>
