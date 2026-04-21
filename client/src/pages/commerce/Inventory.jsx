@@ -170,7 +170,7 @@ function AddProductDrawer({ isOpen, onClose, onAdd, editingProduct }) {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-gray-700 mb-1.5">Description</label>
+              <label className="mb-1.5 block text-xs font-bold text-gray-800">Description</label>
               <input
                 type="text"
                 placeholder="Enter product description"
