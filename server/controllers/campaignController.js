@@ -9,6 +9,7 @@ exports.getCampaigns = async (req, res, next) => {
   try {
     const campaigns = await Campaign.find({ user: req.user.id })
       .populate('targetAudience', 'name phone')
+      .populate('user', 'name email')
       .sort('-createdAt');
 
     res.status(200).json({
@@ -27,7 +28,8 @@ exports.getCampaigns = async (req, res, next) => {
 exports.getCampaign = async (req, res, next) => {
   try {
     const campaign = await Campaign.findById(req.params.id)
-      .populate('targetAudience', 'name phone email');
+      .populate('targetAudience', 'name phone email')
+      .populate('user', 'name email');
 
     if (!campaign) {
       return res.status(404).json({
@@ -64,7 +66,11 @@ exports.createCampaign = async (req, res, next) => {
       const filter = { user: req.user.id };
       
       if (req.body.audienceFilter.tags && req.body.audienceFilter.tags.length > 0) {
-        filter.tags = { $in: req.body.audienceFilter.tags };
+        filter.labels = { $in: req.body.audienceFilter.tags };
+      }
+
+      if (req.body.audienceFilter.status) {
+        filter.status = String(req.body.audienceFilter.status).toUpperCase();
       }
       
       if (req.body.audienceFilter.createdAfter) {
@@ -90,11 +96,24 @@ exports.createCampaign = async (req, res, next) => {
       
       // We run this in the background (no await) so the response is immediate
       sendBulkMessages(req.user.id, campaign._id, contacts, campaign.messageTemplate)
-        .then(() => {
-          campaign.status = 'completed';
-          return campaign.save();
+        .then(async (result) => {
+          const freshCampaign = await Campaign.findById(campaign._id);
+          if (!freshCampaign) return;
+
+          const hasAttempts = (result?.totalProcessed || 0) > 0;
+          const allFailed = hasAttempts && (result?.failed || 0) >= (result?.totalProcessed || 0);
+
+          freshCampaign.status = allFailed ? 'paused' : 'completed';
+          await freshCampaign.save();
         })
-        .catch(err => console.error('Campaign background process failed:', err));
+        .catch(async (err) => {
+          console.error('Campaign background process failed:', err);
+
+          const freshCampaign = await Campaign.findById(campaign._id);
+          if (!freshCampaign) return;
+          freshCampaign.status = 'paused';
+          await freshCampaign.save();
+        });
     }
 
     res.status(201).json({

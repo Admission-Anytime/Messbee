@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
+import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
 import {
   MagnifyingGlassIcon,
@@ -45,23 +46,32 @@ const formatDate = (dateStr) =>
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
 
-const mapCampaign = (camp) => ({
-  id: camp._id,
-  title: camp.name,
-  message: camp.messageTemplate || '—',
-  status: mapStatus(camp.status),
-  progress: mapProgress(camp),
-  createdBy: camp.user?.name || 'User',
-  initials: (camp.user?.name || camp.name || 'U').substring(0, 2).toUpperCase(),
-  sentOn: formatDate(camp.createdAt),
-  stats: {
-    total: (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
-    sent: camp.stats?.sent || 0,
-    delivered: camp.stats?.delivered || 0,
-    read: camp.stats?.read || 0,
-    failed: camp.stats?.failed || 0,
-  },
-});
+const mapCampaign = (camp, templatePreviewMap = {}) => {
+  const rawTemplateValue = String(camp.messageTemplate || '—').trim();
+  const resolvedTemplate =
+    templatePreviewMap[rawTemplateValue] ||
+    templatePreviewMap[rawTemplateValue.toLowerCase()] ||
+    rawTemplateValue;
+
+  return {
+    id: camp._id,
+    title: camp.name,
+    message: resolvedTemplate || '—',
+    templateName: rawTemplateValue,
+    status: mapStatus(camp.status),
+    progress: mapProgress(camp),
+    createdBy: camp.user?.name || 'User',
+    initials: (camp.user?.name || camp.name || 'U').substring(0, 2).toUpperCase(),
+    sentOn: formatDate(camp.createdAt),
+    stats: {
+      total: (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
+      sent: camp.stats?.sent || 0,
+      delivered: camp.stats?.delivered || 0,
+      read: camp.stats?.read || 0,
+      failed: camp.stats?.failed || 0,
+    },
+  };
+};
 
 /* ═══════════════════════════════════════════════════════════════ */
 
@@ -81,22 +91,41 @@ const CampaignDashboard = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterTemplate, setFilterTemplate] = useState('All');
   const [templateOptions, setTemplateOptions] = useState([]);
+  const [templatePreviewMap, setTemplatePreviewMap] = useState({});
 
-  useEffect(() => { 
-    fetchCampaigns();
+  const loadApprovedTemplates = useCallback(async () => {
+    try {
+      const whatsappTemplates = await fetchWhatsAppTemplates();
+      const approvedTemplates = whatsappTemplates.approvedTemplates || whatsappTemplates.data?.approvedTemplates || [];
+      const formatted = mergeTemplates(approvedTemplates, []);
+
+      const previewMap = formatted.reduce((acc, template) => {
+        if (template?.name) {
+          acc[template.name] = template.bodyText || template.name;
+          acc[String(template.name).toLowerCase()] = template.bodyText || template.name;
+        }
+        return acc;
+      }, {});
+
+      setTemplatePreviewMap(previewMap);
+    } catch (error) {
+      console.error('Error loading approved templates:', error);
+    }
   }, []);
 
-  const fetchCampaigns = async () => {
+  const fetchCampaigns = useCallback(async () => {
     try {
       setLoading(true);
       const res = await CampaignApi.getCampaigns();
       if (res.success) {
-        const mapped = res.data.map(mapCampaign);
+        const mapped = res.data.map((camp) => mapCampaign(camp, templatePreviewMap));
         setCampaigns(mapped);
         
         // Extract unique templates from campaigns
         const uniqueTemplates = [...new Set(mapped.map(c => c.message))].filter(t => t !== '—');
         setTemplateOptions(uniqueTemplates);
+      } else {
+        toast.error(res.message || 'Failed to fetch campaigns');
       }
     } catch (error) {
       console.error('Error fetching campaigns:', error);
@@ -104,7 +133,23 @@ const CampaignDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [templatePreviewMap]);
+
+  useEffect(() => {
+    fetchCampaigns();
+  }, [fetchCampaigns]);
+
+  useEffect(() => {
+    loadApprovedTemplates();
+  }, [loadApprovedTemplates]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchCampaigns();
+    }, 15000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchCampaigns]);
 
   /* ── Actions ── */
   const handleDuplicate = async (camp) => {
@@ -119,6 +164,8 @@ const CampaignDashboard = () => {
         setDuplicatedId(res.data._id);
         setTimeout(() => setDuplicatedId(null), 2000);
         fetchCampaigns();
+      } else {
+        toast.error(res.message || 'Failed to duplicate campaign');
       }
     } catch {
       toast.error('Failed to duplicate campaign');
@@ -131,6 +178,8 @@ const CampaignDashboard = () => {
       if (res.success) {
         toast.success('Campaign deleted');
         setCampaigns((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      } else {
+        toast.error(res.message || 'Failed to delete campaign');
       }
     } catch {
       toast.error('Failed to delete campaign');
