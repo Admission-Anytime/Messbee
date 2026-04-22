@@ -236,7 +236,18 @@ router.post("/", async (req, res) => {
     });
   } catch (error) {
     console.error("Error creating chat:", error);
+
+    // Handle Mongoose duplicate key error (11000)
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        error: "A contact with this phone number already exists in your list.",
+        details: error.message
+      });
+    }
+
     res.status(500).json({
+      success: false,
       error: "Failed to create chat",
       details: error.message
     });
