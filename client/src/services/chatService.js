@@ -208,6 +208,25 @@ const chatService = {
   },
 
   /**
+   * Get Activity Logs for a specific chat
+   */
+  async getActivityLogs(chatId) {
+    try {
+      const response = await axios.get(`/chats/activity/${chatId}`);
+      return {
+        success: true,
+        data: response.data.data
+      };
+    } catch (error) {
+      console.error('Error fetching activity logs:', error);
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message
+      };
+    }
+  },
+
+  /**
    * Upload file to WhatsApp (returns media ID for sending)
    */
   async uploadFile(file) {

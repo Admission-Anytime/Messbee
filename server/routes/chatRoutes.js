@@ -947,4 +947,110 @@ router.post("/seed", async (req, res) => {
   res.send("Seeded");
 });
 
+// 12. Get Activity Log for a specific chat
+router.get("/activity/:chatId", async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const userId = req.user.id;
+
+    // 1. Fetch Chat details
+    const chat = await Chat.findOne({ _id: chatId, user: userId });
+    if (!chat) {
+      return res.status(404).json({ error: "Chat not found" });
+    }
+
+    // 2. Fetch all messages for stats and timeline
+    const messages = await Message.find({ chatId, isDeleted: false }).sort({ createdAt: -1 });
+
+    // 3. Calculate Stats
+    const totalInteractions = messages.length;
+    
+    // Calculate interactions this week
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const interactionsThisWeek = messages.filter(m => new Date(m.createdAt) > oneWeekAgo).length;
+
+    // Calculate Avg Agent Response Time
+    // Logic: Find pairs of (them -> me) messages and average the time difference
+    let totalResponseTime = 0;
+    let responseCount = 0;
+    
+    // Sort messages chronologically for response time calculation
+    const chronoMessages = [...messages].sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
+    
+    for (let i = 0; i < chronoMessages.length - 1; i++) {
+      const current = chronoMessages[i];
+      const next = chronoMessages[i + 1];
+      
+      if (current.sender === "them" && next.sender === "me") {
+        const diff = new Date(next.createdAt) - new Date(current.createdAt);
+        // Only count if response is within 24 hours (to avoid outliers)
+        if (diff > 0 && diff < 24 * 60 * 60 * 1000) {
+          totalResponseTime += diff;
+          responseCount++;
+        }
+      }
+    }
+    
+    const avgResponseTimeMs = responseCount > 0 ? totalResponseTime / responseCount : 0;
+    const avgResponseTimeMinutes = Math.round(avgResponseTimeMs / (1000 * 60));
+
+    // 4. Build Timeline
+    const timeline = [];
+
+    // Add Messages to timeline
+    messages.forEach(msg => {
+      timeline.push({
+        type: msg.messageType === 'template' ? 'campaign' : (msg.sender === 'me' ? 'outgoing' : 'incoming'),
+        content: msg.text,
+        time: msg.createdAt,
+        sender: msg.sender,
+        status: msg.status,
+        templateName: msg.templateName,
+        id: msg._id
+      });
+    });
+
+    // Add Notes to timeline
+    if (chat.notes && chat.notes.length > 0) {
+      chat.notes.forEach((note, index) => {
+        timeline.push({
+          type: 'note',
+          content: note.text,
+          time: note.date || chat.updatedAt, // Use date string if available
+          author: note.author,
+          id: `note-${index}`
+        });
+      });
+    }
+
+    // Add Lifecycle change (Creation)
+    timeline.push({
+      type: 'lifecycle',
+      content: `Chat created via ${chat.source}`,
+      time: chat.createdAt,
+      id: 'creation'
+    });
+
+    // Sort timeline by time descending
+    timeline.sort((a, b) => new Date(b.time) - new Date(a.time));
+
+    res.json({
+      success: true,
+      data: {
+        stats: {
+          totalInteractions,
+          interactionsThisWeek,
+          avgResponseTimeMinutes,
+          leadSince: chat.createdAt
+        },
+        timeline
+      }
+    });
+  } catch (error) {
+    console.error("Error fetching activity log:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 module.exports = router;
