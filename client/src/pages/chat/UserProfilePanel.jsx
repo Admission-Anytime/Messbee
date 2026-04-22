@@ -12,10 +12,14 @@ import {
 import { getPresenceInfo } from "../../utils/presence";
 
 const formatPhone = (phone) => {
-  if (!phone) return "**********";
+  if (!phone || phone === "**********") return "No Contact";
   const digits = phone.replace(/\D/g, "");
-  if (!digits) return "**********";
-  return digits.slice(0, 10);
+  if (!digits || digits === "91") return "No Contact";
+  
+  if (digits.length === 10) return `+91 ${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+91 ${digits.slice(2)}`;
+  
+  return phone;
 };
 
 const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], statusOptions = [], onUpdateProfile, onUpdateLabels }) => {

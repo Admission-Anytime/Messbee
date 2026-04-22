@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const chatSchema = mongoose.Schema(
   {
     name: { type: String, required: true },
-    phone: { type: String, required: true, unique: true },
+    phone: { type: String, required: true },
     status: { type: String, default: "offline" }, // active, offline
     chatStatus: { type: String, default: "open" }, // open, closed, queue, archived
     isPinned: { type: Boolean, default: false },
@@ -17,7 +17,7 @@ const chatSchema = mongoose.Schema(
     lastMsg: { type: String, default: "" },
     lastMsgTime: { type: String, default: "" }, // Storing formatted string for simplicity
     // WhatsApp specific fields
-    whatsappId: { type: String, unique: true, sparse: true }, // WhatsApp user ID (phone with country code)
+    whatsappId: { type: String, sparse: true }, // WhatsApp user ID (phone with country code)
     source: { 
       type: String, 
       enum: ["whatsapp", "web", "api", "manual"],
@@ -59,8 +59,9 @@ chatSchema.virtual('canSendFreeText').get(function () {
   return Date.now() - new Date(this.lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
 });
 
-// Index for faster queries
-// Note: phone and whatsappId already have indexes from unique: true
+// Index for faster queries and uniqueness per user
+chatSchema.index({ user: 1, phone: 1 }, { unique: true });
+chatSchema.index({ user: 1, whatsappId: 1 }, { unique: true, sparse: true });
 chatSchema.index({ chatStatus: 1, updatedAt: -1 });
 
 module.exports = mongoose.model("Chat", chatSchema);

@@ -51,7 +51,7 @@ const handleKeyDown = (e, index) => {
   const [formData, setFormData] = useState({
     name: user?.name || "Alex Rivera",
     email: user?.email || "alex.rivera@messbee.com",
-    phone: user?.phone || "**********", // Default phone if missing
+    phone: user?.phone || "No Contact", // Default phone if missing
   });
 
   const [preferences, setPreferences] = useState({
@@ -62,11 +62,12 @@ const handleKeyDown = (e, index) => {
   // Update formData when user changes
   useEffect(() => {
     if (user) {
-      const sanitizedPhone = user.phone ? user.phone.replace(/\D/g, "").slice(0, 10) : "";
+      const digits = user.phone ? user.phone.replace(/\D/g, "") : "";
+      const sanitizedPhone = (digits && digits !== "91") ? digits.slice(0, 10) : "";
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        phone: sanitizedPhone || "**********",
+        phone: sanitizedPhone || "No Contact",
       });
       setProfileImage(user.avatar || null);
       setPreferences({
@@ -322,7 +323,7 @@ useEffect(() => {
                 </span>}
               </label>
               <div className={`flex items-center transition-all duration-300 ${isEditing ? "bg-gray-50 border border-gray-300 overflow-hidden rounded-xl h-10" : "bg-transparent border-transparent"}`}>
-                {(isEditing || (formData.phone && formData.phone !== "**********")) && (
+                {(isEditing || (formData.phone && formData.phone !== "No Contact")) && (
                   <span className={`inline-flex items-center text-sm font-bold text-gray-500 transition-all ${isEditing ? "px-3 bg-gray-100 h-full border-r border-gray-200" : "pr-2"}`}>
                     +91
                   </span>
@@ -334,7 +335,7 @@ useEffect(() => {
                   onChange={handleChange}
                   readOnly={!isEditing || user?.isPhoneVerified}
                   maxLength={10}
-                  placeholder="**********"
+                  placeholder="No Contact"
                   className={`w-full transition-all duration-300 outline-none text-gray-900 font-medium ${
                     isEditing
                       ? (user?.isPhoneVerified ? "bg-gray-100 cursor-not-allowed opacity-70" : "bg-transparent px-3 py-2")
