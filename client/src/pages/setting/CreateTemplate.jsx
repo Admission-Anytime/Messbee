@@ -561,14 +561,14 @@ const CreateTemplate = () => {
       console.error("Template Creation Error:", error?.response?.data || error);
       const waError = error?.response?.data?.error || {};
       const nestedWaError = waError?.error || {};
-      const errorSubcode = waError?.errorSubcode ?? waError?.error_subcode;
+      const errorSubcode = nestedWaError?.error_subcode ?? nestedWaError?.errorSubcode ?? waError?.error_subcode ?? waError?.errorSubcode;
       const errorMsg =
-        waError?.message ||
         nestedWaError?.message ||
-        waError?.error_user_msg ||
+        waError?.message ||
         nestedWaError?.error_user_msg ||
-        waError?.error_data?.details ||
+        waError?.error_user_msg ||
         nestedWaError?.error_data?.details ||
+        waError?.error_data?.details ||
         error?.response?.data?.message;
       const suggestedName = waError?.suggestedName;
       
@@ -587,6 +587,8 @@ const CreateTemplate = () => {
         errorMessage = `WhatsApp is blocking this change because the template is in deletion flow. Use a new template name${suggestedName ? ` (suggested: ${suggestedName})` : ''} or retry after the deletion window completes.`;
       } else if (errorSubcode === 2388024) {
         errorMessage = `Template content already exists in this language for the same name.${suggestedName ? `\n\nTry this alternate name: ${suggestedName}` : '\n\nPlease change template name and retry.'}`;
+      } else if (errorSubcode === 2388124) {
+        errorMessage = "WhatsApp limitation: You can only edit an active template once every 24 hours. Please wait or try creating a new template with a different name.";
       }
       
       toast.error(errorMessage);
@@ -938,6 +940,27 @@ const CreateTemplate = () => {
                         </div>
                     </div>
 
+                    {/* FOOTER SECTION */}
+                    <div className="mt-8 border-t border-gray-50 pt-6">
+                        <div className="flex flex-col gap-1 mb-3">
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
+                            <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
+                        </div>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={formData.footerText} 
+                                onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
+                                placeholder="Enter footer text..."
+                                maxLength={60}
+                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                            />
+                            <div className="flex justify-end mt-1">
+                                <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                            </div>
+                        </div>
+                    </div>
+
                     {bodyVariables.length > 0 && (
                       <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
                         <h4 className="text-sm md:text-base font-bold text-gray-800">Samples for body content</h4>
@@ -1115,55 +1138,24 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
       </div>
       <div className="p-4 overflow-y-auto max-h-[460px]">
         <div className="bg-white rounded-[1.25rem] rounded-tl-none shadow-lg overflow-hidden border border-gray-200/50">
-          {showImage && (
-            <>
-              {headerMedia ? (
-                <div className="relative bg-gray-900 flex items-center justify-center overflow-hidden">
-                  {headerMedia.type === 'image' && (
-                    <img src={headerMedia.preview} alt="header" className="w-full h-40 object-cover"/>
-                  )}
-                  {headerMedia.type === 'video' && (
-                    <video src={headerMedia.preview} className="w-full h-40 object-cover" controls={false}/>
-                  )}
-                  {headerMedia.type === 'document' && (
-                    <div className="w-full h-40 bg-red-50 flex items-center justify-center flex-col gap-2">
-                      <div className="text-4xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
-                      <p className="text-xs text-gray-600">{headerMedia.name}</p>
-                    </div>
-                  )}
-                  {offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
-                </div>
-              ) : (
-                <div className="h-32 md:h-36 bg-gray-50 flex flex-col items-center justify-center text-gray-300 gap-1 border-b border-dashed relative">
-                  {offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
-                  {headerType === 'Image' && (
-                    <>
-                      <ImageIcon size={32} className="opacity-20"/>
-                      <span className="text-xs font-bold uppercase opacity-30">Image Preview</span>
-                    </>
-                  )}
-                  {headerType === 'Video' && (
-                    <>
-                      <div className="text-3xl opacity-20">▶️</div>
-                      <span className="text-xs font-bold uppercase opacity-30">Video Preview</span>
-                    </>
-                  )}
-                  {headerType === 'Document' && (
-                    <>
-                      <div className="text-3xl opacity-20">📄</div>
-                      <span className="text-xs font-bold uppercase opacity-30">Document Preview</span>
-                    </>
-                  )}
-                  {(headerType === 'None' || headerType === 'Text') && (
-                    <>
-                      <ImageIcon size={32} className="opacity-20"/>
-                      <span className="text-xs font-bold uppercase opacity-30">Media Header</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* MEDIA HEADER */}
+           {['Image', 'Video', 'Document'].includes(headerType) && headerMedia && (
+             <div className="relative bg-gray-900 flex items-center justify-center overflow-hidden">
+               {headerMedia.type === 'image' && (
+                 <img src={headerMedia.preview} alt="header" className="w-full h-40 object-cover"/>
+               )}
+               {headerMedia.type === 'video' && (
+                 <video src={headerMedia.preview} className="w-full h-40 object-cover" controls={false}/>
+               )}
+               {headerMedia.type === 'document' && (
+                 <div className="w-full h-40 bg-red-50 flex items-center justify-center flex-col gap-2">
+                   <div className="text-4xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
+                   <p className="text-xs text-gray-600">{headerMedia.name}</p>
+                 </div>
+               )}
+               {isLimited && offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
+             </div>
+           )}
           <div className="p-4 md:p-5">
             <p className="text-xs text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name || 'TEMPLATE_NAME'}]</p>
             <div className="text-sm md:text-base text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
