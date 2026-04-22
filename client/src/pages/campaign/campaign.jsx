@@ -46,6 +46,12 @@ const formatDate = (dateStr) =>
     hour: '2-digit', minute: '2-digit', hour12: true,
   });
 
+const truncateText = (value, maxLength = 120) => {
+  const text = String(value || '');
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength).trimEnd()}...`;
+};
+
 const mapCampaign = (camp, templatePreviewMap = {}) => {
   const rawTemplateValue = String(camp.messageTemplate || '—').trim();
   const resolvedTemplate =
@@ -121,8 +127,8 @@ const CampaignDashboard = () => {
         const mapped = res.data.map((camp) => mapCampaign(camp, templatePreviewMap));
         setCampaigns(mapped);
         
-        // Extract unique templates from campaigns
-        const uniqueTemplates = [...new Set(mapped.map(c => c.message))].filter(t => t !== '—');
+        // Extract unique template names from campaigns for stable filter values.
+        const uniqueTemplates = [...new Set(mapped.map(c => c.templateName))].filter(t => t !== '—');
         setTemplateOptions(uniqueTemplates);
       } else {
         toast.error(res.message || 'Failed to fetch campaigns');
@@ -191,9 +197,9 @@ const CampaignDashboard = () => {
   /* ── Derived ── */
   const filtered = campaigns.filter(cur => {
     const matchesSearch = cur.title.toLowerCase().includes(search.toLowerCase()) || 
-                          cur.message.toLowerCase().includes(search.toLowerCase());
+                          cur.templateName.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = filterStatus === 'All' || cur.status === filterStatus;
-    const matchesTemplate = filterTemplate === 'All' || cur.message === filterTemplate;
+    const matchesTemplate = filterTemplate === 'All' || cur.templateName === filterTemplate;
     return matchesSearch && matchesStatus && matchesTemplate;
   });
 
@@ -305,16 +311,16 @@ const CampaignDashboard = () => {
 
         {/* Table */}
         <div className="w-full overflow-x-auto">
-          <table className="w-full text-left">
+          <table className="w-full text-left table-fixed">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-12">#</th>
-                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Campaign Title</th>
-                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Template</th>
-                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Status</th>
-                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Sent On</th>
-                <th className="px-4 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400">Created By</th>
-                <th className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-12 whitespace-nowrap">#</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Campaign Title</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Template</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Status</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Sent On</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Created By</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[10%] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -348,8 +354,8 @@ const CampaignDashboard = () => {
                     key={camp.id}
                     className={`group transition-colors ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
                   >
-                    <td className="px-6 py-4 text-sm font-semibold text-slate-300">{index + 1}</td>
-                    <td className="px-4 py-4">
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{index + 1}</td>
+                    <td className="px-5 py-4 align-middle">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-800">{camp.title}</span>
                         {duplicatedId === camp.id && (
@@ -359,18 +365,21 @@ const CampaignDashboard = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-4">
-                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
-                        {camp.message}
+                    <td className="px-5 py-4 align-middle">
+                      <span
+                        className="inline-flex max-w-[240px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate align-middle"
+                        title={camp.templateName}
+                      >
+                        {truncateText(camp.templateName, 48)}
                       </span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-5 py-4 align-middle">
                       <StatusBadge status={camp.status} progress={camp.progress} />
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-5 py-4 align-middle">
                       <span className="text-xs text-slate-500 font-medium">{camp.sentOn}</span>
                     </td>
-                    <td className="px-4 py-4">
+                    <td className="px-5 py-4 align-middle">
                       <div className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center shrink-0">
                           <span className="text-[10px] font-bold text-white">{camp.initials}</span>
@@ -378,7 +387,7 @@ const CampaignDashboard = () => {
                         <span className="text-sm font-semibold text-slate-700">{camp.createdBy}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
+                    <td className="px-5 py-4 align-middle">
                       <div className="flex justify-end items-center gap-1">
                         <ActionBtn
                           icon={<ChartBarIcon className="w-4 h-4" />}
@@ -485,7 +494,7 @@ const AnalyticsModal = ({ campaign, onClose }) => {
             <ClockIcon className="w-3.5 h-3.5 text-slate-400" /> {campaign.sentOn}
           </span>
           <span className="flex items-center gap-1.5 truncate max-w-[160px]">
-            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {campaign.message}
+            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {campaign.templateName}
           </span>
           <StatusBadge status={campaign.status} progress={campaign.progress} />
         </div>

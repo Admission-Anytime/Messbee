@@ -880,6 +880,18 @@ class WhatsAppService {
         };
       }
 
+      if (bodyComponent.text.length > 1024) {
+        return {
+          success: false,
+          error: {
+            message: "The Body (or Content) field can't have more than 1,024 characters.",
+            code: 100,
+            errorSubcode: 2388040,
+            title: 'Character limit exceeded'
+          }
+        };
+      }
+
       const placeholderMatches = Array.from(bodyComponent.text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g));
       const placeholderRawValues = placeholderMatches.map((match) => (match[1] || '').trim());
       const hasInvalidPlaceholderFormat = placeholderRawValues.some((value) => !/^\d+$/.test(value));
