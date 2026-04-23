@@ -9,7 +9,6 @@ import "react-toastify/dist/ReactToastify.css";
 // --- IMPORTS FOR NEW UI ---
 import Loading from "./components/Loading";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
-
 import MainHeading from "./components/header/MainHeading";
 import MainSidebar from "./components/mainsidebar/MainSidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -28,6 +27,10 @@ const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
 const CampaignLaunchSuccess = lazy(() => import("./pages/campaign/CampaignLaunchSuccess"));
 const Automation = lazy(() => import("./pages/automation/automation"));
 const Analytic = lazy(() => import("./pages/analytic/analytic"));
+const ConversationAnalytics = lazy(() => import("./pages/analytic/ConversationAnalytics"));
+const MessagesAnalytics = lazy(() => import("./pages/analytic/MessagesAnalytics"));
+const TemplateAnalytics = lazy(() => import("./pages/analytic/TemplateAnalytics"));
+const CampaignAnalytics = lazy(() => import("./pages/analytic/CampaignAnalytics"));
 
 // --- LAZY LOADED PLAN & PRICING PAGES ---
 const UpgradePlan = lazy(() => import("./pages/PlanPricing/UpgradePlan"));
@@ -154,9 +157,11 @@ const AppLayout = memo(() => {
 
         {/* 4. Page Content area */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
-          <Suspense fallback={<PageLoader />}>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<PageLoader />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </div>
     </div>
@@ -261,18 +266,25 @@ function App() {
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
           {/* 9. Analytics */}
-          <Route path="/admin/analytic" element={<Analytic />} />
+          <Route
+            path="/admin/analytic/campaign"
+            element={<CampaignAnalytics />}
+          />
+          <Route
+            path="/admin/analytic"
+            element={<Analytic />}
+          />
           <Route
             path="/admin/analytic/conversation"
-            element={<Placeholder title="Conversation Analytics" />}
+            element={<ConversationAnalytics />}
           />
           <Route
             path="/admin/analytic/messages"
-            element={<Placeholder title="Message Analytics" />}
+            element={<MessagesAnalytics />}
           />
           <Route
             path="/admin/analytic/template"
-            element={<Placeholder title="Template Analytics" />}
+            element={<TemplateAnalytics />}
           />
           <Route
             path="/admin/reports"
