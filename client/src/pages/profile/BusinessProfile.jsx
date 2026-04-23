@@ -159,20 +159,20 @@ const BusinessProfile = () => {
   };
 
   return (
-    <div className="w-full max-w-6xl mx-auto space-y-8 font-sans text-gray-800 bg-[#f8f9fa] p-8 min-h-screen">
+    <div className="p-8 max-w-5xl mx-auto bg-[#f6f8fb] min-h-screen space-y-8">
       
       <ToastContainer />
 
-      <div>
-        <h1 className="text-[28px] font-bold text-gray-900 tracking-tight">Organization Settings</h1>
-        <p className="text-gray-500 text-[15px] mt-1">Manage your business identity, official API profile, billing, and regional compliance details.</p>
+      <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+        <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
+        <p className="text-gray-500 text-sm mt-1">Manage your business identity, official API profile, billing, and regional compliance details.</p>
       </div>
 
       {/* 1. Organization Identity */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-[#e6f4ea] to-[#d4ede0] rounded-lg shadow-sm">
+            <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M3 21H21" stroke="#1ebd74" strokeWidth="2" strokeLinecap="round" />
                 <path d="M5 21V7C5 5.89543 5.89543 5 7 5H17C18.1046 5 19 5.89543 19 7V21" stroke="#1ebd74" strokeWidth="2" />
@@ -183,30 +183,31 @@ const BusinessProfile = () => {
             </div>
             <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Organization Identity</h3>
           </div>
-          <button
-            onClick={() => handleEditToggle('identity')}
-            className={`px-4 py-2 whitespace-nowrap border text-sm font-semibold rounded-[10px] transition-all duration-200 shadow-sm flex items-center gap-2 ${
-              activeEdit === "identity"
-                ? 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300' 
-                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300'
-            }`}
-          >
-            {activeEdit === "identity" ? (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+          {!activeEdit || activeEdit !== "identity" ? (
+            <button
+              onClick={() => handleEditToggle('identity')}
+              className="text-green-600 text-sm font-semibold hover:underline"
+            >
+              Edit
+            </button>
+          ) : (
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleEditToggle('identity')}
+                disabled={isSaving}
+                className="text-gray-500 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
                 Cancel
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z" />
-                </svg>
-                Edit
-              </>
-            )}
-          </button>
+              </button>
+              <button
+                onClick={() => handleSave('identity')}
+                disabled={isSaving}
+                className="text-green-600 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col md:flex-row gap-12">
@@ -254,7 +255,7 @@ const BusinessProfile = () => {
                 </div>
               )}
                           </div>
-                     </div>  {/* ✅ ADD THIS LINE */}
+                     </div>
             
             <input  
               ref={fileInputRef} 
@@ -339,46 +340,14 @@ const BusinessProfile = () => {
           </div>
         </div>
         
-        {activeEdit === "identity" && (
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-100">
-            <button 
-              onClick={() => handleEditToggle('identity')}
-              disabled={isSaving}
-              className="px-5 py-2.5 text-[15px] font-bold text-[#334155] hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleSave('identity')}
-              disabled={isSaving}
-              className="px-6 py-3 bg-gradient-to-r from-[#22c55e] to-[#16a34a] hover:from-[#19a565] hover:to-[#168f54] text-white text-[15px] font-bold rounded-[10px] shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[160px] justify-center"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
-        )}
+
       </div>
 
       {/* 2. Official Business Profile */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-[#e6f4ea] to-[#d4ede0] rounded-lg shadow-sm">
+            <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#1ebd74" strokeWidth="2" />
                 <path d="M8 12L11 15L16 9" stroke="#1ebd74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -386,32 +355,33 @@ const BusinessProfile = () => {
             </div>
             <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Official Business Profile</h3>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="bg-gradient-to-r from-[#e6f4ea] to-[#d4ede0] text-[#1ebd74] text-[10px] font-bold px-3 py-1 rounded-full tracking-wider uppercase border border-[#bcf0da] shadow-sm">WhatsApp API Ready</span>
-           <button
-  onClick={() => handleEditToggle('business')}
-  className={`px-4 py-2 whitespace-nowrap border text-sm font-semibold rounded-[10px] transition-all duration-200 shadow-sm flex items-center gap-2 ${
-    activeEdit === "business"
-      ? 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300'
-      : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300'
-  }`}
->
-  {activeEdit === "business" ? (
-  <>
-    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-    Cancel
-  </>
-) : (
-  <>
-    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z" />
-    </svg>
-    Edit
-  </>
-)}
-</button>
+          <div className="flex items-center gap-4">
+            <span className="bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full tracking-wider uppercase">WhatsApp API Ready</span>
+            {!activeEdit || activeEdit !== "business" ? (
+              <button
+                onClick={() => handleEditToggle('business')}
+                className="text-green-600 text-sm font-semibold hover:underline"
+              >
+                Edit
+              </button>
+            ) : (
+              <div className="flex gap-4">
+                <button
+                  onClick={() => handleEditToggle('business')}
+                  disabled={isSaving}
+                  className="text-gray-500 text-sm font-semibold hover:underline disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleSave('business')}
+                  disabled={isSaving}
+                  className="text-green-600 text-sm font-semibold hover:underline disabled:opacity-50"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -513,46 +483,14 @@ const BusinessProfile = () => {
           </div>
         </div>
 
-        {activeEdit === "business" && (
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-100">
-            <button 
-              onClick={() => handleEditToggle('business')}
-              disabled={isSaving}
-              className="px-5 py-2.5 text-[15px] font-bold text-[#334155] hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleSave('business')}
-              disabled={isSaving}
-              className="px-6 py-3 bg-gradient-to-r from-[#1ebd74] to-[#19a565] hover:from-[#19a565] hover:to-[#168f54] text-white text-[15px] font-bold rounded-[10px] shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[160px] justify-center"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
-        )}
+
       </div>
 
       {/* 3. Regional & Compliance */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-[#e6f4ea] to-[#d4ede0] rounded-lg shadow-sm">
+            <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#1ebd74" strokeWidth="2" />
                 <path d="M2 12H22" stroke="#1ebd74" strokeWidth="2" />
@@ -561,30 +499,31 @@ const BusinessProfile = () => {
             </div>
             <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Regional & Compliance</h3>
           </div>
-          <button
-            onClick={() => handleEditToggle('regional')}
-            className={`px-4 py-2 whitespace-nowrap border text-sm font-semibold rounded-[10px] transition-all duration-200 shadow-sm flex items-center gap-2 ${
-              activeEdit === "regional" 
-                ? 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300' 
-                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300'
-            }`}
-          >
-            {activeEdit === "regional" ? (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+          {!activeEdit || activeEdit !== "regional" ? (
+            <button
+              onClick={() => handleEditToggle('regional')}
+              className="text-green-600 text-sm font-semibold hover:underline"
+            >
+              Edit
+            </button>
+          ) : (
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleEditToggle('regional')}
+                disabled={isSaving}
+                className="text-gray-500 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
                 Cancel
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z" />
-                </svg>
-                Edit
-              </>
-            )}
-          </button>
+              </button>
+              <button
+                onClick={() => handleSave('regional')}
+                disabled={isSaving}
+                className="text-green-600 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -640,46 +579,14 @@ const BusinessProfile = () => {
           </div>
         </div>
 
-        {activeEdit === "regional" && (
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-100">
-            <button 
-              onClick={() => handleEditToggle('regional')}
-              disabled={isSaving}
-              className="px-5 py-2.5 text-[15px] font-bold text-[#334155] hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleSave('regional')}
-              disabled={isSaving}
-              className="px-6 py-3 bg-gradient-to-r from-[#1ebd74] to-[#19a565] hover:from-[#19a565] hover:to-[#168f54] text-white text-[15px] font-bold rounded-[10px] shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[160px] justify-center"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
-        )}
+
       </div>
 
       {/* 4. Billing Information */}
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 shadow-sm hover:shadow-md transition-shadow duration-300">
+      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
         <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 flex items-center justify-center bg-gradient-to-br from-[#e6f4ea] to-[#d4ede0] rounded-lg shadow-sm">
+            <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <rect x="2" y="5" width="20" height="14" rx="2" stroke="#1ebd74" strokeWidth="2" />
                 <path d="M2 10H22" stroke="#1ebd74" strokeWidth="2" />
@@ -688,30 +595,31 @@ const BusinessProfile = () => {
             </div>
             <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Billing Information</h3>
           </div>
-          <button
-            onClick={() => handleEditToggle('billing')}
-            className={`px-4 py-2 whitespace-nowrap border text-sm font-semibold rounded-[10px] transition-all duration-200 shadow-sm flex items-center gap-2 ${
-              activeEdit === "billing" 
-                ? 'border-red-200 text-red-700 bg-red-50 hover:bg-red-100 hover:border-red-300' 
-                : 'border-gray-200 text-gray-700 bg-white hover:bg-gray-50 hover:border-gray-300'
-            }`}
-          >
-            {activeEdit === "billing" ? (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+          {!activeEdit || activeEdit !== "billing" ? (
+            <button
+              onClick={() => handleEditToggle('billing')}
+              className="text-green-600 text-sm font-semibold hover:underline"
+            >
+              Edit
+            </button>
+          ) : (
+            <div className="flex gap-4">
+              <button
+                onClick={() => handleEditToggle('billing')}
+                disabled={isSaving}
+                className="text-gray-500 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
                 Cancel
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M7.127 22.562l-7.127 1.438 1.438-7.128 5.689 5.69zm1.414-1.414l11.228-11.225-5.69-5.692-11.227 11.227 5.689 5.69zm9.768-21.148l-2.816 2.817 5.691 5.691 2.816-2.819-5.691-5.689z" />
-                </svg>
-                Edit
-              </>
-            )}
-          </button>
+              </button>
+              <button
+                onClick={() => handleSave('billing')}
+                disabled={isSaving}
+                className="text-green-600 text-sm font-semibold hover:underline disabled:opacity-50"
+              >
+                {isSaving ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
@@ -895,39 +803,7 @@ const BusinessProfile = () => {
           </div>
         </div>
 
-        {activeEdit === "billing" && (
-          <div className="flex flex-wrap items-center justify-between gap-4 mt-6 pt-6 border-t border-gray-100">
-            <button 
-              onClick={() => handleEditToggle('billing')}
-              disabled={isSaving}
-              className="px-5 py-2.5 text-[15px] font-bold text-[#334155] hover:opacity-80 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => handleSave('billing')}
-              disabled={isSaving}
-              className="px-6 py-3 bg-gradient-to-r from-[#1ebd74] to-[#19a565] hover:from-[#19a565] hover:to-[#168f54] text-white text-[15px] font-bold rounded-[10px] shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 min-w-[160px] justify-center"
-            >
-              {isSaving ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Save Changes
-                </>
-              )}
-            </button>
-          </div>
-        )}
+
       </div>
     </div>
   );
