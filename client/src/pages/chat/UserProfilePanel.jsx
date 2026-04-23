@@ -27,7 +27,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
   // --- 1. STATE FOR PROFILE DATA ---
   const [profileData, setProfileData] = useState({
     name: data?.name || "",
-    phone: data?.phone || "",
+    phone: data?.phone ? data.phone.replace(/\D/g, '').slice(-10) : "",
     email: data?.email || "",
     status: data?.chatStatus || "Open",
     institute: data?.customFields?.institute || "",
@@ -40,7 +40,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
     setProfileData(prev => ({
       ...prev,
       name: data?.name || "",
-      phone: data?.phone || "",
+      phone: data?.phone ? data.phone.replace(/\D/g, '').slice(-10) : "",
       email: data?.email || "",
       status: data?.chatStatus || "Open",
       institute: data?.customFields?.institute || "",
@@ -332,8 +332,12 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
 
       {/* FIXED FOOTER BUTTONS */}
       <div className="shrink-0 w-full bg-white border-t border-slate-100 p-6 flex flex-col gap-3 z-10">
-         <button 
-             onClick={() => { setEditForm(profileData); setIsEditModalOpen(true); }}
+          <button 
+             onClick={() => { 
+               const displayPhone = profileData.phone ? profileData.phone.replace(/\D/g, '').slice(-10) : "";
+               setEditForm({ ...profileData, phone: displayPhone }); 
+               setIsEditModalOpen(true); 
+             }}
              className="w-full py-3.5 bg-white border border-slate-200 text-slate-700 text-xs font-bold rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-colors shadow-sm"
          >
              Edit Profile
@@ -413,7 +417,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
                               borderColor: label.color + '30'
                            }}>{label.name} <XMarkIcon className="w-3 h-3 cursor-pointer opacity-70 hover:opacity-100" onClick={(e) => { e.stopPropagation(); handleToggleLabel(label.name); }}/></span>
                         ))}
-                        {currentLabels.length === 0 && <p className="text-xs text-slate-400 px-2 italic">Select labels...</p>}
+                        {currentLabels.length === 0 && <p className="text-xs text-slate-400 px-2 italic">Add labels...</p>}
                         {currentLabels.length > 0 && <span className="w-6 h-6 flex items-center justify-center bg-slate-50 text-slate-400 rounded-full hover:bg-slate-100"><PlusIcon className="w-3.5 h-3.5"/></span>}
                     </div>
 
