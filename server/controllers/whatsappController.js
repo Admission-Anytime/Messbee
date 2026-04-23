@@ -2,6 +2,7 @@ const whatsappService = require('../services/whatsappService');
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
+const Campaign = require('../models/Campaign');
 
 const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
@@ -225,16 +226,18 @@ exports.handleWebhook = async (req, res) => {
 
             const result = whatsappService.processWebhook({ entry: [{ changes: [change] }] });
 
-            if (!result.success) {
+            if (!result.success || !Array.isArray(result.results)) {
               continue;
             }
 
-            if (result.type === 'message') {
-              await handleIncomingMessage(result.data);
-            }
+            for (const item of result.results) {
+              if (item.type === 'message') {
+                await handleIncomingMessage(item.data);
+              }
 
-            if (result.type === 'status') {
-              await handleStatusUpdate(result.data);
+              if (item.type === 'status') {
+                await handleStatusUpdate(item.data);
+              }
             }
           }
         }
@@ -507,48 +510,107 @@ async function handleStatusUpdate(data) {
     const errorCode = firstError?.code;
     const errorMessage = firstError?.title || firstError?.message || firstError?.details || null;
 
+    // First, find the message to know its previous status
+    const message = await Message.findOne({ whatsappMessageId: messageId });
 
+    if (!message) {
+      console.warn(`⚠️  Message not found in database: ${messageId}`);
+      return;
+    }
+
+    const oldStatus = message.status;
+    const newStatus = status;
 
     // Update message status in database
     const updatePayload = {
-      status: status,
+      status: newStatus,
       statusTimestamp: new Date(parseInt(timestamp) * 1000)
     };
 
-    if (status === 'failed' && errorMessage) {
+    if (newStatus === 'failed' && errorMessage) {
       updatePayload.error = errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage;
     }
 
-    const message = await Message.findOneAndUpdate(
+    const updatedMessage = await Message.findOneAndUpdate(
       { whatsappMessageId: messageId },
       updatePayload,
       { new: true }
     );
 
-    if (message) {
-
+    // Check if this message belongs to a campaign and update stats
+    const campaignId = updatedMessage.metadata?.campaignId || message.metadata?.campaignId;
+    if (campaignId) {
+      console.log(`📊 Message belongs to campaign: ${campaignId}. Processing status: ${newStatus} (from ${oldStatus})`);
       
-      // Emit status update to frontend
-      try {
-        const io = getIO();
-        if (io) {
-          io.emit('message_status_update', {
-            messageId: message._id,
-            status: status,
-            whatsappMessageId: messageId,
-            error: message.error,
-            errorCode: errorCode
-          });
+      let incUpdate = {};
+      let statsUpdated = false;
 
+      // Ensure campaignId is a string for the query
+      const campaignIdStr = String(campaignId);
+
+      // Status transition logic for accuracy using $inc
+      if (newStatus === 'delivered' && oldStatus !== 'delivered' && oldStatus !== 'read') {
+        incUpdate['stats.delivered'] = 1;
+        statsUpdated = true;
+      } 
+      else if (newStatus === 'read' && oldStatus !== 'read') {
+        incUpdate['stats.read'] = 1;
+        if (oldStatus !== 'delivered') {
+          incUpdate['stats.delivered'] = 1;
         }
-      } catch (socketError) {
-        console.error('❌ Socket emit error:', socketError.message);
+        statsUpdated = true;
+      } 
+      else if (newStatus === 'failed' && oldStatus !== 'failed') {
+        incUpdate['stats.failed'] = 1;
+        statsUpdated = true;
       }
-    } else {
-      console.warn(`⚠️  Message not found in database: ${messageId}`);
+
+      if (statsUpdated) {
+        const updatedCampaign = await Campaign.findByIdAndUpdate(
+          campaignIdStr,
+          { $inc: incUpdate },
+          { new: true }
+        );
+
+        if (updatedCampaign) {
+          console.log(`✅ Campaign stats incremented for ${campaignIdStr}:`, incUpdate);
+          
+          // Emit campaign update via socket to the user who owns it
+          try {
+            const io = getIO();
+            if (io && updatedCampaign.user) {
+              const userId = updatedCampaign.user.toString();
+              console.log(`📢 Emitting campaign_stats_updated to user ${userId} for campaign ${updatedCampaign._id}`);
+              io.to(userId).emit('campaign_stats_updated', {
+                campaignId: updatedCampaign._id,
+                stats: updatedCampaign.stats,
+                status: updatedCampaign.status
+              });
+            }
+          } catch (socketError) {
+            console.error('❌ Socket emit error (campaign):', socketError.message);
+          }
+        }
+      } else {
+        console.log(`ℹ️  No stat increment needed for campaign ${campaignId} (transition: ${oldStatus} -> ${newStatus})`);
+      }
     }
 
-
+    // Emit message status update to frontend (existing)
+    try {
+      const io = getIO();
+      if (io) {
+        io.emit('message_status_update', {
+          messageId: updatedMessage._id,
+          status: newStatus,
+          whatsappMessageId: messageId,
+          error: updatedMessage.error,
+          errorCode: errorCode
+        });
+      }
+    } catch (socketError) {
+      console.error('❌ Socket emit error:', socketError.message);
+    }
   } catch (error) {
     console.error('❌ Error handling status update:', error);
   }
