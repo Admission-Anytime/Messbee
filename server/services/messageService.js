@@ -4,6 +4,7 @@ const Campaign = require('../models/Campaign');
 const Chat = require('../models/Chat');
 const whatsappService = require('./whatsappService');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
+const { getIO } = require('../config/socket');
 
 const formatMessageTime = () =>
   new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -193,6 +194,20 @@ exports.sendBulkMessages = async (userId, campaignId, contacts, messageTemplate)
     }
 
     await campaign.save();
+
+    // Emit campaign update via socket to the user who owns it
+    try {
+      const io = getIO();
+      if (io && campaign.user) {
+        io.to(campaign.user.toString()).emit('campaign_stats_updated', {
+          campaignId: campaign._id,
+          stats: campaign.stats,
+          status: campaign.status
+        });
+      }
+    } catch (socketError) {
+      console.error('❌ Socket emit error (bulk campaign):', socketError.message);
+    }
 
     return {
       success: true,

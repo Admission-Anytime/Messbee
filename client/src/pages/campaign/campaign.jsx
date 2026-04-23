@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
+import io from 'socket.io-client';
+import { userContext } from '../../context/Context';
 import {
   MagnifyingGlassIcon,
   PlusIcon,
@@ -52,6 +54,12 @@ const truncateText = (value, maxLength = 120) => {
   return `${text.slice(0, maxLength).trimEnd()}...`;
 };
 
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '')
+    : 'http://localhost:5000');
+
 const mapCampaign = (camp, templatePreviewMap = {}) => {
   const rawTemplateValue = String(camp.messageTemplate || '—').trim();
   const resolvedTemplate =
@@ -83,12 +91,14 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
 
 const CampaignDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useContext(userContext);
+  const socketRef = useRef(null);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
   /* modal state */
-  const [analyticsTarget, setAnalyticsTarget] = useState(null);
+  const [analyticsId, setAnalyticsId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [duplicatedId, setDuplicatedId] = useState(null);
 
@@ -99,35 +109,78 @@ const CampaignDashboard = () => {
   const [templateOptions, setTemplateOptions] = useState([]);
   const [templatePreviewMap, setTemplatePreviewMap] = useState({});
 
-  const loadApprovedTemplates = useCallback(async () => {
+  // Real-time updates with Socket.io
+  useEffect(() => {
+    if (!user?._id && !user?.id) return;
+
+    const userId = user._id || user.id;
+    socketRef.current = io(SOCKET_URL, { withCredentials: true });
+
+    socketRef.current.on('connect', () => {
+      socketRef.current.emit('join', userId);
+    });
+
+    socketRef.current.on('campaign_stats_updated', (data) => {
+      const { campaignId, stats, status } = data;
+      console.log('📈 Campaign stats updated:', data);
+      
+      setCampaigns((prev) => 
+        prev.map((c) => {
+          if (String(c.id) === String(campaignId)) {
+            return {
+              ...c,
+              stats: {
+                total: (stats.sent || 0) + (stats.failed || 0),
+                sent: stats.sent || 0,
+                delivered: stats.delivered || 0,
+                read: stats.read || 0,
+                failed: stats.failed || 0,
+              },
+              status: mapStatus(status),
+              progress: mapProgress({ ...c, status, stats })
+            };
+          }
+          return c;
+        })
+      );
+    });
+
+    return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+      }
+    };
+  }, [user]);
+
+  // Helper to fetch and format templates
+  const getTemplatesMap = async () => {
     try {
       const whatsappTemplates = await fetchWhatsAppTemplates();
       const approvedTemplates = whatsappTemplates.approvedTemplates || whatsappTemplates.data?.approvedTemplates || [];
       const formatted = mergeTemplates(approvedTemplates, []);
 
-      const previewMap = formatted.reduce((acc, template) => {
+      return formatted.reduce((acc, template) => {
         if (template?.name) {
           acc[template.name] = template.bodyText || template.name;
           acc[String(template.name).toLowerCase()] = template.bodyText || template.name;
         }
         return acc;
       }, {});
-
-      setTemplatePreviewMap(previewMap);
     } catch (error) {
-      console.error('Error loading approved templates:', error);
+      console.error('Error loading templates map:', error);
+      return {};
     }
-  }, []);
+  };
 
-  const fetchCampaigns = useCallback(async () => {
+  const fetchCampaigns = useCallback(async (showLoading = true, customTemplateMap = null) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       const res = await CampaignApi.getCampaigns();
       if (res.success) {
-        const mapped = res.data.map((camp) => mapCampaign(camp, templatePreviewMap));
+        const tMap = customTemplateMap || templatePreviewMap;
+        const mapped = res.data.map((camp) => mapCampaign(camp, tMap));
         setCampaigns(mapped);
         
-        // Extract unique template names from campaigns for stable filter values.
         const uniqueTemplates = [...new Set(mapped.map(c => c.templateName))].filter(t => t !== '—');
         setTemplateOptions(uniqueTemplates);
       } else {
@@ -137,21 +190,32 @@ const CampaignDashboard = () => {
       console.error('Error fetching campaigns:', error);
       toast.error('Failed to fetch campaigns');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [templatePreviewMap]);
 
+  // Initial load: Fetch both in parallel
   useEffect(() => {
-    fetchCampaigns();
-  }, [fetchCampaigns]);
+    const init = async () => {
+      setLoading(true);
+      try {
+        const tMap = await getTemplatesMap();
+        setTemplatePreviewMap(tMap);
+        // Pass tMap directly to fetchCampaigns to avoid waiting for state update
+        await fetchCampaigns(false, tMap);
+      } catch (error) {
+        console.error('Initial load error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    init();
+  }, []); // Only once on mount
 
-  useEffect(() => {
-    loadApprovedTemplates();
-  }, [loadApprovedTemplates]);
-
+  // Background refresh
   useEffect(() => {
     const intervalId = setInterval(() => {
-      fetchCampaigns();
+      fetchCampaigns(false);
     }, 15000);
 
     return () => clearInterval(intervalId);
@@ -393,7 +457,7 @@ const CampaignDashboard = () => {
                           icon={<ChartBarIcon className="w-4 h-4" />}
                           hoverColor="hover:text-emerald-500 hover:bg-emerald-50"
                           title="Analytics"
-                          onClick={() => setAnalyticsTarget(camp)}
+                          onClick={() => setAnalyticsId(camp.id)}
                         />
                         <ActionBtn
                           icon={<DocumentDuplicateIcon className="w-4 h-4" />}
@@ -427,10 +491,11 @@ const CampaignDashboard = () => {
       </div>
 
       {/* ── Analytics Modal ── */}
-      {analyticsTarget && (
+      
+      {analyticsId && (
         <AnalyticsModal
-          campaign={analyticsTarget}
-          onClose={() => setAnalyticsTarget(null)}
+          campaign={campaigns.find(c => c.id === analyticsId)}
+          onClose={() => setAnalyticsId(null)}
         />
       )}
 
