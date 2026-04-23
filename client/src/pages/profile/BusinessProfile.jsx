@@ -159,18 +159,18 @@ const BusinessProfile = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl mx-auto bg-[#f6f8fb] min-h-screen space-y-8">
+    <div className="p-6 md:p-8 max-w-5xl mx-auto bg-[#f6f8fb] min-h-screen space-y-6">
       
       <ToastContainer />
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-8 shadow-sm">
+      <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
         <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your business identity, official API profile, billing, and regional compliance details.</p>
       </div>
 
       {/* 1. Organization Identity */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -181,7 +181,7 @@ const BusinessProfile = () => {
                 <path d="M9 17H15" stroke="#1ebd74" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </div>
-            <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Organization Identity</h3>
+            <h3 className="font-bold text-gray-900">Organization Identity</h3>
           </div>
           {!activeEdit || activeEdit !== "identity" ? (
             <button
@@ -210,12 +210,12 @@ const BusinessProfile = () => {
           )}
         </div>
 
-        <div className="flex flex-col md:flex-row gap-12">
+        <div className="flex flex-col md:flex-row gap-6">
           <div className="flex flex-col items-center gap-3">
             <div className="relative">
               <div 
                 onClick={activeEdit === "identity" ? triggerImageUpload : undefined}
-                className={`w-52 h-52 rounded-xl border-2 flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-300 ${
+                className={`w-40 h-40 md:w-44 md:h-44 rounded-xl border-2 flex flex-col items-center justify-center relative overflow-hidden group transition-all duration-300 ${
                 activeEdit === "identity" 
                 ? 'border-dashed border-[#bcf0da] bg-[#f6fffb] cursor-pointer hover:border-[#1ebd74] hover:bg-[#ecfdf5]' 
                 : 'border-solid border-gray-200 bg-white'
@@ -264,15 +264,15 @@ const BusinessProfile = () => {
               className="hidden" 
               onChange={handleImageUpload}
             />
-            <p className="text-[10px] text-gray-400 text-center uppercase font-bold tracking-wider leading-relaxed">
+            <p className="text-[10px] text-gray-400 text-center uppercase font-bold tracking-wider leading-relaxed mt-1">
               Square, min 500×500px<br />JPG, PNG or SVG
               {activeEdit === "identity" && <span className="block text-[#1ebd74] mt-1">Click to upload</span>}
             </p>
           </div>
 
-          <div className="flex-1 flex flex-col gap-6">
+          <div className="flex-1 flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-bold text-gray-500">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Organization Name {activeEdit === "identity" && <span className="text-red-500">*</span>}
               </label>
               {activeEdit === "identity" ? (
@@ -298,13 +298,13 @@ const BusinessProfile = () => {
                   )}
                 </div>
               ) : (
-                <p className="text-[15px] text-gray-900 py-3 font-semibold">
+                <p className="text-base text-gray-900 py-2 font-medium">
                {formData.organizationName}
                </p>
               )}
             </div>
             <div className="flex flex-col gap-2">
-              <label className="text-[14px] font-bold text-gray-500">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
                 Website URL {activeEdit === "identity" && <span className="text-red-500">*</span>}
               </label>
               {activeEdit === "identity" ? (
@@ -331,7 +331,7 @@ const BusinessProfile = () => {
                   )}
                 </>
               ) : (
-                <p className="text-[14px] py-3 font-medium">
+                <p className="text-base py-2 font-medium">
                 <span className="text-gray-500">https://</span>
                 <span className="text-gray-900">{formData.websiteUrl}</span>
                 </p>
@@ -344,8 +344,8 @@ const BusinessProfile = () => {
       </div>
 
       {/* 2. Official Business Profile */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -353,7 +353,7 @@ const BusinessProfile = () => {
                 <path d="M8 12L11 15L16 9" stroke="#1ebd74" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Official Business Profile</h3>
+            <h3 className="font-bold text-gray-900">Official Business Profile</h3>
           </div>
           <div className="flex items-center gap-4">
             <span className="bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full tracking-wider uppercase">WhatsApp API Ready</span>
@@ -385,9 +385,9 @@ const BusinessProfile = () => {
           </div>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Business Category</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Business Category</label>
             {activeEdit === "business" ? (
               <select 
                 value={formData.businessCategory}
@@ -403,12 +403,12 @@ const BusinessProfile = () => {
                 <option>Travel & Hospitality</option>
               </select>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.businessCategory}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.businessCategory}</p>
             )}
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Business Description</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Business Description</label>
             {activeEdit === "business" ? (
               <>
                 <textarea 
@@ -427,12 +427,12 @@ const BusinessProfile = () => {
                 </p>
               </>
             ) : (
-              <p className="text-[14px] text-gray-900 py-3 leading-relaxed">{formData.businessDescription || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 leading-relaxed">{formData.businessDescription || 'Not set'}</p>
             )}
           </div>
 
-          <div className="flex flex-col gap-3">
-            <label className="text-[14px] font-bold text-gray-500">Official Address</label>
+          <div className="flex flex-col gap-2">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Official Address</label>
             {activeEdit === "business" ? (
               <>
                 <input 
@@ -474,7 +474,7 @@ const BusinessProfile = () => {
                 </div>
               </>
             ) : (
-              <div className="text-[14px] text-gray-900 py-3 leading-relaxed">
+              <div className="text-base text-gray-900 py-2 leading-relaxed">
                  <p>{formData.address || 'Not set'}</p>
                  <p>{[formData.city, formData.state].filter(Boolean).join(', ')}</p>
                  <p>{[formData.zipcode, formData.country].filter(Boolean).join(', ')}</p>
@@ -487,8 +487,8 @@ const BusinessProfile = () => {
       </div>
 
       {/* 3. Regional & Compliance */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -497,7 +497,7 @@ const BusinessProfile = () => {
                 <path d="M12 2C14.5013 4.73835 15.9228 8.24815 15.9228 12C15.9228 15.7519 14.5013 19.2617 12 22C9.49872 19.2617 8.07725 15.7519 8.07725 12C8.07725 8.24815 9.49872 4.73835 12 2Z" stroke="#1ebd74" strokeWidth="2" />
               </svg>
             </div>
-            <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Regional & Compliance</h3>
+            <h3 className="font-bold text-gray-900">Regional & Compliance</h3>
           </div>
           {!activeEdit || activeEdit !== "regional" ? (
             <button
@@ -526,9 +526,9 @@ const BusinessProfile = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Base Currency</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Base Currency</label>
             {activeEdit === "regional" ? (
               <select 
                 value={formData.currency}
@@ -542,11 +542,11 @@ const BusinessProfile = () => {
                 <option>AUD - Australian Dollar</option>
               </select>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.currency}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.currency}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Default Timezone</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Default Timezone</label>
             {activeEdit === "regional" ? (
               <select 
                 value={formData.timezone}
@@ -560,11 +560,11 @@ const BusinessProfile = () => {
                 <option>(GMT+05:30) India Standard Time</option>
               </select>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.timezone}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.timezone}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Tax ID / GSTN</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tax ID / GSTN</label>
             {activeEdit === "regional" ? (
               <input 
                 type="text" 
@@ -574,7 +574,7 @@ const BusinessProfile = () => {
                 placeholder="Enter tax ID"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.taxId || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.taxId || 'Not set'}</p>
             )}
           </div>
         </div>
@@ -583,8 +583,8 @@ const BusinessProfile = () => {
       </div>
 
       {/* 4. Billing Information */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
-        <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-5 md:p-6 shadow-sm">
+        <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 flex items-center justify-center bg-green-50 rounded-lg">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -593,7 +593,7 @@ const BusinessProfile = () => {
                 <path d="M7 15H11" stroke="#1ebd74" strokeWidth="2" strokeLinecap="round" />
               </svg>
             </div>
-            <h3 className="text-[18px] font-semibold text-gray-900 tracking-tight">Billing Information</h3>
+            <h3 className="font-bold text-gray-900">Billing Information</h3>
           </div>
           {!activeEdit || activeEdit !== "billing" ? (
             <button
@@ -622,9 +622,9 @@ const BusinessProfile = () => {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-x-8 gap-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-5">
           <div className="md:col-span-4 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
               Billing Name {activeEdit === "billing" && <span className="text-red-500">*</span>}
             </label>
             {activeEdit === "billing" ? (
@@ -650,11 +650,11 @@ const BusinessProfile = () => {
                 )}
               </>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingName}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingName}</p>
             )}
           </div>
           <div className="md:col-span-4 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Billing Address</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Billing Address</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -664,12 +664,12 @@ const BusinessProfile = () => {
                 placeholder="Enter billing address"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingAddress || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingAddress || 'Not set'}</p>
             )}
           </div>
 
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Country</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Country</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -679,11 +679,11 @@ const BusinessProfile = () => {
                 placeholder="Country"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingCountry || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingCountry || 'Not set'}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">State</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">State</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -693,11 +693,11 @@ const BusinessProfile = () => {
                 placeholder="State"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingState || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingState || 'Not set'}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">City</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">City</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -707,11 +707,11 @@ const BusinessProfile = () => {
                 placeholder="City"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingCity || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingCity || 'Not set'}</p>
             )}
           </div>
           <div className="flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Pincode / Zipcode</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Pincode / Zipcode</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -721,12 +721,12 @@ const BusinessProfile = () => {
                 placeholder="Zipcode"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingZipcode || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingZipcode || 'Not set'}</p>
             )}
           </div>
 
           <div className="md:col-span-2 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Mobile Number</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Mobile Number</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -736,11 +736,11 @@ const BusinessProfile = () => {
                 placeholder="Enter mobile number"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.mobileNumber || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.mobileNumber || 'Not set'}</p>
             )}
           </div>
           <div className="md:col-span-2 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
               Email Id {activeEdit === "billing" && <span className="text-red-500">*</span>}
             </label>
             {activeEdit === "billing" ? (
@@ -766,12 +766,12 @@ const BusinessProfile = () => {
                 )}
               </>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.emailId}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.emailId}</p>
             )}
           </div>
 
           <div className="md:col-span-2 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Tax Type</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tax Type</label>
             {activeEdit === "billing" ? (
               <select 
                 value={formData.taxType}
@@ -784,11 +784,11 @@ const BusinessProfile = () => {
                 <option>Other</option>
               </select>
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.taxType}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.taxType}</p>
             )}
           </div>
           <div className="md:col-span-2 flex flex-col gap-2">
-            <label className="text-[14px] font-bold text-gray-500">Tax Id</label>
+            <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Tax Id</label>
             {activeEdit === "billing" ? (
               <input 
                 type="text" 
@@ -798,7 +798,7 @@ const BusinessProfile = () => {
                 placeholder="Enter tax ID"
               />
             ) : (
-              <p className="text-[14px] text-gray-800 py-3 font-medium">{formData.billingTaxId || 'Not set'}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.billingTaxId || 'Not set'}</p>
             )}
           </div>
         </div>
