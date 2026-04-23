@@ -1,6 +1,8 @@
 const Contact  = require('../models/Contact');
 const mongoose = require('mongoose');
 const fs       = require('fs');
+const { normalizePhoneNumber } = require('../utils/phoneHelper');
+
 
 /* ── Built-in CSV parser — no external dependency needed ── */
 const parseCSV = (text) => {
@@ -63,12 +65,8 @@ const toClientContact = (doc) => ({
   updatedAt:    doc.updatedAt,
 });
 
-const normalizePhone = (rawPhone) => {
-  const cleaned = (rawPhone || '').toString().trim().replace(/[\s\-().]/g, '');
-  if (!cleaned) return null;
-  if (cleaned.startsWith('00')) return '+' + cleaned.slice(2);
-  return cleaned;
-};
+const normalizePhone = (rawPhone) => normalizePhoneNumber(rawPhone);
+
 
 const getSubscriberDigits = (phone) => {
   const digits = (phone || '').replace(/\D/g, '');

@@ -297,6 +297,11 @@ const CreateTemplate = () => {
         return;
       }
     }
+
+    if (strippedBody.length > 1024) {
+      toast.error(`Template body is ${strippedBody.length} characters. WhatsApp allows a maximum of 1024 characters.`);
+      return;
+    }
     
     // Convert name to WA format (lowercase, underscores)
     // If overrideName is provided, it's already formatted; otherwise format formData.name
@@ -449,6 +454,7 @@ const CreateTemplate = () => {
       try {
         createdTemplateResponse = await submitTemplate(templatePayload);
       } catch (primaryError) {
+        let latestError = primaryError;
         const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
         const payloadWithoutHeader = {
           ...templatePayload,
@@ -470,6 +476,24 @@ const CreateTemplate = () => {
             ''
           ).toLowerCase().includes('invalid parameter');
 
+        const isBodyCharacterLimitError = (error) => {
+          const subcode =
+            error?.response?.data?.error?.errorSubcode ??
+            error?.response?.data?.error?.error_subcode;
+          const details = String(
+            error?.response?.data?.error?.error_user_msg ||
+            error?.response?.data?.error?.message ||
+            error?.response?.data?.message ||
+            ''
+          ).toLowerCase();
+
+          return subcode === 2388040 || details.includes('1024 characters');
+        };
+
+        if (isBodyCharacterLimitError(latestError)) {
+          throw latestError;
+        }
+
         let recovered = false;
 
         if (hasMediaHeader) {
@@ -479,34 +503,34 @@ const CreateTemplate = () => {
             toast.warn('Template saved without media header sample due to WhatsApp validation constraints.');
             recovered = true;
           } catch (errorWithoutHeader) {
-            primaryError = errorWithoutHeader;
+            latestError = errorWithoutHeader;
           }
         }
 
-        if (!recovered && isInvalidParameterError(primaryError)) {
+        if (!recovered && isInvalidParameterError(latestError) && !isBodyCharacterLimitError(latestError)) {
           try {
             console.warn('⚠️ Invalid parameter from WhatsApp API, retrying with BODY/FOOTER only');
             createdTemplateResponse = await submitTemplate(payloadBodyFooterOnly);
             toast.warn('Template saved with simplified components due to WhatsApp parameter validation.');
             recovered = true;
           } catch (errorBodyFooter) {
-            primaryError = errorBodyFooter;
+            latestError = errorBodyFooter;
           }
         }
 
-        if (!recovered && isInvalidParameterError(primaryError)) {
+        if (!recovered && isInvalidParameterError(latestError) && !isBodyCharacterLimitError(latestError)) {
           try {
             console.warn('⚠️ Invalid parameter persists, retrying with sanitized BODY-only payload');
             createdTemplateResponse = await submitTemplate(payloadBodyOnlySanitized);
             toast.warn('Template saved with BODY-only payload due to WhatsApp parameter validation.');
             recovered = true;
           } catch (errorBodyOnly) {
-            primaryError = errorBodyOnly;
+            latestError = errorBodyOnly;
           }
         }
 
         if (!recovered) {
-          throw primaryError;
+          throw latestError;
         }
       }
 
@@ -537,14 +561,14 @@ const CreateTemplate = () => {
       console.error("Template Creation Error:", error?.response?.data || error);
       const waError = error?.response?.data?.error || {};
       const nestedWaError = waError?.error || {};
-      const errorSubcode = waError?.errorSubcode ?? waError?.error_subcode;
+      const errorSubcode = nestedWaError?.error_subcode ?? nestedWaError?.errorSubcode ?? waError?.error_subcode ?? waError?.errorSubcode;
       const errorMsg =
-        waError?.message ||
         nestedWaError?.message ||
-        waError?.error_user_msg ||
+        waError?.message ||
         nestedWaError?.error_user_msg ||
-        waError?.error_data?.details ||
+        waError?.error_user_msg ||
         nestedWaError?.error_data?.details ||
+        waError?.error_data?.details ||
         error?.response?.data?.message;
       const suggestedName = waError?.suggestedName;
       
@@ -556,9 +580,15 @@ const CreateTemplate = () => {
       
       // Handle specific WhatsApp error codes with actionable guidance
       if (errorSubcode === 2388023) {
-        errorMessage = `Template language is being deleted on WhatsApp for this name. Please wait 1-3 minutes and retry with the same name.${suggestedName ? `\n\nSuggested alternate name (manual): ${suggestedName}` : ''}`;
+        errorMessage = `WhatsApp is currently deleting this template language variant for the same name. During this lock period, you cannot add English (US) back to that template name. Use a new name now${suggestedName ? ` (suggested: ${suggestedName})` : ''}, or wait until WhatsApp's deletion window ends (can be up to 4 weeks).`;
+      } else if (errorSubcode === 2388040) {
+        errorMessage = 'Character limit exceeded: The template BODY content cannot be more than 1024 characters. Please shorten your message and try again.';
+      } else if (errorSubcode === 2388025) {
+        errorMessage = `WhatsApp is blocking this change because the template is in deletion flow. Use a new template name${suggestedName ? ` (suggested: ${suggestedName})` : ''} or retry after the deletion window completes.`;
       } else if (errorSubcode === 2388024) {
         errorMessage = `Template content already exists in this language for the same name.${suggestedName ? `\n\nTry this alternate name: ${suggestedName}` : '\n\nPlease change template name and retry.'}`;
+      } else if (errorSubcode === 2388124) {
+        errorMessage = "WhatsApp limitation: You can only edit an active template once every 24 hours. Please wait or try creating a new template with a different name.";
       }
       
       toast.error(errorMessage);
@@ -910,6 +940,27 @@ const CreateTemplate = () => {
                         </div>
                     </div>
 
+                    {/* FOOTER SECTION */}
+                    <div className="mt-8 border-t border-gray-50 pt-6">
+                        <div className="flex flex-col gap-1 mb-3">
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
+                            <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
+                        </div>
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                value={formData.footerText} 
+                                onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
+                                placeholder="Enter footer text..."
+                                maxLength={60}
+                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                            />
+                            <div className="flex justify-end mt-1">
+                                <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                            </div>
+                        </div>
+                    </div>
+
                     {bodyVariables.length > 0 && (
                       <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
                         <h4 className="text-sm md:text-base font-bold text-gray-800">Samples for body content</h4>
@@ -1087,55 +1138,24 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
       </div>
       <div className="p-4 overflow-y-auto max-h-[460px]">
         <div className="bg-white rounded-[1.25rem] rounded-tl-none shadow-lg overflow-hidden border border-gray-200/50">
-          {showImage && (
-            <>
-              {headerMedia ? (
-                <div className="relative bg-gray-900 flex items-center justify-center overflow-hidden">
-                  {headerMedia.type === 'image' && (
-                    <img src={headerMedia.preview} alt="header" className="w-full h-40 object-cover"/>
-                  )}
-                  {headerMedia.type === 'video' && (
-                    <video src={headerMedia.preview} className="w-full h-40 object-cover" controls={false}/>
-                  )}
-                  {headerMedia.type === 'document' && (
-                    <div className="w-full h-40 bg-red-50 flex items-center justify-center flex-col gap-2">
-                      <div className="text-4xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
-                      <p className="text-xs text-gray-600">{headerMedia.name}</p>
-                    </div>
-                  )}
-                  {offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
-                </div>
-              ) : (
-                <div className="h-32 md:h-36 bg-gray-50 flex flex-col items-center justify-center text-gray-300 gap-1 border-b border-dashed relative">
-                  {offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
-                  {headerType === 'Image' && (
-                    <>
-                      <ImageIcon size={32} className="opacity-20"/>
-                      <span className="text-xs font-bold uppercase opacity-30">Image Preview</span>
-                    </>
-                  )}
-                  {headerType === 'Video' && (
-                    <>
-                      <div className="text-3xl opacity-20">▶️</div>
-                      <span className="text-xs font-bold uppercase opacity-30">Video Preview</span>
-                    </>
-                  )}
-                  {headerType === 'Document' && (
-                    <>
-                      <div className="text-3xl opacity-20">📄</div>
-                      <span className="text-xs font-bold uppercase opacity-30">Document Preview</span>
-                    </>
-                  )}
-                  {(headerType === 'None' || headerType === 'Text') && (
-                    <>
-                      <ImageIcon size={32} className="opacity-20"/>
-                      <span className="text-xs font-bold uppercase opacity-30">Media Header</span>
-                    </>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+          {/* MEDIA HEADER */}
+           {['Image', 'Video', 'Document'].includes(headerType) && headerMedia && (
+             <div className="relative bg-gray-900 flex items-center justify-center overflow-hidden">
+               {headerMedia.type === 'image' && (
+                 <img src={headerMedia.preview} alt="header" className="w-full h-40 object-cover"/>
+               )}
+               {headerMedia.type === 'video' && (
+                 <video src={headerMedia.preview} className="w-full h-40 object-cover" controls={false}/>
+               )}
+               {headerMedia.type === 'document' && (
+                 <div className="w-full h-40 bg-red-50 flex items-center justify-center flex-col gap-2">
+                   <div className="text-4xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
+                   <p className="text-xs text-gray-600">{headerMedia.name}</p>
+                 </div>
+               )}
+               {isLimited && offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
+             </div>
+           )}
           <div className="p-4 md:p-5">
             <p className="text-xs text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name || 'TEMPLATE_NAME'}]</p>
             <div className="text-sm md:text-base text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>

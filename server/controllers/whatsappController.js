@@ -1,6 +1,8 @@
 const whatsappService = require('../services/whatsappService');
 const Chat = require('../models/Chat');
 const Message = require('../models/Message');
+const Contact = require('../models/Contact');
+
 const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
@@ -257,6 +259,7 @@ async function handleIncomingMessage(data) {
     const contactName = contact?.name || contact?.profile?.name || normalizedFrom;
 
     // Find or create chat (check both phone and whatsappId with normalized number)
+    // We sort by 'user' desc to prefer chats that already have an owner assigned
     let chat = await Chat.findOne({ 
       $or: [
         { phone: normalizedFrom },
@@ -264,9 +267,21 @@ async function handleIncomingMessage(data) {
         { phone: from },
         { whatsappId: from }
       ]
-    });
+    }).sort({ user: -1 });
 
     if (!chat) {
+      // Try to find if this contact belongs to any user in the CRM (Contact model)
+      const crmContact = await Contact.findOne({ 
+        $or: [
+          { whatsapp: normalizedFrom },
+          { phone: normalizedFrom },
+          { whatsapp: from },
+          { phone: from }
+        ]
+      }).sort({ updatedAt: -1 });
+
+      const assignedUserId = crmContact ? crmContact.user : null;
+
       chat = await Chat.create({
         name: contactName,
         phone: normalizedFrom,
@@ -275,7 +290,8 @@ async function handleIncomingMessage(data) {
         avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(contactName)}&background=random`,
         teamMember: 'Unassigned',
         whatsappId: normalizedFrom,
-        source: 'whatsapp'
+        source: 'whatsapp',
+        user: assignedUserId // Link to the user who owns the contact in CRM
       });
       
       // Emit chat_created event
@@ -287,6 +303,20 @@ async function handleIncomingMessage(data) {
       } catch (socketError) {
       }
     } else {
+      // If found chat has NO user assigned, but we find a CRM contact with a user, assign it
+      if (!chat.user) {
+        const crmContact = await Contact.findOne({ 
+          $or: [
+            { whatsapp: normalizedFrom },
+            { phone: normalizedFrom }
+          ]
+        }).sort({ updatedAt: -1 });
+        
+        if (crmContact) {
+          chat.user = crmContact.user;
+        }
+      }
+
       
       // Update with normalized phone if needed
       if (chat.phone !== normalizedFrom || chat.whatsappId !== normalizedFrom) {
