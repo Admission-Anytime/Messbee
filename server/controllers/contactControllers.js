@@ -314,6 +314,43 @@ exports.bulkDelete = async (req, res, next) => {
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   PUT /api/contacts/bulk-status
+───────────────────────────────────────────────────────────────────────────── */
+exports.bulkUpdateStatus = async (req, res, next) => {
+  try {
+    const { ids, status } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return sendError(res, 400, 'ids must be a non-empty array');
+    if (!status) return sendError(res, 400, 'status is required');
+
+    const result = await Contact.updateMany(
+      { _id: { $in: ids }, user: req.user.id },
+      { $set: { status } }
+    );
+    return res.json({ success: true, updated: result.modifiedCount });
+  } catch (err) { next(err); }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   PUT /api/contacts/bulk-labels
+───────────────────────────────────────────────────────────────────────────── */
+exports.bulkAddLabels = async (req, res, next) => {
+  try {
+    const { ids, labels } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return sendError(res, 400, 'ids must be a non-empty array');
+    if (!Array.isArray(labels) || labels.length === 0)
+      return sendError(res, 400, 'labels must be a non-empty array');
+
+    const result = await Contact.updateMany(
+      { _id: { $in: ids }, user: req.user.id },
+      { $addToSet: { labels: { $each: labels } } }
+    );
+    return res.json({ success: true, updated: result.modifiedCount });
+  } catch (err) { next(err); }
+};
+
+/* ─────────────────────────────────────────────────────────────────────────────
    POST /api/contacts/import
 ───────────────────────────────────────────────────────────────────────────── */
 exports.importContacts = async (req, res, next) => {

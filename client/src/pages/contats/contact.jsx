@@ -24,6 +24,10 @@ import {
   BuildingOfficeIcon,
   AcademicCapIcon,
   GlobeAltIcon,
+  ArchiveBoxIcon,
+  UserMinusIcon,
+  ChatBubbleLeftIcon,
+  EllipsisHorizontalIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
@@ -67,6 +71,8 @@ const createContact     = (data)     => apiFetch("POST",   "/api/contacts",     
 const updateContact     = (id, data) => apiFetch("PUT",    `/api/contacts/${id}`,       data);
 const deleteContact     = (id)       => apiFetch("DELETE", `/api/contacts/${id}`);
 const bulkDelete        = (ids)      => apiFetch("DELETE", "/api/contacts/bulk-delete", { ids });
+const bulkAddLabels     = (ids, labels) => apiFetch("PUT",    "/api/contacts/bulk-labels", { ids, labels });
+const bulkUpdateStatus  = (ids, status) => apiFetch("PUT",    "/api/contacts/bulk-status", { ids, status });
 const createCustomField = (data)     => apiFetch("POST",   "/api/custom-fields",        data);
 
 /* ─── Static config ──────────────────────────────────────────────────────────── */
@@ -1034,6 +1040,8 @@ function DeleteConfirmModal({ isOpen, onConfirm, onCancel, count, loading }) {
   );
 }
 
+
+
 /* ─── Pagination ─────────────────────────────────────────────────────────────── */
 function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageChange, onRowsChange }) {
   const start = totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
@@ -1095,38 +1103,218 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete }) {
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onStatus, onCampaign, labels = [], statuses = [] }) {
+  const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | null
+  const [showOptions, setShowOptions] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!activeMenu) setShowOptions(false);
+  }, [activeMenu]);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setActiveMenu(null);
+        setShowOptions(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   if (selectedCount === 0) return null;
+
   return (
-    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[500] animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans">
-      <div className="bg-white border border-gray-100 shadow-[0_10px_40px_rgba(0,0,0,0.12)] rounded-2xl flex flex-wrap items-center p-2 w-[min(92vw,820px)]">
-        <div className="flex items-center gap-3 px-4 sm:px-5 border-r border-gray-100 mr-2">
-          <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center font-bold text-green-600 text-lg">{selectedCount}</div>
-          <div className="flex flex-col">
-            <span className="text-sm font-bold text-gray-900 leading-none">Contacts</span>
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1">selected</span>
+    <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[500] animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans" ref={menuRef}>
+      {/* Dropdown Menu - Labels */}
+      {activeMenu === 'label' && (
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[340px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
+          <div className="bg-emerald-50/40 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
+                <TagIcon className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-black text-gray-800 tracking-tight">Assign Labels</span>
+            </div>
+          </div>
+          <div className="p-3">
+            <div className="relative group cursor-pointer" onClick={() => setShowOptions(true)}>
+              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${showOptions ? 'text-emerald-500' : 'text-gray-400'}`} />
+              <input 
+                type="text" 
+                placeholder="Select or search labels..." 
+                onFocus={() => setShowOptions(true)}
+                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none focus:ring-4 focus:ring-emerald-50 focus:bg-white transition-all placeholder:text-gray-400 cursor-pointer focus:cursor-text"
+                onChange={(e) => {
+                  const q = e.target.value.toLowerCase();
+                  const btns = menuRef.current?.querySelectorAll('.label-btn');
+                  btns?.forEach(b => {
+                    const text = b.textContent.toLowerCase();
+                    b.style.display = text.includes(q) ? 'flex' : 'none';
+                  });
+                }}
+              />
+              <ChevronDownIcon className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 transition-transform duration-300 ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+            </div>
+          </div>
+          {showOptions && (
+            <div className="max-h-[300px] overflow-y-auto px-2 pb-2 custom-scrollbar flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+              {labels.length === 0 ? (
+                <div className="px-5 py-10 text-center flex flex-col items-center">
+                  <TagIcon className="w-10 h-10 text-gray-100 mb-2" />
+                  <p className="text-[13px] text-gray-400 font-bold italic">No labels found</p>
+                </div>
+              ) : labels.map((l, i) => (
+                <button 
+                  key={l} 
+                  onClick={() => { onLabel([l]); setActiveMenu(null); }}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                  className="label-btn flex items-center gap-3 w-full px-4 py-3 rounded-2xl hover:bg-emerald-50 text-[13px] font-black text-gray-600 hover:text-emerald-700 transition-all text-left group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                >
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-200 group-hover:bg-emerald-500 group-hover:scale-125 transition-all shadow-sm" />
+                  <span className="truncate">{l}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="bg-slate-50/50 px-4 py-3 flex items-center justify-between border-t border-gray-100">
+            <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Instant Assign</span>
+            <button onClick={() => setActiveMenu(null)} className="px-3 py-1.5 text-[11px] font-black text-gray-500 hover:bg-white hover:text-red-500 rounded-xl transition-all shadow-sm">CLOSE</button>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-1 px-2 min-w-[240px]">
-          <button className="flex flex-col items-center justify-center px-4 py-2 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors group">
-            <TagIcon className="w-5 h-5 mb-1 group-hover:text-green-600" />
-            <span className="text-[11px] font-bold">Add Label</span>
+      )}
+
+      {/* Dropdown Menu - Status */}
+      {activeMenu === 'status' && (
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[300px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
+          <div className="bg-emerald-50/40 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
+                <ArrowPathIcon className="w-4 h-4 text-white" />
+              </div>
+              <span className="text-sm font-black text-gray-800 tracking-tight">Change Status</span>
+            </div>
+          </div>
+          <div className="p-3">
+            <div className="relative group cursor-pointer" onClick={() => setShowOptions(true)}>
+              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${showOptions ? 'text-emerald-500' : 'text-gray-400'}`} />
+              <input 
+                type="text" 
+                placeholder="Select lead status..." 
+                onFocus={() => setShowOptions(true)}
+                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none focus:ring-4 focus:ring-emerald-50 focus:bg-white transition-all placeholder:text-gray-400 cursor-pointer focus:cursor-text"
+                onChange={(e) => {
+                  const q = e.target.value.toLowerCase();
+                  const btns = menuRef.current?.querySelectorAll('.status-btn');
+                  btns?.forEach(b => {
+                    const text = b.textContent.toLowerCase();
+                    b.style.display = text.includes(q) ? 'flex' : 'none';
+                  });
+                }}
+              />
+              <ChevronDownIcon className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 transition-transform duration-300 ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+            </div>
+          </div>
+          {showOptions && (
+            <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-300">
+              {statuses.map((s, i) => (
+                <button 
+                  key={s.name || s} 
+                  onClick={() => { onStatus(s.name || s); setActiveMenu(null); }}
+                  style={{ animationDelay: `${i * 30}ms` }}
+                  className="status-btn flex items-center gap-3 w-full px-4 py-3 rounded-2xl hover:bg-blue-50 text-[13px] font-black text-gray-600 hover:text-blue-700 transition-all text-left group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                >
+                  <div 
+                    className="w-3 h-3 rounded-full ring-4 ring-transparent group-hover:ring-blue-100 transition-all shadow-sm" 
+                    style={{ backgroundColor: s.color || '#3B82F6' }} 
+                  />
+                  <span className="truncate uppercase tracking-tight">{s.name || s}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="bg-slate-50/50 px-4 py-3 border-t border-gray-100 flex justify-end">
+            <button onClick={() => setActiveMenu(null)} className="px-3 py-1.5 text-[11px] font-black text-gray-500 hover:bg-white hover:text-red-500 rounded-xl transition-all shadow-sm">CANCEL</button>
+          </div>
+        </div>
+      )}
+
+      {/* Dropdown Menu - More Actions */}
+      {activeMenu === 'more' && (
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[240px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden py-2">
+          {[
+            { label: 'Closed chats',     icon: CheckCircleIcon,       color: 'text-gray-600' },
+            { label: 'Archived chats',   icon: ArchiveBoxIcon,        color: 'text-gray-600' },
+            { label: 'Unarchived chats', icon: ArrowUpTrayIcon,       color: 'text-gray-600' },
+            { divider: true },
+            { label: 'Delete chat',      icon: TrashIcon,             color: 'text-red-500' },
+            { label: 'Delete contact',   icon: UserMinusIcon,         color: 'text-red-500' },
+            { divider: true },
+            { label: 'Pin chat',         icon: MapPinIcon,            color: 'text-gray-600' },
+            { label: 'Unpin chat',       icon: MapPinIcon,            color: 'text-gray-400' },
+            { label: 'Mark as un-read',  icon: ChatBubbleLeftIcon,    color: 'text-gray-600' },
+          ].map((item, i) => item.divider ? (
+            <div key={`d-${i}`} className="h-px bg-gray-50 my-1 mx-4" />
+          ) : (
+            <button 
+              key={item.label}
+              onClick={() => { /* Placeholder for actions */ setActiveMenu(null); }}
+              style={{ animationDelay: `${i * 30}ms` }}
+              className="flex items-center gap-3 w-full px-5 py-2.5 hover:bg-gray-50 transition-all text-left group animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+            >
+              <item.icon className={`w-4 h-4 ${item.color} group-hover:scale-110 transition-transform`} />
+              <span className={`text-[13px] font-bold ${item.color} tracking-tight`}>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="bg-white border border-gray-100 shadow-[0_15px_50px_rgba(0,0,0,0.15)] rounded-[2.5rem] flex items-center justify-center p-1.5 w-fit relative mx-auto">
+        <div className="flex items-center gap-2 px-3 sm:px-4 border-r border-gray-100 mr-0.5">
+          <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center font-black text-emerald-600 text-lg shadow-inner">{selectedCount}</div>
+          <div className="flex flex-col">
+            <span className="text-sm font-black text-gray-900 leading-none">Contacts</span>
+            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">active</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-0.5 px-0.5">
+          <button 
+            onClick={() => setActiveMenu(activeMenu === 'label' ? null : 'label')} 
+            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'label' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+          >
+            <TagIcon className={`w-5 h-5 mb-1 ${activeMenu === 'label' ? 'text-emerald-500 scale-110' : 'group-hover:text-emerald-500'}`} />
+            <span className="text-[10px] font-black uppercase tracking-tighter">Add Label</span>
           </button>
-          <button className="flex flex-col items-center justify-center px-4 py-2 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors group">
-            <ArrowPathIcon className="w-5 h-5 mb-1 group-hover:text-green-600" />
-            <span className="text-[11px] font-bold leading-tight text-center">Change<br />Status</span>
+          <button 
+            onClick={() => setActiveMenu(activeMenu === 'status' ? null : 'status')} 
+            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'status' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+          >
+            <ArrowPathIcon className={`w-5 h-5 mb-1 ${activeMenu === 'status' ? 'text-emerald-500 scale-110 rotate-180 transition-transform' : 'group-hover:text-emerald-500 font-bold'}`} />
+            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tighter">Change<br />Status</span>
           </button>
-          <button className="flex flex-col items-center justify-center px-4 py-2 rounded-xl hover:bg-gray-50 text-gray-600 transition-colors group">
-            <MegaphoneIcon className="w-5 h-5 mb-1 group-hover:text-green-600" />
-            <span className="text-[11px] font-bold leading-tight text-center">Send<br />Campaign</span>
+          <button onClick={onCampaign} className="flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl hover:bg-emerald-50 text-gray-400 hover:text-emerald-500 transition-all group">
+            <MegaphoneIcon className="w-5 h-5 mb-1 group-hover:text-emerald-500 group-hover:-rotate-12" />
+            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tighter">Send<br />Campaign</span>
+          </button>
+          <button 
+            onClick={() => setActiveMenu(activeMenu === 'more' ? null : 'more')}
+            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'more' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+          >
+            <div className="flex flex-col items-center">
+              <EllipsisHorizontalIcon className={`w-5 h-5 mb-1 ${activeMenu === 'more' ? 'text-emerald-500 scale-110' : 'group-hover:text-emerald-500'}`} />
+              <span className="text-[10px] font-black uppercase tracking-tighter flex items-center gap-0.5">
+                More Actions <ChevronDownIcon className={`w-2.5 h-2.5 transition-transform ${activeMenu === 'more' ? 'rotate-180' : ''}`} />
+              </span>
+            </div>
           </button>
         </div>
-        <div className="flex items-center gap-2 pl-3 sm:pl-4 pr-2 border-l border-gray-100 ml-auto">
-          <button onClick={onDelete} className="flex items-center gap-2 px-4 py-2 rounded-xl text-red-500 hover:bg-red-50 font-bold text-sm transition-colors">
-            <TrashIcon className="w-5 h-5" />Delete
+        <div className="flex items-center gap-1.5 pl-2 sm:pl-3 pr-2 border-l border-gray-100">
+          <button onClick={onDelete} className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-red-500 hover:bg-red-50 font-black text-[12px] transition-all active:scale-95 group">
+            <TrashIcon className="w-4.5 h-4.5 group-hover:shake" />Delete
           </button>
-          <button onClick={onClear} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
-            <XMarkIcon className="w-5 h-5" />
+          <button onClick={onClear} className="p-2 text-gray-300 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all active:rotate-90">
+            <XMarkIcon className="w-4.5 h-4.5" />
           </button>
         </div>
       </div>
@@ -1198,6 +1386,17 @@ export default function ContactsCRM() {
   }, []);
 
   useEffect(() => { loadCustomFields(); }, [loadCustomFields]);
+  const [allStatuses,        setAllStatuses]       = useState([]);
+
+  /* ── Fetch statuses ── */
+  useEffect(() => {
+    apiFetch("GET", "/api/statuses")
+      .then(res => {
+        const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
+        if (list.length > 0) setAllStatuses(list);
+      })
+      .catch(() => {});
+  }, []);
 
   // ─── Listen for cross-page custom field changes (delete / toggle / create).
   // CustomFieldsSection fires window.dispatchEvent("customFieldsChanged") with the
@@ -1288,6 +1487,53 @@ export default function ContactsCRM() {
   };
 
   const cancelDelete = () => setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
+  
+  const handleBulkLabel = async (labels) => {
+    setBulkLabelModal(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await bulkAddLabels(selectedRows, labels);
+      if (res.success) {
+        showToast("success", "Labels Added", `Added labels to ${res.updated} contacts.`);
+        setBulkLabelModal({ isOpen: false, loading: false });
+        setSelectedRows([]);
+        loadContacts();
+      } else {
+        showToast("error", "Failed to add labels", res.message);
+      }
+    } catch (err) {
+      showToast("error", "Error", "An error occurred while adding labels");
+    } finally {
+      setBulkLabelModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleBulkStatus = async (status) => {
+    setBulkStatusModal(prev => ({ ...prev, loading: true }));
+    try {
+      const res = await bulkUpdateStatus(selectedRows, status);
+      if (res.success) {
+        showToast("success", "Status Updated", `Updated status for ${res.updated} contacts.`);
+        setBulkStatusModal({ isOpen: false, loading: false });
+        setSelectedRows([]);
+        loadContacts();
+      } else {
+        showToast("error", "Failed to update status", res.message);
+      }
+    } catch (err) {
+      showToast("error", "Error", "An error occurred while updating status");
+    } finally {
+      setBulkStatusModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleSendCampaign = () => {
+    navigate("/admin/campaign/create", { 
+      state: { 
+        selectedContactIds: selectedRows,
+        source: "contacts_bulk_action"
+      }
+    });
+  };
 
   /* ── Row click → profile ── */
   const handleRowClick = (contact, e) => {
@@ -1645,7 +1891,16 @@ export default function ContactsCRM() {
         />
       </div>
 
-      <BulkActionToolbar selectedCount={selectedRows.length} onClear={() => setSelectedRows([])} onDelete={handleBulkDelete} />
+      <BulkActionToolbar 
+        selectedCount={selectedRows.length} 
+        onClear={() => setSelectedRows([])} 
+        onDelete={handleBulkDelete}
+        onLabel={handleBulkLabel}
+        onStatus={handleBulkStatus}
+        onCampaign={handleSendCampaign}
+        labels={allLabels}
+        statuses={allStatuses}
+      />
 
       <AddContactDrawer
         isOpen={isDrawerOpen}
