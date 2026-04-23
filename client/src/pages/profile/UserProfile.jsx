@@ -639,27 +639,16 @@ useEffect(() => {
       {step === 2 && method === "app" && (
   <>
     {/* Header */}
-    <div className="flex items-center justify-between mb-4">
-  
-
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
-          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-            <path fillRule="evenodd" d="M10 1l7 3v5c0 5-3.5 9-7 10-3.5-1-7-5-7-10V4l7-3z" clipRule="evenodd"/>
-          </svg>
-        </div>
-        <p className="font-semibold text-gray-800">MessBee</p>
-      </div>
-    
-
-      {/* Close */}
-
+    <div className="flex justify-end mb-4">
       <button
-    onClick={() => setShow2FA(false)}
-    className="text-gray-400 hover:text-black text-xl"
-  >
-    ✕
-  </button>
+        onClick={() => setShow2FA(false)}
+        className="text-gray-400 hover:text-gray-700 transition-colors"
+        aria-label="Close"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
     {/* Title */}
@@ -833,9 +822,6 @@ useEffect(() => {
   {smsStep === 1 && (
     <>
       <div className="text-center mb-4">
-        <div className="w-10 h-10 bg-green-100 text-green-600 rounded-lg flex items-center justify-center mx-auto mb-2 font-bold">
-          SMS
-        </div>
         <h2 className="text-lg font-bold">Set up SMS Verification</h2>
         <p className="text-sm text-gray-500 mt-1">
           Enter your phone number to receive a 6-digit security code
@@ -885,16 +871,17 @@ useEffect(() => {
   {/* STEP 2 (YOUR CODE HERE) */}
   {smsStep === 2 && (
   <>
-    {/* LOGO */}
-    <div className="flex justify-center mb-3">
-      <div className="flex items-center gap-2">
-        <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-          <svg className="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-            <path d="M10 2a8 8 0 100 16 8 8 0 000-16z"/>
-          </svg>
-        </div>
-        <span className="font-semibold text-gray-800">MessBee</span>
-      </div>
+    {/* CLOSE */}
+    <div className="flex justify-end mb-3">
+      <button
+        onClick={() => { setShowSmsModal(false); setSmsStep(1); setOtp(["", "", "", "", "", ""]); }}
+        className="text-gray-400 hover:text-gray-700 transition-colors"
+        aria-label="Close"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
     </div>
 
     {/* TITLE */}
