@@ -43,6 +43,17 @@ const MENU_ITEMS = [
       },
       { title: "Campaign", path: "/admin/campaigns", icon: "feather:send" },
       {
+        title: "Analytics",
+        icon: "feather:bar-chart-2",
+        isSubmenu: true,
+        children: [
+          { title: "Conversational analytics", path: "/admin/analytic/conversation", icon: "feather:message-circle" },
+          { title: "Messages analytics", path: "/admin/analytic/messages", icon: "feather:mail" },
+          { title: "Template analytics", path: "/admin/analytic/template", icon: "feather:layout" },
+          { title: "Campaign analytics", path: "/admin/analytic/campaign", icon: "feather:send" },
+        ],
+      },
+      {
         title: "Commerce",
         icon: "feather:shopping-cart",
         isSubmenu: true,
@@ -53,17 +64,6 @@ const MENU_ITEMS = [
         ],
       },
       { title: "Automation", path: "/admin/automation", icon: "feather:cpu" },
-      {
-        title: "Analytics",
-        icon: "feather:bar-chart-2",
-        isSubmenu: true,
-        children: [
-          { title: "Conversation analytics", path: "/admin/analytic/conversation", icon: "feather:message-circle" },
-          { title: "Messages analytics", path: "/admin/analytic/messages", icon: "feather:mail" },
-          { title: "Template analytics", path: "/admin/analytic/template", icon: "feather:layout" },
-          { title: "Campaign analytics", path: "/admin/analytic", icon: "feather:send" },
-        ],
-      },
       { title: "Developer API", path: "/admin/developer/api", icon: "feather:code" },
       { title: "App integration", path: "/admin/integration/apps", icon: "feather:link" },
       {
@@ -147,8 +147,8 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
           <div className="bg-white py-1 space-y-0.5 border-l border-slate-100 ml-6 pl-2">
             {item.children.map((sub, idx) => (
-              <Link key={idx} to={sub.path} className={`flex items-center gap-3 px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors ${window.location.pathname.includes(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}>
-                <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${window.location.pathname.includes(sub.path) ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
+              <Link key={idx} to={sub.path} className={`flex items-center gap-3 px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors ${isActive(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}>
+                <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
                 <span className="truncate">{sub.title}</span>
               </Link>
             ))}
@@ -196,8 +196,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
   // Auto-open submenu based on URL
   useEffect(() => {
-    const paths = ["templates", "contacts", "commerce", "plan", "help"];
-    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support"];
+    const paths = ["templates", "contacts", "commerce", "plan", "help", "analytic"];
+    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support", "Analytics"];
     paths.forEach((p, i) => { if (location.pathname.includes(`/admin/${p}`)) setOpenSubmenu(labels[i]); });
   }, [location.pathname]);
 
@@ -263,8 +263,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             </div>
             <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
               {MENU_ITEMS[0].items.find((i) => i.title === activeFloating)?.children?.map((sub, idx) => (
-                <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${window.location.pathname.includes(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
-                  <Icon icon={sub.icon} className={`w-4 h-4 ${window.location.pathname.includes(sub.path) ? "text-[#10B981]" : "text-slate-400"}`} />
+                <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isActive(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
+                  <Icon icon={sub.icon} className={`w-4 h-4 ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400"}`} />
                   <span className="truncate">{sub.title}</span>
                 </Link>
               ))}

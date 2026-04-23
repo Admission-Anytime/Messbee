@@ -16,6 +16,10 @@ export default defineConfig({
     })
   ],
   
+  resolve: {
+    dedupe: ['apexcharts']
+  },
+  
   // Build optimizations
   build: {
     // Target modern browsers for smaller bundle
@@ -64,6 +68,8 @@ export default defineConfig({
       '@mui/icons-material',
       'lucide-react',
       'dayjs',
+      'apexcharts',
+      'react-apexcharts'
     ],
     // Force pre-bundling of these deps
     force: false,
