@@ -126,7 +126,7 @@ function Dashboard() {
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
                </div>
                <div className="flex flex-col sm:flex-row gap-3 mt-8">
-                  <button onClick={() => navigate('/admin/plan/billing')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add Credit</button>
+                  <button onClick={() => navigate('/admin/plan/addons')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add Credit</button>
                   <button onClick={() => navigate('/admin/plan/statement')} className="w-full sm:w-auto px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors text-center">Statement</button>
                </div>
             </div>

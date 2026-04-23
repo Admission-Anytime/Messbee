@@ -13,7 +13,7 @@ import logoName from "../../assets/MessBee Name.png";
 const MENU_ITEMS = [
   {
     items: [
-      { title: "Home", path: "/admin/dashboard", icon: "feather:grid" },
+      { title: "Dashboard", path: "/admin/dashboard", icon: "feather:grid" },
       {
         title: "Chats",
         path: "/admin/chat",

@@ -415,7 +415,13 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
                     }
                     setForm({ ...form, [key]: val });
                   }}
-                  placeholder={(key === "phone" || key === "whatsapp") ? "**********" : ""}
+                  placeholder={
+                    key === "phone"
+                      ? "Enter 10-digit phone number"
+                      : key === "whatsapp"
+                      ? "Enter 10-digit WhatsApp number"
+                      : ""
+                  }
                   maxLength={(key === "phone" || key === "whatsapp") ? 10 : undefined}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition-colors"
                 />
@@ -661,7 +667,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                   </div>
                   <input
                     type="text"
-                    placeholder="**********"
+                    placeholder="Enter 10-digit WhatsApp number"
                     className="flex-1 px-3.5 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-800 placeholder-gray-400 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition-colors"
                     value={formData.whatsapp}
                     onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '').slice(0, 10) })}
@@ -1334,13 +1340,13 @@ export default function ContactsCRM() {
           )}
         </div>
       );
-      case "whatsapp":  return <span className="text-gray-500 text-sm">{contact.whatsapp || "**********"}</span>;
+      case "whatsapp":  return <span className="text-gray-500 text-sm">{contact.whatsapp || "Not provided"}</span>;
       case "status":    return <StatusBadge status={contact.status} />;
       case "labels":    return contact.labels?.length === 0 ? <span className="text-gray-300 text-xs italic">No labels</span> : <>{contact.labels.map(l => <LabelBadge key={l} label={l} />)}</>;
       case "email":     return <span className="text-gray-500 text-sm">{contact.email}</span>;
       case "institute": return <span className="text-gray-500 text-sm">{contact.institute}</span>;
       case "address":   return <span className="text-gray-500 text-sm">{contact.address}</span>;
-      case "phone":     return <span className="text-gray-500 text-sm">{contact.phone || "**********"}</span>;
+      case "phone":     return <span className="text-gray-500 text-sm">{contact.phone || "Not provided"}</span>;
       case "company":   return <span className="text-gray-500 text-sm">{contact.company}</span>;
       case "city":      return <span className="text-gray-500 text-sm">{contact.city}</span>;
       case "country":   return <span className="text-gray-500 text-sm">{contact.country}</span>;

@@ -29,7 +29,7 @@ const PROFILE_MENU_ITEMS = [
     icon: <CreditCardIcon className="w-5 h-5" />,
     children: [
       { label: "Upgrade Plan", path: "/admin/plan" },
-      { label: "Billing History", path: "/admin/plan/billing" },
+      { label: "Billing History", path: "/admin/plan/history" },
     ]
   },
   {
