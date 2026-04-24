@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap, Megaphone, Settings, Key, User } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -700,129 +700,142 @@ const CreateTemplate = () => {
 
   // ================= SETUP / CONTENT UI (UNCHANGED) =================
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500">
-      {/* REST OF YOUR ORIGINAL FILE BELOW — 100% SAME */}
-
-      
-      {/* Scrollable Form Container */}
-      <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
-        <div className="max-w-3xl mx-auto space-y-5 pb-20">
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={() => view === 'setup' ? (isEditing || isDuplicate ? navigate('/admin/templates/list') : setView('choose')) : setView('setup')}
-              className="flex items-center gap-2 text-gray-500 font-semibold hover:text-gray-800 text-sm transition-colors"
-            >
-                <ArrowLeft size={16}/> {view === 'setup' && (isEditing || isDuplicate) ? 'Back to Templates' : 'Back'}
-            </button>
-            <div className="text-xs font-medium text-gray-400 uppercase tracking-wide">
-                {view === 'setup' ? (isEditing ? 'Step 1 of 2: Edit Setup' : 'Step 1 of 2: Setup') : (isEditing ? 'Step 2 of 2: Edit Content' : 'Step 2 of 2: Content')}
-            </div>
-          </div>
-
+  <div className="flex flex-col min-h-screen w-full font-sans bg-[#F9FAFB] overflow-x-hidden">
+    {/* Navbar */}
+    <div className="w-full bg-white border-b border-gray-200 py-3.5 px-6 flex items-center justify-between z-10 sticky top-0 shadow-sm">
+      <div className="flex items-center gap-4">
+        <button onClick={() => setView('choose')} className="text-gray-600 hover:text-gray-900 transition-colors">
+          <ArrowLeft size={20} />
+        </button>
+        <h1 className="text-lg font-bold text-gray-900">Create template</h1>
+      </div>
+      <div className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center text-gray-600">
+        <User size={18} />
+      </div>
+    </div>
+    
+    {/* Main Area Container */}
+    <div className="flex-[1] max-w-[1280px] w-full mx-auto p-4 md:p-8 lg:px-12 flex flex-col lg:flex-row gap-8 lg:gap-14 pb-20 justify-center">
+       {/* Left Column */}
+       <div className="flex-[1.5] w-full max-w-[650px] space-y-4">
           {view === 'setup' ? (
-            <div className="space-y-5">
-                <div className="bg-white rounded-xl p-6 md:p-8 border border-gray-200 shadow-sm space-y-4 md:space-y-5">
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">
-                      {isEditing ? 'Edit Your Template' : 'Set Up Your Template'}
-                    </h2>
-                    <div className="space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Choose Category</label>
-                        <div className="bg-gray-50/50 p-1.5 rounded-xl flex flex-wrap gap-1 border border-gray-100 max-w-fit">
-                            {['Marketing', 'Utility', 'Authentication'].map(cat => (
-                                <button 
-                                  key={cat} 
-                                  onClick={() => handleCategoryChange(cat)} 
-                                  className={`min-w-[120px] py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
-                                >
-                                    {cat === 'Marketing' && <Zap size={14} className={formData.category === 'Marketing' ? 'text-gray-900' : 'text-gray-500'}/>} {cat}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                    
-                    <div className="space-y-3">
-                        {formData.category === 'Authentication' ? (
-                            <div className="p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 border-[#10B981] bg-[#F0FDF4]/30">
-                                <div className="flex items-start gap-4">
-                                    <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
-                                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                    </div>
-                                    <div className="flex-1">
-                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide uppercase">
-                                        One-time Passcode
-                                      </span>
-                                      <p className="text-[13px] text-gray-500 leading-relaxed">
-                                        Send codes to verify a transaction or login.
-                                      </p>
-                                    </div>
+             <div className="space-y-4 animate-in fade-in slide-in-from-left-4 duration-500">
+               {/* Setup Cards here */}
+               <div className="bg-white rounded-xl p-6 border border-gray-200">
+                 <h2 className="text-[17px] font-bold text-gray-900 mb-1">Set up your template</h2>
+                 <p className="text-[13px] text-gray-500 mb-6">Choose the category that best describes your message template.</p>
+                 
+                 <div className="bg-[#F1F5F9] p-1.5 rounded-xl flex gap-1 mb-6">
+                   {[
+                     { id: 'Marketing', icon: <Megaphone size={16} /> },
+                     { id: 'Utility', icon: <Settings size={16} /> },
+                     { id: 'Authentication', icon: <Key size={16} /> }
+                   ].map(cat => (
+                     <button 
+                       key={cat.id} 
+                       onClick={() => handleCategoryChange(cat.id)} 
+                       className={`flex-1 py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 text-[13px] transition-all duration-200 font-semibold ${formData.category === cat.id ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+                     >
+                       <span className={`${formData.category === cat.id ? 'text-gray-900' : 'text-gray-400'}`}>
+                         {cat.icon}
+                       </span>
+                       {cat.id}
+                     </button>
+                   ))}
+                 </div>
+                 
+                 <div className="space-y-3">
+                    {formData.category === 'Authentication' ? (
+                        <div className="p-4 border rounded-xl border-[#10B981] bg-green-50/10">
+                            <div className="flex items-center gap-3 mb-1">
+                                <div className="w-4 h-4 shrink-0 rounded-full border-[5px] border-[#10B981] flex items-center justify-center">
                                 </div>
+                                <span className="text-[14px] font-bold text-gray-900">One-time Passcode</span>
                             </div>
-                        ) : (
-                            (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
-                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
-                                <div className="flex items-start gap-4">
-                                    {templateType === type ? (
-                                      <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
-                                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                                      </div>
-                                    ) : (
-                                      <div className="mt-1 w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" />
-                                    )}
-                                    <div className="flex-1">
-                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
-                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : 'LIMITED TIME OFFER'}
-                                      </span>
-                                      <p className="text-[13px] text-gray-500 leading-relaxed">
-                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
-                                          : type === 'CATALOG' ? 'Display your entire product catalog'
-                                          : 'Send an offer with a countdown timer to drive urgency'}
-                                      </p>
-                                    </div>
-                                </div>
-                              </div>
-                            ))
-                        )}
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Template Name</label>
-                            <input 
-                              type="text" 
-                              placeholder="Enter template name..." 
-                              disabled={isEditing}
-                              value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
-                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
-                              onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                            />
-                            {formData.name && (
-                              <div className="text-xs text-gray-500 mt-1">
-                                <span className="text-gray-600 font-medium">WhatsApp name:</span>{' '}
-                                <code className="bg-gray-50 px-2 py-1 rounded">
-                                  {String(formData.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || '(empty)'}
-                                </code>
-                              </div>
-                            )}
+                            <p className="text-[13px] text-gray-500 ml-7">Send codes to verify a transaction or login.</p>
                         </div>
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Languages</label>
-                            <select 
-                              disabled={isEditing}
-                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
-                              value={formData.language} 
-                              onChange={(e) => setFormData({...formData, language: e.target.value})}
-                            >
-                                <option>English (US)</option>
-                                <option>Hindi</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    {/* MOVED TO STEP 2 */}
-                </div>
-                <div className="flex justify-end pt-2">
-                    <button onClick={handleContinue} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
-                </div>
-            </div>
+                    ) : (
+                        (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
+                          <div 
+                            key={type} 
+                            onClick={() => setTemplateType(type)} 
+                            className={`p-4 border-[1.5px] rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-[#10B981] bg-white' : 'border-gray-100 bg-white hover:border-gray-200'}`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {templateType === type ? (
+                                <div className="mt-0.5 w-4 h-4 shrink-0 rounded-full border-[5px] border-[#10B981]" />
+                              ) : (
+                                <div className="mt-0.5 w-4 h-4 shrink-0 rounded-full border-[2px] border-gray-200" />
+                              )}
+                              <div>
+                                <span className="text-[14px] font-bold text-gray-900 block mb-0.5">
+                                  {type === 'CUSTOM' ? 'Custom' : type === 'CATALOG' ? 'Catalog' : 'Limited-time-offer'}
+                                </span>
+                                <p className="text-[13px] text-gray-500 leading-relaxed max-w-[95%]">
+                                    {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers, announcements and more to increase awareness and engagement.') 
+                                    : type === 'CATALOG' ? 'Send messages about your entire catalog or multiple products from it.'
+                                    : 'Limited-time offer templates allow you to display expiration dates and running countdown timers.'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                    )}
+                 </div>
+               </div>
+               
+               <div className="bg-white rounded-xl p-6 border border-gray-200">
+                 <h3 className="text-[16px] font-bold text-gray-900 mb-1">Name</h3>
+                 <div className="flex justify-between items-center mb-4">
+                   <p className="text-[13px] text-gray-500">Name your message template.</p>
+                   <span className="text-[12px] text-gray-400 font-semibold">{formData.name ? (typeof formData.name === 'string' ? formData.name.length : (formData.name?.name?.length || 0)) : 0}/512</span>
+                 </div>
+                 <input 
+                   type="text" 
+                   placeholder="Enter message template name..." 
+                   className="w-full p-3.5 border border-gray-200 rounded-lg text-[14px] bg-white outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]/30 transition-all font-medium"
+                   value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
+                   onChange={(e) => setFormData({...formData, name: e.target.value})}
+                 />
+                 {formData.name && (
+                   <div className="text-[11px] text-gray-500 mt-2 font-medium">
+                     <span className="text-gray-600">WhatsApp formatted name:</span>{' '}
+                     <code className="bg-gray-50 px-2 py-1 rounded text-red-500/80 font-bold ml-1">
+                       {String(typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || '(empty)'}
+                     </code>
+                   </div>
+                 )}
+               </div>
+               <div className="bg-white rounded-xl p-6 border border-gray-200">
+                 <h3 className="text-[16px] font-bold text-gray-900 mb-1">Languages</h3>
+                 <p className="text-[13px] text-gray-500 mb-4">Choose languages for your message template. You can add or delete languages.</p>
+                 <div className="relative">
+                   <select 
+                     className="w-full p-3.5 border border-gray-200 rounded-lg text-[14px] bg-white outline-none appearance-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]/30 transition-all cursor-pointer font-medium"
+                     value={formData.language} 
+                     onChange={(e) => setFormData({...formData, language: e.target.value})}
+                   >
+                     <option>English</option>
+                     <option>Hindi</option>
+                   </select>
+                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500">
+                      <ChevronRight size={16} className="rotate-90 text-gray-400"/>
+                   </div>
+                 </div>
+               </div>
+               
+               <div className="flex items-center justify-between pt-6 pb-12 w-full mt-2">
+                 <span className="invisible">Spacer</span>
+                 <div className="flex items-center gap-6">
+                   <button onClick={() => navigate('/admin/templates/list')} className="text-[14px] font-bold text-gray-600 hover:text-gray-900 transition-colors">
+                     Previous
+                   </button>
+                   <button onClick={handleContinue} className="bg-[#10B981] text-white px-8 py-2.5 rounded-[8px] text-[14px] font-bold hover:bg-[#059669] transition-all">
+                     Continue
+                   </button>
+                 </div>
+               </div>
+             </div>
           ) : (
             <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-500">
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
@@ -1178,37 +1191,49 @@ const CreateTemplate = () => {
                 </div>
             </div>
           )}
-        </div>
-      </div>
+       </div>
 
-      {/* Responsive Preview Sidebar */}
-      <div className="w-full lg:w-[450px] xl:w-[480px] bg-white p-6 md:p-10 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-y-auto">
-        <div className="lg:sticky lg:top-0 w-full flex flex-col items-center">
-            <div className="flex justify-between w-full mb-8 lg:mb-12">
-                <p className="text-gray-800 font-semibold text-sm uppercase tracking-wide">Live Preview</p>
-                <div className="flex items-center gap-2 bg-green-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
-                    <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Synced</span>
-                </div>
-            </div>
-            {/* Scale adjustment for smaller laptop screens */}
-            <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
-              <MobilePreview 
-                name={formData.name || 'YOUR_TEMPLATE'} 
-                body={formData.bodyText} 
-                footer={formData.category === 'Authentication' ? '' : formData.footerText} 
-                headerMedia={headerMedia}
-                headerType={formData.headerType}
-                showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
-                offer={formData.offerTitle} 
-                isLimited={templateType === 'LIMITED_TIME_OFFER'}
-                buttons={formData.category === 'Authentication' ? [] : buttons} 
-                isSetupView={view === 'setup'}
-              />
-            </div>
-        </div>
-      </div>
+       {/* Right Column / Preview */}
+       <div className="flex-[1] w-full max-w-[400px] flex flex-col items-center xl:pt-4">
+          <div className="w-full sticky top-24 origin-top flex flex-col items-center">
+             <div className="w-[300px] flex mb-6">
+                <span className="text-[12px] font-bold text-slate-500 uppercase tracking-widest">Template Preview</span>
+             </div>
+             
+             {/* Note the phone scale to fit naturally in screen space */}
+             <div className="transform scale-95 md:scale-100 lg:scale-[0.85] xl:scale-95 origin-top mb-10 lg:mb-2 drop-shadow-xl relative w-full flex justify-center">
+                <MobilePreview 
+                  name={formData.name || 'YOUR_TEMPLATE'} 
+                  body={formData.bodyText} 
+                  footer={formData.category === 'Authentication' ? '' : formData.footerText} 
+                  headerMedia={headerMedia}
+                  headerType={formData.headerType}
+                  showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
+                  offer={formData.offerTitle} 
+                  isLimited={templateType === 'LIMITED_TIME_OFFER'}
+                  buttons={formData.category === 'Authentication' ? [] : buttons} 
+                />
+             </div>
+             
+             {/* Info Card below phone */}
+             {view === 'setup' && (
+               <div className="bg-white rounded-2xl border border-gray-200 p-6 w-full max-w-[340px] shadow-sm space-y-6 mt-[-10px]">
+                 <div>
+                    <h4 className="text-[14px] font-bold text-gray-900 mb-2">This template is good for</h4>
+                    <p className="text-[13px] text-gray-500 leading-relaxed font-medium">
+                      {formData.category === 'Marketing' ? 'Welcome messages, promotions, offers, coupons, newsletters, announcements' : formData.category === 'Utility' ? 'Order updates, account alerts, shipping info, payment receipts' : 'One-time passcodes, account recovery verification'}
+                    </p>
+                 </div>
+                 <div className="border-t border-gray-100 pt-5">
+                    <h4 className="text-[14px] font-bold text-gray-900 mb-2">Template areas you can customize</h4>
+                    <p className="text-[13px] text-gray-500 font-medium">Header, body, footer, button</p>
+                 </div>
+               </div>
+             )}
+          </div>
+       </div>
     </div>
+  </div>
   );
 };
 
