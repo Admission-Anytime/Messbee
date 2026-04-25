@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
+import { userContext } from "../../context/Context";
 import {
     ChartBarIcon,
     CreditCardIcon,
@@ -7,15 +9,47 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
-const usageItems = [
-    { label: "Monthly Messages", used: 14200, total: 50000 },
-    { label: "Team Members", used: 4, total: 10 },
-    { label: "API Endpoints", used: 2, total: 5 },
-];
-
 function ManageSubscription() {
     const navigate = useNavigate();
+    const { user } = useContext(userContext);
 
+    const remainingDays = user?.subscriptionExpiry 
+        ? Math.max(0, dayjs(user.subscriptionExpiry).diff(dayjs(), 'day')) 
+        : 0;
+
+    const getPlanLimits = (planName) => {
+        switch (planName?.toLowerCase()) {
+            case 'basic': return { msgs: 10000, team: 5, api: 10 };
+            case 'professional': return { msgs: 50000, team: 10, api: 50 };
+            case 'enterprise': return { msgs: 200000, team: 25, api: 100 };
+            case 'free': 
+            default: return { msgs: 300, team: 1, api: 1 };
+        }
+    };
+
+    const limits = getPlanLimits(user?.subscriptionPlan);
+    const usageItems = [
+        { label: "Monthly Messages", used: user?.messagesUsed || 142, total: limits.msgs },
+        { label: "Team Members", used: user?.teamUsed || 1, total: limits.team },
+        { label: "API Endpoints", used: user?.apiUsed || 1, total: limits.api },
+    ];
+
+    const getNextPayment = () => {
+        const isYearly = user?.billingCycle === 'yearly' || (!user?.billingCycle && remainingDays > 100);
+        const basePrices = { basic: 1537, professional: 2306, enterprise: 3844 };
+        const planName = user?.subscriptionPlan?.toLowerCase();
+        
+        if (!planName || planName === 'free') return { amount: 0, period: 'month' };
+        
+        const base = basePrices[planName] || 0;
+        if (isYearly) {
+            return { amount: Math.round(base * 12 * 0.65 * 1.18), period: 'year' };
+        } else {
+            return { amount: Math.round(base * 3 * 0.75 * 1.18), period: 'quarter' };
+        }
+    };
+
+    const nextPayment = getNextPayment();
     const fmtNum = (n) => n.toLocaleString("en-US");
 
     return (
@@ -30,19 +64,22 @@ function ManageSubscription() {
                         {/* Left: Plan Info */}
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h2 className="text-2xl font-black text-slate-900">Enterprise Plan</h2>
+                                <h2 className="text-2xl font-black text-slate-900">{user?.planName || "FREE PLAN"}</h2>
                                 <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
                                     <CheckCircleIcon className="w-3 h-3" /> Active
                                 </span>
                             </div>
-                            <p className="text-sm text-slate-400">Billed Annually • Next renewal: Oct 24, 2024</p>
+                            <p className="text-sm text-slate-400">
+                                {user?.subscriptionExpiry ? "Active billing cycle" : "No active subscription"} • 
+                                Next renewal: {user?.subscriptionExpiry ? dayjs(user.subscriptionExpiry).format("MMM DD, YYYY") : "N/A"}
+                            </p>
                         </div>
 
                         {/* Right: Days + Buttons */}
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                             {/* Days Remaining Box */}
                             <div className="bg-[#1e293b] text-white rounded-xl px-6 py-3 text-center min-w-[100px]">
-                                <p className="text-3xl font-black leading-none">76</p>
+                                <p className="text-3xl font-black leading-none">{remainingDays}</p>
                                 <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">
                                     Days Remaining
                                 </p>
@@ -135,8 +172,8 @@ function ManageSubscription() {
                                 Next Payment
                             </p>
                             <p className="text-3xl font-black text-slate-900">
-                                $249.00{" "}
-                                <span className="text-base font-medium text-slate-400">/ year</span>
+                                ₹{fmtNum(nextPayment.amount)}.00
+                                <span className="text-base font-medium text-slate-400"> / {nextPayment.period}</span>
                             </p>
                         </div>
 

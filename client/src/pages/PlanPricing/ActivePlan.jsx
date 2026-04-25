@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Import Navigation
+import dayjs from "dayjs";
+import { userContext } from "../../context/Context";
 import {
    CurrencyRupeeIcon,
    PlusIcon,
@@ -40,6 +42,11 @@ const ResourceCard = ({ title, used, limit, warning = false }) => {
 
 const ActivePlan = () => {
    const navigate = useNavigate(); // ✅ Hook
+   const { user } = useContext(userContext);
+
+   const remainingDays = user?.subscriptionExpiry 
+       ? Math.max(0, dayjs(user.subscriptionExpiry).diff(dayjs(), 'day')) 
+       : 0;
 
    // --- HANDLERS ---
    const handleAddCredit = () => {
@@ -77,18 +84,18 @@ const ActivePlan = () => {
                   <div>
                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Current Plan</p>
                      <div className="flex items-center gap-3 mb-2">
-                        <h2 className="text-3xl font-extrabold text-slate-900">Custom (Silver)</h2>
+                        <h2 className="text-3xl font-extrabold text-slate-900">{user?.planName || "FREE PLAN"}</h2>
                         <span className="bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Active</span>
                      </div>
-                     <p className="text-xs text-slate-400 font-medium">Expiry date: <span className="text-slate-600">28 Apr, 2026 5:29 am</span></p>
+                     <p className="text-xs text-slate-400 font-medium">Expiry date: <span className="text-slate-600">{user?.subscriptionExpiry ? dayjs(user.subscriptionExpiry).format("DD MMM, YYYY h:mm a") : "N/A"}</span></p>
                   </div>
 
                   {/* Days Remaining Box */}
                   <div className="bg-slate-50 rounded-xl p-4 w-full md:w-48 text-center border border-slate-100">
-                     <div className="text-4xl font-extrabold text-emerald-500 mb-1">74</div>
+                     <div className="text-4xl font-extrabold text-emerald-500 mb-1">{remainingDays}</div>
                      <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Days Remaining</div>
                      <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="w-[40%] h-full bg-emerald-400 rounded-full"></div>
+                        <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(100, (remainingDays / 365) * 100)}%` }}></div>
                      </div>
                   </div>
                </div>
@@ -100,7 +107,7 @@ const ActivePlan = () => {
                      <button onClick={handleAddCredit} className="text-[10px] font-bold text-emerald-500 hover:underline">WCC Pricing</button>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-center mb-4">
-                     <span className="text-2xl font-extrabold text-slate-900">₹618.51</span>
+                     <span className="text-2xl font-extrabold text-slate-900">₹{user?.wccCredit?.toLocaleString("en-IN") || "0.00"}</span>
                   </div>
                   <button
                      onClick={handleAddCredit}

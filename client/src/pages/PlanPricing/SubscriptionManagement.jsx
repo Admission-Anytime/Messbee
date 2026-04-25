@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
+import { userContext } from "../../context/Context";
 import {
     CreditCardIcon,
     MapPinIcon,
@@ -13,6 +15,11 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
 function SubscriptionManagement() {
     const navigate = useNavigate();
+    const { user } = useContext(userContext);
+
+    const remainingDays = user?.subscriptionExpiry 
+        ? Math.max(0, dayjs(user.subscriptionExpiry).diff(dayjs(), 'day')) 
+        : 0;
 
     const billingHistory = [
         { id: "INV-2024-008", date: "Aug 12, 2024", amount: "$499.00" },
@@ -38,12 +45,15 @@ function SubscriptionManagement() {
                         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                             <div>
                                 <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-2xl font-black text-slate-900">Enterprise Plan</h2>
+                                    <h2 className="text-2xl font-black text-slate-900">{user?.planName || "FREE PLAN"}</h2>
                                     <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
                                         <CheckCircleIcon className="w-3 h-3" /> Active
                                     </span>
                                 </div>
-                                <p className="text-sm text-slate-400">Monthly billing cycle • Next invoice: Oct 12, 2024</p>
+                                <p className="text-sm text-slate-400">
+                                    {user?.subscriptionExpiry ? "Active billing cycle" : "No active subscription"} • 
+                                    Next invoice: {user?.subscriptionExpiry ? dayjs(user.subscriptionExpiry).format("MMM DD, YYYY") : "N/A"}
+                                </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
                                 <button
@@ -62,11 +72,14 @@ function SubscriptionManagement() {
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Time Remaining</p>
-                                <p className="text-3xl font-black text-slate-900">76 Days</p>
+                                <p className="text-3xl font-black text-slate-900">{remainingDays} Days</p>
                             </div>
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billing Amount</p>
-                                <p className="text-3xl font-black text-slate-900">$499.00 <span className="text-base font-medium text-slate-400">/mo</span></p>
+                                <p className="text-3xl font-black text-slate-900">
+                                    {user?.subscriptionPlan === 'enterprise' ? '$499.00' : user?.subscriptionPlan === 'pro' ? '$199.00' : '$0.00'} 
+                                    <span className="text-base font-medium text-slate-400">/mo</span>
+                                </p>
                             </div>
                         </div>
 
