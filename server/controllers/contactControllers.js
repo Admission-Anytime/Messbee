@@ -57,9 +57,11 @@ const toClientContact = (doc) => ({
   city:         doc.city,
   country:      doc.country,
   status:       doc.status,
-  labels:       doc.labels,
+  labels:       doc.labels || [],
   initials:     doc.initials,
   color:        doc.color,
+  customFields: doc.customFields || [],
+  isVerified:   !!doc.isVerified,
   importedFrom: doc.importedFrom,
   createdAt:    doc.createdAt,
   updatedAt:    doc.updatedAt,
@@ -241,33 +243,22 @@ exports.updateContact = async (req, res, next) => {
       }
     }
 
-    const allowed = ['name','whatsapp','phone','email','company','institute','address','city','country','status','labels','initials','color', 'isVerified'];
-    const updates = {};
-    allowed.forEach(k => { if (req.body[k] !== undefined) updates[k] = req.body[k]; });
+    const allowed = ['name','whatsapp','phone','email','company','institute','address','city','country','status','labels','initials','color', 'isVerified', 'customFields'];
+    allowed.forEach(k => {
+      if (req.body[k] !== undefined) existingContact[k] = req.body[k];
+    });
 
-    if (Object.keys(updates).length === 0)
-      return sendError(res, 400, 'No valid fields provided for update');
-
-    // Prevent un-verifying once verified
-    if (existingContact.isVerified && updates.isVerified === false) {
-      delete updates.isVerified;
-    }
-
-    if (updates.whatsapp !== undefined) {
-      const normalized = normalizePhone(updates.whatsapp);
+    if (req.body.whatsapp !== undefined) {
+      const normalized = normalizePhone(req.body.whatsapp);
       if (!normalized) return sendError(res, 400, 'Invalid WhatsApp number');
-      updates.whatsapp = normalized;
+      existingContact.whatsapp = normalized;
     }
 
-    if (updates.name && !updates.initials && !existingContact.isVerified)
-      updates.initials = updates.name.trim().substring(0, 2).toUpperCase();
+    if (req.body.name && !req.body.initials && !existingContact.isVerified) {
+      existingContact.initials = req.body.name.trim().substring(0, 2).toUpperCase();
+    }
 
-    const contact = await Contact.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      updates,
-      { new: true, runValidators: true }
-    );
-
+    const contact = await existingContact.save();
     return res.json({ success: true, data: toClientContact(contact) });
   } catch (err) {
     if (err.name === 'ValidationError') {
@@ -345,6 +336,22 @@ exports.bulkAddLabels = async (req, res, next) => {
     const result = await Contact.updateMany(
       { _id: { $in: ids }, user: req.user.id },
       { $addToSet: { labels: { $each: labels } } }
+    );
+    return res.json({ success: true, updated: result.modifiedCount });
+  } catch (err) { next(err); }
+};
+
+exports.bulkRemoveLabels = async (req, res, next) => {
+  try {
+    const { ids, labels } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0)
+      return sendError(res, 400, 'ids must be a non-empty array');
+    if (!Array.isArray(labels) || labels.length === 0)
+      return sendError(res, 400, 'labels must be a non-empty array');
+
+    const result = await Contact.updateMany(
+      { _id: { $in: ids }, user: req.user.id },
+      { $pull: { labels: { $in: labels } } }
     );
     return res.json({ success: true, updated: result.modifiedCount });
   } catch (err) { next(err); }
