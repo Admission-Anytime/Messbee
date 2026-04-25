@@ -49,7 +49,10 @@ const apiFetch = async (method, path, body = null) => {
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || `Request failed (${res.status})`);
+  if (!res.ok) {
+    const detailMsg = data?.details ? (Array.isArray(data.details) ? data.details.join(", ") : data.details) : "";
+    throw new Error(data?.message ? `${data.message}${detailMsg ? ": " + detailMsg : ""}` : `Request failed (${res.status})`);
+  }
   return data;
 };
 
@@ -72,6 +75,7 @@ const updateContact     = (id, data) => apiFetch("PUT",    `/api/contacts/${id}`
 const deleteContact     = (id)       => apiFetch("DELETE", `/api/contacts/${id}`);
 const bulkDelete        = (ids)      => apiFetch("DELETE", "/api/contacts/bulk-delete", { ids });
 const bulkAddLabels     = (ids, labels) => apiFetch("PUT",    "/api/contacts/bulk-labels", { ids, labels });
+const bulkRemoveLabels  = (ids, labels) => apiFetch("PUT",    "/api/contacts/bulk-labels-remove", { ids, labels });
 const bulkUpdateStatus  = (ids, status) => apiFetch("PUT",    "/api/contacts/bulk-status", { ids, status });
 const createCustomField = (data)     => apiFetch("POST",   "/api/custom-fields",        data);
 
@@ -350,8 +354,8 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
 }
 
 /* ─── Edit Contact Modal ─────────────────────────────────────────────────────── */
-function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
-  const [form,   setForm]   = useState({ ...contact });
+function EditContactModal({ contact, onClose, onSave, customFields = [], labels = [] }) {
+  const [form,   setForm]   = useState({ ...contact, labels: contact.labels || [] });
   const [saving, setSaving] = useState(false);
 
   if (!contact) return null;
@@ -370,8 +374,15 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await onSave(form); onClose(); }
-    finally { setSaving(false); }
+    try { 
+      await onSave(form); 
+      onClose(); 
+    } catch (err) {
+      console.error("Save error:", err);
+      toast.error(err.message || "Failed to save contact. Please check for duplicate WhatsApp numbers.");
+    } finally { 
+      setSaving(false); 
+    }
   };
 
   const getCustomValue = (field) => {
@@ -387,6 +398,32 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
       const existing = (prev.customFields || []).filter(r => r.fieldId !== fId);
       const updated  = val.trim() ? [...existing, { fieldId: fId, fieldName: fName, value: val }] : existing;
       return { ...prev, customFields: updated };
+    });
+  };
+
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setShowLabelOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleLabel = (l) => {
+    if (!l) return;
+    setForm(prev => {
+      const currentLabels = prev.labels || [];
+      const isSelected = currentLabels.includes(l);
+      const updated = isSelected 
+        ? currentLabels.filter(x => x !== l) 
+        : [...currentLabels, l];
+      return { ...prev, labels: updated };
     });
   };
 
@@ -453,6 +490,96 @@ function EditContactModal({ contact, onClose, onSave, customFields = [] }) {
                 </div>
               </div>
             )}
+            
+            <div className="col-span-2 border-t border-gray-100 pt-4 mt-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Manage Labels</p>
+              <div className="relative" ref={dropdownRef}>
+                <div 
+                  onClick={() => setShowLabelOptions(!showLabelOptions)}
+                  className={`min-h-[46px] w-full bg-gray-50 border rounded-2xl p-2 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-100 hover:border-emerald-200'}`}
+                >
+                  {form.labels.length > 0 ? (
+                    form.labels.map(l => (
+                      <span key={l} className="bg-emerald-500 text-white px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                        {l}
+                        <button 
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
+                          className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
+                        >
+                          <XMarkIcon className="w-3 h-3 stroke-[3]" />
+                        </button>
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-gray-400 text-xs py-1.5 px-2 font-medium">Select labels...</span>
+                  )}
+                  <div className="flex-1 flex items-center justify-end pr-1">
+                    <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showLabelOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+                  </div>
+                </div>
+
+                {showLabelOptions && (
+                  <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                    <div className="p-3 border-b border-gray-50">
+                      <div className="relative">
+                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                        <input 
+                          autoFocus
+                          type="text"
+                          placeholder="Search or add labels..."
+                          value={labelSearch}
+                          onChange={(e) => setLabelSearch(e.target.value)}
+                          className="w-full pl-9 pr-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
+                        />
+                      </div>
+                    </div>
+                    <div className="max-h-[180px] overflow-y-auto p-2 custom-scrollbar">
+                      {[...new Set([...labels, ...form.labels])].filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
+                        <div className="py-8 text-center">
+                          <TagIcon className="w-8 h-8 text-gray-100 mx-auto mb-2" />
+                          <p className="text-[11px] text-gray-400 font-bold italic">No labels found</p>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-1">
+                          {[...new Set([...labels, ...form.labels])]
+                            .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
+                            .map(l => {
+                              const isSelected = form.labels.includes(l);
+                              return (
+                                <button
+                                  key={l}
+                                  type="button"
+                                  onClick={() => toggleLabel(l)}
+                                  className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
+                                    <span className="text-xs font-bold">{l}</span>
+                                  </div>
+                                  {isSelected && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
+                                </button>
+                              );
+                            })
+                          }
+                        </div>
+                      )}
+                    </div>
+                    {form.labels.length > 0 && (
+                      <div className="p-2 border-t border-gray-50 bg-gray-50/50">
+                        <button 
+                          type="button"
+                          onClick={() => { setForm(prev => ({ ...prev, labels: [] })); setLabelSearch(""); }}
+                          className="w-full py-2 text-[10px] font-black text-red-400 hover:text-red-500 uppercase tracking-widest transition-colors"
+                        >
+                          Clear All Labels
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-gray-100 bg-gray-50">
@@ -597,11 +724,31 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
     } finally { setAdding(false); }
   };
 
-  const toggleLabel = (l) =>
-    setFormData(prev => ({
-      ...prev,
-      labels: prev.labels.includes(l) ? prev.labels.filter(x => x !== l) : [...prev.labels, l],
-    }));
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const labelDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target)) {
+        setShowLabelOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const toggleLabel = (l) => {
+    if (!l) return;
+    setFormData(prev => {
+      const currentLabels = prev.labels || [];
+      const isSelected = currentLabels.includes(l);
+      const updated = isSelected 
+        ? currentLabels.filter(x => x !== l) 
+        : [...currentLabels, l];
+      return { ...prev, labels: updated };
+    });
+  };
 
   const addCustomFieldRow    = () =>
     setCustomFieldRows(prev => [...prev, { fieldId: "", fieldName: "", value: "" }]);
@@ -688,48 +835,93 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
 
           {/* Select Labels */}
           <div className="px-5 pt-4 pb-5">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm font-bold text-gray-900">Select Labels</p>
-              <button
-                type="button"
-                className="w-6 h-6 rounded-full bg-green-500 hover:bg-green-600 flex items-center justify-center transition-colors"
-                title="Add new label"
+            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Select Labels</p>
+            <div className="relative" ref={labelDropdownRef}>
+              <div 
+                onClick={() => setShowLabelOptions(!showLabelOptions)}
+                className={`min-h-[46px] w-full bg-gray-50 border rounded-2xl p-2 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-100 hover:border-emerald-200'}`}
               >
-                <PlusIcon className="w-3.5 h-3.5 text-white stroke-[3]" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4">
-              {labels.map(l => {
-                const checked = formData.labels.includes(l);
-                return (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => toggleLabel(l)}
-                    className="flex items-center gap-2.5 text-left w-full group"
-                  >
-                    <div className={`w-4 h-4 rounded-full border-2 flex-shrink-0 flex items-center justify-center transition-all ${checked ? "border-green-500 bg-green-500" : "border-gray-300 bg-white group-hover:border-green-400"}`}>
-                      {checked && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
-                    </div>
-                    <span className={`text-sm transition-colors leading-snug ${checked ? "text-gray-900 font-semibold" : "text-gray-600"}`}>{l}</span>
-                  </button>
-                );
-              })}
-            </div>
-            {formData.labels.length > 0 && (
-              <div className="mt-4 flex items-center gap-2">
-                <span className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 px-2.5 py-0.5 rounded-full">
-                  {formData.labels.length} label{formData.labels.length > 1 ? "s" : ""} selected
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, labels: [] }))}
-                  className="text-xs text-gray-400 hover:text-red-500 transition-colors font-medium"
-                >
-                  Clear all
-                </button>
+                {formData.labels.length > 0 ? (
+                  formData.labels.map(l => (
+                    <span key={l} className="bg-emerald-500 text-white px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                      {l}
+                      <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
+                        className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
+                      >
+                        <XMarkIcon className="w-3 h-3 stroke-[3]" />
+                      </button>
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-gray-400 text-xs py-1.5 px-2 font-medium">Select labels...</span>
+                )}
+                <div className="flex-1 flex items-center justify-end pr-1">
+                  <ChevronDownIcon className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${showLabelOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+                </div>
               </div>
-            )}
+
+              {showLabelOptions && (
+                <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                  <div className="p-3 border-b border-gray-50">
+                    <div className="relative">
+                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input 
+                        autoFocus
+                        type="text"
+                        placeholder="Search or add labels..."
+                        value={labelSearch}
+                        onChange={(e) => setLabelSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
+                      />
+                    </div>
+                  </div>
+                  <div className="max-h-[180px] overflow-y-auto p-2 custom-scrollbar">
+                    {labels.filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
+                      <div className="py-8 text-center">
+                        <TagIcon className="w-8 h-8 text-gray-100 mx-auto mb-2" />
+                        <p className="text-[11px] text-gray-400 font-bold italic">No labels found</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 gap-1">
+                        {labels
+                          .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
+                          .map(l => {
+                            const isSelected = formData.labels.includes(l);
+                            return (
+                              <button
+                                key={l}
+                                type="button"
+                                onClick={() => toggleLabel(l)}
+                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
+                                  <span className="text-xs font-bold">{l}</span>
+                                </div>
+                                {isSelected && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
+                              </button>
+                            );
+                          })
+                        }
+                      </div>
+                    )}
+                  </div>
+                  {formData.labels.length > 0 && (
+                    <div className="p-2 border-t border-gray-50 bg-gray-50/50">
+                      <button 
+                        type="button"
+                        onClick={() => { setFormData(prev => ({ ...prev, labels: [] })); setLabelSearch(""); }}
+                        className="w-full py-2 text-[10px] font-black text-red-400 hover:text-red-500 uppercase tracking-widest transition-colors"
+                      >
+                        Clear All Labels
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="border-t border-gray-100" />
@@ -908,13 +1100,19 @@ function ManageColumnsDropdown({ allColumns, visibleColumns, onToggle, onReset, 
 
 /* ─── More Filters Panel ─────────────────────────────────────────────────────── */
 function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }) {
-  const [local, setLocal] = useState({ ...filters });
-  const ref = useRef(null);
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const labelDropdownRef = useRef(null);
 
   useEffect(() => {
-    const h = e => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    const handleClickOutside = (event) => {
+      if (ref.current && !ref.current.contains(event.target)) onClose();
+      if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target)) {
+        setShowLabelOptions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [onClose]);
 
   const toggleArr = (field, val) =>
@@ -959,19 +1157,80 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
         </div>
         <div>
           <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2">Labels</p>
-          <div className="flex flex-wrap gap-1.5">
-            {labels.map(l => {
-              const sel = (local.labels || []).includes(l);
-              return (
-                <button
-                  key={l}
-                  onClick={() => toggleArr("labels", l)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${sel ? "bg-gray-100 text-gray-700 border-gray-400" : "bg-gray-100 text-gray-500 border-gray-200 hover:border-gray-300"}`}
-                >
-                  {l}
-                </button>
-              );
-            })}
+          <div className="relative" ref={labelDropdownRef}>
+            <div 
+              onClick={() => setShowLabelOptions(!showLabelOptions)}
+              className={`min-h-[42px] w-full bg-gray-50 border rounded-xl p-1.5 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-200 hover:border-emerald-200 shadow-sm'}`}
+            >
+              {(local.labels || []).length > 0 ? (
+                (local.labels || []).map(l => (
+                  <span key={l} className="bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
+                    {l}
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleArr("labels", l); }}
+                      className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
+                    >
+                      <XMarkIcon className="w-2.5 h-2.5 stroke-[3]" />
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-gray-400 text-xs py-1 px-1.5 font-medium">Any label...</span>
+              )}
+              <div className="flex-1 flex items-center justify-end pr-0.5">
+                <ChevronDownIcon className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-300 ${showLabelOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+              </div>
+            </div>
+
+            {showLabelOptions && (
+              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[300] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                <div className="p-2.5 border-b border-gray-50">
+                  <div className="relative">
+                    <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input 
+                      autoFocus
+                      type="text"
+                      placeholder="Search labels..."
+                      value={labelSearch}
+                      onChange={(e) => setLabelSearch(e.target.value)}
+                      className="w-full pl-8 pr-2.5 py-2 bg-gray-50 border-none rounded-lg text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-[160px] overflow-y-auto p-1.5 custom-scrollbar">
+                  {labels.filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
+                    <div className="py-6 text-center">
+                      <TagIcon className="w-7 h-7 text-gray-100 mx-auto mb-1.5" />
+                      <p className="text-[10px] text-gray-400 font-bold italic">No labels found</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-0.5">
+                      {labels
+                        .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
+                        .map(l => {
+                          const isSelected = (local.labels || []).includes(l);
+                          return (
+                            <button
+                              key={l}
+                              type="button"
+                              onClick={() => toggleArr("labels", l)}
+                              className={`flex items-center justify-between w-full px-2.5 py-2 rounded-lg transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                            >
+                              <div className="flex items-center gap-2.5">
+                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
+                                <span className="text-[11px] font-bold">{l}</span>
+                              </div>
+                              {isSelected && <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />}
+                            </button>
+                          );
+                        })
+                      }
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1103,19 +1362,30 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onStatus, onCampaign, labels = [], statuses = [] }) {
-  const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | null
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [] }) {
+  const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | 'more' | null
   const [showOptions, setShowOptions] = useState(false);
+  const [selectedLabels, setSelectedLabels] = useState([]);
+  const [labelSearch, setLabelSearch] = useState("");
+  const [statusSearch, setStatusSearch] = useState("");
   const menuRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
-    if (!activeMenu) setShowOptions(false);
+    if (!activeMenu) {
+      setShowOptions(false);
+      setSelectedLabels([]);
+      setLabelSearch("");
+      setStatusSearch("");
+    }
   }, [activeMenu]);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenu(null);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
         setShowOptions(false);
       }
     };
@@ -1125,124 +1395,158 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onStatus
 
   if (selectedCount === 0) return null;
 
+  const filteredLabels = labels.filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()));
+
+  const toggleLabel = (l) => {
+    setSelectedLabels(prev => prev.includes(l) ? prev.filter(x => x !== l) : [...prev, l]);
+  };
+
   return (
     <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[500] animate-in fade-in slide-in-from-bottom-4 duration-300 font-sans" ref={menuRef}>
       {/* Dropdown Menu - Labels */}
       {activeMenu === 'label' && (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[340px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
-          <div className="bg-emerald-50/40 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
-                <TagIcon className="w-4 h-4 text-white" />
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[340px] bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between transition-colors bg-emerald-50/40">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl flex items-center justify-center shadow-lg transition-colors bg-emerald-500 shadow-emerald-200">
+                <TagIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-sm font-black text-gray-800 tracking-tight">Assign Labels</span>
+              <div className="flex flex-col">
+                <span className="text-sm font-black text-gray-800 tracking-tight leading-none">Manage Labels</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest mt-1 text-emerald-600">{selectedLabels.length} selected</span>
+              </div>
             </div>
           </div>
-          <div className="p-3">
-            <div className="relative group cursor-pointer" onClick={() => setShowOptions(true)}>
-              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${showOptions ? 'text-emerald-500' : 'text-gray-400'}`} />
+
+          <div className="p-3" ref={searchRef}>
+            <div 
+              className="relative group cursor-pointer"
+              onClick={() => setShowOptions(!showOptions)}
+            >
+              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${labelSearch ? 'text-emerald-500' : 'text-gray-400'}`} />
               <input 
                 type="text" 
-                placeholder="Select or search labels..." 
+                placeholder="Search labels..." 
+                value={labelSearch}
+                onChange={(e) => { setLabelSearch(e.target.value); setShowOptions(true); }}
                 onFocus={() => setShowOptions(true)}
-                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none focus:ring-4 focus:ring-emerald-50 focus:bg-white transition-all placeholder:text-gray-400 cursor-pointer focus:cursor-text"
-                onChange={(e) => {
-                  const q = e.target.value.toLowerCase();
-                  const btns = menuRef.current?.querySelectorAll('.label-btn');
-                  btns?.forEach(b => {
-                    const text = b.textContent.toLowerCase();
-                    b.style.display = text.includes(q) ? 'flex' : 'none';
-                  });
-                }}
+                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none transition-all placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-emerald-50 focus:border-emerald-200 cursor-text"
               />
-              <ChevronDownIcon className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 transition-transform duration-300 ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+              <ChevronDownIcon className={`absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-transform duration-300 pointer-events-none ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
             </div>
+
+            {showOptions && (
+              <div className="mt-2 max-h-[200px] overflow-y-auto px-1 pb-1 custom-scrollbar flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                {filteredLabels.length === 0 ? (
+                  <div className="px-5 py-8 text-center flex flex-col items-center">
+                    <TagIcon className="w-8 h-8 text-gray-100 mb-2" />
+                    <p className="text-[12px] text-gray-400 font-bold italic">No matches found</p>
+                  </div>
+                ) : filteredLabels.map((l, i) => {
+                  const isSel = selectedLabels.includes(l);
+                  return (
+                    <button 
+                      key={l} 
+                      onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
+                      style={{ animationDelay: `${i * 15}ms` }}
+                      className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-all group animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
+                        isSel 
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'hover:bg-gray-50 text-gray-600'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full transition-all shadow-sm ${
+                          isSel 
+                            ? 'bg-emerald-500 scale-125'
+                            : 'bg-gray-200 group-hover:bg-emerald-300'
+                        }`} />
+                        <span className={`text-[12px] font-black truncate ${isSel ? 'text-emerald-700' : 'text-gray-600'}`}>{l}</span>
+                      </div>
+                      {isSel && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          {showOptions && (
-            <div className="max-h-[300px] overflow-y-auto px-2 pb-2 custom-scrollbar flex flex-col gap-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
-              {labels.length === 0 ? (
-                <div className="px-5 py-10 text-center flex flex-col items-center">
-                  <TagIcon className="w-10 h-10 text-gray-100 mb-2" />
-                  <p className="text-[13px] text-gray-400 font-bold italic">No labels found</p>
-                </div>
-              ) : labels.map((l, i) => (
-                <button 
-                  key={l} 
-                  onClick={() => { onLabel([l]); setActiveMenu(null); }}
-                  style={{ animationDelay: `${i * 30}ms` }}
-                  className="label-btn flex items-center gap-3 w-full px-4 py-3 rounded-2xl hover:bg-emerald-50 text-[13px] font-black text-gray-600 hover:text-emerald-700 transition-all text-left group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-                >
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-200 group-hover:bg-emerald-500 group-hover:scale-125 transition-all shadow-sm" />
-                  <span className="truncate">{l}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="bg-slate-50/50 px-4 py-3 flex items-center justify-between border-t border-gray-100">
-            <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Instant Assign</span>
-            <button onClick={() => setActiveMenu(null)} className="px-3 py-1.5 text-[11px] font-black text-gray-500 hover:bg-white hover:text-red-500 rounded-xl transition-all shadow-sm">CLOSE</button>
+          <div className="bg-slate-50/50 px-5 py-3.5 flex items-center justify-between border-t border-gray-100">
+            {selectedLabels.length > 0 ? (
+              <div className="flex gap-2 w-full">
+                <button onClick={() => { onRemoveLabel(selectedLabels); setActiveMenu(null); }} className="flex-1 py-2 text-[11px] font-black uppercase tracking-wider text-red-500 bg-white hover:bg-red-50 rounded-xl shadow-sm border border-red-100 transition-colors">REMOVE</button>
+                <button onClick={() => { onLabel(selectedLabels); setActiveMenu(null); }} className="flex-1 py-2 text-[11px] font-black uppercase tracking-wider text-white bg-emerald-500 hover:bg-emerald-600 rounded-xl shadow-md transition-colors">ASSIGN</button>
+              </div>
+            ) : (
+              <>
+                <span className="text-[10px] text-gray-400 font-black uppercase tracking-widest">Bulk Actions</span>
+                <button onClick={() => setActiveMenu(null)} className="text-[11px] font-black text-gray-400 hover:text-red-500 transition-colors">CANCEL</button>
+              </>
+            )}
           </div>
         </div>
       )}
 
       {/* Dropdown Menu - Status */}
       {activeMenu === 'status' && (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[300px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
-          <div className="bg-emerald-50/40 px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
-                <ArrowPathIcon className="w-4 h-4 text-white" />
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[300px] bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden">
+          <div className="bg-emerald-50/40 px-6 py-5 border-b border-gray-100">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-2xl bg-emerald-500 flex items-center justify-center shadow-lg shadow-emerald-200">
+                <ArrowPathIcon className="w-5 h-5 text-white" />
               </div>
-              <span className="text-sm font-black text-gray-800 tracking-tight">Change Status</span>
+              <span className="text-sm font-black text-gray-800 tracking-tight">Set Status</span>
             </div>
           </div>
-          <div className="p-3">
-            <div className="relative group cursor-pointer" onClick={() => setShowOptions(true)}>
-              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${showOptions ? 'text-emerald-500' : 'text-gray-400'}`} />
+          <div className="p-3" ref={searchRef}>
+            <div 
+              className="relative group cursor-pointer"
+              onClick={() => setShowOptions(!showOptions)}
+            >
+              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${statusSearch ? 'text-blue-500' : 'text-gray-400'}`} />
               <input 
                 type="text" 
-                placeholder="Select lead status..." 
+                placeholder="Search statuses..." 
+                value={statusSearch}
+                onChange={(e) => { setStatusSearch(e.target.value); setShowOptions(true); }}
                 onFocus={() => setShowOptions(true)}
-                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none focus:ring-4 focus:ring-emerald-50 focus:bg-white transition-all placeholder:text-gray-400 cursor-pointer focus:cursor-text"
-                onChange={(e) => {
-                  const q = e.target.value.toLowerCase();
-                  const btns = menuRef.current?.querySelectorAll('.status-btn');
-                  btns?.forEach(b => {
-                    const text = b.textContent.toLowerCase();
-                    b.style.display = text.includes(q) ? 'flex' : 'none';
-                  });
-                }}
+                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none transition-all placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-200 cursor-text"
               />
-              <ChevronDownIcon className={`absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300 transition-transform duration-300 ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
+              <ChevronDownIcon className={`absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-transform duration-300 pointer-events-none ${showOptions ? 'rotate-180 text-blue-500' : ''}`} />
             </div>
+
+            {showOptions && (
+              <div className="mt-2 max-h-[200px] overflow-y-auto px-1 pb-1 custom-scrollbar flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                {statuses.filter(s => (s.name || s).toLowerCase().includes(statusSearch.toLowerCase())).length === 0 ? (
+                  <div className="px-5 py-8 text-center flex flex-col items-center">
+                    <ArrowPathIcon className="w-8 h-8 text-gray-100 mb-2" />
+                    <p className="text-[12px] text-gray-400 font-bold italic">No statuses found</p>
+                  </div>
+                ) : statuses.filter(s => (s.name || s).toLowerCase().includes(statusSearch.toLowerCase())).map((s, i) => (
+                  <button 
+                    key={s.name || s} 
+                    onClick={(e) => { e.stopPropagation(); onStatus(s.name || s); setActiveMenu(null); }}
+                    style={{ animationDelay: `${i * 15}ms` }}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 rounded-xl hover:bg-blue-50 text-[12px] font-black text-gray-600 hover:text-blue-700 transition-all text-left group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
+                  >
+                    <div 
+                      className="w-3.5 h-3.5 rounded-full ring-4 ring-transparent group-hover:ring-blue-100 transition-all shadow-sm" 
+                      style={{ backgroundColor: s.color || '#3B82F6' }} 
+                    />
+                    <span className="truncate uppercase tracking-tight">{s.name || s}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          {showOptions && (
-            <div className="p-2 flex flex-col gap-1 max-h-[300px] overflow-y-auto custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-300">
-              {statuses.map((s, i) => (
-                <button 
-                  key={s.name || s} 
-                  onClick={() => { onStatus(s.name || s); setActiveMenu(null); }}
-                  style={{ animationDelay: `${i * 30}ms` }}
-                  className="status-btn flex items-center gap-3 w-full px-4 py-3 rounded-2xl hover:bg-blue-50 text-[13px] font-black text-gray-600 hover:text-blue-700 transition-all text-left group animate-in fade-in slide-in-from-bottom-2 fill-mode-both"
-                >
-                  <div 
-                    className="w-3 h-3 rounded-full ring-4 ring-transparent group-hover:ring-blue-100 transition-all shadow-sm" 
-                    style={{ backgroundColor: s.color || '#3B82F6' }} 
-                  />
-                  <span className="truncate uppercase tracking-tight">{s.name || s}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="bg-slate-50/50 px-4 py-3 border-t border-gray-100 flex justify-end">
-            <button onClick={() => setActiveMenu(null)} className="px-3 py-1.5 text-[11px] font-black text-gray-500 hover:bg-white hover:text-red-500 rounded-xl transition-all shadow-sm">CANCEL</button>
+          <div className="bg-slate-50/50 px-5 py-3 border-t border-gray-100 flex justify-end">
+            <button onClick={() => setActiveMenu(null)} className="text-[11px] font-black text-gray-400 hover:text-red-500 transition-colors">CANCEL</button>
           </div>
         </div>
       )}
 
       {/* Dropdown Menu - More Actions */}
       {activeMenu === 'more' && (
-        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[240px] bg-white rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden py-2">
+        <div className="absolute bottom-[calc(100%+12px)] left-0 w-[240px] bg-white rounded-[2rem] shadow-[0_25px_60px_rgba(0,0,0,0.18)] border border-gray-100 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-300 overflow-hidden py-3">
           {[
             { label: 'Closed chats',     icon: CheckCircleIcon,       color: 'text-gray-600' },
             { label: 'Archived chats',   icon: ArchiveBoxIcon,        color: 'text-gray-600' },
@@ -1255,72 +1559,73 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onStatus
             { label: 'Unpin chat',       icon: MapPinIcon,            color: 'text-gray-400' },
             { label: 'Mark as un-read',  icon: ChatBubbleLeftIcon,    color: 'text-gray-600' },
           ].map((item, i) => item.divider ? (
-            <div key={`d-${i}`} className="h-px bg-gray-50 my-1 mx-4" />
+            <div key={`d-${i}`} className="h-px bg-gray-50 my-2 mx-4" />
           ) : (
             <button 
               key={item.label}
-              onClick={() => { /* Placeholder for actions */ setActiveMenu(null); }}
-              style={{ animationDelay: `${i * 30}ms` }}
-              className="flex items-center gap-3 w-full px-5 py-2.5 hover:bg-gray-50 transition-all text-left group animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
+              onClick={() => { setActiveMenu(null); }}
+              style={{ animationDelay: `${i * 20}ms` }}
+              className="flex items-center gap-3 w-full px-6 py-2.5 hover:bg-gray-50 transition-all text-left group animate-in fade-in slide-in-from-bottom-1 fill-mode-both"
             >
               <item.icon className={`w-4 h-4 ${item.color} group-hover:scale-110 transition-transform`} />
-              <span className={`text-[13px] font-bold ${item.color} tracking-tight`}>{item.label}</span>
+              <span className={`text-[13px] font-black ${item.color} tracking-tight`}>{item.label}</span>
             </button>
           ))}
         </div>
       )}
 
-      <div className="bg-white border border-gray-100 shadow-[0_15px_50px_rgba(0,0,0,0.15)] rounded-[2.5rem] flex items-center justify-center p-1.5 w-fit relative mx-auto">
-        <div className="flex items-center gap-2 px-3 sm:px-4 border-r border-gray-100 mr-0.5">
-          <div className="w-10 h-10 bg-emerald-50 rounded-2xl flex items-center justify-center font-black text-emerald-600 text-lg shadow-inner">{selectedCount}</div>
+      <div className="bg-white border border-gray-100 shadow-[0_20px_50px_rgba(0,0,0,0.15)] rounded-[3rem] flex items-center justify-center p-2 w-fit relative mx-auto">
+        <div className="flex items-center gap-3 px-4 border-r border-gray-100 mr-1">
+          <div className="w-11 h-11 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center font-black text-emerald-600 text-lg shadow-inner">{selectedCount}</div>
           <div className="flex flex-col">
-            <span className="text-sm font-black text-gray-900 leading-none">Contacts</span>
-            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1">active</span>
+            <span className="text-[13px] font-black text-gray-900 leading-none tracking-tight">Contacts</span>
+            <span className="text-[9px] text-emerald-500 font-black uppercase tracking-[0.1em] mt-1">selected</span>
           </div>
         </div>
-        <div className="flex items-center gap-0.5 px-0.5">
+        <div className="flex items-center gap-1">
           <button 
             onClick={() => setActiveMenu(activeMenu === 'label' ? null : 'label')} 
-            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'label' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+            className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl transition-all group ${activeMenu === 'label' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
           >
             <TagIcon className={`w-5 h-5 mb-1 ${activeMenu === 'label' ? 'text-emerald-500 scale-110' : 'group-hover:text-emerald-500'}`} />
-            <span className="text-[10px] font-black uppercase tracking-tighter">Add Label</span>
+            <span className="text-[10px] font-black uppercase tracking-tight">Add Label</span>
           </button>
           <button 
             onClick={() => setActiveMenu(activeMenu === 'status' ? null : 'status')} 
-            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'status' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+            className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl transition-all group ${activeMenu === 'status' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
           >
             <ArrowPathIcon className={`w-5 h-5 mb-1 ${activeMenu === 'status' ? 'text-emerald-500 scale-110 rotate-180 transition-transform' : 'group-hover:text-emerald-500 font-bold'}`} />
-            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tighter">Change<br />Status</span>
+            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tight">Change<br />Status</span>
           </button>
-          <button onClick={onCampaign} className="flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl hover:bg-emerald-50 text-gray-400 hover:text-emerald-500 transition-all group">
+          <button onClick={onCampaign} className="flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl hover:bg-emerald-50 text-gray-400 hover:text-emerald-500 transition-all group">
             <MegaphoneIcon className="w-5 h-5 mb-1 group-hover:text-emerald-500 group-hover:-rotate-12" />
-            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tighter">Send<br />Campaign</span>
+            <span className="text-[10px] font-black leading-tight text-center uppercase tracking-tight">Send<br />Campaign</span>
           </button>
           <button 
             onClick={() => setActiveMenu(activeMenu === 'more' ? null : 'more')}
-            className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-2xl transition-all group ${activeMenu === 'more' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
+            className={`flex flex-col items-center justify-center px-4 py-2.5 rounded-2xl transition-all group ${activeMenu === 'more' ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-gray-50 text-gray-400'}`}
           >
             <div className="flex flex-col items-center">
               <EllipsisHorizontalIcon className={`w-5 h-5 mb-1 ${activeMenu === 'more' ? 'text-emerald-500 scale-110' : 'group-hover:text-emerald-500'}`} />
-              <span className="text-[10px] font-black uppercase tracking-tighter flex items-center gap-0.5">
-                More Actions <ChevronDownIcon className={`w-2.5 h-2.5 transition-transform ${activeMenu === 'more' ? 'rotate-180' : ''}`} />
+              <span className="text-[10px] font-black uppercase tracking-tight flex items-center gap-0.5">
+                Actions <ChevronDownIcon className={`w-2.5 h-2.5 transition-transform ${activeMenu === 'more' ? 'rotate-180' : ''}`} />
               </span>
             </div>
           </button>
         </div>
-        <div className="flex items-center gap-1.5 pl-2 sm:pl-3 pr-2 border-l border-gray-100">
-          <button onClick={onDelete} className="flex items-center gap-1.5 px-4 py-2 rounded-2xl text-red-500 hover:bg-red-50 font-black text-[12px] transition-all active:scale-95 group">
-            <TrashIcon className="w-4.5 h-4.5 group-hover:shake" />Delete
+        <div className="flex items-center gap-2 pl-3 pr-2 border-l border-gray-100 ml-1">
+          <button onClick={onDelete} className="flex items-center gap-1.5 px-5 py-2.5 rounded-2xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white font-black text-[12px] transition-all active:scale-95 group">
+            <TrashIcon className="w-4.5 h-4.5 group-hover:animate-bounce" />Delete
           </button>
-          <button onClick={onClear} className="p-2 text-gray-300 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all active:rotate-90">
-            <XMarkIcon className="w-4.5 h-4.5" />
+          <button onClick={onClear} className="p-2.5 text-gray-300 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all active:rotate-90" title="Clear Selection">
+            <XMarkIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
     </div>
   );
 }
+
 
 /* ─── Main Component ──────────────────────────────────────────────────────────── */
 export default function ContactsCRM() {
@@ -1460,6 +1765,7 @@ export default function ContactsCRM() {
     setContacts(prev => prev.map(c => c._id === res.data._id ? res.data : c));
     if (profileContact?._id === res.data._id) setProfileContact(res.data);
     showToast("success", "Contact Updated", `${res.data.name} has been updated successfully.`);
+    loadContacts(); 
   };
 
   /* ── Delete ── */
@@ -1489,40 +1795,47 @@ export default function ContactsCRM() {
   const cancelDelete = () => setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
   
   const handleBulkLabel = async (labels) => {
-    setBulkLabelModal(prev => ({ ...prev, loading: true }));
     try {
       const res = await bulkAddLabels(selectedRows, labels);
       if (res.success) {
-        showToast("success", "Labels Added", `Added labels to ${res.updated} contacts.`);
-        setBulkLabelModal({ isOpen: false, loading: false });
+        showToast("success", "Labels Added", `Added labels to ${res.updated || 0} contacts.`);
         setSelectedRows([]);
         loadContacts();
       } else {
         showToast("error", "Failed to add labels", res.message);
       }
     } catch (err) {
-      showToast("error", "Error", "An error occurred while adding labels");
-    } finally {
-      setBulkLabelModal(prev => ({ ...prev, loading: false }));
+      showToast("error", "Error", err.message || "An error occurred while adding labels");
+    }
+  };
+
+  const handleBulkRemoveLabel = async (labels) => {
+    try {
+      const res = await bulkRemoveLabels(selectedRows, labels);
+      if (res.success) {
+        showToast("success", "Labels Removed", `Removed labels from ${res.updated || 0} contacts.`);
+        setSelectedRows([]);
+        loadContacts();
+      } else {
+        showToast("error", "Failed to remove labels", res.message);
+      }
+    } catch (err) {
+      showToast("error", "Error", err.message || "An error occurred while removing labels");
     }
   };
 
   const handleBulkStatus = async (status) => {
-    setBulkStatusModal(prev => ({ ...prev, loading: true }));
     try {
       const res = await bulkUpdateStatus(selectedRows, status);
       if (res.success) {
-        showToast("success", "Status Updated", `Updated status for ${res.updated} contacts.`);
-        setBulkStatusModal({ isOpen: false, loading: false });
+        showToast("success", "Status Updated", `Updated status for ${res.updated || 0} contacts.`);
         setSelectedRows([]);
         loadContacts();
       } else {
         showToast("error", "Failed to update status", res.message);
       }
     } catch (err) {
-      showToast("error", "Error", "An error occurred while updating status");
-    } finally {
-      setBulkStatusModal(prev => ({ ...prev, loading: false }));
+      showToast("error", "Error", err.message || "An error occurred while updating status");
     }
   };
 
@@ -1609,6 +1922,7 @@ export default function ContactsCRM() {
           onClose={() => setEditingContact(null)}
           onSave={handleSaveEdit}
           customFields={allCustomFields}
+          labels={allLabels}
         />
       )}
 
@@ -1896,9 +2210,10 @@ export default function ContactsCRM() {
         onClear={() => setSelectedRows([])} 
         onDelete={handleBulkDelete}
         onLabel={handleBulkLabel}
+        onRemoveLabel={handleBulkRemoveLabel}
         onStatus={handleBulkStatus}
         onCampaign={handleSendCampaign}
-        labels={allLabels}
+        labels={[...new Set([...allLabels, ...contacts.filter(c => selectedRows.includes(c._id)).flatMap(c => c.labels || [])])]}
         statuses={allStatuses}
       />
 

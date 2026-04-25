@@ -68,7 +68,6 @@ const ContactSchema = new mongoose.Schema(
     // CRM
     status: {
       type: String,
-      enum: ['ACTIVE', 'WARM', 'INACTIVE', 'COLD'],
       default: 'ACTIVE',
     },
 
