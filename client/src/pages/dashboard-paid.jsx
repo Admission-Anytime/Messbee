@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
+
+// --- CONTEXT ---
+import { userContext } from "../context/Context";
 
 import {
    ArrowPathIcon,
@@ -18,6 +21,7 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
 function Dashboard() {
    const navigate = useNavigate();
+   const { user } = useContext(userContext);
    const [isSyncing, setIsSyncing] = useState(false);
 
    // --- DATE STATE ---
@@ -120,7 +124,7 @@ function Dashboard() {
                <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                     <h3 className="text-3xl font-black text-slate-900">₹618.51</h3>
+                     <h3 className="text-3xl font-black text-slate-900">₹{(user?.wccCredit !== undefined ? user.wccCredit : 618.51).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>

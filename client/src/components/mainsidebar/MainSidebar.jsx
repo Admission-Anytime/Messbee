@@ -281,18 +281,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
           {isOpen && <img src={logoName} alt="MessBee" className="h-5 sm:h-6 lg:h-7 w-auto object-contain mt-0.5 animate-fade-in max-w-[150px]" />}
         </div>
 
-        {/* --- SEARCH & TOGGLE --- */}
-        <div className={`mb-2 flex items-center gap-2 shrink-0 transition-all duration-200 ${isOpen ? "px-4" : "px-2 flex-col gap-4"}`}>
-          {isOpen ? (
-            <div className="flex-1 flex items-center bg-[#F3F4F6] rounded-lg px-3 py-2 transition-all w-full">
-              <Icon icon="feather:search" className="w-4 h-4 text-gray-400 mr-2 shrink-0" />
-              <input ref={searchInputRef} type="text" placeholder="Search" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="bg-transparent border-none outline-none text-sm text-gray-700 w-full placeholder:text-gray-400" />
-            </div>
-          ) : (
-            <button onClick={handleCollapsedSearchClick} className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-500 transition-colors" title="Click to Search">
-              <Icon icon="feather:search" className="w-5 h-5" />
-            </button>
-          )}
+        {/* --- TOGGLE BUTTON --- */}
+        <div className={`mb-2 flex items-center justify-end shrink-0 transition-all duration-200 px-4`}>
           <button onClick={() => setIsOpen(!isOpen)} className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-400 hover:text-black hover:bg-slate-50 transition-colors shrink-0">
             <Bars3Icon className="w-6 h-6" />
           </button>
@@ -383,7 +373,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.wccCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.wccCredit !== undefined ? user.wccCredit : 618.51).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>
