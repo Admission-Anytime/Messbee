@@ -19,7 +19,6 @@ import {
 
 // --- CONTEXT ---
 import { userContext } from "../../context/Context";
-import { ChatContext } from "../../context/ChatContext";
 
 // --- ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png"; 
@@ -66,63 +65,37 @@ const INITIAL_NOTIFICATIONS = [
   }
 ];
 
-const MainHeading = ({ onMenuClick, isSidebarOpen }) => {
+const MainHeading = ({ onMenuClick }) => {
   const navigate = useNavigate(); 
-  const { user, logoutUser } = useContext(userContext);
-  const { unreadCount: chatUnreadCount } = useContext(ChatContext);
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('All');
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [activeTab, setActiveTab] = useState("All");
+
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
   const [userProfile, setUserProfile] = useState({
-    name: user?.name || "Admission Anytime",
-    email: user?.email || "admin@admissionanytime.com", 
-    phone: user?.phone || "9910700098", 
-    credits: user?.wccCredit !== undefined ? String(user.wccCredit) : "618.51", 
-    avatar: user?.avatar || "https://i.pravatar.cc/150?u=admission" 
+    name: "Admission Anytime",
+    email: "admin@admissionanytime.com", 
+    phone: "9910700098", 
+    credits: "618.51", 
+    avatar: "https://i.pravatar.cc/150?u=admission" 
   });
 
-  // Sync userProfile with user context updates
-  useEffect(() => {
-    if (user) {
-      setUserProfile(prev => ({
-        ...prev,
-        name: user.name || prev.name,
-        email: user.email || prev.email,
-        phone: user.phone || prev.phone,
-        credits: user.wccCredit !== undefined ? String(user.wccCredit) : "618.51",
-        avatar: user.avatar || prev.avatar
-      }));
-    }
-  }, [user]);
   // --- LOGIC: DYNAMIC COUNTS ---
   
-  // 1. Bell Badge: Counts ALL unread items (Mock notifications + Real chats)
-  const totalUnreadCount = notifications.filter(n => n.isUnread).length + (chatUnreadCount || 0);
+  // 1. Bell Badge: Counts ALL unread items regardless of type
+  const totalUnreadCount = notifications.filter(n => n.isUnread).length;
 
   // 2. Tab Specific Counts (Total items in that category, read or unread)
   const mentionCount = notifications.filter(n => n.type === 'mention').length;
   const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
 
   // --- LOGIC: LOGOUT ---
+  const { logoutUser } = useContext(userContext);
   
-  // Update userProfile when context user changes
-  useEffect(() => {
-    if (user) {
-      setUserProfile({
-        name: user.name || "Admission Anytime",
-        email: user.email || "admin@admissionanytime.com",
-        phone: user.phone || "9910700098",
-        credits: user.wccCredit ? String(user.wccCredit) : "618.51",
-        avatar: user.avatar || "https://i.pravatar.cc/150?u=admission"
-      });
-    }
-  }, [user]);
-
   const handleSignOut = async () => {
     await logoutUser(); // Clears cookies and localStorage
     navigate("/login"); // Redirect to login page
@@ -172,62 +145,48 @@ const MainHeading = ({ onMenuClick, isSidebarOpen }) => {
   };
 
   return (
-    <div className="h-full px-4 sm:px-6 flex items-center justify-between bg-white select-none">
+    <div className="w-full flex items-center justify-between px-4 lg:px-6 py-2 bg-white border-b border-gray-100 shadow-sm sticky top-0 z-50 font-['Urbanist'] h-[70px]">
       
-      {/* --- LEFT: LOGO & SEARCH --- */}
-      <div className="flex items-center flex-1 gap-4">
-        {/* Menu Button (Mobile) & Logo (When sidebar closed) */}
-        <div className="flex items-center shrink-0 gap-3">
-          <button onClick={onMenuClick} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors">
-            <Bars3Icon className="w-6 h-6" />
-          </button>
-          {(!isSidebarOpen) && (
-            <div className="hidden lg:flex items-center gap-2 cursor-pointer mr-2" onClick={() => navigate('/')}>
-              <img src={logoIcon} alt="Logo" className="w-7 h-7 object-contain" />
-              <img src={logoName} alt="MessBee" className="h-4.5 w-auto object-contain mt-0.5" />
-            </div>
-          )}
-        </div>
-
-        {/* SEARCH BAR */}
-        <div className="flex-1 max-w-xl">
-           <div className="w-full h-10 bg-[#F1F5F9] rounded-lg border border-transparent focus-within:border-gray-200 focus-within:bg-white transition-all relative flex items-center group shadow-sm px-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-4 h-4 text-gray-400 group-focus-within:text-gray-600 shrink-0">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-              <input type="text" className="w-full h-full bg-transparent px-3 text-[13px] text-gray-700 placeholder-gray-400 focus:outline-none font-medium" placeholder="Search conversations, contacts..." />
-           </div>
-        </div>
+      {/* --- LEFT: LOGO SECTION --- */}
+      <div className="flex items-center shrink-0">
+        <button onClick={onMenuClick} className="lg:hidden p-2 text-slate-500 hover:bg-slate-50 rounded-lg transition-colors">
+          <Bars3Icon className="w-6 h-6" />
+        </button>
       </div>
 
-      {/* --- RIGHT: STATUS, ACTIONS & PROFILE --- */}
-      <div className="flex items-center gap-3 shrink-0">
+      {/* --- CENTER: SEARCH BAR --- */}
+      <div className="flex-1 max-w-xl mx-4 hidden md:block">
+         <div className="w-full h-10 bg-[#F1F5F9] rounded-lg border border-transparent focus-within:border-gray-300 focus-within:bg-white transition-all relative flex items-center group">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-gray-400 ml-3 group-focus-within:text-gray-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+            <input type="text" className="w-full h-full bg-transparent rounded-lg px-3 text-sm text-gray-700 placeholder-gray-400 focus:outline-none font-medium" placeholder="Search conversations, contacts..." />
+         </div>
+      </div>
+
+      {/* --- RIGHT: STATUS, CREDITS & PROFILE --- */}
+      <div className="flex items-center gap-4 shrink-0">
         
-        {/* API STATUS */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-[#ECFDF5] rounded-full border border-emerald-100 h-9">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          <div className="flex flex-col leading-[1.1] items-start">
-            <span className="text-[8px] font-black text-emerald-600 uppercase tracking-tight">API STATUS</span>
-            <span className="text-[11px] font-bold text-emerald-600">Online</span>
-          </div>
-        </div>
+        <button onClick={() => navigate('/admin/developer/api')} className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">
+           <span className="relative flex h-2 w-2">
+             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+             <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+           </span>
+           <div className="flex flex-col leading-none items-start">
+             <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide group-hover:text-emerald-700">API Status</span>
+             <span className="text-[10px] font-bold text-emerald-700">Online</span>
+           </div>
+        </button>
 
-        {/* CREDITS */}
-        <div className="flex items-center gap-2 px-3 py-1 bg-white rounded-full border border-gray-200 h-9">
-          <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
-            <WalletIcon className="w-3.5 h-3.5 text-slate-500" />
-          </div>
-          <div className="flex flex-col leading-[1.1] items-start">
-            <span className="text-[8px] font-black text-slate-400 uppercase tracking-tight">CREDITS</span>
-            <span className="text-[11px] font-bold text-slate-800">₹{userProfile.credits}</span>
-          </div>
-        </div>
+        <button   onClick={() => navigate('/admin/plan/active')} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
+           <WalletIcon className="w-4 h-4 text-slate-500 group-hover:text-slate-700" />
+           <div className="flex flex-col leading-none items-start">
+             <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
+             <span className="text-[11px] font-bold text-slate-800">₹{userProfile.credits}</span>
+           </div>
+        </button>
 
-        {/* VERTICAL DIVIDER */}
-        <div className="h-6 w-[1px] bg-gray-200 mx-1 hidden md:block"></div>
+        <div className="h-8 w-[1px] bg-gray-200 hidden md:block mx-1"></div>
 
         <div className="flex items-center gap-1 text-slate-500">
            
@@ -238,10 +197,10 @@ const MainHeading = ({ onMenuClick, isSidebarOpen }) => {
                  className={`p-2 rounded-full hover:bg-slate-50 hover:text-slate-800 transition-colors relative ${isNotifOpen ? 'bg-slate-50 text-slate-900' : ''}`}
               >
                  <BellIcon className="w-6 h-6" />
-                 {/* COUNTER */}
+                 {/* COUNTER: Counts ALL unread */}
                  {totalUnreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 flex items-center justify-center min-w-[14px] h-3.5 px-0.5 bg-[#EF4444] text-white text-[8px] font-bold rounded-full border-2 border-white shadow-sm">
-                       {totalUnreadCount}
+                    <span className="absolute top-1 right-1 flex items-center justify-center min-w-[16px] h-4 px-0.5 bg-red-500 text-white text-[9px] font-bold rounded-full border-2 border-white shadow-sm">
+                       {totalUnreadCount > 9 ? '9+' : totalUnreadCount}
                     </span>
                  )}
               </button>
@@ -340,17 +299,12 @@ const MainHeading = ({ onMenuClick, isSidebarOpen }) => {
            </button>
         </div>
 
-        {/* VERTICAL DIVIDER */}
-        <div className="h-6 w-[1px] bg-gray-200 mx-1 hidden md:block"></div>
-
-        {/* PROFILE SECTION */}
+        {/* PROFILE DROPDOWN */}
         <div className="relative" ref={profileRef}>
-           <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-all border border-transparent hover:border-slate-100 group">
-              <div className="relative">
-                <img src={userProfile.avatar} alt="Profile" className="w-8 h-8 rounded-full object-cover border border-gray-200 shadow-sm group-hover:ring-2 group-hover:ring-emerald-100 transition-all" />
-              </div>
-              <div className="hidden sm:flex flex-col items-start leading-tight">
-                 <span className="text-[13px] font-bold text-slate-800 group-hover:text-emerald-600 transition-colors">{userProfile.name}</span>
+           <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors border border-transparent hover:border-slate-100">
+              <img src={userProfile.avatar} alt="Profile" className="w-9 h-9 rounded-full object-cover border border-gray-200 shadow-sm" />
+              <div className="hidden xl:flex flex-col items-start leading-tight">
+                 <span className="text-[13px] font-bold text-slate-800">{userProfile.name}</span>
                  <span className="text-[11px] font-medium text-slate-400">{userProfile.phone}</span>
               </div>
            </div>

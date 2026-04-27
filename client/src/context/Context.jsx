@@ -41,22 +41,9 @@ const Context = (props) => {
       try {
         const response = await getCurrentUser();
         if (response.success && response.data) {
-          // Merge server data with existing local data
-          // Local data (like wccCredit and planName) should persist if they were updated locally
-          const currentLocalData = JSON.parse(localStorage.getItem("user") || "{}");
-          const mergedData = { 
-            ...response.data, 
-            ...currentLocalData,
-            // Ensure server fields that should always be fresh are taken from response
-            email: response.data.email,
-            name: response.data.name,
-            role: response.data.role,
-            avatar: response.data.avatar
-          };
-          
-          setUser(mergedData);
+          setUser(response.data);
           setIsLoggedIn(true);
-          localStorage.setItem("user", JSON.stringify(mergedData));
+          localStorage.setItem("user", JSON.stringify(response.data));
         } else {
           // Invalid auth - clear everything
           clearAuthData();

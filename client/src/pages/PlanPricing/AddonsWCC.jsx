@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState } from "react";
 import {
    CurrencyRupeeIcon,
    CheckCircleIcon,
@@ -6,9 +6,6 @@ import {
    InformationCircleIcon,
    XMarkIcon
 } from "@heroicons/react/24/outline";
-
-// --- CONTEXT ---
-import { userContext } from "../../context/Context";
 
 // ✅ Import Toastify
 import { ToastContainer, toast } from 'react-toastify';
@@ -23,16 +20,8 @@ const formatCurrency = (amount) => {
 };
 
 const AddonsWCC = () => {
-   const { user, updateUser } = useContext(userContext);
    const [isModalOpen, setIsModalOpen] = useState(false);
-   const [balance, setBalance] = useState(user?.wccCredit || 618.51);
-
-   // Sync balance with user context if it changes
-   useEffect(() => {
-      if (user?.wccCredit !== undefined) {
-         setBalance(user.wccCredit);
-      }
-   }, [user?.wccCredit]);
+   const [balance, setBalance] = useState(618.51);
 
    // --- MODAL STATE ---
    const [selectedAmount, setSelectedAmount] = useState(5000);
@@ -44,36 +33,13 @@ const AddonsWCC = () => {
    const totalPayable = finalAmount + taxes;
 
    const handlePayment = () => {
-      // Validate minimum amount
-      if (finalAmount < 100) {
-         toast.error("Minimum amount must be ₹100 or more.");
-         return;
-      }
-
-      // ✅ Show the base amount in toast as requested
-      toast.success(`Processing payment of ${formatCurrency(finalAmount)}...`, {
+      // ✅ Use Toast instead of Alert
+      toast.success(`Processing payment of ${formatCurrency(totalPayable)}...`, {
          autoClose: 2000
       });
 
       setTimeout(() => {
-         const newBalance = balance + finalAmount;
-         setBalance(newBalance);
-         
-         // Determine Plan Name based on amount
-         let newPlanName = user?.planName || "Standard";
-         if (finalAmount === 500) newPlanName = "Standard";
-         else if (finalAmount === 1000) newPlanName = "Professional";
-         else if (finalAmount === 5000) newPlanName = "Enterprise";
-
-         // Update global user context
-         if (user) {
-            updateUser({
-               ...user,
-               wccCredit: newBalance,
-               planName: newPlanName
-            });
-         }
-         
+         setBalance(balance + finalAmount);
          setIsModalOpen(false);
          toast.success("Balance updated successfully!");
       }, 2000);
@@ -252,7 +218,6 @@ const AddonsWCC = () => {
                            <span className="absolute left-4 top-3 text-slate-400">₹</span>
                            <input
                               type="number"
-                              min="100"
                               placeholder="Enter amount (min. ₹100)"
                               value={customAmount}
                               onChange={(e) => setCustomAmount(e.target.value)}
