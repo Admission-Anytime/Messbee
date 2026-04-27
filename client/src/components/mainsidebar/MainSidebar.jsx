@@ -347,7 +347,9 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                     <span className="text-sm font-bold text-emerald-600">{user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</span>
                   </div>
                   <span className="text-sm font-bold text-emerald-500">
-                    {user?.subscriptionEndDate ? `${Math.ceil((new Date(user.subscriptionEndDate) - new Date()) / (1000 * 60 * 60 * 24))} days left` : "No expiry"}
+                    {user?.subscriptionExpiry || user?.subscriptionEndDate 
+                      ? `${Math.max(0, Math.ceil((new Date(user.subscriptionExpiry || user.subscriptionEndDate) - new Date()) / (1000 * 60 * 60 * 24)))} days left` 
+                      : "No expiry"}
                   </span>
               </div>
 
