@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { CheckIcon, MinusIcon } from "@heroicons/react/24/solid";
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
@@ -17,9 +17,6 @@ import {
 
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
-// --- CONTEXT ---
-import { userContext } from "../../context/Context";
 
 /* ═══════════════════════════════════════════
    SAVED CARD ROW
@@ -718,7 +715,6 @@ const PaymentSuccessView = ({ plan, totalDue, billingCycle }) => {
    ═══════════════════════════════════════════ */
 const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const navigate = useNavigate();
-  const { user, updateUser } = useContext(userContext);
   const [paymentDone, setPaymentDone] = useState(false);
 
   // Price calculation (INR) — plan.price is the BASE monthly price
@@ -732,39 +728,6 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const fmtINR = (n) => Number(n).toLocaleString("en-IN");
 
   const handlePay = () => {
-    // Calculate new expiry date
-    const now = new Date();
-    const expiryDate = new Date();
-    if (billingCycle === "yearly") {
-      expiryDate.setFullYear(now.getFullYear() + 1);
-    } else {
-      expiryDate.setMonth(now.getMonth() + 3); // Quarterly
-    }
-
-    // Update global user context
-    if (updateUser) {
-      const txnId = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
-      const newTransaction = {
-          id: txnId,
-          date: now.toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' }),
-          time: now.toLocaleTimeString("en-US", { hour: '2-digit', minute: '2-digit' }),
-          desc: `Plan Upgrade - ${plan.name} (${billingCycle})`,
-          amount: `₹${fmtINR(totalDue)}.00`,
-          status: "Paid",
-          timestamp: now.toISOString(),
-      };
-
-      updateUser({
-        ...user,
-        planName: plan.name.toUpperCase() + " PLAN",
-        subscriptionPlan: plan.name.toLowerCase(),
-        subscriptionExpiry: expiryDate.toISOString(),
-        subscriptionEndDate: expiryDate.toISOString(), // For Sidebar compatibility
-        billingCycle: billingCycle,
-        transactions: user?.transactions ? [newTransaction, ...user.transactions] : [newTransaction],
-      });
-    }
-
     setPaymentDone(true);
   };
 
