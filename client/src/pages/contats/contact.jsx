@@ -123,6 +123,13 @@ const LABEL_CLS = {
   "+2":         "bg-violet-50 text-violet-700",
 };
 
+const getLabelColor = (label) => {
+  const colors = ['#f97316', '#eab308', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
+  let hash = 0;
+  for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+};
+
 /* ─── Toast helper ───────────────────────────────────────────────────────────── */
 const showToast = (type, title, message) => {
   const text = title && message ? `${title}: ${message}` : title || message;
@@ -520,28 +527,25 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                 </div>
 
                 {showLabelOptions && (
-                  <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
-                    <div className="p-3 border-b border-gray-50">
-                      <div className="relative">
-                        <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                        <input 
-                          autoFocus
-                          type="text"
-                          placeholder="Search or add labels..."
-                          value={labelSearch}
-                          onChange={(e) => setLabelSearch(e.target.value)}
-                          className="w-full pl-9 pr-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
-                        />
-                      </div>
+                  <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
+                    <div className="px-4 py-3 border-b border-gray-50">
+                      <input 
+                        autoFocus
+                        type="text"
+                        placeholder="Find labels..."
+                        value={labelSearch}
+                        onChange={(e) => setLabelSearch(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#F8F9FA] border-none rounded-md text-sm font-medium outline-none focus:bg-[#F1F5F9] transition-colors placeholder:text-gray-400"
+                      />
                     </div>
-                    <div className="max-h-[180px] overflow-y-auto p-2 custom-scrollbar">
+                    <div className="max-h-[180px] overflow-y-auto custom-scrollbar-labels flex flex-col py-1">
                       {[...new Set([...labels, ...form.labels])].filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
-                        <div className="py-8 text-center">
-                          <TagIcon className="w-8 h-8 text-gray-100 mx-auto mb-2" />
-                          <p className="text-[11px] text-gray-400 font-bold italic">No labels found</p>
+                        <div className="py-8 text-center flex flex-col items-center">
+                          <TagIcon className="w-8 h-8 text-gray-100 mb-2" />
+                          <p className="text-[12px] text-gray-400 font-bold italic">No labels found</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 gap-1">
+                        <div className="flex flex-col">
                           {[...new Set([...labels, ...form.labels])]
                             .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
                             .map(l => {
@@ -551,11 +555,14 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                                   key={l}
                                   type="button"
                                   onClick={() => toggleLabel(l)}
-                                  className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                                  className={`flex items-center justify-between w-full px-5 py-2.5 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
-                                    <span className="text-xs font-bold">{l}</span>
+                                    <div 
+                                      className="w-2.5 h-2.5 rounded-full"
+                                      style={{ backgroundColor: getLabelColor(l) }}
+                                    />
+                                    <span className={`text-sm ${isSelected ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                                   </div>
                                   {isSelected && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
                                 </button>
@@ -863,28 +870,25 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
               </div>
 
               {showLabelOptions && (
-                <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
-                  <div className="p-3 border-b border-gray-50">
-                    <div className="relative">
-                      <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                      <input 
-                        autoFocus
-                        type="text"
-                        placeholder="Search or add labels..."
-                        value={labelSearch}
-                        onChange={(e) => setLabelSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 bg-gray-50 border-none rounded-xl text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
-                      />
-                    </div>
+                <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
+                  <div className="px-4 py-3 border-b border-gray-50">
+                    <input 
+                      autoFocus
+                      type="text"
+                      placeholder="Find labels..."
+                      value={labelSearch}
+                      onChange={(e) => setLabelSearch(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#F8F9FA] border-none rounded-md text-sm font-medium outline-none focus:bg-[#F1F5F9] transition-colors placeholder:text-gray-400"
+                    />
                   </div>
-                  <div className="max-h-[180px] overflow-y-auto p-2 custom-scrollbar">
+                  <div className="max-h-[180px] overflow-y-auto custom-scrollbar-labels flex flex-col py-1">
                     {labels.filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
-                      <div className="py-8 text-center">
-                        <TagIcon className="w-8 h-8 text-gray-100 mx-auto mb-2" />
-                        <p className="text-[11px] text-gray-400 font-bold italic">No labels found</p>
+                      <div className="py-8 text-center flex flex-col items-center">
+                        <TagIcon className="w-8 h-8 text-gray-100 mb-2" />
+                        <p className="text-[12px] text-gray-400 font-bold italic">No labels found</p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-1 gap-1">
+                      <div className="flex flex-col">
                         {labels
                           .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
                           .map(l => {
@@ -894,11 +898,14 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                                 key={l}
                                 type="button"
                                 onClick={() => toggleLabel(l)}
-                                className={`flex items-center justify-between w-full px-3 py-2.5 rounded-xl transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                                className={`flex items-center justify-between w-full px-5 py-2.5 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                               >
                                 <div className="flex items-center gap-3">
-                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
-                                  <span className="text-xs font-bold">{l}</span>
+                                  <div 
+                                    className="w-2.5 h-2.5 rounded-full"
+                                    style={{ backgroundColor: getLabelColor(l) }}
+                                  />
+                                  <span className={`text-sm ${isSelected ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                                 </div>
                                 {isSelected && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
                               </button>
@@ -1184,28 +1191,25 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
             </div>
 
             {showLabelOptions && (
-              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[300] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
-                <div className="p-2.5 border-b border-gray-50">
-                  <div className="relative">
-                    <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
-                    <input 
-                      autoFocus
-                      type="text"
-                      placeholder="Search labels..."
-                      value={labelSearch}
-                      onChange={(e) => setLabelSearch(e.target.value)}
-                      className="w-full pl-8 pr-2.5 py-2 bg-gray-50 border-none rounded-lg text-xs font-bold outline-none focus:bg-gray-100 transition-colors"
-                    />
-                  </div>
+              <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[300] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
+                <div className="px-3 py-2.5 border-b border-gray-50">
+                  <input 
+                    autoFocus
+                    type="text"
+                    placeholder="Find labels..."
+                    value={labelSearch}
+                    onChange={(e) => setLabelSearch(e.target.value)}
+                    className="w-full px-3 py-2 bg-[#F8F9FA] border-none rounded-md text-[13px] font-medium outline-none focus:bg-[#F1F5F9] transition-colors placeholder:text-gray-400"
+                  />
                 </div>
-                <div className="max-h-[160px] overflow-y-auto p-1.5 custom-scrollbar">
+                <div className="max-h-[160px] overflow-y-auto custom-scrollbar-labels flex flex-col py-1">
                   {labels.filter(l => l.toLowerCase().includes(labelSearch.toLowerCase())).length === 0 ? (
-                    <div className="py-6 text-center">
-                      <TagIcon className="w-7 h-7 text-gray-100 mx-auto mb-1.5" />
-                      <p className="text-[10px] text-gray-400 font-bold italic">No labels found</p>
+                    <div className="py-6 text-center flex flex-col items-center">
+                      <TagIcon className="w-7 h-7 text-gray-100 mb-1.5" />
+                      <p className="text-[11px] text-gray-400 font-bold italic">No labels found</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 gap-0.5">
+                    <div className="flex flex-col">
                       {labels
                         .filter(l => l.toLowerCase().includes(labelSearch.toLowerCase()))
                         .map(l => {
@@ -1215,11 +1219,14 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
                               key={l}
                               type="button"
                               onClick={() => toggleArr("labels", l)}
-                              className={`flex items-center justify-between w-full px-2.5 py-2 rounded-lg transition-all ${isSelected ? 'bg-emerald-50 text-emerald-700' : 'hover:bg-gray-50 text-gray-600'}`}
+                              className={`flex items-center justify-between w-full px-4 py-2 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                             >
                               <div className="flex items-center gap-2.5">
-                                <div className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-emerald-500 scale-125' : 'bg-gray-200'}`} />
-                                <span className="text-[11px] font-bold">{l}</span>
+                                <div 
+                                  className="w-2.5 h-2.5 rounded-full"
+                                  style={{ backgroundColor: getLabelColor(l) }}
+                                />
+                                <span className={`text-[13px] ${isSelected ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                               </div>
                               {isSelected && <CheckCircleIcon className="w-3.5 h-3.5 text-emerald-500" />}
                             </button>
@@ -1418,25 +1425,18 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
             </div>
           </div>
 
-          <div className="p-3" ref={searchRef}>
-            <div 
-              className="relative group cursor-pointer"
-              onClick={() => setShowOptions(!showOptions)}
-            >
-              <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${labelSearch ? 'text-emerald-500' : 'text-gray-400'}`} />
+          <div className="flex flex-col" ref={searchRef}>
+            <div className="px-4 py-3 border-b border-gray-50">
               <input 
                 type="text" 
-                placeholder="Search labels..." 
+                placeholder="Find labels..." 
                 value={labelSearch}
-                onChange={(e) => { setLabelSearch(e.target.value); setShowOptions(true); }}
-                onFocus={() => setShowOptions(true)}
-                className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none transition-all placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-emerald-50 focus:border-emerald-200 cursor-text"
+                onChange={(e) => setLabelSearch(e.target.value)}
+                className="w-full px-3 py-2 bg-[#F8F9FA] border-none rounded-md text-sm font-medium outline-none transition-all placeholder:text-gray-400 focus:bg-[#F1F5F9] cursor-text"
               />
-              <ChevronDownIcon className={`absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-transform duration-300 pointer-events-none ${showOptions ? 'rotate-180 text-emerald-500' : ''}`} />
             </div>
 
-            {showOptions && (
-              <div className="mt-2 max-h-[200px] overflow-y-auto px-1 pb-1 custom-scrollbar flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="max-h-[200px] overflow-y-auto custom-scrollbar-labels flex flex-col py-1 animate-in fade-in slide-in-from-top-2 duration-200">
                 {filteredLabels.length === 0 ? (
                   <div className="px-5 py-8 text-center flex flex-col items-center">
                     <TagIcon className="w-8 h-8 text-gray-100 mb-2" />
@@ -1449,26 +1449,24 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                       key={l} 
                       onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
                       style={{ animationDelay: `${i * 15}ms` }}
-                      className={`flex items-center justify-between w-full px-4 py-2.5 rounded-xl transition-all group animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
+                      className={`flex items-center justify-between w-full px-5 py-2.5 transition-all group animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
                         isSel 
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'hover:bg-gray-50 text-gray-600'
+                          ? 'bg-[#F4F6F8]'
+                          : 'hover:bg-[#F8F9FA]'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <div className={`w-2 h-2 rounded-full transition-all shadow-sm ${
-                          isSel 
-                            ? 'bg-emerald-500 scale-125'
-                            : 'bg-gray-200 group-hover:bg-emerald-300'
-                        }`} />
-                        <span className={`text-[12px] font-black truncate ${isSel ? 'text-emerald-700' : 'text-gray-600'}`}>{l}</span>
+                        <div 
+                          className="w-2.5 h-2.5 rounded-full" 
+                          style={{ backgroundColor: getLabelColor(l) }}
+                        />
+                        <span className={`text-sm ${isSel ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                       </div>
                       {isSel && <CheckCircleIcon className="w-4 h-4 text-emerald-500" />}
                     </button>
                   );
                 })}
               </div>
-            )}
           </div>
           <div className="bg-slate-50/50 px-5 py-3.5 flex items-center justify-between border-t border-gray-100">
             {selectedLabels.length > 0 ? (
@@ -1498,24 +1496,18 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
             </div>
           </div>
           <div className="p-3" ref={searchRef}>
-            <div 
-              className="relative group cursor-pointer"
-              onClick={() => setShowOptions(!showOptions)}
-            >
+            <div className="relative group">
               <MagnifyingGlassIcon className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300 ${statusSearch ? 'text-blue-500' : 'text-gray-400'}`} />
               <input 
                 type="text" 
                 placeholder="Search statuses..." 
                 value={statusSearch}
-                onChange={(e) => { setStatusSearch(e.target.value); setShowOptions(true); }}
-                onFocus={() => setShowOptions(true)}
+                onChange={(e) => setStatusSearch(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-[13px] font-black outline-none transition-all placeholder:text-gray-400 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-200 cursor-text"
               />
-              <ChevronDownIcon className={`absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 transition-transform duration-300 pointer-events-none ${showOptions ? 'rotate-180 text-blue-500' : ''}`} />
             </div>
 
-            {showOptions && (
-              <div className="mt-2 max-h-[200px] overflow-y-auto px-1 pb-1 custom-scrollbar flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="mt-2 max-h-[200px] overflow-y-auto px-1 pb-1 custom-scrollbar flex flex-col gap-1 animate-in fade-in slide-in-from-top-2 duration-200">
                 {statuses.filter(s => (s.name || s).toLowerCase().includes(statusSearch.toLowerCase())).length === 0 ? (
                   <div className="px-5 py-8 text-center flex flex-col items-center">
                     <ArrowPathIcon className="w-8 h-8 text-gray-100 mb-2" />
@@ -1536,7 +1528,6 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                   </button>
                 ))}
               </div>
-            )}
           </div>
           <div className="bg-slate-50/50 px-5 py-3 border-t border-gray-100 flex justify-end">
             <button onClick={() => setActiveMenu(null)} className="text-[11px] font-black text-gray-400 hover:text-red-500 transition-colors">CANCEL</button>
