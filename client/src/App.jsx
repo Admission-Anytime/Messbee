@@ -148,9 +148,11 @@ const AppLayout = memo(() => {
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         
         {/* 3. Header shows on all protected pages */}
-        <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
-          <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
-        </div>
+        {location.pathname === '/' && (
+          <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
+            <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+          </div>
+        )}
 
         {/* 4. Page Content area */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
