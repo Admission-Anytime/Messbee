@@ -330,6 +330,14 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
               </div>
 
               <button 
+                onClick={() => navigate('/admin/account/profile')}
+                className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-slate-600 transition-colors w-full text-left"
+              >
+                <Icon icon="feather:user" className="w-4 h-4" />
+                <span className="text-sm font-bold">User profile</span>
+              </button>
+
+              <button 
                 onClick={() => navigate('/admin/profile/business')}
                 className="px-4 py-3 flex items-center gap-3 hover:bg-slate-50 text-slate-600 transition-colors w-full text-left"
               >
@@ -369,22 +377,6 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
               <div className="px-4 pt-3 border-t border-slate-50 mt-2">
                 <div className="flex items-center gap-2 text-[10px] font-bold text-slate-300 uppercase tracking-widest"><Icon icon="feather:info" className="w-3 h-3" /> Version 10.0.35</div>
-              </div>
-            </div>
-          )}
-
-          {/* Plan Card */}
-          {isOpen && (
-            <div className="bg-[#F8FAFC] rounded-xl p-2.5 mb-2 border border-slate-50 shadow-sm">
-              <div className="flex justify-between items-start">
-                <div className="flex flex-col gap-0.5">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan: {user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</p>
-                  <h4 className="text-[13px] font-extrabold text-slate-900">{user?.planName || "Standard"}</h4>
-                </div>
-                <div className="text-right flex flex-col gap-0.5">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.wccCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
               </div>
             </div>
           )}

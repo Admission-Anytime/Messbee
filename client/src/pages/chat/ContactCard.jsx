@@ -2110,7 +2110,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{chat.lastMsgTime || formatChatTime(chat.updatedAt)}</span>
+                  <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap">{formatChatTime(chat.updatedAt || chat.createdAt || chat.created_at) || chat.lastMsgTime}</span>
 
                   {/* Three Dot Menu Button */}
                   <div className="relative">

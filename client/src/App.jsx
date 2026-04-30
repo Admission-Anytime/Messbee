@@ -74,6 +74,7 @@ const Inventory = lazy(() => import("./pages/commerce/Inventory"));
 const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
 const BusinessProfile = lazy(() => import("./pages/profile/BusinessProfile"));
 const ActivePlans = lazy(() => import("./pages/profile/ActivePlans"));
+const ChangePassword = lazy(() => import("./pages/profile/ChangePassword"));
 
 // --- LAZY LOADED AUTH PAGES ---
 const Login = lazy(() => import("./pages/Auth/Login"));
@@ -127,23 +128,26 @@ Placeholder.propTypes = {
 const AppLayout = memo(() => {
   const location = useLocation();
   
-  // Collapse sidebar by default on UpgradePlan page
+  // Collapse sidebar by default on specific pages
   const isPricingPage = location.pathname === "/admin/plan/upgrade";
-  const [isSidebarOpen, setIsSidebarOpen] = useState(!isPricingPage);
+  const isChangePasswordPage = location.pathname === "/admin/profile/change-password";
+  const [isSidebarOpen, setIsSidebarOpen] = useState(!(isPricingPage || isChangePasswordPage));
 
-  // Collapse sidebar when navigating to pricing page
+  // Collapse sidebar when navigating to those pages
   useEffect(() => {
-    if (isPricingPage) {
+    if (isPricingPage || isChangePasswordPage) {
       setIsSidebarOpen(false);
     }
-  }, [isPricingPage]);
+  }, [isPricingPage, isChangePasswordPage]);
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
-      <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      {!isChangePasswordPage && (
+        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      )}
 
       {/* 2. Main content container (Navbar + Page Content) */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -335,6 +339,7 @@ function App() {
           <Route path="/admin/account/plan" element={<ActivePlans />} />
           <Route path="/admin/profile/info" element={<UserProfile />} />
           <Route path="/admin/profile/business" element={<BusinessProfile />} />
+          <Route path="/admin/profile/change-password" element={<ChangePassword />} />
 
           {/* 14. Help & Support Wrapper Route */}
           <Route path="/admin/help" element={<HelpLayout />}>
