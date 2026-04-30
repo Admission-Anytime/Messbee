@@ -277,8 +277,6 @@ export const SignupForm = () => {
             </div>
           </div>
 
-          </div>
-
           {/* Error Message */}
           {errorMessage && (
             <div className="bg-red-50 text-red-600 text-xs font-medium p-3 rounded-xl border border-red-100 flex items-center gap-2">

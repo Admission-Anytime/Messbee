@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { toast } from "react-toastify";
 import { resetPassword } from "../../services/authService";
-`import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
@@ -165,7 +165,6 @@ const ResetPassword = () => {
                     {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
                   </button>
                 </div>
-              </div>
                 
                 {/* Dynamic Strength Meter */}
                 <div className="mt-3">
