@@ -9,6 +9,7 @@ import {
   resendOTP,
   saveAuthData 
 } from "../../services/authService";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 const LoginForm = () => {
   const navigate = useNavigate();
@@ -23,6 +24,7 @@ const LoginForm = () => {
     password: "",
     otp: "",
   });
+  const [showPassword, setShowPassword] = useState(false);
 
   // Redirect if already logged in (checked via context state)
   useEffect(() => {
@@ -208,15 +210,24 @@ const LoginForm = () => {
                 Forgot password?
               </Link>
             </div>
-            <input
-              type="password"
-              name="password"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={handleInputChange}
-              required
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                placeholder="••••••••"
+                value={formData.password}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all pr-12"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+              </button>
+            </div>
           </div>
 
           {/* Error Message */}

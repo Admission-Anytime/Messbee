@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
@@ -6,6 +7,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
   const { user, updateUser } = useContext(userContext);
+  const navigate = useNavigate();
   
   const [isEditing, setIsEditing] = useState(false);
   const [isPrefEditing, setIsPrefEditing] = useState(false);
@@ -443,7 +445,7 @@ useEffect(() => {
                     Last changed 3 months ago. We recommend changing it periodically.
                   </p>
                   <button
-                    onClick={() => toast.info("Coming soon")}
+                    onClick={() => navigate("/admin/profile/change-password")}
                     className="px-4 py-2 bg-gray-100 text-gray-800 text-sm font-bold rounded-xl hover:bg-gray-200 transition-all"
                   >
                     Change Password
