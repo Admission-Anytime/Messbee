@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -714,16 +714,26 @@ const CreateTemplate = () => {
                             </div>
                         ) : (
                             (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
-                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 md:p-5 border-2 rounded-xl cursor-pointer transition-all duration-300 ${templateType === type ? 'border-[#10B981] bg-green-50/20' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className={`w-3 h-3 rounded-full transition-all ${templateType === type ? 'bg-[#10B981] scale-110' : 'bg-gray-200'}`}></div>
-                                    <span className="text-sm md:text-base font-semibold text-gray-800">{type.replace(/_/g, ' ')}</span>
+                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 border-[1.5px] rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-[#10B981] bg-white' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
+                                <div className="flex items-start gap-3">
+                                    {templateType === type ? (
+                                      <div className="mt-0.5 w-[18px] h-[18px] shrink-0 rounded-full border-[2px] border-[#10B981] flex items-center justify-center">
+                                        <div className="w-[10px] h-[10px] bg-[#10B981] rounded-full"></div>
+                                      </div>
+                                    ) : (
+                                      <div className="mt-0.5 w-[18px] h-[18px] shrink-0 rounded-full border-[2px] border-gray-300" />
+                                    )}
+                                    <div>
+                                      <span className="text-[14px] font-bold text-gray-900 block mb-0.5">
+                                        {type === 'CUSTOM' ? 'Custom' : type === 'CATALOG' ? 'Catalog' : 'Limited-time-offer'}
+                                      </span>
+                                      <p className="text-[13px] text-gray-500 leading-relaxed max-w-[95%]">
+                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers, announcements and more to increase awareness and engagement.') 
+                                          : type === 'CATALOG' ? 'Send messages about your entire catalog or multiple products from it.'
+                                          : 'Limited-time offer templates allow you to display expiration dates and running countdown timers.'}
+                                      </p>
+                                    </div>
                                 </div>
-                                <p className="text-xs md:text-sm text-gray-500 font-medium ml-6">
-                                    {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements.') 
-                                    : type === 'CATALOG' ? 'Display your entire product catalog.'
-                                    : 'Send an offer with a countdown timer to drive urgency.'}
-                                </p>
                               </div>
                             ))
                         )}
@@ -1118,6 +1128,7 @@ const CreateTemplate = () => {
                 offer={formData.offerTitle} 
                 isLimited={templateType === 'LIMITED_TIME_OFFER'}
                 buttons={formData.category === 'Authentication' ? [] : buttons} 
+                isSetupView={view === 'setup'}
               />
             </div>
         </div>
@@ -1126,60 +1137,129 @@ const CreateTemplate = () => {
   );
 };
 
-const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLimited = false, buttons = [], headerMedia = null, headerType = 'None' }) => (
-  <div className="relative w-[300px] h-[580px] bg-[#0F172A] rounded-[3.5rem] border-[12px] border-[#1e293b] shadow-[0_50px_100px_rgba(0,0,0,0.15)] overflow-hidden font-sans">
-    <div className="h-full bg-[#E5DDD5] pt-10">
-      <div className="bg-[#075E54] p-5 flex items-center gap-3">
-        <div className="w-9 h-9 bg-white/20 rounded-full border border-white/10" />
-        <div className="text-white">
-          <p className="text-sm font-bold leading-none">WhatsApp Business</p>
-          <p className="text-[10px] opacity-60 font-semibold uppercase mt-1">online</p>
+const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLimited = false, buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
+  if (isSetupView) {
+    return (
+      <div className="relative w-[320px] h-[640px] bg-white rounded-[3rem] border-[14px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+        {/* Notch */}
+        <div className="absolute top-0 w-36 h-[28px] bg-[#1e293b] rounded-b-[20px] z-20 flex justify-center">
+           <div className="w-14 h-1.5 bg-white/20 rounded-full mt-2"></div>
+        </div>
+        
+        {/* Screen Background */}
+        <div className="w-full h-full bg-[#FAFAFA] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+           {/* Message Bubble Card */}
+           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full">
+              {/* Image banner */}
+              <div className="w-full bg-[#1A8B88] h-36 flex items-end justify-center overflow-hidden">
+                <svg width="220" height="130" viewBox="0 0 220 130" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M80 130C80 90 95 70 110 70C125 70 140 90 140 130" fill="#4B9CB3"/>
+                  <rect x="98" y="25" width="24" height="45" rx="12" fill="#FFD7B5"/>
+                  <path d="M85 40C85 20 100 10 110 10C120 10 135 20 135 40L135 55L85 55L85 40Z" fill="#1e293b"/>
+                  <circle cx="110" cy="45" r="5" fill="#1e293b"/>
+                  <rect x="70" y="90" width="80" height="40" rx="3" fill="#E2E8F0"/>
+                  <rect x="80" y="45" width="60" height="20" rx="2" fill="#4A5568"/>
+                </svg>
+              </div>
+              
+              <div className="p-4 flex flex-col">
+                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-4">
+                   Hey there! Check out our fresh groceries now!
+                 </p>
+                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-1">
+                   Use code <span className="font-bold">HEALTH</span> to get additional 10% off on your entire purchase.
+                 </p>
+                 <div className="flex justify-end mt-1">
+                    <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
+                 </div>
+              </div>
+              
+              <div className="border-t border-gray-100 w-full flex">
+                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
+                    <ExternalLink size={16}/> Shop now
+                 </button>
+              </div>
+              <div className="border-t border-gray-100 w-full flex">
+                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
+                    <Copy size={16}/> Copy code
+                 </button>
+              </div>
+           </div>
         </div>
       </div>
-      <div className="p-4 overflow-y-auto max-h-[460px]">
-        <div className="bg-white rounded-[1.25rem] rounded-tl-none shadow-lg overflow-hidden border border-gray-200/50">
-          {/* MEDIA HEADER */}
-           {['Image', 'Video', 'Document'].includes(headerType) && headerMedia && (
-             <div className="relative bg-gray-900 flex items-center justify-center overflow-hidden">
-               {headerMedia.type === 'image' && (
-                 <img src={headerMedia.preview} alt="header" className="w-full h-40 object-cover"/>
-               )}
-               {headerMedia.type === 'video' && (
-                 <video src={headerMedia.preview} className="w-full h-40 object-cover" controls={false}/>
-               )}
-               {headerMedia.type === 'document' && (
-                 <div className="w-full h-40 bg-red-50 flex items-center justify-center flex-col gap-2">
-                   <div className="text-4xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
-                   <p className="text-xs text-gray-600">{headerMedia.name}</p>
-                 </div>
-               )}
-               {isLimited && offer && <div className="absolute top-2 right-2 md:top-3 md:right-3 bg-[#10B981] text-white text-xs font-bold px-2 md:px-3 py-1 md:py-1.5 rounded-lg shadow-md">{offer}</div>}
-             </div>
-           )}
-          <div className="p-4 md:p-5">
-            <p className="text-xs text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name || 'TEMPLATE_NAME'}]</p>
-            <div className="text-sm md:text-base text-gray-700 font-medium leading-relaxed mb-3 whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
-            
-            {isLimited && (
-                <div className="mt-4 p-3 bg-red-50 rounded-xl border border-red-100 flex items-center justify-between">
-                    <span className="text-xs font-bold text-red-500">Offer expires in:</span>
-                    <span className="text-xs font-bold text-red-600 bg-white px-2 py-1 rounded-md shadow-sm">23:59:59</span>
-                </div>
-            )}
+    );
+  }
 
-            {footer && <p className="text-xs text-gray-400 mt-3 pt-3 border-t border-gray-100 font-medium italic">{footer}</p>}
-          </div>
-          {buttons.length > 0 && buttons.map(btn => (
-            <div key={btn.id} className="bg-gray-50 p-2 border-t border-gray-100">
-               <button className="text-sm text-blue-500 font-bold flex items-center justify-center gap-2 w-full py-2.5 md:py-3 bg-white rounded-xl shadow-sm border border-gray-100">
-                  <ExternalLink size={14}/> {btn.text}
-               </button>
+  // Dynamic preview for content phase
+  return (
+    <div className="relative w-[320px] h-[640px] bg-white rounded-[3rem] border-[14px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+      {/* Notch */}
+      <div className="absolute top-0 w-36 h-[28px] bg-[#1e293b] rounded-b-[20px] z-20 flex justify-center">
+         <div className="w-14 h-1.5 bg-white/20 rounded-full mt-2"></div>
+      </div>
+      
+      {/* Screen Background */}
+      <div className="w-full h-full bg-[#FAFAFA] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+         {/* Message Bubble Card */}
+         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full">
+            {showImage && (
+              <div className="w-full relative overflow-hidden bg-gray-50">
+                {headerMedia ? (
+                  <>
+                    {headerMedia.type === 'image' && (
+                      <img src={headerMedia.preview} alt="header" className="w-full h-36 object-cover"/>
+                    )}
+                    {headerMedia.type === 'video' && (
+                      <video src={headerMedia.preview} className="w-full h-36 object-cover" controls={false}/>
+                    )}
+                    {headerMedia.type === 'document' && (
+                      <div className="w-full h-36 bg-red-50 flex items-center justify-center flex-col gap-2">
+                        <div className="text-3xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-gray-400">
+                    {headerType === 'Image' ? <ImageIcon size={28}/> : headerType === 'Video' ? <span className="text-2xl">▶️</span> : headerType === 'Document' ? <span className="text-2xl">📄</span> : <ImageIcon size={28}/>}
+                  </div>
+                )}
+              </div>
+            )}
+            
+            <div className="p-4 flex flex-col">
+               {name && <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name}]</p>}
+               <div className="text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
+               
+               {isLimited && (
+                  <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-100 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-red-500">Offer expires in:</span>
+                      <span className="text-[11px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-sm">23:59:59</span>
+                  </div>
+               )}
+
+               {footer && <p className="text-[12px] text-gray-400 mt-3 font-medium">{footer}</p>}
+
+               <div className="flex justify-end mt-2">
+                  <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
+               </div>
             </div>
-          ))}
-        </div>
+            
+            {buttons && buttons.length > 0 && (
+               <div className="flex flex-col border-t border-gray-100 w-full">
+                  {buttons.map((btn) => (
+                     <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
+                        <span className="text-blue-500 font-semibold text-[14px] flex items-center gap-2 hover:opacity-80 transition-opacity">
+                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <ExternalLink size={16} className="text-blue-500"/> : btn.text.toLowerCase().includes('copy') ? <Copy size={16} className="text-blue-500"/> : null} 
+                          {btn.text}
+                        </span>
+                     </div>
+                  ))}
+               </div>
+            )}
+         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 export default CreateTemplate;

@@ -1,6 +1,5 @@
-import React, { useState, useContext } from "react";
+﻿import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { userContext } from "../../context/Context";
 import {
    BanknotesIcon,
    ClockIcon,
@@ -28,10 +27,8 @@ const PaymentHistory = () => {
    const [startDate, setStartDate] = useState("");
    const [endDate, setEndDate] = useState("");
 
-   const { user } = useContext(userContext);
-
-   // --- MOCK DATA / DYNAMIC DATA ---
-   const allTransactions = user?.transactions?.length > 0 ? user.transactions : [
+   // --- MOCK DATA ---
+   const allTransactions = [
       { id: "TXN-49201948", date: "12 Oct, 2023", time: "10:45 AM", desc: "WCC Top-up Credit", amount: "₹618.51", status: "Paid" },
       { id: "TXN-38294821", date: "01 Oct, 2023", time: "09:00 AM", desc: "Plan Renewal - Silver", amount: "₹2,499.00", status: "Paid" },
       { id: "TXN-88273612", date: "25 Sep, 2023", time: "11:15 PM", desc: "WCC Top-up Credit", amount: "₹1,000.00", status: "Processing" },
@@ -39,14 +36,6 @@ const PaymentHistory = () => {
       { id: "TXN-38290012", date: "01 Sep, 2023", time: "09:00 AM", desc: "Plan Renewal - Silver", amount: "₹2,499.00", status: "Paid" },
       { id: "TXN-99887766", date: "20 Aug, 2023", time: "02:15 PM", desc: "WCC Top-up Credit", amount: "₹500.00", status: "Paid" }, // Added for pagination demo
    ];
-
-   const currentYear = new Date().getFullYear().toString();
-   const totalSpentYear = allTransactions
-      .filter(t => t.status === "Paid" && t.date.includes(currentYear))
-      .reduce((acc, t) => acc + parseFloat(t.amount.replace(/[^0-9.-]+/g, "")), 0);
-   
-   const lastPaymentTxn = allTransactions.find(t => t.status === "Paid") || allTransactions[0];
-   const fmtINR = (n) => Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
    // --- FILTER LOGIC ---
    const filteredTransactions = allTransactions.filter((txn) => {
@@ -132,7 +121,7 @@ const PaymentHistory = () => {
                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Spent (Year)</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                     <h2 className="text-3xl font-extrabold text-slate-900">₹{fmtINR(totalSpentYear)}</h2>
+                     <h2 className="text-3xl font-extrabold text-slate-900">₹14,520.00</h2>
                      <span className="text-xs font-bold text-emerald-50 bg-emerald-50 px-1.5 py-0.5 rounded">↑ 12%</span>
                   </div>
                </div>
@@ -143,8 +132,8 @@ const PaymentHistory = () => {
                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Payment</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                     <h2 className="text-3xl font-extrabold text-slate-900">{lastPaymentTxn?.amount || "₹0.00"}</h2>
-                     <span className="text-sm font-medium text-slate-400">{lastPaymentTxn?.date || "N/A"}</span>
+                     <h2 className="text-3xl font-extrabold text-slate-900">₹618.51</h2>
+                     <span className="text-sm font-medium text-slate-400">12 Oct 2023</span>
                   </div>
                </div>
             </div>

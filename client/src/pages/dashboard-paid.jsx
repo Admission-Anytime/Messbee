@@ -1,12 +1,9 @@
-import { useState, useContext } from "react";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
-
-// --- CONTEXT ---
-import { userContext } from "../context/Context";
 
 import {
    ArrowPathIcon,
@@ -21,7 +18,6 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
 function Dashboard() {
    const navigate = useNavigate();
-   const { user } = useContext(userContext);
    const [isSyncing, setIsSyncing] = useState(false);
 
    // --- DATE STATE ---
@@ -124,7 +120,7 @@ function Dashboard() {
                <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                     <h3 className="text-3xl font-black text-slate-900">₹{(user?.wccCredit !== undefined ? user.wccCredit : 618.51).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</h3>
+                     <h3 className="text-3xl font-black text-slate-900">₹618.51</h3>
                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
@@ -139,30 +135,13 @@ function Dashboard() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between h-full">
                <div className="flex flex-wrap justify-between items-start mb-4 gap-2">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Active Subscription</p>
-                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">
-                     {user?.planName || "FREE PLAN"}
-                  </span>
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">ENTERPRISE PLAN</span>
                </div>
                <div className="mb-6">
-                  <h3 className="text-3xl font-black text-slate-900 mb-1">
-                     {user?.subscriptionExpiry 
-                        ? Math.max(0, dayjs(user.subscriptionExpiry).diff(dayjs(), 'day')) 
-                        : 0} Days <span className="text-lg font-medium text-slate-400">remaining</span>
-                  </h3>
-                  <p className="text-xs text-slate-400 mb-4">
-                     Next billing cycle starts {user?.subscriptionExpiry 
-                        ? dayjs(user.subscriptionExpiry).format("MMMM DD, YYYY") 
-                        : dayjs().add(30, 'day').format("MMMM DD, YYYY")}.
-                  </p>
+                  <h3 className="text-3xl font-black text-slate-900 mb-1">76 Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
+                  <p className="text-xs text-slate-400 mb-4">Next billing cycle starts April 28, 2026.</p>
                   <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
-                     <div 
-                        className="h-full bg-slate-800 rounded-full" 
-                        style={{ 
-                           width: user?.subscriptionExpiry 
-                              ? `${Math.max(0, Math.min(100, (dayjs(user.subscriptionExpiry).diff(dayjs(), 'day') / 365) * 100))}%` 
-                              : "0%" 
-                        }}
-                     ></div>
+                     <div className="h-full bg-slate-800 w-[60%] rounded-full"></div>
                   </div>
                </div>
                <button onClick={() => navigate('/admin/plan/overview')} className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Manage Subscription</button>

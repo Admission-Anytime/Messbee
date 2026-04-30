@@ -1,23 +1,28 @@
-import { useState } from 'react';
-import { Copy, Trash2, Plus, Eye, EyeOff, AlertTriangle, X, CheckCircle2, Lock } from 'lucide-react';
+/* eslint-disable react/prop-types */
+/* eslint-disable react/no-unescaped-entities */
+import { useState, useEffect } from 'react';
+import { Copy, Trash2, Plus, Eye, EyeOff, AlertTriangle, X, CheckCircle2, Lock, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
-
-// ─── Initial mock data ────────────────────────────────────────────────────────
-const INITIAL_KEYS = [
-  { id: 1, name: 'Production Key', masked: 'mb_••••••••••••3a9f', created: 'Oct 12, 2023' },
-  { id: 2, name: 'Staging Key',    masked: 'mb_••••••••••••8c1d', created: 'Jan 05, 2024' },
-];
-
-const INITIAL_EVENTS = [
-  { id: 'messages',  label: 'Messages Received', desc: 'Triggered when a new message arrives.',         enabled: true,  color: 'bg-green-500'  },
-  { id: 'status',    label: 'Status Updates',     desc: 'Delivery, read, and delivery fail reports.',   enabled: true,  color: 'bg-blue-500'   },
-  { id: 'alerts',    label: 'System Alerts',      desc: 'Critical errors and account notifications.',   enabled: false, color: 'bg-orange-500' },
-];
+import {
+  getApiKeys,
+  createApiKey,
+  deleteApiKey,
+  getWebhookConfig,
+  saveWebhookConfig,
+  toggleWebhookEvent
+} from '../../services/DevApiService';
 
 // ─── Generate New API Key Modal ─────────────────────────────────────────────
 function GenerateKeyModal({ onCancel, onSave }) {
   const [name, setName] = useState('');
   const [permission, setPermission] = useState('Read-only');
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    await onSave(name, permission);
+    setLoading(false);
+  };
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
@@ -68,11 +73,11 @@ function GenerateKeyModal({ onCancel, onSave }) {
             Cancel
           </button>
           <button 
-            disabled={!name.trim()}
-            onClick={() => onSave(name, permission)}
-            className="flex-1 px-4 py-3 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold shadow-lg shadow-green-100 transition-all active:scale-95"
+            disabled={!name.trim() || loading}
+            onClick={handleSave}
+            className="flex flex-1 items-center justify-center px-4 py-3 rounded-xl bg-green-500 hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold shadow-lg shadow-green-100 transition-all active:scale-95"
           >
-            Save
+            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Save'}
           </button>
         </div>
       </div>
@@ -140,8 +145,16 @@ function GeneratedKeySuccessModal({ apiKey, onDone }) {
   );
 }
 
-// ─── Delete confirm modal (same style as QuickReply) ─────────────────────────
+// ─── Delete confirm modal ─────────────────────────
 function DeleteModal({ keyName, onConfirm, onCancel }) {
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setLoading(true);
+    await onConfirm();
+    setLoading(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
       <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center">
@@ -150,7 +163,7 @@ function DeleteModal({ keyName, onConfirm, onCancel }) {
         </div>
         <h3 className="text-lg font-bold text-slate-800 mb-2">Confirm Delete</h3>
         <p className="text-sm text-slate-500 mb-6">
-          Are you sure you want to delete <span className="font-semibold text-slate-700">"{keyName}"</span>? This action cannot be undone.
+          Are you sure you want to delete <span className="font-semibold text-slate-700">&quot;{keyName}&quot;</span>? This action cannot be undone.
         </p>
         <div className="flex gap-3">
           <button
@@ -160,10 +173,11 @@ function DeleteModal({ keyName, onConfirm, onCancel }) {
             Cancel
           </button>
           <button
-            onClick={onConfirm}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-200 transition-all active:scale-95"
+            disabled={loading}
+            onClick={handleConfirm}
+            className="flex flex-1 items-center justify-center px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold shadow-lg shadow-red-200 transition-all active:scale-95 disabled:opacity-50"
           >
-            Yes, Delete
+            {loading ? <Loader2 size={16} className="animate-spin" /> : 'Yes, Delete'}
           </button>
         </div>
       </div>
@@ -187,78 +201,127 @@ function Toggle({ enabled, onChange }) {
 
 // ─── Main DevApi page ─────────────────────────────────────────────────────────
 const DevApi = () => {
-  const [apiKeys, setApiKeys]       = useState(INITIAL_KEYS);
-  const [events, setEvents]         = useState(INITIAL_EVENTS);
-  const [deleteTarget, setDeleteTarget] = useState(null); // key object to confirm delete
-  const [callbackUrl, setCallbackUrl]   = useState('https://api.myapp.com/messbee-webhook');
-  const [verifyToken, setVerifyToken]   = useState('bb814bf21f4320a7772bd20584475420f858');
+  const [apiKeys, setApiKeys]       = useState([]);
+  const [events, setEvents]         = useState([]);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [callbackUrl, setCallbackUrl]   = useState('');
+  const [verifyToken, setVerifyToken]   = useState('');
   const [showToken, setShowToken]       = useState(false);
-  const [nextId, setNextId]             = useState(10);
   
+  // Loading states
+  const [loading, setLoading] = useState(true);
+  const [savingWebhook, setSavingWebhook] = useState(false);
+
   // Modal states
   const [isCreating, setIsCreating]     = useState(false);
-  const [generatedKey, setGeneratedKey] = useState(null); // stores the full key to show in success modal
+  const [generatedKey, setGeneratedKey] = useState(null);
 
-  // Generate new API key flow
+  // Fetch initial data
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const [keysRes, webhookRes] = await Promise.all([
+          getApiKeys(),
+          getWebhookConfig()
+        ]);
+        
+        setApiKeys(keysRes.data.data);
+        const webhookData = webhookRes.data.data;
+        if (webhookData) {
+          setCallbackUrl(webhookData.callbackUrl || '');
+          setVerifyToken(webhookData.verifyToken || '');
+          setEvents(webhookData.events || []);
+        }
+      } catch (error) {
+        toast.error('Failed to load Developer Settings');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
   const handleStartCreate = () => setIsCreating(true);
 
-  const handleSaveKey = (name, permission) => {
-    // Simulate raw secret key generation
-    const rawKey = `mb_${Array.from({length: 48}, () => Math.floor(Math.random() * 36).toString(36)).join('')}`;
-    const masked = `mb_••••••••••••${rawKey.slice(-4)}`;
-    
-    const newKey = {
-      id: nextId,
-      name: name,
-      masked: masked,
-      created: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
-    };
-
-    setApiKeys((prev) => [newKey, ...prev]);
-    setNextId((n) => n + 1);
-    setGeneratedKey(rawKey);
-    setIsCreating(false);
-    toast.success('Successfully generated new key');
+  const handleSaveKey = async (name, permission) => {
+    try {
+      const res = await createApiKey({ name, permission });
+      const newKey = res.data.data;
+      setApiKeys((prev) => [newKey, ...prev]);
+      setGeneratedKey(newKey.rawKey);
+      setIsCreating(false);
+      toast.success('Successfully generated new key');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to generate key');
+    }
   };
 
-  // Copy masked key to clipboard
   const handleCopy = (key) => {
-    navigator.clipboard.writeText(key.masked);
+    navigator.clipboard.writeText(key.maskedKey);
     toast.success(`"${key.name}" copied to clipboard`);
   };
 
-  // Confirm delete
-  const handleConfirmDelete = () => {
-    setApiKeys((prev) => prev.filter((k) => k.id !== deleteTarget.id));
-    toast.success(`"${deleteTarget.name}" revoked successfully!`);
-    setDeleteTarget(null);
+  const handleConfirmDelete = async () => {
+    try {
+      await deleteApiKey(deleteTarget._id);
+      setApiKeys((prev) => prev.filter((k) => k._id !== deleteTarget._id));
+      toast.success(`"${deleteTarget.name}" revoked successfully!`);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to revoke key');
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
-  // Toggle event subscription
-  const handleToggleEvent = (id) => {
+  const handleToggleEvent = async (id) => {
     const event = events.find((e) => e.id === id);
     if (!event) return;
 
-    const newStatus = !event.enabled;
-    setEvents((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, enabled: newStatus } : e))
-    );
-    toast.success(`${event.label} ${newStatus ? 'enabled' : 'disabled'}`, { toastId: id });
+    try {
+      // Optimistic update
+      const newStatus = !event.enabled;
+      setEvents((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, enabled: newStatus } : e))
+      );
+      
+      await toggleWebhookEvent(id);
+      toast.success(`${event.label} ${newStatus ? 'enabled' : 'disabled'}`, { toastId: id });
+    } catch (error) {
+      // Revert on error
+      setEvents((prev) =>
+        prev.map((e) => (e.id === id ? { ...e, enabled: event.enabled } : e))
+      );
+      toast.error('Failed to toggle event');
+    }
   };
 
-  // Save webhook config
-  const handleSaveConfig = () => {
+  const handleSaveConfig = async () => {
     if (!callbackUrl.trim()) {
       toast.warning('⚠️ Please enter a Callback URL');
       return;
     }
-    toast.success('Webhook configuration saved successfully!');
+    try {
+      setSavingWebhook(true);
+      await saveWebhookConfig({ callbackUrl, verifyToken });
+      toast.success('Webhook configuration saved successfully!');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save webhook config');
+    } finally {
+      setSavingWebhook(false);
+    }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-green-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-6 font-sans">
-
-      {/* Create New Key Modal */}
       {isCreating && (
         <GenerateKeyModal 
           onCancel={() => setIsCreating(false)} 
@@ -266,7 +329,6 @@ const DevApi = () => {
         />
       )}
 
-      {/* Show Successfully Generated Key */}
       {generatedKey && (
         <GeneratedKeySuccessModal 
           apiKey={generatedKey} 
@@ -274,7 +336,6 @@ const DevApi = () => {
         />
       )}
 
-      {/* Delete confirmation modal */}
       {deleteTarget && (
         <DeleteModal
           keyName={deleteTarget.name}
@@ -314,50 +375,54 @@ const DevApi = () => {
 
         {/* Table */}
         <div className="px-6 py-2">
-          <table className="w-full text-left">
-            <thead>
-              <tr className="text-[11px] font-bold uppercase text-gray-400 tracking-wider border-b border-gray-100">
-                <th className="py-3 pr-4">Key Name</th>
-                <th className="py-3 pr-4">Masked Key</th>
-                <th className="py-3 pr-4">Created Date</th>
-                <th className="py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {apiKeys.map((key) => (
-                <tr key={key.id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
-                  <td className="py-4 pr-4 text-sm font-semibold text-gray-800">{key.name}</td>
-                  <td className="py-4 pr-4 text-sm text-gray-500 font-mono">{key.masked}</td>
-                  <td className="py-4 pr-4 text-sm text-gray-400">{key.created}</td>
-                  <td className="py-4 text-right">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        onClick={() => handleCopy(key)}
-                        className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
-                        title="Copy key"
-                      >
-                        <Copy size={16} />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(key)}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Revoke key"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+          {apiKeys.length === 0 ? (
+            <div className="py-8 text-center text-sm text-gray-400 font-medium">
+              No API keys generated yet.
+            </div>
+          ) : (
+            <table className="w-full text-left">
+              <thead>
+                <tr className="text-[11px] font-bold uppercase text-gray-400 tracking-wider border-b border-gray-100">
+                  <th className="py-3 pr-4">Key Name</th>
+                  <th className="py-3 pr-4">Masked Key</th>
+                  <th className="py-3 pr-4">Created Date</th>
+                  <th className="py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {apiKeys.map((key) => (
+                  <tr key={key._id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
+                    <td className="py-4 pr-4 text-sm font-semibold text-gray-800">{key.name}</td>
+                    <td className="py-4 pr-4 text-sm text-gray-500 font-mono">{key.maskedKey}</td>
+                    <td className="py-4 pr-4 text-sm text-gray-400">{new Date(key.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</td>
+                    <td className="py-4 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handleCopy(key)}
+                          className="p-2 text-gray-400 hover:text-emerald-500 hover:bg-emerald-50 rounded-lg transition-colors"
+                          title="Copy key"
+                        >
+                          <Copy size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(key)}
+                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Revoke key"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
       {/* ── Webhook + Events row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-
-        {/* Webhook Configuration */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
           <h2 className="text-base font-bold text-gray-900 mb-0.5">Webhook Configuration</h2>
           <p className="text-xs text-gray-400 mb-5">Configure your destination server to receive events.</p>
@@ -400,15 +465,16 @@ const DevApi = () => {
               Cancel
             </button>
             <button
+              disabled={savingWebhook}
               onClick={handleSaveConfig}
-              className="px-5 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition active:scale-95"
+              className="flex items-center justify-center px-5 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
             >
+              {savingWebhook ? <Loader2 size={16} className="animate-spin mr-1.5" /> : null}
               Save Config
             </button>
           </div>
         </div>
 
-        {/* Event Subscriptions */}
         <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
           <h2 className="text-base font-bold text-gray-900 mb-0.5">Event Subscriptions</h2>
           <p className="text-xs text-gray-400 mb-5">Choose which events trigger a webhook delivery.</p>
@@ -444,7 +510,6 @@ const DevApi = () => {
         </div>
       </div>
 
-      {/* ── Developer Security Tip ── */}
       <div className="bg-green-50 border border-green-100 rounded-2xl px-5 py-4 flex items-start gap-4">
         <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
           <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -462,7 +527,6 @@ const DevApi = () => {
           Learn More
         </button>
       </div>
-
     </div>
   );
 };

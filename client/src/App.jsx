@@ -138,6 +138,7 @@ const AppLayout = memo(() => {
     }
   }, [isPricingPage]);
 
+  const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
       
@@ -147,10 +148,10 @@ const AppLayout = memo(() => {
       {/* 2. Main content container (Navbar + Page Content) */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         
-        {/* 3. Header shows on all protected pages */}
-        {location.pathname === '/' && (
+        {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
+        {isDashboard && (
           <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
-            <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} isSidebarOpen={isSidebarOpen} />
+            <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
         )}
 
