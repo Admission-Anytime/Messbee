@@ -87,7 +87,10 @@ exports.updateAutomation = async (req, res, next) => {
       });
     }
 
-    automation = await Automation.findByIdAndUpdate(req.params.id, req.body, {
+    automation = await Automation.findByIdAndUpdate(req.params.id, {
+      ...req.body,
+      updatedAt: Date.now()
+    }, {
       new: true,
       runValidators: true
     });

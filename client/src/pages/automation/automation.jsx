@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { toast } from 'react-toastify';
 import {
     Plus,
     X,
@@ -19,45 +20,107 @@ import {
     ShoppingCart,
     Headset
 } from 'lucide-react';
+import AutomationApi from '../../services/AutomationApi';
 
-const automationSeed = [
-    {
-        id: 1,
-        name: 'Welcome Sequence',
-        channel: 'Email + SMS Channel',
-        trigger: 'New Opt-in',
-        successRate: 92,
-        monthlyConv: '1,240',
-        status: true,
+const triggerLabels = {
+    inbound: 'Inbound Msg',
+    abandoned: 'Cart Abandoned',
+    optin: 'New Opt-in',
+    tag: 'Tag Added'
+};
+
+const actionLabels = {
+    ai: 'AI Agent Response',
+    template: 'Template Dispatch',
+    human: 'Assigned to Human'
+};
+
+const getAutomationVisual = ({ actionType, selectedAgent, triggerType }) => {
+    if (actionType === 'human') {
+        return {
+            icon: Headset,
+            iconBg: 'bg-blue-50 dark:bg-blue-900/20',
+            iconColor: 'text-blue-500'
+        };
+    }
+
+    if (selectedAgent === 'sales-assistant' || triggerType === 'abandoned') {
+        return {
+            icon: ShoppingCart,
+            iconBg: 'bg-orange-50 dark:bg-orange-900/20',
+            iconColor: 'text-orange-500'
+        };
+    }
+
+    return {
         icon: Hand,
         iconBg: 'bg-emerald-50 dark:bg-emerald-900/20',
         iconColor: 'text-[#10B981]'
-    },
-    {
-        id: 2,
-        name: 'Abandoned Cart AI',
-        channel: 'Direct AI Response',
-        trigger: 'Cart Abandoned',
-        successRate: 78,
-        monthlyConv: '850',
-        status: true,
-        icon: ShoppingCart,
-        iconBg: 'bg-orange-50 dark:bg-orange-900/20',
-        iconColor: 'text-orange-500'
-    },
-    {
-        id: 3,
-        name: 'Support Triage',
-        channel: 'Priority Classification',
-        trigger: 'Inbound Msg',
-        successRate: 95,
-        monthlyConv: '3,100',
-        status: true,
-        icon: Headset,
-        iconBg: 'bg-blue-50 dark:bg-blue-900/20',
-        iconColor: 'text-blue-500'
-    }
-];
+    };
+};
+
+const inferActionType = (actions = []) => {
+    const firstAction = actions[0];
+
+    if (!firstAction) return 'ai';
+    if (firstAction.type === 'add_tag' && firstAction.value === 'requires-human') return 'human';
+    if (firstAction.type === 'send_message' && firstAction.value === actionLabels.template) return 'template';
+
+    return 'ai';
+};
+
+const getSuccessRate = (stats = {}) => {
+    const triggered = Number(stats.triggered || 0);
+    const executed = Number(stats.executed || 0);
+
+    if (!triggered) return 0;
+
+    return Math.min(100, Math.round((executed / triggered) * 100));
+};
+
+const mapAutomationFromApi = (automation) => {
+    const triggerType = automation.uiConfig?.triggerType || automation.trigger?.value || 'inbound';
+    const actionType = automation.uiConfig?.actionType || inferActionType(automation.actions);
+    const selectedAgent = automation.uiConfig?.selectedAgent || 'support-pro';
+    const visual = getAutomationVisual({ actionType, selectedAgent, triggerType });
+
+    return {
+        id: automation._id,
+        name: automation.name,
+        channel: actionLabels[actionType] || actionLabels.ai,
+        trigger: triggerLabels[triggerType] || triggerLabels.inbound,
+        triggerType,
+        actionType,
+        selectedAgent,
+        notifyNegativeSentiment: Boolean(automation.uiConfig?.notifyNegativeSentiment),
+        successRate: getSuccessRate(automation.stats),
+        monthlyConv: Number(automation.stats?.triggered || 0).toLocaleString('en-US'),
+        status: Boolean(automation.isActive),
+        ...visual
+    };
+};
+
+const buildAutomationPayload = ({ automationName, triggerType, actionType, selectedAgent, notifyNegativeSentiment }) => {
+    const action = actionType === 'human'
+        ? { type: 'add_tag', value: 'requires-human', delay: 0 }
+        : { type: 'send_message', value: actionLabels[actionType], delay: 0 };
+
+    return {
+        name: automationName.trim(),
+        description: `${triggerLabels[triggerType]} -> ${actionLabels[actionType]}`,
+        trigger: {
+            type: 'event',
+            value: triggerType
+        },
+        actions: [action],
+        uiConfig: {
+            triggerType,
+            actionType,
+            selectedAgent,
+            notifyNegativeSentiment
+        }
+    };
+};
 
 const settingsCards = [
     {
@@ -84,43 +147,129 @@ const settingsCards = [
 ];
 
 const Automation = () => {
-    const [automations, setAutomations] = useState(automationSeed);
+    const [automations, setAutomations] = useState([]);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingAutomation, setEditingAutomation] = useState(null);
     const [automationName, setAutomationName] = useState('');
     const [triggerType, setTriggerType] = useState('inbound');
     const [actionType, setActionType] = useState('ai');
     const [selectedAgent, setSelectedAgent] = useState('support-pro');
     const [notifyNegativeSentiment, setNotifyNegativeSentiment] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const toggleStatus = (id) => {
-        setAutomations((prev) =>
-            prev.map((item) => (item.id === id ? { ...item, status: !item.status } : item))
-        );
-    };
-
-    const handleCreateAutomation = () => {
-        if (!automationName.trim()) return;
-
-        const newAutomation = {
-            id: Date.now(),
-            name: automationName.trim(),
-            channel: actionType === 'ai' ? 'AI Agent Response' : actionType === 'template' ? 'Template Dispatch' : 'Assigned to Human',
-            trigger: triggerType === 'inbound' ? 'Inbound Msg' : triggerType === 'abandoned' ? 'Cart Abandoned' : triggerType === 'optin' ? 'New Opt-in' : 'Tag Added',
-            successRate: 90,
-            monthlyConv: '0',
-            status: true,
-            icon: selectedAgent === 'sales-assistant' ? ShoppingCart : Hand,
-            iconBg: selectedAgent === 'sales-assistant' ? 'bg-orange-50' : 'bg-emerald-50',
-            iconColor: selectedAgent === 'sales-assistant' ? 'text-orange-500' : 'text-[#10B981]'
-        };
-
-        setAutomations((prev) => [newAutomation, ...prev]);
-        setIsModalOpen(false);
+    const resetForm = () => {
         setAutomationName('');
         setTriggerType('inbound');
         setActionType('ai');
         setSelectedAgent('support-pro');
         setNotifyNegativeSentiment(false);
+        setEditingAutomation(null);
+    };
+
+    const fetchAutomations = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            const response = await AutomationApi.getAutomations();
+            const nextAutomations = Array.isArray(response.data)
+                ? response.data.map(mapAutomationFromApi)
+                : [];
+
+            setAutomations(nextAutomations);
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to load automations');
+        } finally {
+            setIsLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchAutomations();
+    }, [fetchAutomations]);
+
+    const openCreateModal = () => {
+        resetForm();
+        setIsModalOpen(true);
+    };
+
+    const openEditModal = (automation) => {
+        setEditingAutomation(automation);
+        setAutomationName(automation.name);
+        setTriggerType(automation.triggerType);
+        setActionType(automation.actionType);
+        setSelectedAgent(automation.selectedAgent);
+        setNotifyNegativeSentiment(automation.notifyNegativeSentiment);
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        if (isSubmitting) return;
+        setIsModalOpen(false);
+        resetForm();
+    };
+
+    const toggleStatus = async (id) => {
+        const currentAutomations = automations;
+
+        setAutomations((prev) =>
+            prev.map((item) => (item.id === id ? { ...item, status: !item.status } : item))
+        );
+
+        try {
+            const response = await AutomationApi.toggleAutomation(id);
+            setAutomations((prev) =>
+                prev.map((item) => (item.id === id ? mapAutomationFromApi(response.data) : item))
+            );
+        } catch (error) {
+            setAutomations(currentAutomations);
+            toast.error(error.response?.data?.message || 'Failed to update automation status');
+        }
+    };
+
+    const handleSaveAutomation = async () => {
+        if (!automationName.trim()) return;
+
+        const payload = buildAutomationPayload({
+            automationName,
+            triggerType,
+            actionType,
+            selectedAgent,
+            notifyNegativeSentiment
+        });
+
+        try {
+            setIsSubmitting(true);
+            const response = editingAutomation
+                ? await AutomationApi.updateAutomation(editingAutomation.id, payload)
+                : await AutomationApi.createAutomation(payload);
+            const savedAutomation = mapAutomationFromApi(response.data);
+
+            setAutomations((prev) => editingAutomation
+                ? prev.map((item) => (item.id === editingAutomation.id ? savedAutomation : item))
+                : [savedAutomation, ...prev]
+            );
+            toast.success(editingAutomation ? 'Automation updated successfully' : 'Automation created successfully');
+            setIsModalOpen(false);
+            resetForm();
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to save automation');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteAutomation = async (id) => {
+        const confirmed = window.confirm('Delete this automation?');
+
+        if (!confirmed) return;
+
+        try {
+            await AutomationApi.deleteAutomation(id);
+            setAutomations((prev) => prev.filter((item) => item.id !== id));
+            toast.success('Automation deleted successfully');
+        } catch (error) {
+            toast.error(error.response?.data?.message || 'Failed to delete automation');
+        }
     };
 
     return (
@@ -149,7 +298,7 @@ const Automation = () => {
                     </div>
 
                     <button
-                        onClick={() => setIsModalOpen(true)}
+                        onClick={openCreateModal}
                         className="flex items-center gap-2 bg-[#10B981] hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm transition-all shadow-sm"
                     >
                         <Plus className="w-4 h-4" />
@@ -171,7 +320,23 @@ const Automation = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {automations.map((item) => (
+                                {isLoading && (
+                                    <tr>
+                                        <td className="px-6 py-10 text-center text-sm font-semibold text-slate-500" colSpan={6}>
+                                            Loading automations...
+                                        </td>
+                                    </tr>
+                                )}
+
+                                {!isLoading && automations.length === 0 && (
+                                    <tr>
+                                        <td className="px-6 py-10 text-center text-sm font-semibold text-slate-500" colSpan={6}>
+                                            No automations found. Create your first workflow to get started.
+                                        </td>
+                                    </tr>
+                                )}
+
+                                {!isLoading && automations.map((item) => (
                                     <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                                         <td className="px-4 lg:px-6 py-3.5 lg:py-4">
                                             <div className="flex items-center gap-2.5 lg:gap-3">
@@ -204,6 +369,7 @@ const Automation = () => {
                                                     type="checkbox"
                                                     checked={item.status}
                                                     onChange={() => toggleStatus(item.id)}
+                                                    disabled={isSubmitting}
                                                     className="sr-only peer"
                                                 />
                                                 <div className="w-10 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10B981]"></div>
@@ -211,10 +377,20 @@ const Automation = () => {
                                         </td>
                                         <td className="px-4 lg:px-6 py-3.5 lg:py-4 text-right">
                                             <div className="flex justify-end gap-2">
-                                                <button className="p-1.5 text-slate-400 hover:text-[#1E293B] transition-colors" aria-label="Edit automation">
+                                                <button
+                                                    onClick={() => openEditModal(item)}
+                                                    className="p-1.5 text-slate-400 hover:text-[#1E293B] transition-colors"
+                                                    aria-label="Edit automation"
+                                                    type="button"
+                                                >
                                                     <Pencil className="w-4 h-4" />
                                                 </button>
-                                                <button className="p-1.5 text-slate-400 hover:text-red-500 transition-colors" aria-label="Delete automation">
+                                                <button
+                                                    onClick={() => handleDeleteAutomation(item.id)}
+                                                    className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
+                                                    aria-label="Delete automation"
+                                                    type="button"
+                                                >
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
@@ -254,13 +430,16 @@ const Automation = () => {
                     <div className="w-full max-w-[760px] lg:max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col border border-slate-200 my-4 max-h-[calc(100vh-2rem)]">
                         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
                             <div>
-                                <h2 className="text-2xl font-bold text-slate-900 leading-tight">Create New Automation</h2>
+                                <h2 className="text-2xl font-bold text-slate-900 leading-tight">
+                                    {editingAutomation ? 'Edit Automation' : 'Create New Automation'}
+                                </h2>
                                 <p className="text-sm text-slate-500 mt-1">Set up automated workflows to engage your customers.</p>
                             </div>
                             <button
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={closeModal}
                                 className="text-slate-400 hover:text-slate-600 transition-colors"
                                 aria-label="Close create automation modal"
+                                type="button"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -394,19 +573,23 @@ const Automation = () => {
 
                         <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-2.5">
                             <button
-                                onClick={() => setIsModalOpen(false)}
+                                onClick={closeModal}
                                 className="w-full sm:w-auto px-6 py-3 rounded-xl font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
                                 type="button"
+                                disabled={isSubmitting}
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={handleCreateAutomation}
+                                onClick={handleSaveAutomation}
                                 className="w-full sm:w-auto px-10 py-3 rounded-xl font-bold text-white bg-[#22C55E] hover:bg-[#16A34A] shadow-lg shadow-[#22C55E]/20 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
                                 type="button"
-                                disabled={!automationName.trim()}
+                                disabled={!automationName.trim() || isSubmitting}
                             >
-                                Create Automation
+                                {isSubmitting
+                                    ? 'Saving...'
+                                    : editingAutomation ? 'Update Automation' : 'Create Automation'
+                                }
                             </button>
                         </div>
                     </div>

@@ -35,6 +35,24 @@ const AutomationSchema = new mongoose.Schema({
       default: 0
     }
   }],
+  uiConfig: {
+    triggerType: {
+      type: String,
+      enum: ['inbound', 'abandoned', 'optin', 'tag']
+    },
+    actionType: {
+      type: String,
+      enum: ['ai', 'template', 'human']
+    },
+    selectedAgent: {
+      type: String,
+      enum: ['support-pro', 'sales-assistant']
+    },
+    notifyNegativeSentiment: {
+      type: Boolean,
+      default: false
+    }
+  },
   isActive: {
     type: Boolean,
     default: true
