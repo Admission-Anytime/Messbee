@@ -613,6 +613,32 @@ const Conversion = ({
       ? previewTemplate.name.replace(/_/g, " ").replace(/\b\w/g, (ch) => ch.toUpperCase())
       : "";
 
+   /**
+    * Render template body with proper WhatsApp formatting
+    * Converts WhatsApp markdown syntax to visual HTML
+    */
+   const renderTemplateBodyPreview = (template) => {
+      if (!template?.bodyText && !template?.components) return '';
+      
+      // Get body text from either bodyText field or components
+      let bodyText = template.bodyText;
+      if (!bodyText && template.components) {
+         const bodyComponent = template.components.find(c => c?.type === 'BODY');
+         bodyText = bodyComponent?.text || '';
+      }
+      
+      if (!bodyText) return '';
+      
+      // Apply WhatsApp markdown formatting
+      let html = String(bodyText)
+         .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')        // *bold*
+         .replace(/_([^_]+)_/g, '<em>$1</em>')                   // _italic_
+         .replace(/~([^~]+)~/g, '<strike>$1</strike>')           // ~strikethrough~
+         .replace(/\n/g, '<br />');                              // newlines
+      
+      return html;
+   };
+
    const confirmPreviewText = useMemo(() => {
       const raw = String(confirmTemplate?.bodyText || "");
       const recipientName = data?.name || "Customer";
@@ -1055,7 +1081,7 @@ const Conversion = ({
                                           </div>
                                           <div 
                                              className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200 whitespace-pre-wrap"
-                                             dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(previewTemplate.bodyText) }}
+                                             dangerouslySetInnerHTML={{ __html: renderTemplateBodyPreview(previewTemplate) }}
                                           />
                                        </div>
                                     )}

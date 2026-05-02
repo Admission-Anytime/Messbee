@@ -267,8 +267,11 @@ const Templates = ({ activeTab }) => {
                       <td className="px-2 md:px-3 py-3">
                           <div className="flex items-center justify-center gap-3">
                               <button 
-                                  onClick={(e) => { e.stopPropagation(); navigate('/admin/templates/create', { state: { isEditing: true, templateData: temp } }); }} 
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+                                  onClick={(e) => { 
+                                    e.stopPropagation();
+                                    navigate('/admin/templates/create', { state: { isEditing: true, templateData: temp } });
+                                  }} 
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
                                   title="Edit template"
                               >
                                   <Pencil size={18} />
