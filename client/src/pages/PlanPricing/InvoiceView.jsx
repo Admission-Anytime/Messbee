@@ -1,12 +1,38 @@
-import React from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowDownTrayIcon, ShareIcon, PrinterIcon } from "@heroicons/react/24/outline";
+import { userContext } from "../../context/Context";
 
 function InvoiceView() {
     const navigate = useNavigate();
     const { id } = useParams();
-
     const invoiceId = id || "INV-2024-001";
+
+    const { user } = useContext(userContext);
+    const [transaction, setTransaction] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchInvoice = async () => {
+            try {
+                const { default: axios } = await import("../../context/axios");
+                const response = await axios.get("/billing/transactions");
+                const data = response.data.data;
+                const foundTxn = data.find(t => t.transactionId === invoiceId);
+                setTransaction(foundTxn);
+            } catch (error) {
+                console.error("Error fetching invoice", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        if (invoiceId !== "INV-2024-001") {
+            fetchInvoice();
+        } else {
+            setLoading(false);
+        }
+    }, [invoiceId]);
 
     const handlePrint = () => window.print();
 
@@ -17,6 +43,27 @@ function InvoiceView() {
             navigator.clipboard.writeText(window.location.href);
         }
     };
+
+    if (loading) {
+        return <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center font-['Urbanist']">Loading Invoice...</div>;
+    }
+
+    if (!transaction && invoiceId !== "INV-2024-001") {
+        return <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center font-['Urbanist'] text-red-500 font-bold">Invoice Not Found.</div>;
+    }
+
+    const fmtINR = (n) => `₹${n.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+    
+    // Dynamic Calculations
+    const totalAmount = transaction ? transaction.amount : 5900;
+    const subtotal = totalAmount / 1.18;
+    const gst = totalAmount - subtotal;
+    const dateObj = transaction ? new Date(transaction.date) : new Date("2024-10-24");
+    const dateString = dateObj.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const desc = transaction ? transaction.desc : "WhatsApp Conversation Credits (WCC) Top-up";
+    const subDesc = transaction?.desc.includes("Plan Renewal") ? "Subscription renewal charges" : "Usage-based messaging credits";
+    
+    const clientName = user?.company || user?.name || "ATRI ADMISSION ANYTIME PVT LTD";
 
     return (
         <div className="min-h-screen bg-[#F0F2F5] font-['Urbanist']">
@@ -48,7 +95,7 @@ function InvoiceView() {
                                     <div className="flex justify-end gap-2 mt-2">
                                         <span>Date</span>
                                     </div>
-                                    <p className="font-bold text-[#0f172a]">October 24, 2024</p>
+                                    <p className="font-bold text-[#0f172a]">{dateString}</p>
                                 </div>
                             </div>
                         </div>
@@ -69,12 +116,10 @@ function InvoiceView() {
                             </div>
                             <div>
                                 <p className="text-[10px] font-bold text-[#64748b] uppercase tracking-widest mb-3">Bill To</p>
-                                <p className="text-sm font-black text-[#0f172a] uppercase">ATRI ADMISSION ANYTIME PVT LTD</p>
+                                <p className="text-sm font-black text-[#0f172a] uppercase">{clientName}</p>
                                 <p className="text-xs text-[#64748b] mt-1 leading-relaxed">
-                                    S-14 Basement DLF Dilshad Extension 2<br />
-                                    Ghaziabad, Uttar Pradesh, 201005
+                                    Customer ID: {user?._id?.substring(0, 8).toUpperCase() || "N/A"}
                                 </p>
-                                <p className="text-xs text-[#64748b] mt-2 font-medium">GST: 09AAXCA5870A1ZD</p>
                             </div>
                         </div>
 
@@ -91,12 +136,12 @@ function InvoiceView() {
                             {/* Line Item */}
                             <div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-1 py-5 items-start">
                                 <div>
-                                    <p className="text-sm font-bold text-[#0f172a]">WhatsApp Conversation Credits (WCC) Top-up</p>
-                                    <p className="text-xs text-[#94a3b8] mt-0.5">Usage-based messaging credits for Q4 campaigns</p>
+                                    <p className="text-sm font-bold text-[#0f172a]">{desc}</p>
+                                    <p className="text-xs text-[#94a3b8] mt-0.5">{subDesc}</p>
                                 </div>
                                 <p className="text-sm text-[#0f172a] w-12 text-center">1</p>
-                                <p className="text-sm text-[#0f172a] w-24 text-right">₹5,000.00</p>
-                                <p className="text-sm font-bold text-[#0f172a] w-24 text-right">₹5,000.00</p>
+                                <p className="text-sm text-[#0f172a] w-24 text-right">{fmtINR(subtotal)}</p>
+                                <p className="text-sm font-bold text-[#0f172a] w-24 text-right">{fmtINR(subtotal)}</p>
                             </div>
                         </div>
 
@@ -105,15 +150,15 @@ function InvoiceView() {
                             <div className="flex flex-col items-end gap-2">
                                 <div className="flex justify-between w-56 text-sm text-[#64748b]">
                                     <span>Subtotal</span>
-                                    <span className="font-semibold text-[#0f172a]">₹5,000.00</span>
+                                    <span className="font-semibold text-[#0f172a]">{fmtINR(subtotal)}</span>
                                 </div>
                                 <div className="flex justify-between w-56 text-sm text-[#64748b]">
                                     <span>GST (18%)</span>
-                                    <span className="font-semibold text-[#0f172a]">₹900.00</span>
+                                    <span className="font-semibold text-[#0f172a]">{fmtINR(gst)}</span>
                                 </div>
                                 <div className="flex justify-between w-56 mt-3 pt-3 border-t border-slate-200">
                                     <span className="text-sm font-black text-[#0f172a] uppercase tracking-wide">Total Amount</span>
-                                    <span className="text-xl font-black text-[#059669]">₹5,900.00</span>
+                                    <span className="text-xl font-black text-[#059669]">{fmtINR(totalAmount)}</span>
                                 </div>
                             </div>
                         </div>

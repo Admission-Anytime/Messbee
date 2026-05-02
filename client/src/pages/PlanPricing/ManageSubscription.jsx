@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     ChartBarIcon,
@@ -6,6 +6,7 @@ import {
     DocumentTextIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import { userContext } from "../../context/Context";
 
 const usageItems = [
     { label: "Monthly Messages", used: 14200, total: 50000 },
@@ -15,6 +16,42 @@ const usageItems = [
 
 function ManageSubscription() {
     const navigate = useNavigate();
+    const { user } = useContext(userContext);
+
+    const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
+    const planName = user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free";
+
+    let daysRemaining = 0;
+    let nextBillingCycleStr = "";
+    
+    if (user?.subscriptionEndDate) {
+      const endDate = new Date(user.subscriptionEndDate);
+      const today = new Date();
+      daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+      nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } else if (!isFreePlan) {
+      daysRemaining = 76;
+      nextBillingCycleStr = "Oct 24, 2024";
+    }
+
+    const isYearly = daysRemaining > 100;
+    const cycleText = isYearly ? "Annually" : "Quarterly";
+    const cycleSuffix = isYearly ? "/ year" : "/ quarter";
+
+    const basePrices = {
+      basic: 1537,
+      professional: 2306,
+      enterprise: 3844
+    };
+    
+    const planKey = user?.subscriptionPlan?.toLowerCase() || "basic";
+    const basePrice = basePrices[planKey] || 1537;
+    
+    const planAmount = isYearly
+      ? Math.round(basePrice * 12 * 0.65)
+      : Math.round(basePrice * 0.75 * 3);
+    const gstAmount = Math.round(planAmount * 0.18);
+    const amount = planAmount + gstAmount;
 
     const fmtNum = (n) => n.toLocaleString("en-US");
 
@@ -30,22 +67,35 @@ function ManageSubscription() {
                         {/* Left: Plan Info */}
                         <div>
                             <div className="flex items-center gap-3 mb-1">
-                                <h2 className="text-2xl font-black text-slate-900">Enterprise Plan</h2>
+                                <h2 className="text-2xl font-black text-slate-900">{planName} Plan</h2>
                                 <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
                                     <CheckCircleIcon className="w-3 h-3" /> Active
                                 </span>
                             </div>
-                            <p className="text-sm text-slate-400">Billed Annually • Next renewal: Oct 24, 2024</p>
+                            <p className="text-sm text-slate-400">
+                                {isFreePlan ? "Free plan is active with basic restrictions" : `Billed ${cycleText} • Next renewal: ${nextBillingCycleStr}`}
+                            </p>
                         </div>
 
                         {/* Right: Days + Buttons */}
                         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
                             {/* Days Remaining Box */}
                             <div className="bg-[#1e293b] text-white rounded-xl px-6 py-3 text-center min-w-[100px]">
-                                <p className="text-3xl font-black leading-none">76</p>
-                                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">
-                                    Days Remaining
-                                </p>
+                                {isFreePlan ? (
+                                    <>
+                                        <p className="text-3xl font-black leading-none">∞</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">
+                                            Unlimited
+                                        </p>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p className="text-3xl font-black leading-none">{daysRemaining}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">
+                                            Days Remaining
+                                        </p>
+                                    </>
+                                )}
                             </div>
 
                             {/* Action Buttons */}
@@ -135,8 +185,8 @@ function ManageSubscription() {
                                 Next Payment
                             </p>
                             <p className="text-3xl font-black text-slate-900">
-                                $249.00{" "}
-                                <span className="text-base font-medium text-slate-400">/ year</span>
+                                {isFreePlan ? "₹0.00" : `₹${amount.toLocaleString("en-IN")}.00`}{" "}
+                                {!isFreePlan && <span className="text-base font-medium text-slate-400">{cycleSuffix}</span>}
                             </p>
                         </div>
 

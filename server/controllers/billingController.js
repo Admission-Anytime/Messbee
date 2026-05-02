@@ -1,0 +1,45 @@
+const Transaction = require('../models/Transaction');
+
+// @desc    Create a new transaction
+// @route   POST /api/billing/transactions
+// @access  Private
+exports.createTransaction = async (req, res, next) => {
+  try {
+    const { desc, amount, status } = req.body;
+
+    // Generate a unique transaction ID like TXN-49281948
+    const transactionId = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
+
+    const transaction = await Transaction.create({
+      user: req.user.id,
+      transactionId,
+      desc,
+      amount,
+      status: status || 'Paid'
+    });
+
+    res.status(201).json({
+      success: true,
+      data: transaction
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all transactions for a user
+// @route   GET /api/billing/transactions
+// @access  Private
+exports.getTransactions = async (req, res, next) => {
+  try {
+    const transactions = await Transaction.find({ user: req.user.id }).sort({ date: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: transactions.length,
+      data: transactions
+    });
+  } catch (error) {
+    next(error);
+  }
+};

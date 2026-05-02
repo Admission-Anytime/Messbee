@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import {
    BanknotesIcon,
@@ -16,6 +16,7 @@ import {
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { userContext } from "../../context/Context";
 
 const PaymentHistory = () => {
    const navigate = useNavigate();
@@ -27,15 +28,63 @@ const PaymentHistory = () => {
    const [startDate, setStartDate] = useState("");
    const [endDate, setEndDate] = useState("");
 
-   // --- MOCK DATA ---
-   const allTransactions = [
-      { id: "TXN-49201948", date: "12 Oct, 2023", time: "10:45 AM", desc: "WCC Top-up Credit", amount: "₹618.51", status: "Paid" },
-      { id: "TXN-38294821", date: "01 Oct, 2023", time: "09:00 AM", desc: "Plan Renewal - Silver", amount: "₹2,499.00", status: "Paid" },
-      { id: "TXN-88273612", date: "25 Sep, 2023", time: "11:15 PM", desc: "WCC Top-up Credit", amount: "₹1,000.00", status: "Processing" },
-      { id: "TXN-11203948", date: "15 Sep, 2023", time: "04:30 PM", desc: "API Messaging Overage", amount: "₹150.25", status: "Failed" },
-      { id: "TXN-38290012", date: "01 Sep, 2023", time: "09:00 AM", desc: "Plan Renewal - Silver", amount: "₹2,499.00", status: "Paid" },
-      { id: "TXN-99887766", date: "20 Aug, 2023", time: "02:15 PM", desc: "WCC Top-up Credit", amount: "₹500.00", status: "Paid" }, // Added for pagination demo
-   ];
+   const [transactions, setTransactions] = useState([]);
+   const [loading, setLoading] = useState(true);
+   const [totalSpent, setTotalSpent] = useState(0);
+   const [lastPayment, setLastPayment] = useState(0);
+   const [lastPaymentDate, setLastPaymentDate] = useState("");
+
+   const { user } = useContext(userContext);
+
+   React.useEffect(() => {
+      const fetchTransactions = async () => {
+         try {
+            const { default: axios } = await import("../../context/axios");
+            const response = await axios.get("/billing/transactions");
+            const data = response.data.data;
+            
+            // Format dates and times
+            const formatted = data.map(txn => {
+               const dateObj = new Date(txn.date);
+               return {
+                  id: txn.transactionId,
+                  date: dateObj.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                  time: dateObj.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+                  desc: txn.desc,
+                  amount: `₹${txn.amount.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`,
+                  rawAmount: txn.amount,
+                  status: txn.status
+               };
+            });
+            setTransactions(formatted);
+
+            // Calculate total spent
+            const paidTxns = formatted.filter(t => t.status === "Paid");
+            const total = paidTxns.reduce((acc, curr) => acc + curr.rawAmount, 0);
+            setTotalSpent(total);
+
+            // Last payment (Only consider Plan Renewals)
+            const lastPlanRenewal = paidTxns.find(t => t.desc.includes("Plan Renewal"));
+            if (lastPlanRenewal) {
+               setLastPayment(lastPlanRenewal.rawAmount);
+               setLastPaymentDate(lastPlanRenewal.date);
+            } else {
+               setLastPayment(0);
+               setLastPaymentDate("");
+            }
+
+         } catch (error) {
+            console.error("Error fetching transactions", error);
+            toast.error("Failed to load payment history");
+         } finally {
+            setLoading(false);
+         }
+      };
+
+      fetchTransactions();
+   }, []);
+
+   const allTransactions = transactions;
 
    // --- FILTER LOGIC ---
    const filteredTransactions = allTransactions.filter((txn) => {
@@ -118,11 +167,12 @@ const PaymentHistory = () => {
                <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col justify-between h-32">
                   <div className="flex items-center gap-3 mb-2">
                      <div className="p-2 bg-emerald-50 rounded-lg text-emerald-600"><BanknotesIcon className="w-5 h-5" /></div>
-                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Spent (Year)</span>
+                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Spent (All Time)</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                     <h2 className="text-3xl font-extrabold text-slate-900">₹14,520.00</h2>
-                     <span className="text-xs font-bold text-emerald-50 bg-emerald-50 px-1.5 py-0.5 rounded">↑ 12%</span>
+                     <h2 className="text-3xl font-extrabold text-slate-900">
+                        {loading ? "..." : `₹${totalSpent.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+                     </h2>
                   </div>
                </div>
 
@@ -132,8 +182,10 @@ const PaymentHistory = () => {
                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Last Payment</span>
                   </div>
                   <div className="flex items-baseline gap-2">
-                     <h2 className="text-3xl font-extrabold text-slate-900">₹618.51</h2>
-                     <span className="text-sm font-medium text-slate-400">12 Oct 2023</span>
+                     <h2 className="text-3xl font-extrabold text-slate-900">
+                        {loading ? "..." : `₹${lastPayment.toLocaleString("en-IN", { minimumFractionDigits: 2 })}`}
+                     </h2>
+                     <span className="text-sm font-medium text-slate-400">{lastPaymentDate || "No payments"}</span>
                   </div>
                </div>
             </div>
@@ -209,7 +261,13 @@ const PaymentHistory = () => {
                         </tr>
                      </thead>
                      <tbody className="divide-y divide-gray-50 text-sm font-medium text-slate-600">
-                        {filteredTransactions.length > 0 ? (
+                        {loading ? (
+                           <tr>
+                              <td colSpan="6" className="text-center py-10 text-slate-400">
+                                 Loading transactions...
+                              </td>
+                           </tr>
+                        ) : filteredTransactions.length > 0 ? (
                            filteredTransactions.map((txn, index) => (
                               <tr key={index} className="hover:bg-slate-50/50 transition-colors">
                                  <td className="px-6 py-4">

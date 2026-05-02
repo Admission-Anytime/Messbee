@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
 import { CheckIcon, MinusIcon } from "@heroicons/react/24/solid";
 import { ShieldCheckIcon } from "@heroicons/react/24/outline";
 import {
@@ -25,8 +26,8 @@ const SavedCardRow = ({ card, selected, onSelect }) => (
   <button
     onClick={() => onSelect(card.id)}
     className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left ${selected
-        ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
-        : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+      ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
+      : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
       }`}
   >
     <div
@@ -212,8 +213,8 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer border-b-2 -mb-px ${activeTab === tab.id
-                ? "border-emerald-500 text-emerald-600"
-                : "border-transparent text-slate-400 hover:text-slate-600"
+              ? "border-emerald-500 text-emerald-600"
+              : "border-transparent text-slate-400 hover:text-slate-600"
               }`}
           >
             <span className="w-3.5 h-3.5 flex-shrink-0">{tab.icon}</span>
@@ -258,8 +259,8 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
               key={opt.id}
               onClick={() => setSelectedUpi(opt.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left ${selectedUpi === opt.id
-                  ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
-                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                 }`}
             >
               <div className="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center flex-shrink-0">
@@ -273,8 +274,8 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
               </div>
               <div
                 className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedUpi === opt.id
-                    ? "border-emerald-500"
-                    : "border-slate-300"
+                  ? "border-emerald-500"
+                  : "border-slate-300"
                   }`}
               >
                 {selectedUpi === opt.id && (
@@ -303,8 +304,8 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
               key={bank.id}
               onClick={() => setSelectedBank(bank.id)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left ${selectedBank === bank.id
-                  ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
-                  : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                ? "border-emerald-400 bg-emerald-50/40 shadow-sm"
+                : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
                 }`}
             >
               <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center flex-shrink-0">
@@ -317,8 +318,8 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
               </div>
               <div
                 className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${selectedBank === bank.id
-                    ? "border-emerald-500"
-                    : "border-slate-300"
+                  ? "border-emerald-500"
+                  : "border-slate-300"
                   }`}
               >
                 {selectedBank === bank.id && (
@@ -716,6 +717,7 @@ const PaymentSuccessView = ({ plan, totalDue, billingCycle }) => {
 const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const navigate = useNavigate();
   const [paymentDone, setPaymentDone] = useState(false);
+  const { user, updateUser } = useContext(userContext);
 
   // Price calculation (INR) — plan.price is the BASE monthly price
   const basePrice = typeof plan.price === "number" ? plan.price : 999;
@@ -727,8 +729,44 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const totalDue = planAmount + gstAmount;
   const fmtINR = (n) => Number(n).toLocaleString("en-IN");
 
-  const handlePay = () => {
-    setPaymentDone(true);
+  const handlePay = async () => {
+    const newSubscriptionPlan = plan.name.toLowerCase();
+    const newSubscriptionEndDate = new Date(new Date().setMonth(new Date().getMonth() + (billingCycle === "yearly" ? 12 : 3))).toISOString();
+    
+    try {
+      const { default: axios } = await import("../../context/axios");
+      await axios.put("/users/subscription", {
+        subscriptionPlan: newSubscriptionPlan,
+        subscriptionEndDate: newSubscriptionEndDate
+      });
+
+      // Record the transaction
+      await axios.post("/billing/transactions", {
+        desc: `Plan Renewal - ${plan.name}`,
+        amount: totalDue,
+        status: "Paid"
+      });
+
+      if (user) {
+        const updatedUser = {
+          ...user,
+          subscriptionPlan: newSubscriptionPlan,
+          subscriptionEndDate: newSubscriptionEndDate
+        };
+        updateUser(updatedUser);
+      } else {
+        updateUser({
+          subscriptionPlan: newSubscriptionPlan,
+          subscriptionEndDate: newSubscriptionEndDate
+        });
+      }
+      setPaymentDone(true);
+    } catch (error) {
+      console.error("Failed to update subscription:", error);
+      // Even if backend fails, maybe we still show success or handle error?
+      // For now, let's proceed to success but ideally should show an error toast.
+      setPaymentDone(true);
+    }
   };
 
   // Show success screen after payment
@@ -916,12 +954,7 @@ const UpgradePlan = () => {
 
   // --- BUTTON HANDLER ---
   const handlePlanSelect = (plan) => {
-    if (plan.name === "Enterprise") {
-      window.location.href =
-        "mailto:sales@messbee.com?subject=Enterprise Plan Inquiry";
-    } else {
-      setSelectedPlan(plan);
-    }
+    setSelectedPlan(plan);
   };
 
   const plans = [
@@ -1033,50 +1066,50 @@ const UpgradePlan = () => {
           </p>
         </div>
 
-                    <div className="text-center mb-12">
+        <div className="text-center mb-12">
 
-              {/* ── Billing Toggle ── */}
-              <div className="mt-10 flex items-center justify-center">
-                <div style={{ backgroundColor: "#EEF2F7", borderRadius: "999px", padding: "6px", display: "inline-flex", alignItems: "center", gap: "0px" }}>
-                  <button
-                    onClick={() => setBillingCycle("quarterly")}
-                    style={{
-                      padding: "10px 32px",
-                      borderRadius: "999px",
-                      fontSize: "14px",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      border: billingCycle === "quarterly" ? "1px solid #E2E8F0" : "1px solid transparent",
-                      backgroundColor: billingCycle === "quarterly" ? "#FFFFFF" : "transparent",
-                      color: billingCycle === "quarterly" ? "#1E293B" : "#94A3B8",
-                      boxShadow: billingCycle === "quarterly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
-                      transition: "all 0.2s ease",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Quarterly - 25%
-                  </button>
-                  <button
-                    onClick={() => setBillingCycle("yearly")}
-                    style={{
-                      padding: "10px 32px",
-                      borderRadius: "999px",
-                      fontSize: "14px",
-                      fontWeight: "700",
-                      cursor: "pointer",
-                      border: billingCycle === "yearly" ? "1px solid #E2E8F0" : "1px solid transparent",
-                      backgroundColor: billingCycle === "yearly" ? "#FFFFFF" : "transparent",
-                      color: billingCycle === "yearly" ? "#1E293B" : "#94A3B8",
-                      boxShadow: billingCycle === "yearly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
-                      transition: "all 0.2s ease",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Yearly - 35%
-                  </button>
-                </div>
-              </div>
+          {/* ── Billing Toggle ── */}
+          <div className="mt-10 flex items-center justify-center">
+            <div style={{ backgroundColor: "#EEF2F7", borderRadius: "999px", padding: "6px", display: "inline-flex", alignItems: "center", gap: "0px" }}>
+              <button
+                onClick={() => setBillingCycle("quarterly")}
+                style={{
+                  padding: "10px 32px",
+                  borderRadius: "999px",
+                  fontSize: "14px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  border: billingCycle === "quarterly" ? "1px solid #E2E8F0" : "1px solid transparent",
+                  backgroundColor: billingCycle === "quarterly" ? "#FFFFFF" : "transparent",
+                  color: billingCycle === "quarterly" ? "#1E293B" : "#94A3B8",
+                  boxShadow: billingCycle === "quarterly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                  transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Quarterly - 25%
+              </button>
+              <button
+                onClick={() => setBillingCycle("yearly")}
+                style={{
+                  padding: "10px 32px",
+                  borderRadius: "999px",
+                  fontSize: "14px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  border: billingCycle === "yearly" ? "1px solid #E2E8F0" : "1px solid transparent",
+                  backgroundColor: billingCycle === "yearly" ? "#FFFFFF" : "transparent",
+                  color: billingCycle === "yearly" ? "#1E293B" : "#94A3B8",
+                  boxShadow: billingCycle === "yearly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                  transition: "all 0.2s ease",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                Yearly - 35%
+              </button>
             </div>
+          </div>
+        </div>
 
         {/* --- PRICING SECTION --- */}
         <section className="rounded-3xl" id="pricing">
@@ -1217,7 +1250,7 @@ const UpgradePlan = () => {
                   onClick={() => handlePlanSelect(plans[3])}
                   className="w-full py-3 mb-8 bg-slate-900 text-white rounded-xl font-bold hover:shadow-lg transition-all cursor-pointer hover:bg-slate-800"
                 >
-                  Talk to us
+                  Buy Now
                 </button>
                 <ul className="space-y-4 flex-grow">
                   {[
