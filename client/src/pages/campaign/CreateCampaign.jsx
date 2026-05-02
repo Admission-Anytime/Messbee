@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
 import LabelApi from '../../services/LabelApi';
@@ -6,6 +6,7 @@ import StatusApi from '../../services/StatusApi';
 import axios from '../../context/axios';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
+import { userContext } from '../../context/Context';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
     Search, CheckCircle, Clock, Eye, Smartphone, ChevronLeft,
@@ -15,6 +16,7 @@ import {
 
 const CreateCampaign = () => {
     const navigate = useNavigate();
+    const { user, updateUser } = useContext(userContext);
     const [currentStep, setCurrentStep] = useState(1);
 
     // Dynamic Data State
@@ -139,7 +141,14 @@ const CreateCampaign = () => {
         }
     };
 
+    const estimatedCost = estimatedCount * 0.80;
+
     const handleLaunch = async () => {
+        if (user?.credits < estimatedCost) {
+            toast.error(`Insufficient credits! You need ₹${estimatedCost.toFixed(2)} to launch this campaign.`);
+            return;
+        }
+
         try {
             setIsLaunching(true);
 
@@ -157,8 +166,32 @@ const CreateCampaign = () => {
 
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
+                // Deduct credits locally and in backend
+                const newCredits = parseFloat((user.credits - estimatedCost).toFixed(2));
+                await axios.put("/users/profile", { credits: newCredits });
+                
+                // Record the transaction
+                await axios.post("/billing/transactions", {
+                    desc: `Campaign Launch - ${campaignName}`,
+                    amount: -estimatedCost,
+                    status: "Paid"
+                });
+
+                if (user) {
+                    updateUser({ ...user, credits: newCredits });
+                }
+
+                const calculatedMinutes = Math.max(1, Math.ceil(estimatedCount / 100));
+                
                 toast.success(scheduleOption === 'now' ? 'Campaign launched successfully!' : 'Campaign scheduled successfully!');
-                navigate('/admin/campaign-success');
+                navigate('/admin/campaign-success', {
+                    state: {
+                        campaignName,
+                        contacts: estimatedCount,
+                        credits: estimatedCost,
+                        duration: `${calculatedMinutes} minute${calculatedMinutes > 1 ? 's' : ''}`
+                    }
+                });
             } else {
                 toast.error(res.message || 'Failed to launch campaign');
             }
@@ -679,8 +712,8 @@ const CreateCampaign = () => {
                                     <div className="flex justify-between items-start pt-2">
                                         <span className="text-gray-500 text-sm">Estimated Cost</span>
                                         <div className="text-right">
-                                            <div className="font-bold text-slate-800">₹936.00</div>
-                                            <div className="text-[10px] text-gray-400 italic">~1,248 Credits</div>
+                                            <div className="font-bold text-slate-800">₹{estimatedCost.toFixed(2)}</div>
+                                            <div className="text-[10px] text-gray-400 italic">~{estimatedCount} Messages</div>
                                         </div>
                                     </div>
                                 </div>

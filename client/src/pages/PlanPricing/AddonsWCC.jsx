@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { userContext } from "../../context/Context";
 import {
    CurrencyRupeeIcon,
    CheckCircleIcon,
@@ -20,8 +21,9 @@ const formatCurrency = (amount) => {
 };
 
 const AddonsWCC = () => {
+   const { user, updateUser } = useContext(userContext);
    const [isModalOpen, setIsModalOpen] = useState(false);
-   const [balance, setBalance] = useState(618.51);
+   const balance = user?.credits != null ? parseFloat(user.credits) : 0;
 
    // --- MODAL STATE ---
    const [selectedAmount, setSelectedAmount] = useState(5000);
@@ -32,16 +34,50 @@ const AddonsWCC = () => {
    const taxes = finalAmount * 0.18; // 18% GST
    const totalPayable = finalAmount + taxes;
 
-   const handlePayment = () => {
+   const handlePayment = async () => {
+      if (finalAmount < 100) {
+         toast.error("Minimum amount should be ₹100", { autoClose: 3000 });
+         return;
+      }
+
       // ✅ Use Toast instead of Alert
       toast.success(`Processing payment of ${formatCurrency(totalPayable)}...`, {
          autoClose: 2000
       });
 
-      setTimeout(() => {
-         setBalance(balance + finalAmount);
-         setIsModalOpen(false);
-         toast.success("Balance updated successfully!");
+      // Simulate payment delay, then persist to backend
+      setTimeout(async () => {
+         try {
+            const newCredits = parseFloat((balance + finalAmount).toFixed(2));
+            
+            // Persist to backend
+            const { default: axios } = await import("../../context/axios");
+            await axios.put("/users/profile", { credits: newCredits });
+
+            // Record the transaction
+            await axios.post("/billing/transactions", {
+               desc: "WCC Top-up Credit",
+               amount: totalPayable,
+               status: "Paid"
+            });
+            
+            // Update local state
+            if (user) {
+               updateUser({
+                  ...user,
+                  credits: newCredits
+               });
+            } else {
+               updateUser({
+                  credits: newCredits
+               });
+            }
+            setIsModalOpen(false);
+            toast.success("Balance updated successfully!");
+         } catch (error) {
+            console.error("Failed to update balance:", error);
+            toast.error("Payment successful but failed to sync balance. Please contact support.");
+         }
       }, 2000);
    };
 
@@ -273,7 +309,12 @@ const AddonsWCC = () => {
 
                      <button
                         onClick={handlePayment}
-                        className="w-full py-3.5 bg-[#00B050] hover:bg-[#009b45] text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                        disabled={finalAmount < 100}
+                        className={`w-full py-3.5 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${
+                           finalAmount < 100
+                              ? "bg-slate-300 shadow-none cursor-not-allowed"
+                              : "bg-[#00B050] hover:bg-[#009b45] shadow-emerald-200"
+                        }`}
                      >
                         Confirm & Pay
                      </button>

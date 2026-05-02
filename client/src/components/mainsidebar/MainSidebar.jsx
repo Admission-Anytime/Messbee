@@ -381,17 +381,16 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             </div>
           )}
 
-                    {/* Plan Card */}
-          {isOpen && (
+                    {isOpen && (
             <div className="bg-[#F8FAFC] rounded-xl p-2.5 mb-2 border border-slate-50 shadow-sm">
               <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
-                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan: {user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</p>
-                  <h4 className="text-[13px] font-extrabold text-slate-900">{user?.planName || "Standard"}</h4>
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan</p>
+                  <h4 className="text-[13px] font-extrabold text-slate-900">{user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free"}</h4>
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.wccCredit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.credits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>

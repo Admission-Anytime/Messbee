@@ -76,13 +76,15 @@ const MainHeading = ({ onMenuClick }) => {
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
-  const [userProfile, setUserProfile] = useState({
-    name: "Admission Anytime",
-    email: "admin@admissionanytime.com", 
-    phone: "9910700098", 
-    credits: "618.51", 
-    avatar: "https://i.pravatar.cc/150?u=admission" 
-  });
+  const { user, logoutUser } = useContext(userContext);
+  
+  const userProfile = {
+    name: user?.name || "User",
+    email: user?.email || "", 
+    phone: user?.phone || "", 
+    credits: user?.credits || "0.00", 
+    avatar: user?.avatar || "https://i.pravatar.cc/150?u=user" 
+  };
 
   // --- LOGIC: DYNAMIC COUNTS ---
   
@@ -94,7 +96,6 @@ const MainHeading = ({ onMenuClick }) => {
   const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
 
   // --- LOGIC: LOGOUT ---
-  const { logoutUser } = useContext(userContext);
   
   const handleSignOut = async () => {
     await logoutUser(); // Clears cookies and localStorage
@@ -155,7 +156,7 @@ const MainHeading = ({ onMenuClick }) => {
       </div>
 
       {/* --- CENTER: SEARCH BAR --- */}
-      <div className="flex-1 max-w-xl mx-4 hidden md:block">
+      <div className="flex-1 max-w-xl mx-4">
          <div className="w-full h-10 bg-[#F1F5F9] rounded-lg border border-transparent focus-within:border-gray-300 focus-within:bg-white transition-all relative flex items-center group">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-gray-400 ml-3 group-focus-within:text-gray-600">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
@@ -167,7 +168,7 @@ const MainHeading = ({ onMenuClick }) => {
       {/* --- RIGHT: STATUS, CREDITS & PROFILE --- */}
       <div className="flex items-center gap-4 shrink-0">
         
-        <button onClick={() => navigate('/admin/developer/api')} className="hidden xl:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">
+        <button onClick={() => navigate('/admin/developer/api')} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">
            <span className="relative flex h-2 w-2">
              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
@@ -178,7 +179,7 @@ const MainHeading = ({ onMenuClick }) => {
            </div>
         </button>
 
-        <button   onClick={() => navigate('/admin/plan/active')} className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
+        <button   onClick={() => navigate('/admin/plan/active')} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-200 hover:bg-gray-100 transition-all cursor-pointer group">
            <WalletIcon className="w-4 h-4 text-slate-500 group-hover:text-slate-700" />
            <div className="flex flex-col leading-none items-start">
              <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
@@ -186,7 +187,7 @@ const MainHeading = ({ onMenuClick }) => {
            </div>
         </button>
 
-        <div className="h-8 w-[1px] bg-gray-200 hidden md:block mx-1"></div>
+        <div className="h-8 w-[1px] bg-gray-200 mx-1"></div>
 
         <div className="flex items-center gap-1 text-slate-500">
            
@@ -303,7 +304,7 @@ const MainHeading = ({ onMenuClick }) => {
         <div className="relative" ref={profileRef}>
            <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors border border-transparent hover:border-slate-100">
               <img src={userProfile.avatar} alt="Profile" className="w-9 h-9 rounded-full object-cover border border-gray-200 shadow-sm" />
-              <div className="hidden xl:flex flex-col items-start leading-tight">
+              <div className="flex flex-col items-start leading-tight">
                  <span className="text-[13px] font-bold text-slate-800">{userProfile.name}</span>
                  <span className="text-[11px] font-medium text-slate-400">{userProfile.phone}</span>
               </div>

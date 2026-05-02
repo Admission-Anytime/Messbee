@@ -57,14 +57,14 @@ const UserSchema = new mongoose.Schema({
   },
   subscriptionPlan: {
     type: String,
-    enum: ['free', 'basic', 'premium', 'enterprise', 'custom'],
+    enum: ['free', 'basic', 'professional', 'premium', 'enterprise', 'custom'],
     default: 'free'
   },
   planName: {
     type: String,
     default: 'Standard'
   },
-  wccCredit: {
+  credits: {
     type: Number,
     default: 0
   },

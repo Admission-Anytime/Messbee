@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -15,10 +15,22 @@ import {
    LightBulbIcon,
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
+import { userContext } from "../context/Context";
 
 function Dashboard() {
    const navigate = useNavigate();
    const [isSyncing, setIsSyncing] = useState(false);
+   const { user } = useContext(userContext);
+
+   const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
+   let daysRemaining = 76;
+   let nextBillingCycleStr = "April 28, 2026";
+   if (user?.subscriptionEndDate) {
+      const endDate = new Date(user.subscriptionEndDate);
+      const today = new Date();
+      daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+      nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+   }
 
    // --- DATE STATE ---
    const [selectedDate, setSelectedDate] = useState(dayjs());
@@ -120,7 +132,7 @@ function Dashboard() {
                <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                     <h3 className="text-3xl font-black text-slate-900">₹618.51</h3>
+                     <h3 className="text-3xl font-black text-slate-900">₹{user?.credits || "0.00"}</h3>
                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
@@ -135,14 +147,26 @@ function Dashboard() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between h-full">
                <div className="flex flex-wrap justify-between items-start mb-4 gap-2">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Active Subscription</p>
-                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">ENTERPRISE PLAN</span>
+                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">{(user?.subscriptionPlan || "FREE").toUpperCase()} PLAN</span>
                </div>
                <div className="mb-6">
-                  <h3 className="text-3xl font-black text-slate-900 mb-1">76 Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
-                  <p className="text-xs text-slate-400 mb-4">Next billing cycle starts April 28, 2026.</p>
-                  <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
-                     <div className="h-full bg-slate-800 w-[60%] rounded-full"></div>
-                  </div>
+                  {isFreePlan ? (
+                     <>
+                        <h3 className="text-3xl font-black text-slate-900 mb-1">Unlimited <span className="text-lg font-medium text-slate-400">days</span></h3>
+                        <p className="text-xs text-slate-400 mb-4">Free plan is active with basic restrictions.</p>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
+                           <div className="h-full bg-emerald-500 w-full rounded-full"></div>
+                        </div>
+                     </>
+                  ) : (
+                     <>
+                        <h3 className="text-3xl font-black text-slate-900 mb-1">{daysRemaining} Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
+                        <p className="text-xs text-slate-400 mb-4">Next billing cycle starts {nextBillingCycleStr}.</p>
+                        <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
+                           <div className="h-full bg-slate-800 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (daysRemaining / (daysRemaining > 100 ? 365 : 90)) * 100))}%` }}></div>
+                        </div>
+                     </>
+                  )}
                </div>
                <button onClick={() => navigate('/admin/plan/overview')} className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Manage Subscription</button>
             </div>
