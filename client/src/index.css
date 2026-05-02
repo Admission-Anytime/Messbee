@@ -73,6 +73,24 @@ body {
   background-color: #94a3b8;
 }
 
+.custom-scrollbar-labels::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-track {
+  background: #F8F9FA;
+  border-left: 1px solid #F1F5F9;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 4px;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8;
+}
+
 /* ===========================
    PROFESSIONAL TOAST STYLES
    =========================== */
