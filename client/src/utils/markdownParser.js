@@ -13,15 +13,14 @@ export const formatWhatsAppMarkdown = (text = '') => {
   
   let formatted = String(text);
   
-  // WhatsApp bold: *text*
-  // Using a more permissive regex for the preview to satisfy user visual requirements
-  formatted = formatted.replace(/\*([\s\S]+?)\*/g, '<b>$1</b>');
+  // WhatsApp bold: *text* - properly handle spaces and formatting
+  formatted = formatted.replace(/\*([^*]+)\*/g, '<b>$1</b>');
   
-  // WhatsApp italic: _text_
-  formatted = formatted.replace(/_([\s\S]+?)\_/g, '<i>$1</i>');
+  // WhatsApp italic: _text_ - properly handle spaces and formatting
+  formatted = formatted.replace(/_([^_]+)_/g, '<i>$1</i>');
   
-  // WhatsApp strikethrough: ~text~
-  formatted = formatted.replace(/~([\s\S]+?)\~/g, '<strike>$1</strike>');
+  // WhatsApp strikethrough: ~text~ - properly handle spaces and formatting
+  formatted = formatted.replace(/~([^~]+)~/g, '<strike>$1</strike>');
   
   // Handle newlines
   formatted = formatted.replace(/\n/g, '<br />');

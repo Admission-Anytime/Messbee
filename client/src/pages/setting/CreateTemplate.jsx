@@ -443,6 +443,14 @@ const CreateTemplate = () => {
       
       const submitTemplate = async (payload) => {
         if (isEditing && templateData?.id) {
+          // Check if template is approved - WhatsApp doesn't allow editing approved templates
+          if (templateData?.status === 'APPROVED') {
+            throw new Error(
+              'This template has been approved by Meta and cannot be edited. '
+              + 'To make changes, please duplicate this template to create a new version. '
+              + 'Once the new template is approved, you can use it for sending messages.'
+            );
+          }
           console.log(`Updating existing template: ${originalName} (ID: ${templateData.id})`);
           return await updateWhatsAppTemplate(templateData.id, { components: payload.components });
         }
@@ -576,22 +584,37 @@ const CreateTemplate = () => {
       let errorMessage =
         errorMsg ||
         error?.response?.data?.message ||
+        error?.message ||
         "Failed to create template on WhatsApp. Please try again.";
       
-      // Handle specific WhatsApp error codes with actionable guidance
-      if (errorSubcode === 2388023) {
+      // Handle specific user-facing errors (like approved template edit attempts)
+      if (error?.message?.includes('This template has been approved by Meta')) {
+        errorMessage = 'Approved Template - Cannot Edit\n\n' +
+          'WhatsApp does not allow editing templates that have been approved by Meta. ' +
+          'To make changes:\n\n' +
+          '1. Duplicate this template to create a new version\n' +
+          '2. Make your changes in the new template\n' +
+          '3. Submit for Meta approval\n' +
+          '4. Once approved, use the new template for sending messages';
+        toast.error(errorMessage);
+      } else if (errorSubcode === 2388023) {
         errorMessage = `WhatsApp is currently deleting this template language variant for the same name. During this lock period, you cannot add English (US) back to that template name. Use a new name now${suggestedName ? ` (suggested: ${suggestedName})` : ''}, or wait until WhatsApp's deletion window ends (can be up to 4 weeks).`;
+        toast.error(errorMessage);
       } else if (errorSubcode === 2388040) {
         errorMessage = 'Character limit exceeded: The template BODY content cannot be more than 1024 characters. Please shorten your message and try again.';
+        toast.error(errorMessage);
       } else if (errorSubcode === 2388025) {
         errorMessage = `WhatsApp is blocking this change because the template is in deletion flow. Use a new template name${suggestedName ? ` (suggested: ${suggestedName})` : ''} or retry after the deletion window completes.`;
+        toast.error(errorMessage);
       } else if (errorSubcode === 2388024) {
         errorMessage = `Template content already exists in this language for the same name.${suggestedName ? `\n\nTry this alternate name: ${suggestedName}` : '\n\nPlease change template name and retry.'}`;
+        toast.error(errorMessage);
       } else if (errorSubcode === 2388124) {
         errorMessage = "WhatsApp limitation: You can only edit an active template once every 24 hours. Please wait or try creating a new template with a different name.";
+        toast.error(errorMessage);
+      } else {
+        toast.error(errorMessage);
       }
-      
-      toast.error(errorMessage);
           } finally {
             setIsSubmitting(false);
     }
