@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { 
   PlusIcon, 
   InformationCircleIcon, 
@@ -11,6 +11,9 @@ import {
   ChevronRightIcon,
   ExclamationTriangleIcon
 } from "@heroicons/react/24/outline";
+
+// Import context
+import { userContext } from "../../../context/Context";
 
 // Import the toast utility
 import { showToast } from "../../../utils/showToast"; 
@@ -25,6 +28,7 @@ import ErrorState from "../../../components/ui/ErrorState";
 
 const StatusPage = () => {
    // --- STATE ---
+  const { user } = useContext(userContext);
   const [statuses, setStatuses] = useState([]); // ✅ Start empty
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,6 +39,7 @@ const StatusPage = () => {
   const [copiedId, setCopiedId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
+  const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
   const PLAN_LIMIT = 5;
   const usedCount = statuses.length;
   // ✅ NEW: Boolean to easily check if limit is reached
