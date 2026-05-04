@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import axios from '../../context/axios';
+import { userContext } from '../../context/Context';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
@@ -9,6 +10,7 @@ import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState'; 
 
 const QuickReply = () => {
+  const { user } = useContext(userContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Delete confirmation state
   const [itemToDelete, setItemToDelete] = useState(null); // ID of item to delete
@@ -25,6 +27,10 @@ const QuickReply = () => {
   const [activePreview, setActivePreview] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Plan based limit
+  const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
+  const PLAN_LIMIT = 5;
 
   const API_URL = '/quick-replies';
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'; 
@@ -201,16 +207,20 @@ const QuickReply = () => {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
-              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                Total: {replies.length}
+              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">
+                Total: {replies.length}/{PLAN_LIMIT}
               </span>
             </div>
             <button
               onClick={() => {
+                if (replies.length >= PLAN_LIMIT) {
+                  return toast.warning(`⚠️ Limit Reached: You can only create up to ${PLAN_LIMIT} quick replies`);
+                }
                 resetForm();
                 setIsModalOpen(true);
               }}
-              className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+              disabled={replies.length >= PLAN_LIMIT}
+              className={`${replies.length >= PLAN_LIMIT ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'} text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
             >
               <Plus size={18} /> Add Quick Reply
             </button>

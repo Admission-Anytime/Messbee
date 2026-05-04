@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
@@ -23,8 +23,10 @@ function Dashboard() {
    const { user } = useContext(userContext);
 
    const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
-   let daysRemaining = 76;
-   let nextBillingCycleStr = "April 28, 2026";
+   
+   // Dynamic calculation for days remaining
+   let daysRemaining = 0;
+   let nextBillingCycleStr = "N/A";
    if (user?.subscriptionEndDate) {
       const endDate = new Date(user.subscriptionEndDate);
       const today = new Date();
@@ -32,18 +34,33 @@ function Dashboard() {
       nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
    }
 
+   // Message Limit Tier Logic
+   const getMessageTier = () => {
+      if (user?.messageLimitTier) return user.messageLimitTier;
+      const plan = user?.subscriptionPlan?.toLowerCase() || "free";
+      if (plan === "free") return "1,000";
+      if (plan === "basic") return "10,000";
+      if (plan === "professional") return "50,000";
+      return "100,000";
+   };
+
    // --- DATE STATE ---
    const [selectedDate, setSelectedDate] = useState(dayjs());
    const [dateString, setDateString] = useState(dayjs().format("YYYY-MM-DD"));
 
    const [performanceData, setPerformanceData] = useState({
-      chats: 217,
-      unread: 31,
-      open: 71,
+      chats: 0,
+      unread: 0,
+      open: 0,
       failed: 0,
-      free: 13,
-      agents: 4
+      free: 0,
+      agents: user?.agents?.length || 1
    });
+
+   // Simulate loading real performance data
+   useEffect(() => {
+      handleSyncData();
+   }, []);
 
    const handleDateChange = (date) => {
       setSelectedDate(date);
@@ -57,7 +74,7 @@ function Dashboard() {
             open: Math.floor(Math.random() * 100),
             failed: Math.floor(Math.random() * 5),
             free: Math.floor(Math.random() * 20),
-            agents: 4
+            agents: user?.agents?.length || 1
          });
          setIsSyncing(false);
       }, 800);
@@ -65,7 +82,18 @@ function Dashboard() {
 
    const handleSyncData = () => {
       setIsSyncing(true);
-      setTimeout(() => { setIsSyncing(false); }, 2000);
+      // In a real app, this would fetch from an API
+      setTimeout(() => { 
+         setPerformanceData({
+            chats: 217,
+            unread: 31,
+            open: 71,
+            failed: 0,
+            free: 13,
+            agents: user?.agents?.length || 1
+         });
+         setIsSyncing(false); 
+      }, 1500);
    };
 
    return (
@@ -83,10 +111,10 @@ function Dashboard() {
                   </div>
                   <div>
                      <h2 className="text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
-                        Admission Anytime
+                        {user?.businessName || "Admission Anytime"}
                         <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">Official API</span>
                      </h2>
-                     <p className="text-sm text-slate-500 font-medium">+91 1202611111</p>
+                     <p className="text-sm text-slate-500 font-medium">{user?.phoneNumber || "+91 1202611111"}</p>
                   </div>
                </div>
 
@@ -106,18 +134,18 @@ function Dashboard() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 pt-6 border-t border-gray-100">
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Message Limit Tier</p>
-                  <p className="text-xl font-bold text-slate-800">10,000 <span className="text-sm font-medium text-slate-400">/ day</span></p>
+                  <p className="text-xl font-bold text-slate-800">{getMessageTier()} <span className="text-sm font-medium text-slate-400">/ day</span></p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
                   <p className="text-xl font-bold text-emerald-500 flex items-center gap-2">
-                     High <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                     {user?.qualityScore || "High"} <span className={`w-2.5 h-2.5 rounded-full ${user?.qualityScore === 'Medium' ? 'bg-amber-500' : user?.qualityScore === 'Low' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                   </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
                   <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                     Connected <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+                     {user?.whatsappConnected !== false ? "Connected" : "Disconnected"} {user?.whatsappConnected !== false ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
                   </p>
                </div>
             </div>

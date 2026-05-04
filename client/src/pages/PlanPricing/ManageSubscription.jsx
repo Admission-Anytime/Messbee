@@ -8,18 +8,28 @@ import {
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { userContext } from "../../context/Context";
 
-const usageItems = [
-    { label: "Monthly Messages", used: 14200, total: 50000 },
-    { label: "Team Members", used: 4, total: 10 },
-    { label: "API Endpoints", used: 2, total: 5 },
-];
-
 function ManageSubscription() {
     const navigate = useNavigate();
     const { user } = useContext(userContext);
 
     const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
     const planName = user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free";
+
+    const planLimits = {
+        free: { messages: 1000, seats: 1, endpoints: 0, price: 0 },
+        basic: { messages: 10000, seats: 5, endpoints: 2, price: 1537 },
+        professional: { messages: 50000, seats: 10, endpoints: 5, price: 2306 },
+        enterprise: { messages: 100000, seats: 20, endpoints: 10, price: 3844 }
+    };
+
+    const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
+    const limits = planLimits[currentPlan] || planLimits.free;
+
+    const usageItems = [
+        { label: "Monthly Messages", used: user?.monthlyMessagesUsed || 0, total: limits.messages },
+        { label: "Team Members", used: user?.agents?.length || 1, total: limits.seats },
+        { label: "API Endpoints", used: user?.apiEndpointsCount || 0, total: limits.endpoints },
+    ];
 
     let daysRemaining = 0;
     let nextBillingCycleStr = "";
@@ -29,27 +39,15 @@ function ManageSubscription() {
       const today = new Date();
       daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
       nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    } else if (!isFreePlan) {
-      daysRemaining = 76;
-      nextBillingCycleStr = "Oct 24, 2024";
     }
 
     const isYearly = daysRemaining > 100;
     const cycleText = isYearly ? "Annually" : "Quarterly";
     const cycleSuffix = isYearly ? "/ year" : "/ quarter";
 
-    const basePrices = {
-      basic: 1537,
-      professional: 2306,
-      enterprise: 3844
-    };
-    
-    const planKey = user?.subscriptionPlan?.toLowerCase() || "basic";
-    const basePrice = basePrices[planKey] || 1537;
-    
     const planAmount = isYearly
-      ? Math.round(basePrice * 12 * 0.65)
-      : Math.round(basePrice * 0.75 * 3);
+      ? Math.round(limits.price * 12 * 0.65)
+      : Math.round(limits.price * 0.75 * 3);
     const gstAmount = Math.round(planAmount * 0.18);
     const amount = planAmount + gstAmount;
 
@@ -205,11 +203,13 @@ function ManageSubscription() {
                 <div className="flex flex-col items-center gap-3 py-6">
                     <p className="text-sm text-slate-400 font-medium">
                         Managing subscription for Organization ID:{" "}
-                        <span className="font-bold text-slate-600">NX-9921-X</span>
+                        <span className="font-bold text-slate-600">{user?._id || user?.id || "NX-9921-X"}</span>
                     </p>
-                    <button className="text-sm font-semibold text-red-400 hover:text-red-600 transition-colors">
-                        Cancel Subscription
-                    </button>
+                    {!isFreePlan && (
+                        <button className="text-sm font-semibold text-red-400 hover:text-red-600 transition-colors">
+                            Cancel Subscription
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

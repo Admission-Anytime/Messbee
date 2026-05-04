@@ -1,5 +1,7 @@
-import React from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
 import {
     CreditCardIcon,
     MapPinIcon,
@@ -13,11 +15,53 @@ import { CheckCircleIcon } from "@heroicons/react/24/solid";
 
 function SubscriptionManagement() {
     const navigate = useNavigate();
+    const { user } = useContext(userContext);
+    const [billingHistory, setBillingHistory] = useState([]);
+    const [loading, setLoading] = useState(true);
 
-    const billingHistory = [
-        { id: "INV-2024-008", date: "Aug 12, 2024", amount: "$499.00" },
-        { id: "INV-2024-007", date: "Jul 12, 2024", amount: "$499.00" },
-    ];
+    useEffect(() => {
+        const fetchBillingHistory = async () => {
+            try {
+                const response = await axios.get("/billing/transactions");
+                if (response.data && response.data.success) {
+                    const formatted = response.data.data.slice(0, 5).map(txn => ({
+                        id: txn.transactionId,
+                        date: new Date(txn.date).toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" }),
+                        amount: `₹${txn.amount.toLocaleString("en-IN")}`,
+                        status: txn.status
+                    }));
+                    setBillingHistory(formatted);
+                }
+            } catch (error) {
+                console.error("Error fetching billing history:", error);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchBillingHistory();
+    }, []);
+
+    const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
+    
+    let daysRemaining = 0;
+    let nextInvoiceDate = "N/A";
+    if (user?.subscriptionEndDate) {
+        const endDate = new Date(user.subscriptionEndDate);
+        const today = new Date();
+        daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+        nextInvoiceDate = endDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+    }
+
+    const planLimits = {
+        free: { messages: 1000, seats: 1, price: 0 },
+        basic: { messages: 10000, seats: 5, price: 1537 },
+        professional: { messages: 50000, seats: 10, price: 2306 },
+        enterprise: { messages: 100000, seats: 20, price: 3844 }
+    };
+
+    const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
+    const limits = planLimits[currentPlan] || planLimits.free;
 
     const billingSettings = [
         { label: "Payment Methods", icon: CreditCardIcon, path: "/admin/plan/methods" },
@@ -38,23 +82,29 @@ function SubscriptionManagement() {
                         <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
                             <div>
                                 <div className="flex items-center gap-3 mb-1">
-                                    <h2 className="text-2xl font-black text-slate-900">Enterprise Plan</h2>
-                                    <span className="flex items-center gap-1 text-[10px] font-bold bg-emerald-500 text-white px-2.5 py-1 rounded-full uppercase tracking-wider">
-                                        <CheckCircleIcon className="w-3 h-3" /> Active
+                                    <h2 className="text-2xl font-black text-slate-900">
+                                        {(user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1)} Plan
+                                    </h2>
+                                    <span className={`flex items-center gap-1 text-[10px] font-bold ${daysRemaining > 0 ? "bg-emerald-500 text-white" : "bg-slate-400 text-white"} px-2.5 py-1 rounded-full uppercase tracking-wider`}>
+                                        {daysRemaining > 0 ? <><CheckCircleIcon className="w-3 h-3" /> Active</> : "Expired"}
                                     </span>
                                 </div>
-                                <p className="text-sm text-slate-400">Monthly billing cycle • Next invoice: Oct 12, 2024</p>
+                                <p className="text-sm text-slate-400">
+                                    {isFreePlan ? "Free forever plan" : `Subscription plan • Next invoice: ${nextInvoiceDate}`}
+                                </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
                                 <button
                                     onClick={() => navigate("/admin/plan/upgrade")}
                                     className="px-5 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
                                 >
-                                    Upgrade Plan
+                                    {isFreePlan ? "Upgrade Plan" : "Change Plan"}
                                 </button>
-                                <button className="flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
-                                    <XCircleIcon className="w-4 h-4" /> Cancel Subscription
-                                </button>
+                                {!isFreePlan && (
+                                    <button className="flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
+                                        <XCircleIcon className="w-4 h-4" /> Cancel Subscription
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -62,11 +112,13 @@ function SubscriptionManagement() {
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Time Remaining</p>
-                                <p className="text-3xl font-black text-slate-900">76 Days</p>
+                                <p className="text-3xl font-black text-slate-900">{isFreePlan ? "Unlimited" : `${daysRemaining} Days`}</p>
                             </div>
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billing Amount</p>
-                                <p className="text-3xl font-black text-slate-900">$499.00 <span className="text-base font-medium text-slate-400">/mo</span></p>
+                                <p className="text-3xl font-black text-slate-900">
+                                    ₹{limits.price.toLocaleString("en-IN")} <span className="text-base font-medium text-slate-400">/mo</span>
+                                </p>
                             </div>
                         </div>
 
@@ -77,19 +129,19 @@ function SubscriptionManagement() {
                                 <div>
                                     <div className="flex justify-between text-xs font-medium text-slate-500 mb-1.5">
                                         <span>Team Seats</span>
-                                        <span>12 / 20 Seats</span>
+                                        <span>{user?.agents?.length || 1} / {limits.seats} Seats</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-slate-800 rounded-full" style={{ width: "60%" }}></div>
+                                        <div className="h-full bg-slate-800 rounded-full" style={{ width: `${Math.min(100, ((user?.agents?.length || 1) / limits.seats) * 100)}%` }}></div>
                                     </div>
                                 </div>
                                 <div>
                                     <div className="flex justify-between text-xs font-medium text-slate-500 mb-1.5">
                                         <span>Monthly Message Limit</span>
-                                        <span>84k / 100k</span>
+                                        <span>{user?.monthlyMessagesUsed || 0} / {limits.messages.toLocaleString()}</span>
                                     </div>
                                     <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div className="h-full bg-slate-800 rounded-full" style={{ width: "84%" }}></div>
+                                        <div className="h-full bg-slate-800 rounded-full" style={{ width: `${Math.min(100, ((user?.monthlyMessagesUsed || 0) / limits.messages) * 100)}%` }}></div>
                                     </div>
                                 </div>
                             </div>
@@ -108,28 +160,34 @@ function SubscriptionManagement() {
                             </button>
                         </div>
                         <div className="flex flex-col gap-4">
-                            {billingHistory.map((item) => (
-                                <div
-                                    key={item.id}
-                                    className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
-                                            <DocumentTextIcon className="w-4 h-4 text-slate-400" />
+                            {loading ? (
+                                <p className="text-sm text-slate-400 text-center py-4">Loading history...</p>
+                            ) : billingHistory.length > 0 ? (
+                                billingHistory.map((item) => (
+                                    <div
+                                        key={item.id}
+                                        className="flex items-center justify-between py-3 border-b border-slate-100 last:border-0"
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-100">
+                                                <DocumentTextIcon className="w-4 h-4 text-slate-400" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-slate-800">Invoice #{item.id}</p>
+                                                <p className="text-xs text-slate-400">{item.date}</p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="text-sm font-bold text-slate-800">Invoice #{item.id}</p>
-                                            <p className="text-xs text-slate-400">{item.date}</p>
+                                        <div className="flex items-center gap-4">
+                                            <span className="text-sm font-bold text-slate-800">{item.amount}</span>
+                                            <button className="text-slate-400 hover:text-slate-600 transition-colors">
+                                                <ArrowDownTrayIcon className="w-4 h-4" />
+                                            </button>
                                         </div>
                                     </div>
-                                    <div className="flex items-center gap-4">
-                                        <span className="text-sm font-bold text-slate-800">{item.amount}</span>
-                                        <button className="text-slate-400 hover:text-slate-600 transition-colors">
-                                            <ArrowDownTrayIcon className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                </div>
-                            ))}
+                                ))
+                            ) : (
+                                <p className="text-sm text-slate-400 text-center py-4">No billing history found.</p>
+                            )}
                         </div>
                     </div>
                 </div>
