@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -211,11 +211,16 @@ const CreateTemplate = () => {
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [nameError, setNameError] = useState(null);
+  const [templateNameSuggestion, setTemplateNameSuggestion] = useState(null);
 
   const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
+
+    setNameError(null);
+    setTemplateNameSuggestion(null);
 
     if (!formData.name.trim()) {
       toast.error("Template name is mandatory");
@@ -598,17 +603,26 @@ const CreateTemplate = () => {
           '4. Once approved, use the new template for sending messages';
         toast.error(errorMessage);
       } else if (errorSubcode === 2388023) {
-        errorMessage = `WhatsApp is currently deleting this template language variant for the same name. During this lock period, you cannot add English (US) back to that template name. Use a new name now${suggestedName ? ` (suggested: ${suggestedName})` : ''}, or wait until WhatsApp's deletion window ends (can be up to 4 weeks).`;
+        errorMessage = `WhatsApp is currently deleting this template language variant. During this 30-day lock period, you cannot add English (US) back to the same name. Please use a new name now.`;
         toast.error(errorMessage);
+        setNameError(errorMessage);
+        if (suggestedName) setTemplateNameSuggestion(suggestedName);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (errorSubcode === 2388040) {
         errorMessage = 'Character limit exceeded: The template BODY content cannot be more than 1024 characters. Please shorten your message and try again.';
         toast.error(errorMessage);
       } else if (errorSubcode === 2388025) {
-        errorMessage = `WhatsApp is blocking this change because the template is in deletion flow. Use a new template name${suggestedName ? ` (suggested: ${suggestedName})` : ''} or retry after the deletion window completes.`;
+        errorMessage = `WhatsApp is blocking this change because the template is in deletion flow. Use a new template name or retry after the deletion window completes.`;
         toast.error(errorMessage);
+        setNameError(errorMessage);
+        if (suggestedName) setTemplateNameSuggestion(suggestedName);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (errorSubcode === 2388024) {
-        errorMessage = `Template content already exists in this language for the same name.${suggestedName ? `\n\nTry this alternate name: ${suggestedName}` : '\n\nPlease change template name and retry.'}`;
+        errorMessage = `Template content already exists in this language for the same name. Please change template name and retry.`;
         toast.error(errorMessage);
+        setNameError(errorMessage);
+        if (suggestedName) setTemplateNameSuggestion(suggestedName);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       } else if (errorSubcode === 2388124) {
         errorMessage = "WhatsApp limitation: You can only edit an active template once every 24 hours. Please wait or try creating a new template with a different name.";
         toast.error(errorMessage);
@@ -711,16 +725,16 @@ const CreateTemplate = () => {
                     <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">
                       {isEditing ? 'Edit Your Template' : 'Set Up Your Template'}
                     </h2>
-                    <div className="space-y-2">
-                        <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Choose Category</label>
-                        <div className="bg-gray-50 p-1 rounded-xl flex flex-wrap gap-1 border border-gray-100">
+                    <div className="space-y-4">
+                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Choose Category</label>
+                        <div className="bg-gray-50/50 p-1.5 rounded-xl flex flex-wrap gap-1 border border-gray-100 max-w-fit">
                             {['Marketing', 'Utility', 'Authentication'].map(cat => (
                                 <button 
                                   key={cat} 
                                   onClick={() => handleCategoryChange(cat)} 
-                                  className={`flex-1 min-w-[100px] py-3 md:py-4 px-3 rounded-lg flex items-center justify-center gap-2 text-xs md:text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900' : 'text-gray-400 hover:text-gray-600'}`}
+                                  className={`min-w-[120px] py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
-                                    {cat === 'Marketing' && <Send size={12}/>} {cat}
+                                    {cat === 'Marketing' && <Zap size={14} className={formData.category === 'Marketing' ? 'text-gray-900' : 'text-gray-500'}/>} {cat}
                                 </button>
                             ))}
                         </div>
@@ -728,32 +742,40 @@ const CreateTemplate = () => {
                     
                     <div className="space-y-3">
                         {formData.category === 'Authentication' ? (
-                            <div className="p-4 md:p-5 border-2 rounded-xl border-[#10B981] bg-green-50/20">
-                                <div className="flex items-center gap-3 mb-1">
-                                    <div className="w-3 h-3 rounded-full bg-[#10B981]"></div>
-                                    <span className="text-sm md:text-base font-semibold text-gray-800">One-time Passcode</span>
+                            <div className="p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 border-[#10B981] bg-[#F0FDF4]/30">
+                                <div className="flex items-start gap-4">
+                                    <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
+                                      <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                                    </div>
+                                    <div className="flex-1">
+                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide uppercase">
+                                        One-time Passcode
+                                      </span>
+                                      <p className="text-[13px] text-gray-500 leading-relaxed">
+                                        Send codes to verify a transaction or login.
+                                      </p>
+                                    </div>
                                 </div>
-                                <p className="text-xs md:text-sm text-gray-500 font-medium ml-6">Send codes to verify a transaction or login.</p>
                             </div>
                         ) : (
                             (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
-                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 border-[1.5px] rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-[#10B981] bg-white' : 'border-gray-100 bg-white hover:border-gray-200'}`}>
-                                <div className="flex items-start gap-3">
+                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
+                                <div className="flex items-start gap-4">
                                     {templateType === type ? (
-                                      <div className="mt-0.5 w-[18px] h-[18px] shrink-0 rounded-full border-[2px] border-[#10B981] flex items-center justify-center">
-                                        <div className="w-[10px] h-[10px] bg-[#10B981] rounded-full"></div>
+                                      <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
+                                        <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                                       </div>
                                     ) : (
-                                      <div className="mt-0.5 w-[18px] h-[18px] shrink-0 rounded-full border-[2px] border-gray-300" />
+                                      <div className="mt-1 w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" />
                                     )}
-                                    <div>
-                                      <span className="text-[14px] font-bold text-gray-900 block mb-0.5">
-                                        {type === 'CUSTOM' ? 'Custom' : type === 'CATALOG' ? 'Catalog' : 'Limited-time-offer'}
+                                    <div className="flex-1">
+                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
+                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : 'LIMITED TIME OFFER'}
                                       </span>
-                                      <p className="text-[13px] text-gray-500 leading-relaxed max-w-[95%]">
-                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers, announcements and more to increase awareness and engagement.') 
-                                          : type === 'CATALOG' ? 'Send messages about your entire catalog or multiple products from it.'
-                                          : 'Limited-time offer templates allow you to display expiration dates and running countdown timers.'}
+                                      <p className="text-[13px] text-gray-500 leading-relaxed">
+                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
+                                          : type === 'CATALOG' ? 'Display your entire product catalog'
+                                          : 'Send an offer with a countdown timer to drive urgency'}
                                       </p>
                                     </div>
                                 </div>
@@ -763,13 +785,13 @@ const CreateTemplate = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Template Name</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Template Name</label>
                             <input 
                               type="text" 
                               placeholder="Enter template name..." 
                               disabled={isEditing}
                               value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
-                              className={`w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               onChange={(e) => setFormData({...formData, name: e.target.value})} 
                             />
                             {formData.name && (
@@ -782,10 +804,10 @@ const CreateTemplate = () => {
                             )}
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Languages</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Languages</label>
                             <select 
                               disabled={isEditing}
-                              className={`w-full p-4 md:p-5 border border-gray-200 rounded-lg outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               value={formData.language} 
                               onChange={(e) => setFormData({...formData, language: e.target.value})}
                             >
@@ -810,20 +832,50 @@ const CreateTemplate = () => {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Name your template</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Name your template</label>
                             <input 
                               type="text" 
                               disabled={isEditing}
                               value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
-                              onChange={(e) => setFormData({...formData, name: e.target.value})} 
-                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              onChange={(e) => {
+                                setFormData({...formData, name: e.target.value});
+                                if (nameError) {
+                                  setNameError(null);
+                                  setTemplateNameSuggestion(null);
+                                }
+                              }} 
+                              className={`w-full p-4 border rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75 border-gray-200' : nameError ? 'bg-red-50 border-red-400 focus:border-red-500' : 'bg-white border-gray-200 focus:border-[#10B981]'}`} 
                             />
+                            {nameError && (
+                              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-red-700 animate-in fade-in">
+                                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                                <div className="text-sm">
+                                  <p className="font-medium mb-1">{nameError}</p>
+                                  {templateNameSuggestion && (
+                                    <div className="mt-2 flex items-center flex-wrap gap-2 text-xs">
+                                      <span className="text-gray-600">Suggested name:</span>
+                                      <code className="bg-white px-2 py-1 rounded border border-red-200 font-semibold">{templateNameSuggestion}</code>
+                                      <button 
+                                        onClick={() => {
+                                          setFormData({...formData, name: templateNameSuggestion});
+                                          setNameError(null);
+                                          setTemplateNameSuggestion(null);
+                                        }}
+                                        className="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded transition-colors font-medium ml-2"
+                                      >
+                                        Use this name
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                         </div>
                         <div className="space-y-3">
-                            <label className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Select language</label>
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select language</label>
                             <select 
                               disabled={isEditing}
-                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               value={formData.language} 
                               onChange={(e) => setFormData({...formData, language: e.target.value})}
                             >
@@ -841,7 +893,7 @@ const CreateTemplate = () => {
                             <p className="text-xs text-gray-500">Add a title or choose which type of media you&apos;ll use for this header.</p>
                         </div>
                         <select 
-                            className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                            className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
                             value={formData.headerType} 
                             onChange={(e) => {
                               setFormData({...formData, headerType: e.target.value});
@@ -986,7 +1038,7 @@ const CreateTemplate = () => {
                                 onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
                                 placeholder="Enter footer text..."
                                 maxLength={60}
-                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all" 
+                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
                             />
                             <div className="flex justify-end mt-1">
                                 <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
@@ -1011,7 +1063,7 @@ const CreateTemplate = () => {
                                 value={bodySamples[variableId] || ''}
                                 onChange={(e) => handleBodySampleChange(variableId, e.target.value)}
                                 placeholder={`Enter content for {{${variableId}}}`}
-                                className="flex-1 p-3 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-2 focus:ring-[#10B981]/10 transition-all"
+                                className="flex-1 p-3 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all"
                               />
                             </div>
                           ))}

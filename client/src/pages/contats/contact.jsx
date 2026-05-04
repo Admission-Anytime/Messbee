@@ -364,8 +364,9 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
 function EditContactModal({ contact, onClose, onSave, customFields = [], labels = [] }) {
   const [form,   setForm]   = useState({ ...contact, labels: contact.labels || [] });
   const [saving, setSaving] = useState(false);
-
-  if (!contact) return null;
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const dropdownRef = useRef(null);
 
   const baseFields = [
     { key: "name",      label: "Full Name" },
@@ -408,11 +409,8 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
     });
   };
 
-  const [labelSearch, setLabelSearch] = useState("");
-  const [showLabelOptions, setShowLabelOptions] = useState(false);
-  const dropdownRef = useRef(null);
-
   useEffect(() => {
+    if (!contact) return;
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setShowLabelOptions(false);
@@ -420,7 +418,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [contact]);
 
   const toggleLabel = (l) => {
     if (!l) return;
@@ -433,6 +431,8 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
       return { ...prev, labels: updated };
     });
   };
+
+  if (!contact) return null;
 
   return (
     <div className="fixed inset-0 z-[700] flex items-center justify-center font-sans">
@@ -701,8 +701,9 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
   const [customFieldRows, setCustomFieldRows] = useState([{ fieldId: "", fieldName: "", value: "" }]);
   const [adding,          setAdding]          = useState(false);
   const [error,           setError]           = useState("");
-
-  if (!isOpen) return null;
+  const [labelSearch, setLabelSearch] = useState("");
+  const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const labelDropdownRef = useRef(null);
 
   const handleSubmit = async (e) => {
     e?.preventDefault();
@@ -731,11 +732,8 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
     } finally { setAdding(false); }
   };
 
-  const [labelSearch, setLabelSearch] = useState("");
-  const [showLabelOptions, setShowLabelOptions] = useState(false);
-  const labelDropdownRef = useRef(null);
-
   useEffect(() => {
+    if (!isOpen) return;
     const handleClickOutside = (event) => {
       if (labelDropdownRef.current && !labelDropdownRef.current.contains(event.target)) {
         setShowLabelOptions(false);
@@ -743,7 +741,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [isOpen]);
 
   const toggleLabel = (l) => {
     if (!l) return;
@@ -776,6 +774,8 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
     );
 
   const usedFieldIds = customFieldRows.map(r => r.fieldId).filter(Boolean);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[600] flex justify-end font-sans">

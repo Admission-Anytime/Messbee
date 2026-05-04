@@ -131,6 +131,8 @@ const CreateCampaign = () => {
     const [isLaunching, setIsLaunching] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
     const [csvFile, setCsvFile] = useState(null);
+    const [showCreditModal, setShowCreditModal] = useState(false);
+    const [showTemplateModal, setShowTemplateModal] = useState(false);
     const fileInputRef = React.useRef(null);
 
     const handleFileChange = (e) => {
@@ -144,8 +146,25 @@ const CreateCampaign = () => {
     const estimatedCost = estimatedCount * 0.80;
 
     const handleLaunch = async () => {
+        if (!campaignName.trim()) {
+            toast.error('Campaign name is required.');
+            return;
+        }
+
+        if (scheduleOption === 'later') {
+            if (!scheduledDate || !scheduledTime) {
+                toast.error('Please specify the date and time for the scheduled campaign.');
+                return;
+            }
+            const selectedDateTime = new Date(`${scheduledDate}T${scheduledTime}`);
+            if (selectedDateTime <= new Date()) {
+                toast.error('Scheduled time must be in the future.');
+                return;
+            }
+        }
+
         if (user?.credits < estimatedCost) {
-            toast.error(`Insufficient credits! You need ₹${estimatedCost.toFixed(2)} to launch this campaign.`);
+            setShowCreditModal(true);
             return;
         }
 
@@ -231,7 +250,32 @@ const CreateCampaign = () => {
         }
     };
 
-    const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 3));
+    const nextStep = () => {
+        if (currentStep === 1) {
+            if (selectedOption === 'labels' && selectedLabels.length === 0) {
+                toast.error('Please select at least one label.');
+                return;
+            }
+            if (selectedOption === 'status' && !selectedStatus) {
+                toast.error('Please select a status.');
+                return;
+            }
+            if (selectedOption === 'csv' && !csvFile) {
+                toast.error('Please upload a CSV file.');
+                return;
+            }
+            if (estimatedCount === 0 && selectedOption !== 'csv') {
+                toast.error('Selected audience has 0 contacts.');
+                return;
+            }
+        } else if (currentStep === 2) {
+            if (!selectedTemplate) {
+                setShowTemplateModal(true);
+                return;
+            }
+        }
+        setCurrentStep(prev => Math.min(prev + 1, 3));
+    };
     const prevStep = () => {
         if (currentStep === 1) {
             navigate('/admin/campaigns');
@@ -243,8 +287,65 @@ const CreateCampaign = () => {
     const activeTemplate = templates.find(t => t.id === selectedTemplate) || templates[0] || null;
 
     return (
-        <div className="min-h-screen bg-white font-sans">
-            <div className="w-full">
+        <>
+            {showCreditModal && (
+                <div className="fixed inset-0 z-[700] flex items-center justify-center font-sans">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setShowCreditModal(false)} />
+                    <div className="relative bg-white rounded-[1.5rem] shadow-2xl w-[92vw] max-w-[400px] p-8 flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200 border border-gray-100">
+                        <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-5 ring-8 ring-red-50/50">
+                            <Zap className="w-6 h-6 text-red-500 stroke-[2.5]" />
+                        </div>
+                        <h2 className="text-xl font-extrabold text-gray-900 mb-2 tracking-tight">Insufficient Credits!</h2>
+                        <p className="text-[13.5px] text-gray-500 mb-8 leading-relaxed px-2 font-medium">
+                            You need <span className="font-bold text-gray-900">₹{estimatedCost.toFixed(2)}</span> to launch this campaign.
+                        </p>
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => setShowCreditModal(false)}
+                                className="flex-1 px-4 py-3 bg-white border-2 border-gray-100 rounded-xl text-[13px] font-bold text-gray-600 hover:border-gray-200 hover:bg-gray-50 transition-all active:scale-[0.98]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => navigate('/admin/plan/addons')}
+                                className="flex-1 px-4 py-3 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-[0_4px_12px_rgba(239,68,68,0.25)] hover:shadow-[0_6px_16px_rgba(239,68,68,0.3)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                            >
+                                Add Credits
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {showTemplateModal && (
+                <div className="fixed inset-0 z-[700] flex items-center justify-center font-sans">
+                    <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setShowTemplateModal(false)} />
+                    <div className="relative bg-white rounded-[1.5rem] shadow-2xl w-[92vw] max-w-[400px] p-8 flex flex-col items-center text-center animate-in fade-in zoom-in-95 duration-200 border border-gray-100">
+                        <div className="w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center mb-5 ring-8 ring-emerald-50/50">
+                            <Info className="w-6 h-6 text-emerald-500 stroke-[2.5]" />
+                        </div>
+                        <h2 className="text-xl font-extrabold text-gray-900 mb-2 tracking-tight">No Template Selected</h2>
+                        <p className="text-[13.5px] text-gray-500 mb-8 leading-relaxed px-2 font-medium">
+                            You haven't selected a message template. If you don't have one ready, you can create a new template now.
+                        </p>
+                        <div className="flex gap-3 w-full">
+                            <button
+                                onClick={() => setShowTemplateModal(false)}
+                                className="flex-1 px-4 py-3 bg-white border-2 border-gray-100 rounded-xl text-[13px] font-bold text-gray-600 hover:border-gray-200 hover:bg-gray-50 transition-all active:scale-[0.98]"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => navigate('/admin/templates/create')}
+                                className="flex-1 px-4 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-[0_4px_12px_rgba(16,185,129,0.25)] hover:shadow-[0_6px_16px_rgba(16,185,129,0.3)] hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
+                            >
+                                Create Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <div className="min-h-screen bg-white font-sans">
+                <div className="w-full">
 
                 {/* Header */}
                 <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
@@ -791,6 +892,7 @@ const CreateCampaign = () => {
                 )}
             </div>
         </div>
+        </>
     );
 };
 
