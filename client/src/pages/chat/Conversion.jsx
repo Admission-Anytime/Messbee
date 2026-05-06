@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import chatService from "../../services/chatService";
 import { getPresenceInfo } from "../../utils/presence";
@@ -889,7 +889,9 @@ const Conversion = ({
                                     ? <span className="text-red-500 font-bold text-xs" title={msg.error || 'Failed to send'}>✗</span>
                                     : msg.status === 'pending'
                                        ? <span className="text-slate-400 font-bold text-xs animate-pulse">○</span>
-                                       : <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
+                                        : (msg.status === 'read' || msg.isRead === true)
+                                           ? <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
+                                           : <span className="text-slate-400 font-bold text-xs tracking-tighter">✓</span>
                               )}
                            </div>
                         </div>
