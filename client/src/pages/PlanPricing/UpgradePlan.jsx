@@ -775,7 +775,7 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
   }
 
   return (
-    <div className="bg-[#F8FAFC] font-['Urbanist'] p-4 lg:p-8 max-h-[calc(100vh-120px)] overflow-y-auto">
+    <div className="bg-[#F8FAFC] font-['Urbanist'] p-4 lg:p-8 min-h-screen pb-20">
       <div className="max-w-5xl mx-auto">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 md:p-10">
           {/* header */}
