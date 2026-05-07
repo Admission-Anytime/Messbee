@@ -185,19 +185,22 @@ const CreateCampaign = () => {
 
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
-                // Deduct credits locally and in backend
-                const newCredits = parseFloat((user.credits - estimatedCost).toFixed(2));
-                await axios.put("/users/profile", { credits: newCredits });
-                
-                // Record the transaction
+                // Record the transaction - The backend will now automatically deduct the credits
                 await axios.post("/billing/transactions", {
                     desc: `Campaign Launch - ${campaignName}`,
                     amount: -estimatedCost,
                     status: "Paid"
                 });
 
-                if (user) {
-                    updateUser({ ...user, credits: newCredits });
+                // Fetch latest user data to sync credits
+                try {
+                    const userRes = await axios.get("/auth/me");
+                    if (userRes.data && userRes.data.data) {
+                        updateUser(userRes.data.data);
+                    }
+                } catch (err) {
+                    const newCredits = parseFloat((user.credits - estimatedCost).toFixed(2));
+                    if (user) updateUser({ ...user, credits: newCredits });
                 }
 
                 const calculatedMinutes = Math.max(1, Math.ceil(estimatedCount / 100));

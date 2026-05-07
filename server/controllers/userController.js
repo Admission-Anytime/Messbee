@@ -115,7 +115,7 @@ exports.updateSubscription = async (req, res, next) => {
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { subscriptionPlan, subscriptionEndDate },
+      { $set: { subscriptionPlan, subscriptionEndDate } },
       { new: true, runValidators: true }
     );
 

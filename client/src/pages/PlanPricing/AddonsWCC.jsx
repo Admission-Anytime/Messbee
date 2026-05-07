@@ -50,25 +50,25 @@ const AddonsWCC = () => {
          try {
             const newCredits = parseFloat((balance + finalAmount).toFixed(2));
             
-            // Persist to backend
             const { default: axios } = await import("../../context/axios");
-            await axios.put("/users/profile", { credits: newCredits });
 
-            // Record the transaction
+            // Record the transaction - The backend will now automatically add the credits
             await axios.post("/billing/transactions", {
                desc: "WCC Top-up Credit",
                amount: totalPayable,
+               wccAmount: finalAmount,
                status: "Paid"
             });
             
+            // Fetch latest user data to get accurate credits balance
+            const userRes = await axios.get("/auth/me");
+            
             // Update local state
-            if (user) {
+            if (userRes.data && userRes.data.data) {
+               updateUser(userRes.data.data);
+            } else if (user) {
                updateUser({
                   ...user,
-                  credits: newCredits
-               });
-            } else {
-               updateUser({
                   credits: newCredits
                });
             }

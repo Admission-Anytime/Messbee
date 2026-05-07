@@ -233,7 +233,7 @@ exports.verifySignupOTP = async (req, res, next) => {
           role: user.role,
           avatar: user.avatar,
           phone: user.phone,
-          subscriptionPlan: user.subscriptionPlan
+          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate
         }
       }
     });
@@ -508,7 +508,7 @@ exports.login = async (req, res, next) => {
           email: user.email,
           role: user.role,
           avatar: user.avatar,
-          subscriptionPlan: user.subscriptionPlan
+          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate
         }
       }
     });

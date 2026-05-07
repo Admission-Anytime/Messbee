@@ -1,5 +1,6 @@
-﻿import React, { useState, useEffect, useRef, useMemo } from "react";
+﻿import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { createPortal } from "react-dom";
+import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
 import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
@@ -64,6 +65,7 @@ const Conversion = ({
    statusOptions = [],
    quickReplies = []
 }) => {
+   const { user } = useContext(userContext);
    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
    const [selectedMediaId, setSelectedMediaId] = useState(1);
    const [mediaCaption, setMediaCaption] = useState("");
@@ -1224,7 +1226,7 @@ const Conversion = ({
 
                         <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
                            <InformationCircleIcon className="w-4 h-4 text-slate-500" />
-                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">1 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">617</span>.</p>
+                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">1 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">{user?.credits != null ? parseFloat(user.credits).toFixed(2) : '0.00'}</span>.</p>
                         </div>
                         {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
                      </div>
