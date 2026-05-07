@@ -7,6 +7,8 @@ import axios from '../../context/axios';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
 import { userContext } from '../../context/Context';
+import MapFieldsModal from './MapFieldsModal';
+import ReviewSummaryModal from './ReviewSummaryModal';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
     Search, CheckCircle, Clock, Eye, Smartphone, ChevronLeft,
@@ -80,6 +82,13 @@ const CreateCampaign = () => {
     const [selectedOption, setSelectedOption] = useState('all');
     const [selectedLabels, setSelectedLabels] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
+    const [csvFile, setCsvFile] = useState(null);
+    const fileInputRef = React.useRef(null);
+    const [showMapFieldsModal, setShowMapFieldsModal] = useState(false);
+    const [csvHeaders, setCsvHeaders] = useState([]);
+    const [csvSampleRows, setCsvSampleRows] = useState([]);
+    const [showReviewModal, setShowReviewModal] = useState(false);
+    const [importData, setImportData] = useState(null);
 
     // Step 1 Effect for estimated audience
     useEffect(() => {
@@ -88,10 +97,20 @@ const CreateCampaign = () => {
                 let params = new URLSearchParams();
                 params.set('limit', '1');
                 
-                if (selectedOption === 'labels' && selectedLabels.length > 0) {
-                    params.set('labels', selectedLabels.join(','));
-                } else if (selectedOption === 'status' && selectedStatus) {
-                    params.set('status', selectedStatus);
+                if (selectedOption === 'labels') {
+                    if (selectedLabels.length > 0) {
+                        params.set('labels', selectedLabels.join(','));
+                    } else {
+                        setEstimatedCount(0);
+                        return;
+                    }
+                } else if (selectedOption === 'status') {
+                    if (selectedStatus) {
+                        params.set('status', selectedStatus);
+                    } else {
+                        setEstimatedCount(0);
+                        return;
+                    }
                 }
                 
                 if (selectedOption !== 'csv') {
@@ -100,14 +119,24 @@ const CreateCampaign = () => {
                         setEstimatedCount(res.data.pagination.total);
                     }
                 } else {
-                    setEstimatedCount(0); // For CSV, count comes from file parse which isn't implemented here yet
+                    if (csvFile) {
+                        const reader = new FileReader();
+                        reader.onload = (event) => {
+                            const text = event.target.result;
+                            const lines = text.split(/\r\n|\n/).filter(line => line.trim() !== '');
+                            setEstimatedCount(Math.max(0, lines.length - 1));
+                        };
+                        reader.readAsText(csvFile);
+                    } else {
+                        setEstimatedCount(0);
+                    }
                 }
             } catch (err) {
                 console.error("Error updating estimated count:", err);
             }
         };
         updateEstimatedCount();
-    }, [selectedOption, selectedLabels, selectedStatus]);
+    }, [selectedOption, selectedLabels, selectedStatus, csvFile]);
 
     const [selectedTemplate, setSelectedTemplate] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -130,16 +159,47 @@ const CreateCampaign = () => {
     const [scheduledTime, setScheduledTime] = useState('12:00');
     const [isLaunching, setIsLaunching] = useState(false);
     const [isSavingDraft, setIsSavingDraft] = useState(false);
-    const [csvFile, setCsvFile] = useState(null);
     const [showCreditModal, setShowCreditModal] = useState(false);
     const [showTemplateModal, setShowTemplateModal] = useState(false);
-    const fileInputRef = React.useRef(null);
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files[0];
         if (file) {
             setCsvFile(file);
             setSelectedOption('csv');
+            
+            try {
+                const text = await file.text();
+                const lines = text.trim().split(/\r?\n/).filter(Boolean);
+                if (lines.length > 0) {
+                    const splitCSVLine = (line) => {
+                        const values = [];
+                        let cur = "", inQ = false;
+                        for (let i = 0; i < line.length; i++) {
+                            const ch = line[i];
+                            if (ch === '"') { inQ = !inQ; }
+                            else if (ch === ',' && !inQ) { values.push(cur.trim().replace(/^"|"$/g, "")); cur = ""; }
+                            else { cur += ch; }
+                        }
+                        values.push(cur.trim().replace(/^"|"$/g, ""));
+                        return values;
+                    };
+                    
+                    const headers = splitCSVLine(lines[0]);
+                    const sampleRows = lines.slice(1, 4).map((line) => {
+                        const vals = splitCSVLine(line);
+                        const row = {};
+                        headers.forEach((h, i) => { row[h] = vals[i] || ""; });
+                        return row;
+                    });
+                    
+                    setCsvHeaders(headers);
+                    setCsvSampleRows(sampleRows);
+                    setShowMapFieldsModal(true);
+                }
+            } catch (err) {
+                toast.error("Failed to parse CSV file");
+            }
         }
     };
 
@@ -264,7 +324,7 @@ const CreateCampaign = () => {
                 toast.error('Please upload a CSV file.');
                 return;
             }
-            if (estimatedCount === 0 && selectedOption !== 'csv') {
+            if (estimatedCount === 0) {
                 toast.error('Selected audience has 0 contacts.');
                 return;
             }
@@ -288,6 +348,27 @@ const CreateCampaign = () => {
 
     return (
         <>
+            {showMapFieldsModal && csvFile && csvHeaders.length > 0 && (
+                <MapFieldsModal 
+                    file={csvFile}
+                    headers={csvHeaders}
+                    sampleRows={csvSampleRows}
+                    onClose={() => setShowMapFieldsModal(false)}
+                    onSuccess={(data) => {
+                        toast.success(data.message || 'Contacts imported successfully!');
+                        setEstimatedCount(data.successful || 0);
+                        setImportData(data);
+                        setShowMapFieldsModal(false);
+                        setShowReviewModal(true);
+                    }}
+                />
+            )}
+            {showReviewModal && importData && (
+                <ReviewSummaryModal
+                    importData={importData}
+                    onClose={() => setShowReviewModal(false)}
+                />
+            )}
             {showCreditModal && (
                 <div className="fixed inset-0 z-[700] flex items-center justify-center font-sans">
                     <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={() => setShowCreditModal(false)} />
