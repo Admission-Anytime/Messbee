@@ -110,7 +110,14 @@ exports.getContacts = async (req, res, next) => {
 
     if (req.query.labels) {
       const labelArr = req.query.labels.split(',').map(l => l.trim()).filter(Boolean);
-      if (labelArr.length) filter.labels = { $in: labelArr };
+      if (labelArr.length) {
+        filter.labels = { $in: labelArr };
+        if (!labelArr.includes('_HIDDEN_CAMPAIGN_')) {
+          filter.labels.$nin = ['_HIDDEN_CAMPAIGN_'];
+        }
+      }
+    } else {
+      filter.labels = { $nin: ['_HIDDEN_CAMPAIGN_'] };
     }
 
     if (req.query.search) {
@@ -500,6 +507,12 @@ exports.importContacts = async (req, res, next) => {
       const labels = rawLabels
         ? rawLabels.split(',').map(l => l.trim()).filter(Boolean)
         : [];
+
+      if (req.body.saveToCrm === 'false') {
+        if (!labels.includes('_HIDDEN_CAMPAIGN_')) {
+          labels.push('_HIDDEN_CAMPAIGN_');
+        }
+      }
 
       // ── Validation ─────────────────────────────────────────────────────────────
       if (!name) {

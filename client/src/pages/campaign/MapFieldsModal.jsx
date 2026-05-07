@@ -84,6 +84,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
   const [showAll,    setShowAll]    = useState(false);
   const [uploading,  setUploading]  = useState(false);
   const [uploadErr,  setUploadErr]  = useState("");
+  const [saveToCrm,  setSaveToCrm]  = useState(true);
 
   const mappedCount  = Object.values(mappings).filter((v) => v !== "skip").length;
   const totalCount   = headers.length;
@@ -117,6 +118,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
       const formData = new FormData();
       formData.append("file", file);
       formData.append("fieldMapping", JSON.stringify(mappings));
+      formData.append("saveToCrm", saveToCrm);
 
       const res  = await fetch(`${API_BASE}/api/contacts/import`, {
         method:      "POST",
@@ -288,24 +290,38 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
         </div>
 
         {/* Footer */}
-        <div className="bg-white border-t border-gray-100 py-5 px-8 shrink-0 flex items-center justify-end gap-4">
-          <button
-            onClick={onClose}
-            className="px-6 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleContinue}
-            disabled={!phoneIsMapped || uploading}
-            className={`flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-bold transition-all ${
-              phoneIsMapped && !uploading
-                ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-200"
-                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-            }`}
-          >
-            {uploading ? "Importing..." : "Confirm & Import"}
-          </button>
+        <div className="bg-white border-t border-gray-100 py-5 px-8 shrink-0 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5 bg-gray-50 px-4 py-2.5 rounded-xl border border-gray-200">
+             <input 
+                type="checkbox" 
+                id="saveToCrm" 
+                checked={saveToCrm} 
+                onChange={(e) => setSaveToCrm(e.target.checked)} 
+                className="w-4 h-4 text-emerald-500 bg-white border-gray-300 rounded focus:ring-emerald-500 cursor-pointer"
+             />
+             <label htmlFor="saveToCrm" className="text-sm font-bold text-gray-700 cursor-pointer select-none">
+                Add these contacts to CRM
+             </label>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={onClose}
+              className="px-6 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleContinue}
+              disabled={!phoneIsMapped || uploading}
+              className={`flex items-center gap-2 px-8 py-2.5 rounded-xl text-sm font-bold transition-all ${
+                phoneIsMapped && !uploading
+                  ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-200"
+                  : "bg-gray-200 text-gray-400 cursor-not-allowed"
+              }`}
+            >
+              {uploading ? "Importing..." : "Confirm & Import"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
