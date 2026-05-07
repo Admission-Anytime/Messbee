@@ -141,6 +141,16 @@ export default function MapFields() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
+  const getEstimatedTime = (f) => {
+    if (!f || !f.size) return "~ 1 Minute";
+    const kb = f.size / 1024;
+    if (kb < 100) return "< 30 Seconds";
+    if (kb < 500) return "~ 1 Minute";
+    if (kb < 1024) return "~ 2 Minutes";
+    if (kb < 2048) return "~ 3 Minutes";
+    return "~ 5 Minutes";
+  };
+
   // State passed from Step 1
   const {
     file = null,
@@ -454,7 +464,7 @@ export default function MapFields() {
               <span className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">
                 Estimated Import Time
               </span>
-              <span className="text-xs font-bold text-gray-900">~ 2 Minutes</span>
+              <span className="text-xs font-bold text-gray-900">{getEstimatedTime(file)}</span>
             </div>
 
             {/* Continue */}

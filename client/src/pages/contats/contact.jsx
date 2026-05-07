@@ -95,7 +95,7 @@ const BASE_COLUMNS = [
 ];
 
 const DEFAULT_VISIBLE = ["name", "whatsapp", "status", "labels", "email"];
-const ROWS_OPTIONS    = [5, 10, 25, 50];
+const ROWS_OPTIONS    = [10, 25, 50, 100];
 const ALL_STATUSES    = ["ACTIVE", "WARM", "INACTIVE", "COLD"];
 const FIELD_TYPES     = ["Text", "Number", "Date", "Email", "URL", "Phone"];
 
