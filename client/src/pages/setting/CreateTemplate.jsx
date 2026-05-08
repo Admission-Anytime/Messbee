@@ -124,7 +124,7 @@ const CreateTemplate = () => {
     language: location.state?.templateData?.language || 'English (US)',
     offerTitle: '20% OFF',
     headerType: location.state?.templateData?.headerType || 'None',
-    bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
+    bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, welcome to our service! We are excited to have you with us.',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
     expirationDate: '24h',
   });
@@ -141,7 +141,7 @@ const CreateTemplate = () => {
     
     let newBody = '';
     if (cat === 'Marketing') {
-      newBody = 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!';
+      newBody = 'Hello {{1}}, welcome to our service! We are excited to have you with us.';
     } else if (cat === 'Utility') {
       newBody = 'Good news! Your order {{1}} has shipped! Here\'s your tracking information, please check link below.';
     } else if (cat === 'Authentication') {
@@ -705,7 +705,7 @@ const CreateTemplate = () => {
 
       
       {/* Scrollable Form Container */}
-      <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
+      <div className="flex-1 p-3 md:p-4 lg:p-6 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
         <div className="max-w-3xl mx-auto space-y-5 pb-20">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -721,20 +721,20 @@ const CreateTemplate = () => {
 
           {view === 'setup' ? (
             <div className="space-y-5">
-                <div className="bg-white rounded-xl p-6 md:p-8 border border-gray-200 shadow-sm space-y-4 md:space-y-5">
-                    <h2 className="text-2xl md:text-3xl font-bold text-gray-800 tracking-tight">
+                <div className="bg-white rounded-lg p-5 md:p-6 border border-gray-200 shadow-sm space-y-3 md:space-y-4">
+                    <h2 className="text-xl md:text-2xl font-bold text-gray-800 tracking-tight">
                       {isEditing ? 'Edit Your Template' : 'Set Up Your Template'}
                     </h2>
-                    <div className="space-y-4">
-                        <label className="text-xs font-bold text-gray-500 uppercase tracking-widest block mb-2">Choose Category</label>
-                        <div className="bg-gray-50/50 p-1.5 rounded-xl flex flex-wrap gap-1 border border-gray-100 max-w-fit">
+                    <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-1">Choose Category</label>
+                        <div className="bg-gray-50/50 p-1 rounded-lg flex flex-wrap gap-1 border border-gray-100 max-w-fit">
                             {['Marketing', 'Utility', 'Authentication'].map(cat => (
                                 <button 
                                   key={cat} 
                                   onClick={() => handleCategoryChange(cat)} 
-                                  className={`min-w-[120px] py-2.5 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-semibold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+                                  className={`min-w-[90px] py-1.5 px-2 rounded-md flex items-center justify-center gap-2 text-[11px] font-bold transition-all ${formData.category === cat ? 'bg-white shadow-sm text-gray-900 border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
                                 >
-                                    {cat === 'Marketing' && <Zap size={14} className={formData.category === 'Marketing' ? 'text-gray-900' : 'text-gray-500'}/>} {cat}
+                                    {cat === 'Marketing' && <Zap size={11} className={formData.category === 'Marketing' ? 'text-gray-900' : 'text-gray-500'}/>} {cat}
                                 </button>
                             ))}
                         </div>
@@ -742,16 +742,16 @@ const CreateTemplate = () => {
                     
                     <div className="space-y-3">
                         {formData.category === 'Authentication' ? (
-                            <div className="p-4 rounded-xl cursor-pointer transition-all duration-200 border-2 border-[#10B981] bg-[#F0FDF4]/30">
+                            <div className="p-3 rounded-lg cursor-pointer transition-all duration-200 border-2 border-[#10B981] bg-[#F0FDF4]/30">
                                 <div className="flex items-start gap-4">
                                     <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
                                       <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                                     </div>
                                     <div className="flex-1">
-                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide uppercase">
+                                      <span className="text-[12px] font-bold text-gray-800 block mb-1 tracking-wide uppercase">
                                         One-time Passcode
                                       </span>
-                                      <p className="text-[13px] text-gray-500 leading-relaxed">
+                                      <p className="text-[11px] text-gray-500 leading-relaxed">
                                         Send codes to verify a transaction or login.
                                       </p>
                                     </div>
@@ -759,7 +759,7 @@ const CreateTemplate = () => {
                             </div>
                         ) : (
                             (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
-                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
+                              <div key={type} onClick={() => setTemplateType(type)} className={`p-3 rounded-lg cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
                                 <div className="flex items-start gap-4">
                                     {templateType === type ? (
                                       <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
@@ -769,10 +769,10 @@ const CreateTemplate = () => {
                                       <div className="mt-1 w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" />
                                     )}
                                     <div className="flex-1">
-                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
+                                      <span className="text-[12px] font-bold text-gray-800 block mb-1 tracking-wide">
                                         {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : 'LIMITED TIME OFFER'}
                                       </span>
-                                      <p className="text-[13px] text-gray-500 leading-relaxed">
+                                      <p className="text-[11px] text-gray-500 leading-relaxed">
                                           {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
                                           : type === 'CATALOG' ? 'Display your entire product catalog'
                                           : 'Send an offer with a countdown timer to drive urgency'}
@@ -783,15 +783,15 @@ const CreateTemplate = () => {
                             ))
                         )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3">
-                        <div className="space-y-2">
-                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Template Name</label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Template Name</label>
                             <input 
                               type="text" 
                               placeholder="Enter template name..." 
                               disabled={isEditing}
                               value={typeof formData.name === 'string' ? formData.name : (formData.name?.name || '')}
-                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-3 border border-gray-200 rounded-md outline-none text-[12px] font-bold focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               onChange={(e) => setFormData({...formData, name: e.target.value})} 
                             />
                             {formData.name && (
@@ -807,7 +807,7 @@ const CreateTemplate = () => {
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Languages</label>
                             <select 
                               disabled={isEditing}
-                              className={`w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium appearance-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-4 border border-gray-200 rounded-md outline-none text-[13px] font-medium appearance-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               value={formData.language} 
                               onChange={(e) => setFormData({...formData, language: e.target.value})}
                             >
@@ -820,14 +820,14 @@ const CreateTemplate = () => {
                     {/* MOVED TO STEP 2 */}
                 </div>
                 <div className="flex justify-end pt-2">
-                    <button onClick={handleContinue} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-lg font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
+                    <button onClick={handleContinue} className="w-full md:w-auto bg-[#10B981] text-white px-10 md:px-14 py-3 md:py-4 rounded-md font-semibold text-sm shadow-sm hover:bg-[#059669] transition-all">Continue</button>
                 </div>
             </div>
           ) : (
             <div className="space-y-5 animate-in fade-in slide-in-from-right-4 duration-500">
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 md:p-8 shadow-sm">
                     <div className="flex items-center gap-2 mb-4">
-                        <div className="w-6 h-6 bg-green-50 text-green-600 rounded-lg flex items-center justify-center"><Clock size={14}/></div>
+                        <div className="w-6 h-6 bg-green-50 text-green-600 rounded-md flex items-center justify-center"><Clock size={14}/></div>
                         <h3 className="text-sm md:text-base font-semibold text-gray-800">Template name and language</h3>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -844,10 +844,10 @@ const CreateTemplate = () => {
                                   setTemplateNameSuggestion(null);
                                 }
                               }} 
-                              className={`w-full p-4 border rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75 border-gray-200' : nameError ? 'bg-red-50 border-red-400 focus:border-red-500' : 'bg-white border-gray-200 focus:border-[#10B981]'}`} 
+                              className={`w-full p-4 border rounded-md text-[13px] font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75 border-gray-200' : nameError ? 'bg-red-50 border-red-400 focus:border-red-500' : 'bg-white border-gray-200 focus:border-[#10B981]'}`} 
                             />
                             {nameError && (
-                              <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2 text-red-700 animate-in fade-in">
+                              <div className="p-3 bg-red-50 border border-red-200 rounded-md flex items-start gap-2 text-red-700 animate-in fade-in">
                                 <Info size={16} className="mt-0.5 flex-shrink-0" />
                                 <div className="text-sm">
                                   <p className="font-medium mb-1">{nameError}</p>
@@ -875,7 +875,7 @@ const CreateTemplate = () => {
                             <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Select language</label>
                             <select 
                               disabled={isEditing}
-                              className={`w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
+                              className={`w-full p-4 border border-gray-200 rounded-md text-[13px] font-medium outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all ${isEditing ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'bg-white'}`} 
                               value={formData.language} 
                               onChange={(e) => setFormData({...formData, language: e.target.value})}
                             >
@@ -886,14 +886,14 @@ const CreateTemplate = () => {
                     </div>
                 </div>
                 {formData.category !== 'Authentication' && (
-                <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm mt-5">
+                <div className="bg-white rounded-lg border border-gray-200 p-6 md:p-8 shadow-sm mt-5">
                     <div className="mb-8 border-b border-gray-100 pb-6">
                         <div className="flex flex-col gap-1 mb-3">
                             <h3 className="text-sm md:text-base font-bold text-gray-800">Header <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
                             <p className="text-xs text-gray-500">Add a title or choose which type of media you&apos;ll use for this header.</p>
                         </div>
                         <select 
-                            className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
+                            className="w-full p-4 border border-gray-200 rounded-md text-[13px] font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
                             value={formData.headerType} 
                             onChange={(e) => {
                               setFormData({...formData, headerType: e.target.value});
@@ -923,7 +923,7 @@ const CreateTemplate = () => {
                             {!headerMedia ? (
                               <div 
                                 onClick={triggerHeaderMediaPicker}
-                                className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
+                                className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
                               >
                                 <div className="flex flex-col items-center gap-2">
                                   <ImageIcon size={32} className="text-gray-400"/>
@@ -932,17 +932,17 @@ const CreateTemplate = () => {
                                 </div>
                               </div>
                             ) : (
-                              <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
+                              <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-3">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3 flex-1">
                                     {headerMedia.type === 'image' && (
-                                      <img src={headerMedia.preview} alt="preview" className="h-16 w-16 rounded-lg object-cover"/>
+                                      <img src={headerMedia.preview} alt="preview" className="h-16 w-16 rounded-md object-cover"/>
                                     )}
                                     {headerMedia.type === 'video' && (
-                                      <video src={headerMedia.preview} className="h-16 w-16 rounded-lg object-cover"/>
+                                      <video src={headerMedia.preview} className="h-16 w-16 rounded-md object-cover"/>
                                     )}
                                     {headerMedia.type === 'document' && (
-                                      <div className="h-16 w-16 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs">
+                                      <div className="h-16 w-16 rounded-md bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs">
                                         {headerMedia.name.split('.').pop().toUpperCase()}
                                       </div>
                                     )}
@@ -962,7 +962,7 @@ const CreateTemplate = () => {
                                 <button 
                                   type="button"
                                   onClick={triggerHeaderMediaPicker}
-                                  className="w-full p-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="w-full p-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
                                 >
                                   Change {formData.headerType}
                                 </button>
@@ -976,7 +976,7 @@ const CreateTemplate = () => {
                         <h3 className="text-sm md:text-base font-bold text-gray-800">Body</h3>
                         <p className="text-xs text-gray-500">Enter the text for your message in the language that you&apos;ve selected.</p>
                     </div>
-                    <div className="border border-gray-200 rounded-lg bg-white overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/5 transition-all">
+                    <div className="border border-gray-200 rounded-md bg-white overflow-hidden focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-500/5 transition-all">
                         <div className="flex justify-end p-2 pb-0">
                             <span className="text-[10px] font-medium text-gray-400">{charCount}/1024</span>
                         </div>
@@ -985,7 +985,7 @@ const CreateTemplate = () => {
                             contentEditable
                             suppressContentEditableWarning
                             onInput={syncEditorContent}
-                            className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
+                            className="w-full p-3 md:p-4 outline-none text-[13px] font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
                             style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                         />
                     </div>
@@ -1182,9 +1182,9 @@ const CreateTemplate = () => {
       </div>
 
       {/* Responsive Preview Sidebar */}
-      <div className="w-full lg:w-[450px] xl:w-[480px] bg-white p-6 md:p-10 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-y-auto">
+      <div className="w-full lg:w-[380px] xl:w-[400px] bg-white p-4 md:p-6 lg:p-8 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-y-auto">
         <div className="lg:sticky lg:top-0 w-full flex flex-col items-center">
-            <div className="flex justify-between w-full mb-8 lg:mb-12">
+            <div className="flex justify-between w-full mb-6 lg:mb-8">
                 <p className="text-gray-800 font-semibold text-sm uppercase tracking-wide">Live Preview</p>
                 <div className="flex items-center gap-2 bg-green-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
@@ -1192,7 +1192,7 @@ const CreateTemplate = () => {
                 </div>
             </div>
             {/* Scale adjustment for smaller laptop screens */}
-            <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
+            <div className="transform scale-[0.7] sm:scale-[0.8] lg:scale-[0.85] origin-top">
               <MobilePreview 
                 name={formData.name || 'YOUR_TEMPLATE'} 
                 body={formData.bodyText} 
@@ -1238,27 +1238,13 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
               </div>
               
               <div className="p-4 flex flex-col">
-                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-4">
-                   Hey there! Check out our fresh groceries now!
-                 </p>
-                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-1">
-                   Use code <span className="font-bold">HEALTH</span> to get additional 10% off on your entire purchase.
-                 </p>
-                 <div className="flex justify-end mt-1">
-                    <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
-                 </div>
-              </div>
-              
-              <div className="border-t border-gray-100 w-full flex">
-                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
-                    <ExternalLink size={16}/> Shop now
-                 </button>
-              </div>
-              <div className="border-t border-gray-100 w-full flex">
-                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
-                    <Copy size={16}/> Copy code
-                 </button>
-              </div>
+                  <p className="text-[13px] text-gray-800 font-medium leading-relaxed">
+                    Hey there! Welcome to our store. We have some exciting news for you!
+                  </p>
+                  <div className="flex justify-end mt-1">
+                     <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
+                  </div>
+               </div>
            </div>
         </div>
       </div>

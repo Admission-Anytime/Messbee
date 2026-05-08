@@ -26,7 +26,7 @@ function GenerateKeyModal({ onCancel, onSave }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-6 relative animate-in fade-in zoom-in duration-200">
+      <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl p-5 relative animate-in fade-in zoom-in duration-200">
         <button onClick={onCancel} className="absolute right-6 top-6 text-gray-400 hover:text-gray-600 transition-colors">
           <X size={20} />
         </button>
@@ -95,7 +95,7 @@ function GeneratedKeySuccessModal({ apiKey, onDone }) {
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[210] p-4 font-sans">
       <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-        <div className="p-10 text-center">
+        <div className="p-7 text-center">
             <div className="w-20 h-20 bg-green-50 text-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
                <CheckCircle2 size={48} strokeWidth={1.5} />
             </div>
@@ -157,7 +157,7 @@ function DeleteModal({ keyName, onConfirm, onCancel }) {
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
-      <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-6 text-center">
+      <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl p-5 text-center">
         <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
           <AlertTriangle size={32} />
         </div>
@@ -321,7 +321,7 @@ const DevApi = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 font-sans">
+    <div className="min-h-screen bg-gray-50 p-4 md:p-5 font-sans">
       {isCreating && (
         <GenerateKeyModal 
           onCancel={() => setIsCreating(false)} 
@@ -348,7 +348,7 @@ const DevApi = () => {
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs text-gray-400 mb-1">Settings &rsaquo; <span className="text-green-600 font-semibold">API &amp; Webhooks</span></p>
-          <h1 className="text-2xl font-bold text-gray-900">API Access &amp; Webhooks</h1>
+          <h1 className="text-xl font-bold text-gray-900">API Access &amp; Webhooks</h1>
           <p className="text-sm text-gray-400 mt-0.5">Manage your authentication keys and real-time event notifications.</p>
         </div>
         <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs font-bold text-green-700">
@@ -359,7 +359,7 @@ const DevApi = () => {
 
       {/* ── API Keys ── */}
       <div className="bg-white border border-gray-100 rounded-2xl shadow-sm mb-5">
-        <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-5 pt-4 pb-3 border-b border-gray-100">
           <div>
             <h2 className="text-base font-bold text-gray-900">API Keys</h2>
             <p className="text-xs text-gray-400 mt-0.5">Authentication keys for accessing the MessBee REST API.</p>
@@ -374,7 +374,7 @@ const DevApi = () => {
         </div>
 
         {/* Table */}
-        <div className="px-6 py-2">
+        <div className="px-5 py-2">
           {apiKeys.length === 0 ? (
             <div className="py-8 text-center text-sm text-gray-400 font-medium">
               No API keys generated yet.
@@ -382,20 +382,20 @@ const DevApi = () => {
           ) : (
             <table className="w-full text-left">
               <thead>
-                <tr className="text-[11px] font-bold uppercase text-gray-400 tracking-wider border-b border-gray-100">
-                  <th className="py-3 pr-4">Key Name</th>
-                  <th className="py-3 pr-4">Masked Key</th>
-                  <th className="py-3 pr-4">Created Date</th>
-                  <th className="py-3 text-right">Actions</th>
+                <tr className="text-[10px] font-bold uppercase text-gray-400 tracking-wider border-b border-gray-100">
+                  <th className="py-2.5 pr-4">Key Name</th>
+                  <th className="py-2.5 pr-4">Masked Key</th>
+                  <th className="py-2.5 pr-4">Created Date</th>
+                  <th className="py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {apiKeys.map((key) => (
                   <tr key={key._id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition">
-                    <td className="py-4 pr-4 text-sm font-semibold text-gray-800">{key.name}</td>
-                    <td className="py-4 pr-4 text-sm text-gray-500 font-mono">{key.maskedKey}</td>
-                    <td className="py-4 pr-4 text-sm text-gray-400">{new Date(key.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</td>
-                    <td className="py-4 text-right">
+                    <td className="py-2.5 pr-4 text-sm font-semibold text-gray-800">{key.name}</td>
+                    <td className="py-2.5 pr-4 text-sm text-gray-500 font-mono">{key.maskedKey}</td>
+                    <td className="py-2.5 pr-4 text-sm text-gray-400">{new Date(key.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' })}</td>
+                    <td className="py-2.5 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button
                           onClick={() => handleCopy(key)}
@@ -423,7 +423,7 @@ const DevApi = () => {
 
       {/* ── Webhook + Events row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
-        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-6">
+        <div className="bg-white border border-gray-100 rounded-2xl shadow-sm p-5">
           <h2 className="text-base font-bold text-gray-900 mb-0.5">Webhook Configuration</h2>
           <p className="text-xs text-gray-400 mb-5">Configure your destination server to receive events.</p>
 

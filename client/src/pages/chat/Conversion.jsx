@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
+import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { createPortal } from "react-dom";
 import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
@@ -690,7 +690,7 @@ const Conversion = ({
       <div className="flex flex-col h-full relative bg-[#F9FAFB] font-sans">
 
          {/* 1. HEADER */}
-         <div className="h-16 lg:h-[68px] px-3 sm:px-4 lg:px-5 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-20 relative shadow-sm">
+         <div className="h-14 lg:h-[60px] px-3 sm:px-4 lg:px-5 bg-white border-b border-slate-100 flex items-center justify-between shrink-0 z-20 relative shadow-sm">
             {isSearchOpen ? (
                <div className="flex-1 flex items-center gap-3 animate-in fade-in duration-200">
                   <MagnifyingGlassIcon className="w-5 h-5 text-slate-400" />
@@ -720,23 +720,23 @@ const Conversion = ({
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                      </button>
                      <div className="relative">
-                        <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-10 h-10 lg:w-11 lg:h-11 rounded-full object-cover" />
-                        <span className={`absolute bottom-0 right-0 w-3 h-3 border-2 border-white rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
+                        <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="" className="w-9 h-9 lg:w-10 lg:h-10 rounded-full object-cover" />
+                        <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 border-2 border-white rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
                      </div>
                      <div className="flex flex-col justify-center min-w-0">
                         <div className="flex items-center gap-1.5 min-w-0">
-                           <h3 className="text-[14px] lg:text-[15px] font-bold text-slate-900 leading-tight truncate">{data.name}</h3>
+                           <h3 className="text-[13px] lg:text-[14px] font-bold text-slate-900 leading-tight truncate">{data.name}</h3>
                            {data?.isVerified && (
-                              <svg className="w-4 h-4 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24">
+                              <svg className="w-3.5 h-3.5 text-blue-500 fill-blue-500 shrink-0" viewBox="0 0 24 24">
                               <path fillRule="evenodd" d="M8.603 3.799A4.49 4.49 0 0112 2.25c1.357 0 2.573.6 3.397 1.549a4.49 4.49 0 013.498 1.307 4.491 4.491 0 011.307 3.497A4.49 4.49 0 0121.75 12a4.49 4.49 0 01-1.549 3.397 4.491 4.491 0 01-1.307 3.497 4.491 4.491 0 01-3.497 1.307A4.49 4.49 0 0112 21.75a4.49 4.49 0 01-3.397-1.549 4.49 4.49 0 01-3.498-1.306 4.491 4.491 0 01-1.307-3.498A4.49 4.49 0 012.25 12c0-1.357.6-2.573 1.549-3.397a4.49 4.49 0 011.307-3.497 4.49 4.49 0 013.497-1.307zm7.007 6.387a.75.75 0 10-1.22-.872l-3.236 4.53L9.53 12.22a.75.75 0 00-1.06 1.06l2.25 2.25a.75.75 0 001.14-.094l3.75-5.25z" clipRule="evenodd" />
                               </svg>
                            )}
                         </div>
-                        <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                           <span className={`w-2 h-2 rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
-                           <span className="text-[11px] lg:text-xs font-medium text-slate-500 whitespace-nowrap truncate">{presenceInfo.label}</span>
-                           <span className="text-slate-300 text-xs">•</span>
-                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md shadow-sm border truncate" style={{
+                        <div className="flex items-center gap-1 mt-0.5 min-w-0">
+                           <span className={`w-1.5 h-1.5 rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
+                           <span className="text-[10px] lg:text-[11px] font-medium text-slate-500 whitespace-nowrap truncate">{presenceInfo.label}</span>
+                           <span className="text-slate-300 text-[10px]">•</span>
+                           <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-md shadow-sm border truncate" style={{
                               backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '15') || '#f1f5f9',
                               color: statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color || '#64748b',
                               borderColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '30') || '#e2e8f0'
@@ -849,8 +849,8 @@ const Conversion = ({
                               <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
                            </div>
                         )}
-                        <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[78%] lg:max-w-[72%]`}>
-                           <div className={`px-4 py-2.5 text-sm shadow-sm ${
+                        <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[82%] lg:max-w-[78%]`}>
+                           <div className={`px-3.5 py-2 text-[13px] shadow-sm ${
                               msg.sender === "me"
                                  ? msg.status === 'failed'
                                     ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
@@ -905,12 +905,12 @@ const Conversion = ({
          </div>
 
          {/* 3. INPUT AREA */}
-         <div className="p-3 lg:p-4 bg-white z-20 relative border-t border-slate-100">
+         <div className="p-2.5 lg:p-3 bg-white z-20 relative border-t border-slate-100">
 
             {!isTemplateOnlyMode && (
-            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-2 px-1 mb-1">
+            <div className="flex gap-1 overflow-x-auto hide-scrollbar pb-2 px-1 mb-0.5">
                {QUICK_REPLIES_MOCK.map((reply, idx) => (
-                  <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-3 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[11px] font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
+                  <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-2.5 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[10px] font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0 uppercase tracking-tight">
                      {reply}
                   </button>
                ))}
@@ -985,7 +985,7 @@ const Conversion = ({
                      </header>
 
                      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-                        <div className="w-full lg:w-[58%] border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col bg-white min-w-0 min-h-0">
+                        <div className="w-full lg:w-[380px] xl:w-[400px] bg-white p-4 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col min-w-0 min-h-0">
                            <div className="p-6 space-y-4">
                               <div className="relative">
                                  <MagnifyingGlassIcon className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -1275,12 +1275,12 @@ const Conversion = ({
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
                   <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
-                     <div className="flex items-center gap-0.5 pl-2 shrink-0">
+                     <div className="flex items-center gap-0 pl-1.5 shrink-0">
                         <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
                            <PaperClipIcon className="w-5 h-5" />
                         </button>
                         <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
-                           <FaceSmileIcon className="w-6 h-6" />
+                           <FaceSmileIcon className="w-5 h-5" />
                         </button>
                      </div>
                      <input
@@ -1296,16 +1296,16 @@ const Conversion = ({
                            if (!val.includes("/")) setShowTemplates(false);
                         }}
                         placeholder="Type a message..."
-                        className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
+                        className="flex-1 min-w-0 bg-transparent border-none outline-none text-[13px] px-2 text-slate-800 placeholder:text-slate-400"
                      />
-                     <div className="flex items-center gap-1.5 pr-1 shrink-0">
+                     <div className="flex items-center gap-1 pr-1 shrink-0">
                         <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </button>
-                        <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
+                        <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-1.5 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
                            <BoltIcon className="w-5 h-5" />
                         </button>
-                        <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                        <button type="submit" disabled={!inputText || !inputText.trim()} className="w-9 h-9 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
                            <PaperAirplaneIcon className="w-4 h-4" />
                         </button>
                      </div>

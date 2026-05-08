@@ -153,9 +153,9 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
       <div className="relative bg-white rounded-3xl shadow-2xl w-[95vw] max-w-5xl h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
-        <div className="px-8 py-6 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-white shrink-0">
           <div>
-            <h2 className="text-2xl font-black text-gray-900">Map CSV Columns</h2>
+            <h2 className="text-xl font-black text-gray-900">Map CSV Columns</h2>
             <p className="text-sm text-gray-500 mt-1">
               Reconcile your spreadsheet headers with CRM attributes.
             </p>
@@ -169,9 +169,9 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto px-8 py-6 bg-gray-50">
+        <div className="flex-1 overflow-y-auto px-6 py-4.5 bg-gray-50">
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-6">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
             <div className="flex items-center gap-4 ml-auto">
               <div className="px-4 py-2.5 bg-white border border-gray-200 rounded-xl flex items-center gap-3 shadow-sm">
                 <div className="flex flex-col">
@@ -197,7 +197,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
           </div>
 
           {!phoneIsMapped && (
-            <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-4">
+            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-4">
               <div className="p-2 bg-amber-100 rounded-lg shrink-0">
                 <ExclamationTriangleIcon className="w-5 h-5 text-amber-600" />
               </div>
@@ -211,20 +211,20 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
           )}
 
           {uploadErr && (
-            <div className="mb-6 bg-red-50 border border-red-200 rounded-xl p-4 flex items-center gap-3">
+            <div className="mb-4 bg-red-50 border border-red-200 rounded-xl p-3.5 flex items-center gap-3">
               <ExclamationTriangleIcon className="w-5 h-5 text-red-500 shrink-0" />
               <p className="text-sm font-semibold text-red-700">{uploadErr}</p>
             </div>
           )}
 
-          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-6">
+          <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-4">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest w-1/4">Source Column</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest w-1/4">Sample Data</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Map to Field</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center w-32">Status</th>
+                  <th className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest w-1/4">Source Column</th>
+                  <th className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest w-1/4">Sample Data</th>
+                  <th className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest">Map to Field</th>
+                  <th className="px-5 py-3 text-[11px] font-bold text-gray-400 uppercase tracking-widest text-center w-32">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -234,13 +234,13 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
 
                   return (
                     <tr key={header} className="hover:bg-gray-50/60 transition-colors">
-                      <td className="px-6 py-4">
+                      <td className="px-5 py-2.5">
                         <span className="text-sm font-bold text-gray-900 uppercase tracking-tight">{header}</span>
                       </td>
-                      <td className="px-6 py-4 max-w-[180px]">
+                      <td className="px-5 py-2.5 max-w-[180px]">
                         <span className="text-xs italic text-gray-400 truncate block">{getSample(header)}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-5 py-2.5">
                         <div className="relative">
                           <select
                             value={val}
@@ -254,7 +254,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
                           <ChevronDownIcon className={`absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none ${auto ? "text-emerald-500" : "text-gray-400"}`} />
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-5 py-2.5 text-center">
                         <StatusBadge mapping={val} isAuto={auto} />
                       </td>
                     </tr>
@@ -274,7 +274,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
             )}
           </div>
 
-          <div className="flex items-center gap-5 p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+          <div className="flex items-center gap-5 p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
             <div className="w-11 h-11 bg-blue-50 rounded-full flex items-center justify-center shrink-0">
               <InformationCircleIcon className="w-5 h-5 text-blue-500" />
             </div>
@@ -288,7 +288,7 @@ export default function MapFieldsModal({ file, headers, sampleRows, onClose, onS
         </div>
 
         {/* Footer */}
-        <div className="bg-white border-t border-gray-100 py-5 px-8 shrink-0 flex items-center justify-end gap-4">
+        <div className="bg-white border-t border-gray-100 py-3.5 px-6 shrink-0 flex items-center justify-end gap-4">
           <button
             onClick={onClose}
             className="px-6 py-2.5 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors"

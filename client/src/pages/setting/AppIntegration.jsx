@@ -438,7 +438,7 @@ const ConfigureModal = ({ integration, onClose }) => {
       {/* modal card */}
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[540px] max-h-[90vh] overflow-y-auto animate-in">
         {/* ── header ── */}
-        <div className="flex items-start justify-between px-7 pt-7 pb-4">
+        <div className="flex items-start justify-between px-5 pt-5 pb-3">
           <div className="flex items-center gap-3">
             {integration.smallIcon}
             <div>
@@ -458,7 +458,7 @@ const ConfigureModal = ({ integration, onClose }) => {
           </button>
         </div>
 
-        <div className="px-7 pb-7">
+        <div className="px-5 pb-5">
           {/* ── STEP 1 : Account Connection ── */}
           <div className="mb-6">
             <div className="flex items-center gap-2 mb-3">
@@ -501,13 +501,10 @@ const ConfigureModal = ({ integration, onClose }) => {
             {/* mapping table */}
             <div className="border border-slate-200 rounded-xl overflow-hidden">
               {/* table header */}
-              <div className="grid grid-cols-2 bg-slate-50 border-b border-slate-200">
-                <div className="px-5 py-2.5">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     MessBee Fields
                   </span>
                 </div>
-                <div className="px-5 py-2.5">
+                <div className="px-4 py-2">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                     Sheet Columns
                   </span>
@@ -521,12 +518,12 @@ const ConfigureModal = ({ integration, onClose }) => {
                   className={`grid grid-cols-2 items-center ${index < fieldMappings.length - 1 ? "border-b border-slate-100" : ""
                     }`}
                 >
-                  <div className="px-5 py-3.5">
+                  <div className="px-4 py-2.5">
                     <span className="text-sm font-medium text-slate-700">
                       {field.messbeeField}
                     </span>
                   </div>
-                  <div className="px-5 py-2.5">
+                  <div className="px-4 py-2">
                     <div className="relative">
                       <select
                         value={field.sheetColumn}
@@ -662,7 +659,7 @@ const IntegrationCard = ({ integration, isInstalled, onInstall, onConfigure }) =
 
   return (
     <div
-      className={`bg-white rounded-2xl border border-slate-200 p-5 flex flex-col justify-between hover:shadow-lg hover:border-slate-300 transition-all duration-300 group ${isComingSoon ? "opacity-80" : ""
+      className={`bg-white rounded-2xl border border-slate-200 p-4 flex flex-col justify-between hover:shadow-lg hover:border-slate-300 transition-all duration-300 group ${isComingSoon ? "opacity-80" : ""
         }`}
     >
       {/* top section */}
@@ -694,7 +691,7 @@ const SyncHistoryView = ({ onBack }) => {
   const totalRecords = 1240;
 
   return (
-    <div className="p-6 min-h-screen overflow-y-auto">
+    <div className="p-4 md:p-5 min-h-screen overflow-y-auto">
       {/* ── header ── */}
       <div className="flex items-start justify-between mb-6">
         <div className="flex items-start gap-3">
@@ -705,7 +702,7 @@ const SyncHistoryView = ({ onBack }) => {
             <ArrowLeft className="w-4 h-4 text-slate-600" />
           </button>
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-800">Sync History</h1>
+            <h1 className="text-xl font-extrabold text-slate-800">Sync History</h1>
             <p className="text-sm text-slate-400 mt-0.5">
               Monitor and audit your automated workflows and data transfers.
             </p>
@@ -783,7 +780,7 @@ const SyncHistoryView = ({ onBack }) => {
 
       {/* ── data table ── */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-        <div className="grid grid-cols-[100px_1fr_1fr_100px_100px_1fr_80px] gap-4 px-6 py-3.5 bg-slate-50 border-b border-slate-200">
+        <div className="grid grid-cols-[100px_1fr_1fr_100px_100px_1fr_80px] gap-4 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Status</span>
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Integration</span>
           <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Operation</span>
@@ -796,7 +793,7 @@ const SyncHistoryView = ({ onBack }) => {
         {syncHistoryData.map((row, index) => (
           <div
             key={row.id}
-            className={`grid grid-cols-[100px_1fr_1fr_100px_100px_1fr_80px] gap-4 px-6 py-4 items-center border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${index === syncHistoryData.length - 1 ? "border-b-0" : ""
+            className={`grid grid-cols-[100px_1fr_1fr_100px_100px_1fr_80px] gap-4 px-4 py-2.5 items-center border-b border-slate-100 hover:bg-slate-50/50 transition-colors ${index === syncHistoryData.length - 1 ? "border-b-0" : ""
               }`}
           >
             <div>

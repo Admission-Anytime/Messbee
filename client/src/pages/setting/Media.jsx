@@ -51,7 +51,7 @@ function DeleteConfirmModal({ asset, onConfirm, onCancel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onCancel}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-5"
         style={{ animation: "popIn 0.2s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -108,7 +108,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
 
   if (viewMode === "list") {
     return (
-      <div className={`flex items-center gap-4 bg-white border rounded-xl px-4 py-3 hover:shadow-sm transition group ${selected ? "border-red-200 bg-red-50/30" : "border-gray-100 hover:border-gray-200"}`}>
+      <div className={`flex items-center gap-4 bg-white border rounded-xl px-3 py-2 hover:shadow-sm transition group ${selected ? "border-red-200 bg-red-50/30" : "border-gray-100 hover:border-gray-200"}`}>
         {/* Checkbox */}
         <button onClick={() => onSelect(asset.id)} className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition ${selected ? "bg-red-500 border-red-500" : "border-gray-300 hover:border-red-400"}`}>
           {selected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
@@ -203,7 +203,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
       </div>
 
       {/* Info row */}
-      <div className="flex items-center justify-between px-3 py-2.5">
+      <div className="flex items-center justify-between px-3 py-2">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
           <p className="text-xs text-gray-400 mt-0.5">{asset.size} • {asset.ext}</p>
@@ -541,7 +541,7 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-6 pb-4">
+        <div className="flex items-start justify-between px-5 pt-5 pb-3">
           <div>
             <h3 className="text-xl font-bold text-gray-900">Upload Assets</h3>
             <p className="text-sm text-gray-400 mt-0.5">Max file size 25MB</p>
@@ -549,7 +549,7 @@ function UploadModal({ open, onClose, onUploadComplete, activeTab = "All Assets"
           <button onClick={handleRequestClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition text-xl">×</button>
         </div>
 
-        <div className="px-6 pb-6 overflow-y-auto">
+        <div className="px-5 pb-5 overflow-y-auto">
           {/* Drop Zone */}
           <div
             onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -772,12 +772,12 @@ export default function MediaGallery() {
 
       <div className="min-h-screen bg-gray-50 flex flex-col">
         {/* ── MAIN CONTENT ── */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-4 md:p-5">
 
           {/* Header */}
           <div className="flex items-start justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Media Gallery</h1>
+              <h1 className="text-xl font-bold text-gray-900">Media Gallery</h1>
               <p className="text-sm text-gray-400 mt-0.5">Manage all digital assets for your WhatsApp campaigns</p>
             </div>
             <div className="flex items-center gap-3">

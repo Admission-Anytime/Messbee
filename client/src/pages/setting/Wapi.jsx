@@ -20,7 +20,7 @@ function Modal({ open, onClose, title, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-5"
         style={{ animation: "popIn 0.2s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -158,7 +158,7 @@ function HealthDiagnosticModal({ open, onClose }) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4" style={{ animation: "popIn 0.25s ease" }}>
 
         {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
+        <div className="flex items-start justify-between px-5 pt-5 pb-3.5 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center">
               <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -177,7 +177,7 @@ function HealthDiagnosticModal({ open, onClose }) {
         <div className="flex divide-x divide-gray-100">
 
           {/* Left — Score */}
-          <div className="w-64 flex-shrink-0 p-6 flex flex-col items-center">
+          <div className="w-64 flex-shrink-0 p-5 flex flex-col items-center">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Overall Score</p>
 
             {/* Circular score */}
@@ -224,7 +224,7 @@ function HealthDiagnosticModal({ open, onClose }) {
           </div>
 
           {/* Right — Endpoint list */}
-          <div className="flex-1 p-6">
+          <div className="flex-1 p-5">
             <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Endpoint Latency &amp; Status</p>
             <div className="space-y-3">
               {ENDPOINTS.map((ep) => {
@@ -267,7 +267,7 @@ function HealthDiagnosticModal({ open, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+        <div className="flex items-center justify-between px-5 py-3.5 border-t border-gray-100">
           <button
             onClick={handleExportDiagnostic}
             disabled={!done}
@@ -366,7 +366,7 @@ function TestConnectionModal({ open, onClose, onDone }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={phase === "done" ? onClose : undefined}>
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6"
         style={{ animation: "popIn 0.25s ease" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -729,12 +729,12 @@ export default function WhatsAppConfig() {
         @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
 
-      <div className="min-h-screen bg-gray-50 p-6">
+      <div className="min-h-screen bg-gray-50 p-4 md:p-5">
 
         {/* ── HEADER ── */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">WhatsApp Configuration</h1>
+            <h1 className="text-xl font-bold text-gray-900">WhatsApp Configuration</h1>
             <p className="text-sm text-gray-500 mt-0.5">Manage Business API credentials, health diagnostics, and webhooks.</p>
             {hasChanges && (
               <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
@@ -760,7 +760,7 @@ export default function WhatsAppConfig() {
         </div>
 
         {/* ── STATUS BAR ── */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 mb-5 flex flex-wrap items-center gap-6 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-3.5 mb-4 flex flex-wrap items-center gap-6 shadow-sm">
           <div className="flex items-center gap-3">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center ${connectionStatus === "Active" ? "bg-green-50" : connectionStatus === "Checking..." ? "bg-amber-50" : "bg-red-50"}`}>
               <span className="text-lg">📶</span>
@@ -797,11 +797,11 @@ export default function WhatsAppConfig() {
         </div>
 
         {/* ── API CREDENTIALS + WEBHOOK ── */}
-        <div className="grid grid-cols-2 gap-5 mb-5">
+        <div className="grid grid-cols-2 gap-4 mb-4">
 
           {/* API Credentials */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-4.5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-yellow-50 flex items-center justify-center">🔑</div>
                 <h2 className="font-bold text-gray-800">API Credentials</h2>
@@ -853,8 +853,8 @@ export default function WhatsAppConfig() {
           </div>
 
           {/* Webhook Settings */}
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-5">
+          <div className="bg-white border border-gray-200 rounded-xl p-4.5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">🔗</div>
                 <h2 className="font-bold text-gray-800">Webhook Settings</h2>
@@ -931,8 +931,8 @@ export default function WhatsAppConfig() {
         </div>
 
         {/* ── SUBSCRIBED EVENTS ── */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
-          <div className="flex items-center justify-between mb-5">
+        <div className="bg-white border border-gray-200 rounded-xl p-4.5 mb-4 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-lg bg-purple-50 flex items-center justify-center">📬</div>
               <div>
@@ -950,7 +950,7 @@ export default function WhatsAppConfig() {
               <div
                 key={key}
                 onClick={() => setEvents((prev) => ({ ...prev, [key]: !prev[key] }))}
-                className={`flex items-center justify-between p-4 border rounded-xl cursor-pointer select-none transition-all duration-200 ${events[key] ? "border-green-200 bg-green-50 hover:bg-green-100" : "border-gray-100 bg-gray-50 hover:bg-gray-100"}`}
+                className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer select-none transition-all duration-200 ${events[key] ? "border-green-200 bg-green-50 hover:bg-green-100" : "border-gray-100 bg-gray-50 hover:bg-gray-100"}`}
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-8 h-8 rounded-lg border flex items-center justify-center text-sm shadow-sm transition ${events[key] ? "bg-white border-green-200" : "bg-white border-gray-200"}`}>{icon}</div>
@@ -966,7 +966,7 @@ export default function WhatsAppConfig() {
         </div>
 
         {/* ── TWO-STEP VERIFICATION ── */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
+        <div className="bg-white border border-gray-200 rounded-xl p-4.5 mb-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">🛡️</div>
@@ -997,7 +997,7 @@ export default function WhatsAppConfig() {
         </div>
 
         {/* ── UNLINK SECTION ── */}
-        <div className={`rounded-xl p-5 flex items-center justify-between shadow-sm border transition-all ${disconnected ? "bg-red-50 border-red-200" : "bg-white border-red-100"}`}>
+        <div className={`rounded-xl p-4.5 flex items-center justify-between shadow-sm border transition-all ${disconnected ? "bg-red-50 border-red-200" : "bg-white border-red-100"}`}>
           <div>
             <h3 className="font-bold text-red-500 text-sm">Unlink WhatsApp Number</h3>
             <p className="text-xs text-red-400 mt-0.5">

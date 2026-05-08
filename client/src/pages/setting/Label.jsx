@@ -132,12 +132,12 @@ const Label = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="p-3 md:p-4 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-5">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Labels</h1>
-          <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
+          <h1 className="text-xl font-bold tracking-tight text-gray-800">Labels</h1>
+          <span className="text-gray-400 cursor-pointer text-base hover:text-gray-600">ⓘ</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center bg-blue-50 border border-blue-100 px-4 py-1.5 rounded-full">
@@ -170,11 +170,11 @@ const Label = () => {
             <tbody className="divide-y divide-gray-100">
               {Array.from({ length: 5 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-50">
-                  <td className="px-6 py-4"><div className="h-5 bg-gray-200 animate-pulse rounded w-24" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
-                  <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                  <td className="px-4 py-2.5"><div className="h-5 bg-gray-200 animate-pulse rounded w-24" /></td>
+                  <td className="px-4 py-2.5"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
+                  <td className="px-4 py-2.5"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
+                  <td className="px-4 py-2.5"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
+                  <td className="px-4 py-2.5"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -191,43 +191,43 @@ const Label = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-200">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {Array.isArray(labels) && labels.map((label) => (
                 <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2.5 py-1 rounded-md text-[13px] font-semibold`}>
+                  <td className="px-4 py-2">
+                    <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2 py-1 rounded-md text-[12px] font-bold`}>
                       {label.name}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-gray-500 text-[13px] font-medium leading-relaxed">{label.desc}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-3.5 h-3.5 rounded-full shadow-inner" style={{ backgroundColor: label.color }}></span>
-                      <span className="text-gray-400 font-mono text-[12px] uppercase tracking-tighter">{label.color}</span>
+                  <td className="px-4 py-2 text-gray-500 text-[12px] font-medium leading-relaxed">{label.desc}</td>
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <span className="w-3 h-3 rounded-full shadow-inner" style={{ backgroundColor: label.color }}></span>
+                      <span className="text-gray-400 font-mono text-[11px] uppercase tracking-tighter">{label.color}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200">
+                  <td className="px-4 py-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-[9px] font-black text-gray-500 border border-gray-200">
                         {label.isSystem ? 'WT' : 'AM'}
                       </div>
-                      <span className="text-gray-700 text-[13px] font-semibold">{label.creator}</span>
+                      <span className="text-gray-700 text-[12px] font-bold">{label.creator}</span>
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-2 text-right">
                     <div className="flex justify-end gap-3 text-gray-400">
                       <button onClick={() => handleOpenModal(label)} className="hover:text-blue-500 transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                       </button>
                       <button onClick={() => confirmDelete(label)} className="hover:text-red-500 transition-colors">
-                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                       </button>
                     </div>
                   </td>

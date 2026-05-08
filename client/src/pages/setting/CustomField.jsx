@@ -388,11 +388,11 @@ const CustomFieldsSection = () => {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="p-3 md:p-4 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Custom Fields</h1>
+          <h1 className="text-xl font-bold tracking-tight text-gray-800">Custom Fields</h1>
           <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -424,23 +424,23 @@ const CustomFieldsSection = () => {
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-200">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {Array.from({ length: 8 }).map((_, i) => (
                 <tr key={i} className="border-b border-gray-50">
-                  <td className="px-6 py-4"><div className="h-4 bg-gray-200 animate-pulse rounded w-32" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-24 font-mono" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
-                  <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                  <td className="px-4 py-3"><div className="h-4 bg-gray-200 animate-pulse rounded w-32" /></td>
+                  <td className="px-4 py-3"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
+                  <td className="px-4 py-3"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
+                  <td className="px-4 py-3"><div className="h-3 bg-gray-200 animate-pulse rounded w-24 font-mono" /></td>
+                  <td className="px-4 py-3"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
+                  <td className="px-4 py-3"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
                 </tr>
               ))}
             </tbody>
@@ -458,12 +458,12 @@ const CustomFieldsSection = () => {
             <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-200">
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
               </thead>
 
@@ -474,25 +474,25 @@ const CustomFieldsSection = () => {
                   return (
                     <tr key={field._id || field.key} className="hover:bg-gray-50/50 transition-colors">
 
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="text-sm font-medium text-gray-900 truncate" title={field.name}>{field.name}</div>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="text-gray-500 text-[13px] font-medium leading-relaxed truncate" title={field.description}>{field.description || '-'}</div>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <span className="px-2.5 py-1 text-xs text-gray-600 bg-gray-100 rounded-md font-semibold">
                           {field.type.toLowerCase()}
                         </span>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="text-sm text-gray-600 font-mono truncate" title={field.key}>{field.key}</div>
                       </td>
 
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div className="w-7 h-7 bg-gray-100 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-500 border border-gray-200 flex-shrink-0">
                             {field.createdBy.initials}
@@ -502,7 +502,7 @@ const CustomFieldsSection = () => {
                       </td>
 
                       {/* Single toggle: controls both isActive + showInContacts together */}
-                      <td className="px-6 py-4">
+                      <td className="px-4 py-2.5">
                         <div className="flex items-center gap-3 justify-end text-gray-400">
                           <ToggleSwitch
                             checked={field.isActive}
@@ -535,7 +535,7 @@ const CustomFieldsSection = () => {
             </table>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
+            <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-200">
               <div className="text-sm text-gray-600 font-medium">
                 Showing {(fields?.length || 0) === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields?.length || 0)} of {fields?.length || 0} custom fields
               </div>
@@ -591,12 +591,12 @@ const CustomFieldsSection = () => {
       {isCreateOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200">
-            <div className="sticky top-0 bg-white flex justify-between items-center px-6 py-4 border-b z-10">
+            <div className="sticky top-0 bg-white flex justify-between items-center px-5 py-3 border-b z-10">
               <h2 className="text-[17px] font-bold text-gray-800">Create Custom Field</h2>
               <button type="button" onClick={closeCreateModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light transition-colors leading-none">&times;</button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-5 space-y-4">
               <form onSubmit={handleCreate} id="createForm">
 
                 <div className="mb-5">
@@ -643,7 +643,7 @@ const CustomFieldsSection = () => {
               </form>
             </div>
 
-            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
+            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-5 py-3.5 border-t">
               <button type="button" onClick={closeCreateModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
               <button type="submit" form="createForm" disabled={!!createError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${createError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Create Field</button>
             </div>
@@ -655,12 +655,12 @@ const CustomFieldsSection = () => {
       {isEditOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" role="dialog" aria-modal="true">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[440px] max-h-[90vh] overflow-y-auto animate-in zoom-in duration-200">
-            <div className="sticky top-0 bg-white flex justify-between items-center px-6 py-4 border-b z-10">
+            <div className="sticky top-0 bg-white flex justify-between items-center px-5 py-3 border-b z-10">
               <h2 className="text-[17px] font-bold text-gray-800">Edit Custom Field</h2>
               <button type="button" onClick={closeEditModal} className="text-gray-400 hover:text-gray-600 text-2xl font-light transition-colors leading-none">&times;</button>
             </div>
 
-            <div className="p-6 space-y-5">
+            <div className="p-5 space-y-4">
               <form onSubmit={handleEditSave} id="editForm">
 
                 <div className="mb-5">
@@ -699,7 +699,7 @@ const CustomFieldsSection = () => {
               </form>
             </div>
 
-            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
+            <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-5 py-3.5 border-t">
               <button type="button" onClick={closeEditModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
               <button type="submit" form="editForm" disabled={!!editError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${editError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Save Changes</button>
             </div>

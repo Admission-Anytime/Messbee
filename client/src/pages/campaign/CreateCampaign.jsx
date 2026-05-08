@@ -459,7 +459,7 @@ const CreateCampaign = () => {
                 </div>
 
                 {/* Stepper */}
-                <div className={`flex justify-center py-8 ${currentStep === 3 ? 'bg-gray-50 border-b border-gray-200' : ''}`}>
+                <div className={`flex justify-center py-5 ${currentStep === 3 ? 'bg-gray-50 border-b border-gray-200' : ''}`}>
                     <div className="flex items-center w-full max-w-md">
                         <Step number={1} label="Select Audience" active={currentStep >= 1} current={currentStep === 1} />
                         <div className={`flex-1 h-px mx-2 mb-6 ${currentStep >= 2 ? 'bg-emerald-500' : 'bg-gray-200'}`} />
@@ -471,14 +471,14 @@ const CreateCampaign = () => {
 
                 {/* Step Content */}
                 {currentStep === 1 && (
-                    <div className="px-12 pb-12 transition-all duration-300">
-                        <div className="mb-6">
+                    <div className="px-6 md:px-10 pb-10 transition-all duration-300">
+                        <div className="mb-5">
                             <h2 className="text-xl font-bold text-slate-800">Create a New Campaign</h2>
                             <p className="text-gray-500 mt-1">Give your campaign a name, then select the audience to reach.</p>
                         </div>
 
                         {/* Campaign Name Input */}
-                        <div className="mb-6 p-5 rounded-xl border-2 border-gray-100 bg-white">
+                        <div className="mb-5 p-4 rounded-xl border-2 border-gray-100 bg-white shadow-sm">
                             <label className="block text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">
                                 Campaign Name <span className="text-red-400">*</span>
                             </label>
@@ -513,7 +513,7 @@ const CreateCampaign = () => {
                             {/* Option 2: Filter by Labels */}
                             <div
                                 onClick={() => setSelectedOption('labels')}
-                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'labels' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'
+                                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'labels' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'
                                     }`}
                             >
                                 <div className="flex items-start gap-4">
@@ -558,7 +558,7 @@ const CreateCampaign = () => {
                             {/* Option 2.5: Filter by Status */}
                             <div
                                 onClick={() => setSelectedOption('status')}
-                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'status' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'
+                                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'status' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'
                                     }`}
                             >
                                 <div className="flex items-start gap-4">
@@ -594,7 +594,7 @@ const CreateCampaign = () => {
                                     setSelectedOption('csv');
                                     fileInputRef.current.click();
                                 }}
-                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'csv' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'}`}
+                                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'csv' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'}`}
                             >
                                 <div className="flex items-start gap-4">
                                     <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedOption === 'csv' ? 'border-emerald-500' : 'border-gray-300'}`}>
@@ -637,7 +637,7 @@ const CreateCampaign = () => {
                         </div>
 
                         {/* Footer Info & Actions */}
-                        <div className="mt-12 pt-8 border-t border-gray-100 flex items-center justify-between">
+                        <div className="mt-8 pt-6 border-t border-gray-100 flex items-center justify-between">
                             <div className="flex items-center gap-2 text-sm text-gray-500">
                                 <div className="w-4 h-4 bg-gray-400 text-white rounded-full flex items-center justify-center text-[10px] italic font-serif">i</div>
                                 <span>Estimated audience: <strong className="text-slate-800 font-bold">{estimatedCount.toLocaleString()} contacts</strong></span>
@@ -649,7 +649,7 @@ const CreateCampaign = () => {
                                 <button
                                     onClick={nextStep}
                                     disabled={campaignName.trim() === ''}
-                                    className={`px-8 py-2.5 rounded-lg font-bold text-white flex items-center gap-2 transition-colors ${campaignName.trim() === '' ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                                    className={`px-6 py-2 rounded-lg font-bold text-white flex items-center gap-2 transition-colors ${campaignName.trim() === '' ? 'bg-emerald-300 cursor-not-allowed' : 'bg-emerald-500 hover:bg-emerald-600'}`}
                                 >
                                     Next <ArrowRight className="w-4 h-4" />
                                 </button>
@@ -661,7 +661,7 @@ const CreateCampaign = () => {
                 {currentStep === 2 && (
                     <div className="flex h-[calc(100vh-200px)]">
                         {/* LEFT SIDE: Template Selection */}
-                        <div className="w-1/2 px-12 overflow-y-auto border-r border-gray-100">
+                        <div className="w-1/2 px-6 md:px-10 overflow-y-auto border-r border-gray-100">
                             {/* Filters */}
                             <div className="flex gap-4 mb-6">
                                 <div className="relative flex-1">
@@ -685,7 +685,7 @@ const CreateCampaign = () => {
                                     <div
                                         key={template.id}
                                         onClick={() => setSelectedTemplate(template.id)}
-                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md relative group ${selectedTemplate === template.id
+                                        className={`p-3.5 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md relative group ${selectedTemplate === template.id
                                             ? 'border-emerald-500 bg-emerald-50/10'
                                             : 'border-gray-100 bg-white hover:border-gray-200'
                                             }`}
@@ -725,7 +725,7 @@ const CreateCampaign = () => {
                         </div>
 
                         {/* RIGHT SIDE: Preview */}
-                        <div className="w-1/2 bg-slate-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
+                        <div className="w-1/2 bg-slate-50 flex flex-col items-center justify-center p-4 relative overflow-hidden">
 
                             {/* Mobile Mockup */}
                             <div className="relative w-[280px] h-[400px] flex-shrink-0 bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden transition-transform">
@@ -785,7 +785,7 @@ const CreateCampaign = () => {
 
                 {/* Step 3 Content (Schedule) */}
                 {currentStep === 3 && (
-                    <div className="flex flex-col md:flex-row gap-8 px-12 pt-10 pb-12 bg-gray-50 min-h-[calc(100vh-140px)]">
+                    <div className="flex flex-col md:flex-row gap-6 px-6 md:px-10 pt-8 pb-10 bg-gray-50 min-h-[calc(100vh-140px)]">
                         {/* Left Column */}
                         <div className="flex-1 space-y-6">
                             <div className="mb-2">
@@ -796,7 +796,7 @@ const CreateCampaign = () => {
                             {/* Option 1: Send Now */}
                             <div
                                 onClick={() => setScheduleOption('now')}
-                                className={`p-6 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all bg-white hover:shadow-sm ${scheduleOption === 'now' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200'
+                                className={`p-5 rounded-xl border-2 cursor-pointer flex items-center justify-between transition-all bg-white hover:shadow-sm ${scheduleOption === 'now' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">

@@ -679,9 +679,9 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <button onClick={onBack} className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 transition"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg></button>
-          <h2 className="text-2xl font-bold text-gray-900">Role: {displayRole}</h2>
-          <span className="w-7 h-7 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{totalCount}</span>
+          <button onClick={onBack} className="w-7 h-7 flex items-center justify-center rounded-xl hover:bg-gray-100 text-gray-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg></button>
+          <h2 className="text-xl font-bold text-gray-900">Role: {displayRole}</h2>
+          <span className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center text-[10px] font-bold text-gray-600">{totalCount}</span>
         </div>
         <button className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>
@@ -712,9 +712,9 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
 
       <div className="bg-white border border-gray-200 rounded-2xl overflow-visible shadow-sm mb-5">
         {/* Table header */}
-        <div className="grid grid-cols-[2.5fr_1.2fr_1.2fr_1fr_1fr] px-6 py-3 border-b border-gray-100 bg-gray-50/60">
+        <div className="grid grid-cols-[2.5fr_1.2fr_1.2fr_1fr_1fr] px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">
           {["MEMBER","DATE ADDED","LAST ACTIVE","STATUS","ACTIONS"].map(h=>(
-            <p key={h} className="text-xs font-bold text-gray-400 tracking-wider">{h}</p>
+            <p key={h} className="text-[10px] font-bold text-gray-400 tracking-wider">{h}</p>
           ))}
         </div>
 
@@ -722,7 +722,7 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
           <div className="py-16 text-center text-gray-400"><p className="font-semibold">No members found</p></div>
         ) : (
           paginated.map((member,idx)=>(
-            <div key={member.id} className={`relative grid grid-cols-[2.5fr_1.2fr_1.2fr_1fr_1fr] px-6 py-4 items-center hover:bg-gray-50/40 transition ${idx<paginated.length-1?"border-b border-gray-100":""}`}>
+            <div key={member.id} className={`relative grid grid-cols-[2.5fr_1.2fr_1.2fr_1fr_1fr] px-4 py-2.5 items-center hover:bg-gray-50/40 transition ${idx<paginated.length-1?"border-b border-gray-100":""}`}>
               {/* Member info */}
               <div className="flex items-center gap-3">
                 <Avatar member={member} size="sm"/>
@@ -772,8 +772,8 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
         )}
 
         {/* Pagination */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40">
-          <p className="text-sm text-gray-500">Showing {Math.min((page-1)*PAGE_SIZE_ROLE+1,members.length)}–{Math.min(page*PAGE_SIZE_ROLE,members.length)} of {totalCount} members</p>
+        <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 bg-gray-50/40">
+          <p className="text-[12px] text-gray-500">Showing {Math.min((page-1)*PAGE_SIZE_ROLE+1,members.length)}–{Math.min(page*PAGE_SIZE_ROLE,members.length)} of {totalCount} members</p>
           <div className="flex items-center gap-1">
             <button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 hover:bg-gray-100 disabled:opacity-40 transition text-gray-500">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
@@ -899,32 +899,7 @@ function CustomRoleCard({data,onDelete,onView}){
           : <ul className="space-y-2">
               {preview.map(p=>(
                 <li key={p} className="flex items-center gap-2">
-                  <svg className="w-4 h-4 flex-shrink-0 text-purple-400" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
-                  <span className="text-sm text-gray-600">{p}</span>
-                </li>
-              ))}
-              {enabledPerms.length>5&&<li className="text-xs text-gray-400 pl-6">+{enabledPerms.length-5} more permissions</li>}
-            </ul>
-        }
-      </div>
-
-      <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
-        <button onClick={onView} className="flex items-center gap-1.5 text-sm font-semibold text-purple-500 hover:text-purple-600 transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          View Members
-        </button>
-        <button onClick={onDelete}
-          className="flex items-center gap-1 text-sm font-semibold text-red-400 hover:text-red-600 transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-          Delete
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main ──────────────────────────────────────────────────────────────────────
-export default function ManageTeams(){
+                  <svg className="w-4 h-4 flex-shrink-0 text-purple-400" export default function ManageTeams(){
   const [activeTab,setActiveTab]=useState("Members");
   const [members,setMembers]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1009,10 +984,10 @@ export default function ManageTeams(){
       <EditMemberModal member={editTarget} open={!!editTarget} onClose={()=>setEditTarget(null)} onSave={(id,u)=>setMembers(p=>p.map(m=>m.id===id?{...m,...u}:m))} toast={showToast}/>
       <RemoveMemberModal member={removeTarget} open={!!removeTarget} onClose={()=>setRemoveTarget(null)} onConfirm={id=>setMembers(p=>p.filter(m=>m.id!==id))} toast={showToast}/>
 
-      <div className="min-h-screen bg-[#f8fafc] p-6">
+      <div className="min-h-screen bg-[#f8fafc] p-3 md:p-4 lg:p-5">
         {!isViewMode&&(
           <div className="flex items-start justify-between mb-6">
-            <div><h1 className="text-2xl font-bold text-gray-900">Team Management</h1><p className="text-sm text-gray-400 mt-0.5">Manage user access and organizational permissions</p></div>
+            <div><h1 className="text-xl font-bold text-gray-900">Team Management</h1><p className="text-xs text-gray-400 mt-0.5">Manage user access and organizational permissions</p></div>
             {activeTab==="Members"?(
               <button onClick={()=>setShowInvite(true)} className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/></svg>Invite Member</button>
             ):isEditView?(
@@ -1027,9 +1002,9 @@ export default function ManageTeams(){
         )}
 
         {!isViewMode&&(
-          <div className="flex gap-6 border-b border-gray-200 mb-6">
+          <div className="flex gap-6 border-b border-gray-200 mb-5">
             {["Members","Roles & Permissions"].map(tab=>(
-              <button key={tab} onClick={()=>{setActiveTab(tab);setRolesView(null);}} className={`pb-3 text-sm font-semibold transition-all relative whitespace-nowrap ${activeTab===tab?"text-green-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-green-500 after:rounded-t":"text-gray-400 hover:text-gray-600"}`}>{tab}</button>
+              <button key={tab} onClick={()=>{setActiveTab(tab);setRolesView(null);}} className={`pb-2.5 text-[13px] font-bold transition-all relative whitespace-nowrap ${activeTab===tab?"text-green-600 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-green-500 after:rounded-t":"text-gray-400 hover:text-gray-600"}`}>{tab}</button>
             ))}
           </div>
         )}
@@ -1038,11 +1013,11 @@ export default function ManageTeams(){
           <>
             <div className="mb-4"><div className="relative inline-block"><svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><input type="text" placeholder="Search by name or email..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} className="pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition w-72"/></div></div>
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-6 shadow-sm" style={{animation:"fadeUp 0.3s ease"}}>
-              <div className="grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-3 border-b border-gray-100 bg-gray-50/60">{["NAME","ROLE","STATUS","LAST ACTIVE","ACTIONS"].map(h=><p key={h} className="text-xs font-bold text-gray-400 tracking-wider">{h}</p>)}</div>
-              {paginated.length===0?(<div className="py-16 text-center text-gray-400"><p className="font-semibold">No members found</p></div>):(paginated.map((member,idx)=>(<div key={member.id} className={`grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-4 items-center hover:bg-gray-50/50 transition ${idx<paginated.length-1?"border-b border-gray-100":""}`}><div className="flex items-center gap-3"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-sm ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>setRemoveTarget(member)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>setRemoveTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
-              <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:Math.max(totalPages,3)},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
+              <div className="grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-4 py-2.5 border-b border-gray-100 bg-gray-50/60">{["NAME","ROLE","STATUS","LAST ACTIVE","ACTIONS"].map(h=><p key={h} className="text-[10px] font-bold text-gray-400 tracking-wider">{h}</p>)}</div>
+              {paginated.length===0?(<div className="py-16 text-center text-gray-400"><p className="font-semibold">No members found</p></div>):(paginated.map((member,idx)=>(<div key={member.id} className={`grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-4 py-3 items-center hover:bg-gray-50/50 transition ${idx<paginated.length-1?"border-b border-gray-100":""}`}><div className="flex items-center gap-3"><Avatar member={member} size="sm"/><div><p className="text-[13px] font-bold text-gray-800">{member.name}</p><p className="text-[11px] text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-[12px] ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-[12px] font-bold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>setRemoveTarget(member)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>setRemoveTarget(member)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
+              <div className="flex items-center justify-between px-4 py-2.5 border-t border-gray-100 bg-gray-50/40"><p className="text-[12px] text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-2.5 py-1.5 text-[11px] font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:Math.max(totalPages,3)},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-7 h-7 text-[11px] font-bold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-2.5 py-1.5 text-[11px] font-bold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
             </div>
-            <div className="grid grid-cols-3 gap-4">{[{label:"ADMINS",count:admins,sub:"Total active",icon:"🛡️",color:"text-green-600 bg-green-50"},{label:"MANAGERS",count:managers,sub:"Total active",icon:"👥",color:"text-blue-600 bg-blue-50"},{label:"AGENTS",count:agents,sub:"Across 3 teams",icon:"🎧",color:"text-purple-600 bg-purple-50"}].map(({label,count,sub,icon,color})=>(<div key={label} className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm flex items-center justify-between"><div><p className="text-xs font-bold text-gray-400 tracking-widest mb-1">{label}</p><div className="flex items-baseline gap-2"><span className="text-3xl font-black text-gray-900">{count}</span><span className="text-sm text-gray-400">{sub}</span></div></div><div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${color}`}>{icon}</div></div>))}</div>
+            <div className="grid grid-cols-3 gap-3.5">{[{label:"ADMINS",count:admins,sub:"Active",icon:"🛡️",color:"text-green-600 bg-green-50"},{label:"MANAGERS",count:managers,sub:"Active",icon:"👥",color:"text-blue-600 bg-blue-50"},{label:"AGENTS",count:agents,sub:"Active",icon:"🎧",color:"text-purple-600 bg-purple-50"}].map(({label,count,sub,icon,color})=>(<div key={label} className="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-sm flex items-center justify-between"><div><p className="text-[10px] font-bold text-gray-400 tracking-widest mb-0.5">{label}</p><div className="flex items-baseline gap-1.5"><span className="text-2xl font-black text-gray-900">{count}</span><span className="text-[11px] text-gray-400">{sub}</span></div></div><div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg ${color}`}>{icon}</div></div>))}</div>
           </>
         ):isViewMode?(
           <RoleMembersView

@@ -201,17 +201,17 @@ const QuickReply = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="p-3 md:p-4 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
       <div className="flex flex-col xl:flex-row gap-6">
         <div className="flex-1 min-w-0">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
+              <h1 className="text-xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
               <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">
                 Total: {replies.length}/{PLAN_LIMIT}
               </span>
             </div>
-            <button
+              <button
               onClick={() => {
                 if (replies.length >= PLAN_LIMIT) {
                   return toast.warning(`⚠️ Limit Reached: You can only create up to ${PLAN_LIMIT} quick replies`);
@@ -220,9 +220,9 @@ const QuickReply = () => {
                 setIsModalOpen(true);
               }}
               disabled={replies.length >= PLAN_LIMIT}
-              className={`${replies.length >= PLAN_LIMIT ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'} text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
+              className={`${replies.length >= PLAN_LIMIT ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'} text-white px-3.5 py-2 rounded-lg font-semibold text-[13px] flex items-center gap-2 transition-all shadow-sm`}
             >
-              <Plus size={18} /> Add Quick Reply
+              <Plus size={16} /> Add Quick Reply
             </button>
           </div>
 
@@ -231,10 +231,10 @@ const QuickReply = () => {
               <table className="w-full table-fixed text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-200">
-                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
-                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                    <th className="w-[24%] px-3 md:px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
+                    <th className="w-[44%] px-3 md:px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
+                    <th className="w-[16%] px-3 md:px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500">Type</th>
+                    <th className="w-[16%] px-3 md:px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -308,7 +308,7 @@ const QuickReply = () => {
           </div>
         </div>
 
-        <div className="hidden xl:block xl:w-[360px] 2xl:w-[420px]">
+        <div className="hidden xl:block xl:w-[320px] 2xl:w-[360px]">
           <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <MobilePreview
               name={previewData?.shortcut || '/quick-reply'}
@@ -516,7 +516,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
   const previewName = name || 'Business Update';
 
   return (
-    <div className="relative w-full max-w-[240px] sm:max-w-[276px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+    <div className="relative w-full max-w-[200px] sm:max-w-[240px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[1.75rem] sm:rounded-[2.25rem] border-[6px] sm:border-[7px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
       <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
 
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />

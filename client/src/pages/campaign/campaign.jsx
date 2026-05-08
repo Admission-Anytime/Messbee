@@ -271,7 +271,7 @@ const CampaignDashboard = () => {
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 font-['Urbanist']">
+    <div className="p-3 md:p-4 lg:p-5 max-w-[1400px] mx-auto flex flex-col gap-4 font-['Urbanist']">
 
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -294,32 +294,32 @@ const CampaignDashboard = () => {
       </div>
 
       {/* Stats Row */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center">
-            <ChartBarIcon className="w-5 h-5 text-slate-500" />
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-center">
+            <ChartBarIcon className="w-4 h-4 text-slate-500" />
           </div>
           <div>
-            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Total</p>
-            <p className="text-xl font-bold text-slate-800">{campaigns.length}</p>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Total</p>
+            <p className="text-lg font-bold text-slate-800">{campaigns.length}</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center">
-            <CheckCircleIcon className="w-5 h-5 text-emerald-500" />
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center justify-center">
+            <CheckCircleIcon className="w-4 h-4 text-emerald-500" />
           </div>
           <div>
-            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Completed</p>
-            <p className="text-xl font-bold text-emerald-600">{completedCount}</p>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Completed</p>
+            <p className="text-lg font-bold text-emerald-600">{completedCount}</p>
           </div>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 flex items-center gap-3">
-          <div className="w-9 h-9 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-center">
-            <ClockIcon className="w-5 h-5 text-blue-500" />
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-3 flex items-center gap-2.5">
+          <div className="w-8 h-8 bg-blue-50 rounded-xl border border-blue-100 flex items-center justify-center">
+            <ClockIcon className="w-4 h-4 text-blue-500" />
           </div>
           <div>
-            <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Processing</p>
-            <p className="text-xl font-bold text-blue-500">{processingCount}</p>
+            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Processing</p>
+            <p className="text-lg font-bold text-blue-500">{processingCount}</p>
           </div>
         </div>
       </div>
@@ -328,47 +328,47 @@ const CampaignDashboard = () => {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
 
         {/* Toolbar */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-6 py-4 border-b border-gray-100">
-          <div className="flex items-center gap-2 text-sm text-slate-500">
-            <FunnelIcon className="w-4 h-4 text-slate-400" />
-            <span className="font-medium">Filter by</span>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 px-5 py-3 border-b border-gray-100">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <FunnelIcon className="w-3.5 h-3.5 text-slate-400" />
+            <span className="font-medium">Filter</span>
             
             <div className="relative group">
               <select 
                 value={filterStatus}
                 onChange={(e) => setFilterStatus(e.target.value)}
-                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
+                className="appearance-none flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-semibold outline-none cursor-pointer pr-7 text-[11px]"
               >
                 <option value="All">Status: All</option>
                 {CAMPAIGN_STATUS_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
-              <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
 
             <div className="relative group">
               <select 
                 value={filterTemplate}
                 onChange={(e) => setFilterTemplate(e.target.value)}
-                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
+                className="appearance-none flex items-center gap-1.5 px-2.5 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-semibold outline-none cursor-pointer pr-7 text-[11px]"
               >
                 <option value="All">Template: All</option>
                 {templateOptions.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
                 ))}
               </select>
-              <ChevronDownIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <ChevronDownIcon className="w-3 h-3 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
-          <div className="relative w-full sm:w-64">
-            <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <div className="relative w-full sm:w-56">
+            <MagnifyingGlassIcon className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search campaigns…"
-              className="pl-9 pr-4 py-2 w-full border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 text-sm text-slate-700 placeholder:text-slate-400 font-medium transition"
+              className="pl-8 pr-4 py-1.5 w-full border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-400 text-[12px] text-slate-700 placeholder:text-slate-400 font-medium transition"
             />
           </div>
         </div>
@@ -378,13 +378,13 @@ const CampaignDashboard = () => {
           <table className="w-full text-left table-fixed">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-12 whitespace-nowrap">#</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Campaign Title</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Template</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Status</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Sent On</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Created By</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[10%] text-right whitespace-nowrap">Actions</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-10 whitespace-nowrap">#</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Campaign Title</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Template</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Status</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Sent On</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Created By</th>
+                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-400 w-[10%] text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -418,40 +418,40 @@ const CampaignDashboard = () => {
                     key={camp.id}
                     className={`group transition-colors ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
                   >
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{index + 1}</td>
-                    <td className="px-5 py-4 align-middle">
+                    <td className="px-4 py-2 text-xs font-bold text-slate-300 align-middle">{index + 1}</td>
+                    <td className="px-4 py-2 align-middle">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-semibold text-slate-800">{camp.title}</span>
+                        <span className="text-[13px] font-bold text-slate-800">{camp.title}</span>
                         {duplicatedId === camp.id && (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                            <CheckIcon className="w-3 h-3" /> Duplicated
+                          <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                            <CheckIcon className="w-2.5 h-2.5" /> Duplicated
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-4 align-middle">
+                    <td className="px-4 py-2 align-middle">
                       <span
-                        className="inline-flex max-w-[240px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate align-middle"
+                        className="inline-flex max-w-[200px] rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700 truncate align-middle"
                         title={camp.templateName}
                       >
                         {truncateText(camp.templateName, 48)}
                       </span>
                     </td>
-                    <td className="px-5 py-4 align-middle">
+                    <td className="px-4 py-2 align-middle">
                       <StatusBadge status={camp.status} progress={camp.progress} />
                     </td>
-                    <td className="px-5 py-4 align-middle">
-                      <span className="text-xs text-slate-500 font-medium">{camp.sentOn}</span>
+                    <td className="px-4 py-2 align-middle">
+                      <span className="text-[11px] text-slate-500 font-semibold">{camp.sentOn}</span>
                     </td>
-                    <td className="px-5 py-4 align-middle">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center shrink-0">
-                          <span className="text-[10px] font-bold text-white">{camp.initials}</span>
+                    <td className="px-4 py-2 align-middle">
+                      <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-gradient-to-br from-teal-400 to-emerald-500 flex items-center justify-center shrink-0 shadow-sm">
+                          <span className="text-[9px] font-black text-white">{camp.initials}</span>
                         </div>
-                        <span className="text-sm font-semibold text-slate-700">{camp.createdBy}</span>
+                        <span className="text-[13px] font-bold text-slate-700">{camp.createdBy}</span>
                       </div>
                     </td>
-                    <td className="px-5 py-4 align-middle">
+                    <td className="px-4 py-2 align-middle">
                       <div className="flex justify-end items-center gap-1">
                         <ActionBtn
                           icon={<ChartBarIcon className="w-4 h-4" />}
