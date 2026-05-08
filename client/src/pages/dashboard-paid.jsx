@@ -1,9 +1,10 @@
-import { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
+import { getDaysRemaining, getSubscriptionProgress } from "../utils/subscription";
 
 import {
    ArrowPathIcon,
@@ -29,8 +30,7 @@ function Dashboard() {
    let nextBillingCycleStr = "N/A";
    if (user?.subscriptionEndDate) {
       const endDate = new Date(user.subscriptionEndDate);
-      const today = new Date();
-      daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+      daysRemaining = getDaysRemaining(endDate);
       nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
    }
 
@@ -57,11 +57,6 @@ function Dashboard() {
       agents: user?.agents?.length || 1
    });
 
-   // Simulate loading real performance data
-   useEffect(() => {
-      handleSyncData();
-   }, []);
-
    const handleDateChange = (date) => {
       setSelectedDate(date);
       setDateString(date.format("YYYY-MM-DD"));
@@ -80,7 +75,7 @@ function Dashboard() {
       }, 800);
    };
 
-   const handleSyncData = () => {
+   const handleSyncData = useCallback(() => {
       setIsSyncing(true);
       // In a real app, this would fetch from an API
       setTimeout(() => { 
@@ -94,7 +89,12 @@ function Dashboard() {
          });
          setIsSyncing(false); 
       }, 1500);
-   };
+   }, [user?.agents?.length]);
+
+   // Simulate loading real performance data
+   useEffect(() => {
+      handleSyncData();
+   }, [handleSyncData]);
 
    return (
       <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 h-full font-['Urbanist']">
@@ -191,7 +191,14 @@ function Dashboard() {
                         <h3 className="text-3xl font-black text-slate-900 mb-1">{daysRemaining} Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
                         <p className="text-xs text-slate-400 mb-4">Next billing cycle starts {nextBillingCycleStr}.</p>
                         <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
-                           <div className="h-full bg-slate-800 rounded-full transition-all duration-500" style={{ width: `${Math.min(100, Math.max(0, (daysRemaining / (daysRemaining > 100 ? 365 : 90)) * 100))}%` }}></div>
+                           <div
+                              className="h-full bg-slate-800 rounded-full transition-all duration-500"
+                              style={{ width: `${getSubscriptionProgress(daysRemaining)}%` }}
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                              aria-valuenow={Math.round(getSubscriptionProgress(daysRemaining))}
+                              role="progressbar"
+                           ></div>
                         </div>
                      </>
                   )}

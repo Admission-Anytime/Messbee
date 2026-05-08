@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { userContext } from "../../context/Context";
 import { ChatContext } from "../../context/ChatContext";
+import { getDaysRemaining } from "../../utils/subscription";
 
 // --- LOGO ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png";
@@ -103,7 +104,7 @@ const MENU_ITEMS = [
   },
 ];
 
-const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
+const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
   const isOpen = openSubmenu === item.title;
   const isFloatingOpen = activeFloating === item.title;
   const isChildActive = item.children?.some((child) => window.location.pathname.includes(child.path));
@@ -158,7 +159,6 @@ const SidebarItem = ({ item, isActive, isExpanded, openSubmenu, activeFloating, 
     );
   }
 
-  const { unreadCount } = useContext(ChatContext);
   const displayBadge = item.title === "Chats" ? (unreadCount > 0 ? (unreadCount > 99 ? "99+" : unreadCount) : null) : item.badge;
 
   return (
@@ -182,6 +182,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
   const [openSubmenu, setOpenSubmenu] = useState("");
   const searchInputRef = useRef(null);
   const location = useLocation();
+  const { unreadCount } = useContext(ChatContext);
   
   // Floating Window Logic
   const [activeFloating, setActiveFloating] = useState(null);
@@ -303,7 +304,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
           {filteredMenuItems.map((section, idx) => (
             <div key={idx} className="mb-4">
               {section.items.map((item, i) => (
-                <SidebarItem key={i} item={item} isActive={isActive} isExpanded={isOpen} openSubmenu={openSubmenu} onToggle={handleSubmenuToggle} activeFloating={activeFloating} onFloatingToggle={handleFloatingToggle} />
+                <SidebarItem key={i} item={item} unreadCount={unreadCount} isActive={isActive} isExpanded={isOpen} openSubmenu={openSubmenu} onToggle={handleSubmenuToggle} activeFloating={activeFloating} onFloatingToggle={handleFloatingToggle} />
               ))}
             </div>
           ))}
@@ -365,7 +366,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                     <span className="text-sm font-bold text-emerald-600">{user?.subscriptionPlan?.charAt(0).toUpperCase() + user?.subscriptionPlan?.slice(1) || "Free"}</span>
                   </div>
                   <span className="text-sm font-bold text-emerald-500">
-                    {user?.subscriptionEndDate ? `${Math.ceil((new Date(user.subscriptionEndDate) - new Date()) / (1000 * 60 * 60 * 24))} days left` : "No expiry"}
+                    {user?.subscriptionEndDate ? `${getDaysRemaining(user.subscriptionEndDate)} days left` : "No expiry"}
                   </span>
               </div>
 

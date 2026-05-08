@@ -7,6 +7,7 @@ import {
 } from "@heroicons/react/24/outline";
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import { userContext } from "../../context/Context";
+import { getDaysRemaining, getSubscriptionProgress } from "../../utils/subscription";
 
 function ManageSubscription() {
     const navigate = useNavigate();
@@ -36,8 +37,7 @@ function ManageSubscription() {
     
     if (user?.subscriptionEndDate) {
       const endDate = new Date(user.subscriptionEndDate);
-      const today = new Date();
-      daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+            daysRemaining = getDaysRemaining(endDate);
       nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     }
 
@@ -87,6 +87,25 @@ function ManageSubscription() {
                                         </p>
                                     </>
                                 ) : (
+
+                    {!isFreePlan && (
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+                            <div className="flex items-center justify-between mb-4">
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan Progress</p>
+                                <span className="text-xs font-bold text-slate-500">{Math.round(getSubscriptionProgress(daysRemaining))}% remaining</span>
+                            </div>
+                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                                <div
+                                    className="h-full bg-slate-800 rounded-full transition-all duration-500"
+                                    style={{ width: `${getSubscriptionProgress(daysRemaining)}%` }}
+                                    role="progressbar"
+                                    aria-valuemin="0"
+                                    aria-valuemax="100"
+                                    aria-valuenow={Math.round(getSubscriptionProgress(daysRemaining))}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
                                     <>
                                         <p className="text-3xl font-black leading-none">{daysRemaining}</p>
                                         <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-70">

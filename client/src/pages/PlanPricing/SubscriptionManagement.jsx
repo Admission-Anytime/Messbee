@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
+import { getDaysRemaining } from "../../utils/subscription";
 import {
     CreditCardIcon,
     MapPinIcon,
@@ -48,8 +49,7 @@ function SubscriptionManagement() {
     let nextInvoiceDate = "N/A";
     if (user?.subscriptionEndDate) {
         const endDate = new Date(user.subscriptionEndDate);
-        const today = new Date();
-        daysRemaining = Math.max(0, Math.ceil((endDate - today) / (1000 * 60 * 60 * 24)));
+        daysRemaining = getDaysRemaining(endDate);
         nextInvoiceDate = endDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
     }
 
