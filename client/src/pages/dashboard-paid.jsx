@@ -23,6 +23,12 @@ function Dashboard() {
    const [isSyncing, setIsSyncing] = useState(false);
    const { user } = useContext(userContext);
 
+   const formatAmount = (val) => {
+      if (val === null || val === undefined || val === "") return "0.00";
+      const num = Number(val);
+      if (Number.isNaN(num)) return "0.00";
+      return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+   };
    const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
    
    // Dynamic calculation for days remaining
@@ -160,7 +166,7 @@ function Dashboard() {
                <div>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
-                     <h3 className="text-3xl font-black text-slate-900">₹{user?.credits || "0.00"}</h3>
+                     <h3 className="text-3xl font-black text-slate-900">₹{formatAmount(user?.credits)}</h3>
                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
                   </div>
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>

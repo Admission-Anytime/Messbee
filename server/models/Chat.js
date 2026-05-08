@@ -63,5 +63,8 @@ chatSchema.virtual('canSendFreeText').get(function () {
 chatSchema.index({ user: 1, phone: 1 }, { unique: true });
 chatSchema.index({ user: 1, whatsappId: 1 }, { unique: true, sparse: true });
 chatSchema.index({ chatStatus: 1, updatedAt: -1 });
+// Compound index for sidebar query: user+source filtered, sorted by isPinned then updatedAt
+chatSchema.index({ user: 1, source: 1, isPinned: -1, updatedAt: -1 });
+chatSchema.index({ source: 1, isPinned: -1, updatedAt: -1 });
 
 module.exports = mongoose.model("Chat", chatSchema);

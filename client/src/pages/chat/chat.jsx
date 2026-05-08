@@ -56,15 +56,21 @@ const Chat = () => {
   }, [activeChatId]);
 
   // ── Initial socket + data fetch (runs once) ──────────────────────────────
+  const [chatPage, setChatPage] = useState(1);
+  const [hasMoreChats, setHasMoreChats] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+
   useEffect(() => {
     socketRef.current = io(SOCKET_URL, { withCredentials: true });
 
     const fetchChats = async () => {
       try {
         setError(null);
-        const result = await chatService.getChats();
+        const result = await chatService.getChats(1, 50);
         if (result.success) {
           setChats(result.data);
+          setHasMoreChats(result.pagination?.hasMore ?? false);
+          setChatPage(1);
           if (result.data.length > 0) {
             setActiveChatId(result.data[0]._id);
           }
@@ -250,6 +256,29 @@ const Chat = () => {
 
     fetchMessages();
   }, [activeChatId]);
+
+  // ── Load more chats (pagination) ─────────────────────────────────────────
+  const loadMoreChats = async () => {
+    if (isLoadingMore || !hasMoreChats) return;
+    setIsLoadingMore(true);
+    try {
+      const nextPage = chatPage + 1;
+      const result = await chatService.getChats(nextPage, 50);
+      if (result.success) {
+        setChats(prev => {
+          const existingIds = new Set(prev.map(c => c._id));
+          const newChats = result.data.filter(c => !existingIds.has(c._id));
+          return [...prev, ...newChats];
+        });
+        setHasMoreChats(result.pagination?.hasMore ?? false);
+        setChatPage(nextPage);
+      }
+    } catch (err) {
+      console.error("Error loading more chats:", err);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  };
 
   const activeChat = chats.find((c) => c._id === activeChatId);
 
@@ -583,13 +612,33 @@ const Chat = () => {
       {/* LEFT: CONTACT LIST */}
       <div className="w-[330px] md:w-[350px] lg:w-[380px] flex flex-col border-r border-slate-100 h-full bg-white shrink-0">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <svg className="animate-spin h-10 w-10 text-[#22C55E] mx-auto mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              <p className="text-slate-500 font-medium">Loading chats...</p>
+          <div className="flex flex-col h-full">
+            {/* Skeleton header */}
+            <div className="h-16 px-5 flex items-center justify-between border-b border-slate-50 shrink-0">
+              <div className="h-5 w-24 bg-slate-100 rounded animate-pulse" />
+              <div className="flex gap-2">
+                <div className="h-8 w-8 bg-slate-100 rounded-full animate-pulse" />
+                <div className="h-8 w-8 bg-slate-100 rounded-full animate-pulse" />
+              </div>
+            </div>
+            {/* Skeleton search */}
+            <div className="px-5 py-3 shrink-0">
+              <div className="h-9 bg-slate-100 rounded-xl animate-pulse" />
+            </div>
+            {/* Skeleton chat items */}
+            <div className="flex-1 overflow-hidden">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-slate-50">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 animate-pulse shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="flex justify-between">
+                      <div className="h-3.5 w-28 bg-slate-100 rounded animate-pulse" style={{ animationDelay: `${i * 60}ms` }} />
+                      <div className="h-3 w-10 bg-slate-100 rounded animate-pulse" />
+                    </div>
+                    <div className="h-3 w-40 bg-slate-100 rounded animate-pulse" style={{ animationDelay: `${i * 80}ms` }} />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         ) : (
@@ -603,6 +652,9 @@ const Chat = () => {
             onUpdateStatus={handleUpdateStatus}
             onTogglePin={(chatId) => handleTogglePin(chatId)}
             onUpdateLabels={(chatId, labels) => handleUpdateLabels(labels, chatId)}
+            onLoadMore={loadMoreChats}
+            hasMoreChats={hasMoreChats}
+            isLoadingMore={isLoadingMore}
           />
         )}
       </div>

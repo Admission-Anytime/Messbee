@@ -58,46 +58,46 @@ const apiFetch = async (method, path, body = null) => {
 
 const fetchContacts = (params = {}) => {
   const qs = new URLSearchParams();
-  if (params.page)  qs.set("page",  params.page);
+  if (params.page) qs.set("page", params.page);
   if (params.limit) qs.set("limit", params.limit);
   if (params.statuses && params.statuses.length > 0) {
     qs.set("status", params.statuses.join(","));
   } else if (params.status && params.status !== "All Contacts") {
     qs.set("status", params.status);
   }
-  if (params.search)         qs.set("search", params.search);
+  if (params.search) qs.set("search", params.search);
   if (params.labels?.length) qs.set("labels", params.labels.join(","));
   return apiFetch("GET", `/api/contacts?${qs}`);
 };
 
-const createContact     = (data)     => apiFetch("POST",   "/api/contacts",            data);
-const updateContact     = (id, data) => apiFetch("PUT",    `/api/contacts/${id}`,       data);
-const deleteContact     = (id)       => apiFetch("DELETE", `/api/contacts/${id}`);
-const bulkDelete        = (ids)      => apiFetch("DELETE", "/api/contacts/bulk-delete", { ids });
-const bulkAddLabels     = (ids, labels) => apiFetch("PUT",    "/api/contacts/bulk-labels", { ids, labels });
-const bulkRemoveLabels  = (ids, labels) => apiFetch("PUT",    "/api/contacts/bulk-labels-remove", { ids, labels });
-const bulkUpdateStatus  = (ids, status) => apiFetch("PUT",    "/api/contacts/bulk-status", { ids, status });
-const createCustomField = (data)     => apiFetch("POST",   "/api/custom-fields",        data);
+const createContact = (data) => apiFetch("POST", "/api/contacts", data);
+const updateContact = (id, data) => apiFetch("PUT", `/api/contacts/${id}`, data);
+const deleteContact = (id) => apiFetch("DELETE", `/api/contacts/${id}`);
+const bulkDelete = (ids) => apiFetch("DELETE", "/api/contacts/bulk-delete", { ids });
+const bulkAddLabels = (ids, labels) => apiFetch("PUT", "/api/contacts/bulk-labels", { ids, labels });
+const bulkRemoveLabels = (ids, labels) => apiFetch("PUT", "/api/contacts/bulk-labels-remove", { ids, labels });
+const bulkUpdateStatus = (ids, status) => apiFetch("PUT", "/api/contacts/bulk-status", { ids, status });
+const createCustomField = (data) => apiFetch("POST", "/api/custom-fields", data);
 
 /* ─── Static config ──────────────────────────────────────────────────────────── */
 const BASE_COLUMNS = [
-  { key: "name",      label: "Name",      locked: true  },
-  { key: "whatsapp",  label: "WhatsApp",  locked: false },
-  { key: "status",    label: "Status",    locked: false },
-  { key: "labels",    label: "Labels",    locked: false },
-  { key: "email",     label: "Email",     locked: false },
+  { key: "name", label: "Name", locked: true },
+  { key: "whatsapp", label: "WhatsApp", locked: false },
+  { key: "status", label: "Status", locked: false },
+  { key: "labels", label: "Labels", locked: false },
+  { key: "email", label: "Email", locked: false },
   { key: "institute", label: "Institute", locked: false },
-  { key: "address",   label: "Address",   locked: false },
-  { key: "phone",     label: "Phone",     locked: false },
-  { key: "company",   label: "Company",   locked: false },
-  { key: "city",      label: "City",      locked: false },
-  { key: "country",   label: "Country",   locked: false },
+  { key: "address", label: "Address", locked: false },
+  { key: "phone", label: "Phone", locked: false },
+  { key: "company", label: "Company", locked: false },
+  { key: "city", label: "City", locked: false },
+  { key: "country", label: "Country", locked: false },
 ];
 
 const DEFAULT_VISIBLE = ["name", "whatsapp", "status", "labels", "email"];
-const ROWS_OPTIONS    = [10, 25, 50, 100];
-const ALL_STATUSES    = ["ACTIVE", "WARM", "INACTIVE", "COLD"];
-const FIELD_TYPES     = ["Text", "Number", "Date", "Email", "URL", "Phone"];
+const ROWS_OPTIONS = [10, 25, 50, 100];
+const ALL_STATUSES = ["ACTIVE", "WARM", "INACTIVE", "COLD"];
+const FIELD_TYPES = ["Text", "Number", "Date", "Email", "URL", "Phone"];
 
 const DEFAULT_LABELS = [
   "start first", "Cold lead", "Hot lead", "Issue raised", "Resolved",
@@ -105,22 +105,22 @@ const DEFAULT_LABELS = [
 ];
 
 const STATUS_CLS = {
-  ACTIVE:   "bg-green-50 text-green-800 border border-green-200",
-  WARM:     "bg-yellow-50 text-yellow-700 border border-yellow-200",
+  ACTIVE: "bg-green-50 text-green-800 border border-green-200",
+  WARM: "bg-yellow-50 text-yellow-700 border border-yellow-200",
   INACTIVE: "bg-gray-100 text-gray-500 border border-gray-200",
-  COLD:     "bg-blue-50 text-blue-800 border border-blue-200",
+  COLD: "bg-blue-50 text-blue-800 border border-blue-200",
 };
 const STATUS_BTN_SEL = {
-  ACTIVE:   "bg-green-50 text-green-800 border-green-300",
-  WARM:     "bg-yellow-50 text-yellow-700 border-yellow-300",
+  ACTIVE: "bg-green-50 text-green-800 border-green-300",
+  WARM: "bg-yellow-50 text-yellow-700 border-yellow-300",
   INACTIVE: "bg-gray-100 text-gray-500 border-gray-300",
-  COLD:     "bg-blue-50 text-blue-800 border-blue-300",
+  COLD: "bg-blue-50 text-blue-800 border-blue-300",
 };
 const LABEL_CLS = {
   "Enterprise": "bg-purple-50 text-purple-700",
-  "New Lead":   "bg-pink-50 text-pink-700",
-  "Follow-up":  "bg-green-50 text-green-700",
-  "+2":         "bg-violet-50 text-violet-700",
+  "New Lead": "bg-pink-50 text-pink-700",
+  "Follow-up": "bg-green-50 text-green-700",
+  "+2": "bg-violet-50 text-violet-700",
 };
 
 const getLabelColor = (label) => {
@@ -199,7 +199,7 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
     showInContacts: true,
   });
   const [saving, setSaving] = useState(false);
-  const [error,  setError]  = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (isOpen) {
@@ -219,17 +219,17 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
 
   const handleAdd = async () => {
     if (!form.displayName.trim()) { setError("Display name is required."); return; }
-    if (!form.key.trim())         { setError("Key is required.");           return; }
+    if (!form.key.trim()) { setError("Key is required."); return; }
     setError(""); setSaving(true);
     try {
       const payload = {
-        name:           form.displayName.trim(),
-        key:            form.key.trim(),
-        description:    form.description.trim(),
-        type:           form.type,
+        name: form.displayName.trim(),
+        key: form.key.trim(),
+        description: form.description.trim(),
+        type: form.type,
         showInContacts: form.showInContacts,
       };
-      const res     = await createCustomField(payload);
+      const res = await createCustomField(payload);
       const created = res.data || res;
       showToast("success", "Custom Field Created", `"${form.displayName}" has been created.`);
       onCreated(created);
@@ -335,13 +335,11 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
             <button
               type="button"
               onClick={() => setForm(prev => ({ ...prev, showInContacts: !prev.showInContacts }))}
-              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none mt-0.5 ${
-                form.showInContacts ? "bg-green-500" : "bg-gray-300"
-              }`}
+              className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none mt-0.5 ${form.showInContacts ? "bg-green-500" : "bg-gray-300"
+                }`}
             >
-              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
-                form.showInContacts ? "translate-x-4" : "translate-x-0"
-              }`} />
+              <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ${form.showInContacts ? "translate-x-4" : "translate-x-0"
+                }`} />
             </button>
             <div>
               <p className="text-sm font-medium text-gray-800 leading-snug">
@@ -362,49 +360,49 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
 
 /* ─── Edit Contact Modal ─────────────────────────────────────────────────────── */
 function EditContactModal({ contact, onClose, onSave, customFields = [], labels = [] }) {
-  const [form,   setForm]   = useState({ ...contact, labels: contact.labels || [] });
+  const [form, setForm] = useState({ ...contact, labels: contact.labels || [] });
   const [saving, setSaving] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
   const [showLabelOptions, setShowLabelOptions] = useState(false);
   const dropdownRef = useRef(null);
 
   const baseFields = [
-    { key: "name",      label: "Full Name" },
-    { key: "email",     label: "Email"     },
-    { key: "phone",     label: "Phone"     },
-    { key: "whatsapp",  label: "WhatsApp"  },
-    { key: "company",   label: "Company"   },
+    { key: "name", label: "Full Name" },
+    { key: "email", label: "Email" },
+    { key: "phone", label: "Phone" },
+    { key: "whatsapp", label: "WhatsApp" },
+    { key: "company", label: "Company" },
     { key: "institute", label: "Institute" },
-    { key: "address",   label: "Address"   },
-    { key: "city",      label: "City"      },
-    { key: "country",   label: "Country"   },
+    { key: "address", label: "Address" },
+    { key: "city", label: "City" },
+    { key: "country", label: "Country" },
   ];
 
   const handleSave = async () => {
     setSaving(true);
-    try { 
-      await onSave(form); 
-      onClose(); 
+    try {
+      await onSave(form);
+      onClose();
     } catch (err) {
       console.error("Save error:", err);
       toast.error(err.message || "Failed to save contact. Please check for duplicate WhatsApp numbers.");
-    } finally { 
-      setSaving(false); 
+    } finally {
+      setSaving(false);
     }
   };
 
   const getCustomValue = (field) => {
     const fId = field._id || field.id;
-    const row  = (form.customFields || []).find(r => r.fieldId === fId);
+    const row = (form.customFields || []).find(r => r.fieldId === fId);
     return row?.value || "";
   };
 
   const setCustomValue = (field, val) => {
-    const fId   = field._id || field.id;
+    const fId = field._id || field.id;
     const fName = field.name || field.fieldName || field.label || "";
     setForm(prev => {
       const existing = (prev.customFields || []).filter(r => r.fieldId !== fId);
-      const updated  = val.trim() ? [...existing, { fieldId: fId, fieldName: fName, value: val }] : existing;
+      const updated = val.trim() ? [...existing, { fieldId: fId, fieldName: fName, value: val }] : existing;
       return { ...prev, customFields: updated };
     });
   };
@@ -425,8 +423,8 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
     setForm(prev => {
       const currentLabels = prev.labels || [];
       const isSelected = currentLabels.includes(l);
-      const updated = isSelected 
-        ? currentLabels.filter(x => x !== l) 
+      const updated = isSelected
+        ? currentLabels.filter(x => x !== l)
         : [...currentLabels, l];
       return { ...prev, labels: updated };
     });
@@ -469,8 +467,8 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                     key === "phone"
                       ? "Enter 10-digit phone number"
                       : key === "whatsapp"
-                      ? "Enter 10-digit WhatsApp number"
-                      : ""
+                        ? "Enter 10-digit WhatsApp number"
+                        : ""
                   }
                   maxLength={(key === "phone" || key === "whatsapp") ? 10 : undefined}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-800 outline-none focus:border-green-400 focus:ring-2 focus:ring-green-50 transition-colors"
@@ -497,11 +495,11 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                 </div>
               </div>
             )}
-            
+
             <div className="col-span-2 border-t border-gray-100 pt-4 mt-1">
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Manage Labels</p>
               <div className="relative" ref={dropdownRef}>
-                <div 
+                <div
                   onClick={() => setShowLabelOptions(!showLabelOptions)}
                   className={`min-h-[46px] w-full bg-gray-50 border rounded-2xl p-2 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-100 hover:border-emerald-200'}`}
                 >
@@ -509,7 +507,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                     form.labels.map(l => (
                       <span key={l} className="bg-emerald-500 text-white px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
                         {l}
-                        <button 
+                        <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
                           className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
@@ -529,7 +527,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                 {showLabelOptions && (
                   <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
                     <div className="px-4 py-3 border-b border-gray-50">
-                      <input 
+                      <input
                         autoFocus
                         type="text"
                         placeholder="Find labels..."
@@ -558,7 +556,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                                   className={`flex items-center justify-between w-full px-5 py-2.5 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                                 >
                                   <div className="flex items-center gap-3">
-                                    <div 
+                                    <div
                                       className="w-2.5 h-2.5 rounded-full"
                                       style={{ backgroundColor: getLabelColor(l) }}
                                     />
@@ -574,7 +572,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                     </div>
                     {form.labels.length > 0 && (
                       <div className="p-2 border-t border-gray-50 bg-gray-50/50">
-                        <button 
+                        <button
                           type="button"
                           onClick={() => { setForm(prev => ({ ...prev, labels: [] })); setLabelSearch(""); }}
                           className="w-full py-2 text-[10px] font-black text-red-400 hover:text-red-500 uppercase tracking-widest transition-colors"
@@ -611,19 +609,19 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
   if (!contact) return null;
 
   const infoRows = [
-    { Icon: EnvelopeIcon,       label: "Email",     value: contact.email     },
-    { Icon: PhoneIcon,          label: "Phone",     value: contact.phone     },
-    { Icon: PhoneIcon,          label: "WhatsApp",  value: contact.whatsapp  },
-    { Icon: BuildingOfficeIcon, label: "Company",   value: contact.company   },
-    { Icon: AcademicCapIcon,    label: "Institute", value: contact.institute },
-    { Icon: MapPinIcon,         label: "Address",   value: contact.address   },
-    { Icon: GlobeAltIcon,       label: "Country",   value: contact.country   },
+    { Icon: EnvelopeIcon, label: "Email", value: contact.email },
+    { Icon: PhoneIcon, label: "Phone", value: contact.phone },
+    { Icon: PhoneIcon, label: "WhatsApp", value: contact.whatsapp },
+    { Icon: BuildingOfficeIcon, label: "Company", value: contact.company },
+    { Icon: AcademicCapIcon, label: "Institute", value: contact.institute },
+    { Icon: MapPinIcon, label: "Address", value: contact.address },
+    { Icon: GlobeAltIcon, label: "Country", value: contact.country },
   ];
 
   const customRows = customFields
     .map(field => {
       const fId = field._id || field.id;
-      const row  = (contact.customFields || []).find(r => r.fieldId === fId);
+      const row = (contact.customFields || []).find(r => r.fieldId === fId);
       return { label: field.name || field.fieldName || field.label, value: row?.value || "" };
     })
     .filter(r => r.value);
@@ -697,10 +695,10 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
 
 /* ─── Add Contact Drawer ─────────────────────────────────────────────────────── */
 function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, customFields = [], onOpenAddCustomField }) {
-  const [formData,        setFormData]        = useState({ name: "", whatsapp: "", labels: [] });
+  const [formData, setFormData] = useState({ name: "", whatsapp: "", labels: [] });
   const [customFieldRows, setCustomFieldRows] = useState([{ fieldId: "", fieldName: "", value: "" }]);
-  const [adding,          setAdding]          = useState(false);
-  const [error,           setError]           = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
   const [labelSearch, setLabelSearch] = useState("");
   const [showLabelOptions, setShowLabelOptions] = useState(false);
   const labelDropdownRef = useRef(null);
@@ -718,10 +716,10 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
         .map(r => ({ fieldId: r.fieldId, fieldName: r.fieldName, value: r.value.trim() }));
 
       await onAdd({
-        name:     formData.name,
+        name: formData.name,
         whatsapp: `+91${formData.whatsapp}`,
-        labels:   formData.labels,
-        status:   "ACTIVE",
+        labels: formData.labels,
+        status: "ACTIVE",
         ...(customFieldsPayload.length > 0 ? { customFields: customFieldsPayload } : {}),
       });
       setFormData({ name: "", whatsapp: "", labels: [] });
@@ -748,14 +746,14 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
     setFormData(prev => {
       const currentLabels = prev.labels || [];
       const isSelected = currentLabels.includes(l);
-      const updated = isSelected 
-        ? currentLabels.filter(x => x !== l) 
+      const updated = isSelected
+        ? currentLabels.filter(x => x !== l)
         : [...currentLabels, l];
       return { ...prev, labels: updated };
     });
   };
 
-  const addCustomFieldRow    = () =>
+  const addCustomFieldRow = () =>
     setCustomFieldRows(prev => [...prev, { fieldId: "", fieldName: "", value: "" }]);
 
   const removeCustomFieldRow = (idx) =>
@@ -844,7 +842,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
           <div className="px-5 pt-4 pb-5">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">Select Labels</p>
             <div className="relative" ref={labelDropdownRef}>
-              <div 
+              <div
                 onClick={() => setShowLabelOptions(!showLabelOptions)}
                 className={`min-h-[46px] w-full bg-gray-50 border rounded-2xl p-2 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-100 hover:border-emerald-200'}`}
               >
@@ -852,7 +850,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                   formData.labels.map(l => (
                     <span key={l} className="bg-emerald-500 text-white px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
                       {l}
-                      <button 
+                      <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
                         className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
@@ -872,7 +870,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
               {showLabelOptions && (
                 <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-100 z-[100] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
                   <div className="px-4 py-3 border-b border-gray-50">
-                    <input 
+                    <input
                       autoFocus
                       type="text"
                       placeholder="Find labels..."
@@ -901,7 +899,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                                 className={`flex items-center justify-between w-full px-5 py-2.5 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                               >
                                 <div className="flex items-center gap-3">
-                                  <div 
+                                  <div
                                     className="w-2.5 h-2.5 rounded-full"
                                     style={{ backgroundColor: getLabelColor(l) }}
                                   />
@@ -917,7 +915,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                   </div>
                   {formData.labels.length > 0 && (
                     <div className="p-2 border-t border-gray-50 bg-gray-50/50">
-                      <button 
+                      <button
                         type="button"
                         onClick={() => { setFormData(prev => ({ ...prev, labels: [] })); setLabelSearch(""); }}
                         className="w-full py-2 text-[10px] font-black text-red-400 hover:text-red-500 uppercase tracking-widest transition-colors"
@@ -970,8 +968,8 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                       >
                         <option value="">Select Custom Field</option>
                         {customFields.map(f => {
-                          const fId         = f._id || f.id;
-                          const fName       = f.name || f.fieldName || f.label || "";
+                          const fId = f._id || f.id;
+                          const fName = f.name || f.fieldName || f.label || "";
                           const alreadyUsed = usedFieldIds.includes(fId) && fId !== row.fieldId;
                           return (
                             <option key={fId} value={fId} disabled={alreadyUsed}>{fName}</option>
@@ -1051,18 +1049,17 @@ function ManageColumnsDropdown({ allColumns, visibleColumns, onToggle, onReset, 
           // Custom columns: always visible (controlled by showInContacts on the field itself)
           // Base locked columns: always visible, not toggleable
           // Base unlocked columns: user can toggle
-          const isCustom     = col.isCustom;
+          const isCustom = col.isCustom;
           const isBaseLocked = col.locked && !isCustom;
           const isToggleable = !isCustom && !col.locked;
-          const isVisible    = isCustom ? true : visibleColumns.includes(col.key);
+          const isVisible = isCustom ? true : visibleColumns.includes(col.key);
 
           return (
             <div
               key={col.key}
               onClick={() => isToggleable && onToggle(col.key)}
-              className={`flex items-center justify-between px-4 py-2.5 select-none transition-colors ${
-                isToggleable ? "cursor-pointer hover:bg-gray-50" : "cursor-default"
-              }`}
+              className={`flex items-center justify-between px-4 py-2.5 select-none transition-colors ${isToggleable ? "cursor-pointer hover:bg-gray-50" : "cursor-default"
+                }`}
             >
               <div className="flex items-center gap-2.5">
                 <div className="w-4 h-4 flex items-center justify-center flex-shrink-0">
@@ -1165,7 +1162,7 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
         <div>
           <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2">Labels</p>
           <div className="relative" ref={labelDropdownRef}>
-            <div 
+            <div
               onClick={() => setShowLabelOptions(!showLabelOptions)}
               className={`min-h-[42px] w-full bg-gray-50 border rounded-xl p-1.5 flex flex-wrap gap-1.5 cursor-pointer transition-all ${showLabelOptions ? 'border-emerald-500 ring-4 ring-emerald-50 bg-white' : 'border-gray-200 hover:border-emerald-200 shadow-sm'}`}
             >
@@ -1173,7 +1170,7 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
                 (local.labels || []).map(l => (
                   <span key={l} className="bg-emerald-500 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold flex items-center gap-1 animate-in zoom-in-95 duration-200">
                     {l}
-                    <button 
+                    <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); toggleArr("labels", l); }}
                       className="hover:bg-emerald-600 rounded-full p-0.5 transition-colors"
@@ -1193,7 +1190,7 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
             {showLabelOptions && (
               <div className="absolute top-[calc(100%+6px)] left-0 w-full bg-white rounded-xl shadow-[0_15px_40px_rgba(0,0,0,0.15)] border border-gray-100 z-[300] animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden flex flex-col">
                 <div className="px-3 py-2.5 border-b border-gray-50">
-                  <input 
+                  <input
                     autoFocus
                     type="text"
                     placeholder="Find labels..."
@@ -1222,7 +1219,7 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
                               className={`flex items-center justify-between w-full px-4 py-2 transition-all group ${isSelected ? 'bg-[#F4F6F8]' : 'hover:bg-[#F8F9FA]'}`}
                             >
                               <div className="flex items-center gap-2.5">
-                                <div 
+                                <div
                                   className="w-2.5 h-2.5 rounded-full"
                                   style={{ backgroundColor: getLabelColor(l) }}
                                 />
@@ -1311,7 +1308,7 @@ function DeleteConfirmModal({ isOpen, onConfirm, onCancel, count, loading }) {
 /* ─── Pagination ─────────────────────────────────────────────────────────────── */
 function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageChange, onRowsChange }) {
   const start = totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
-  const end   = Math.min(currentPage * rowsPerPage, totalCount);
+  const end = Math.min(currentPage * rowsPerPage, totalCount);
 
   const getPages = () => {
     if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
@@ -1348,12 +1345,12 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
             p === "..."
               ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
               : <button
-                  key={p}
-                  onClick={() => onPageChange(p)}
-                  className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-green-500 text-white border-green-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-700"}`}
-                >
-                  {p}
-                </button>
+                key={p}
+                onClick={() => onPageChange(p)}
+                className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-green-500 text-white border-green-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-700"}`}
+              >
+                {p}
+              </button>
           )}
         </div>
         <button
@@ -1439,9 +1436,8 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                     key={l}
                     onClick={(e) => { e.stopPropagation(); toggleLabel(l); }}
                     style={{ animationDelay: `${i * 15}ms` }}
-                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${
-                      isSel ? 'bg-emerald-50/70' : 'hover:bg-slate-50'
-                    }`}
+                    className={`flex w-full items-center justify-between px-4 py-2.5 text-left transition-colors animate-in fade-in slide-in-from-bottom-2 fill-mode-both ${isSel ? 'bg-emerald-50/70' : 'hover:bg-slate-50'
+                      }`}
                   >
                     <div className="flex items-center gap-2.5">
                       <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getLabelColor(l) }} />
@@ -1451,7 +1447,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                   </button>
                 );
               })}
-              </div>
+            </div>
           </div>
           <div className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
             {selectedLabels.length > 0 ? (
@@ -1503,7 +1499,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                   <span className="truncate">{s.name || s}</span>
                 </button>
               ))}
-              </div>
+            </div>
           </div>
           <div className="flex justify-end border-t border-slate-100 bg-slate-50/70 px-3.5 py-2.5">
             <button onClick={() => setActiveMenu(null)} className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-500 transition-colors hover:text-red-500">Cancel</button>
@@ -1515,20 +1511,20 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
       {activeMenu === 'more' && (
         <div className="absolute bottom-[calc(100%+10px)] right-0 w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300 py-2">
           {[
-            { label: 'Closed chats',     icon: CheckCircleIcon,       color: 'text-slate-600' },
-            { label: 'Archived chats',   icon: ArchiveBoxIcon,        color: 'text-slate-600' },
-            { label: 'Unarchived chats', icon: ArrowUpTrayIcon,       color: 'text-slate-600' },
+            { label: 'Closed chats', icon: CheckCircleIcon, color: 'text-slate-600' },
+            { label: 'Archived chats', icon: ArchiveBoxIcon, color: 'text-slate-600' },
+            { label: 'Unarchived chats', icon: ArrowUpTrayIcon, color: 'text-slate-600' },
             { divider: true },
-            { label: 'Delete chat',      icon: TrashIcon,             color: 'text-red-500' },
-            { label: 'Delete contact',   icon: UserMinusIcon,         color: 'text-red-500' },
+            { label: 'Delete chat', icon: TrashIcon, color: 'text-red-500' },
+            { label: 'Delete contact', icon: UserMinusIcon, color: 'text-red-500' },
             { divider: true },
-            { label: 'Pin chat',         icon: MapPinIcon,            color: 'text-slate-600' },
-            { label: 'Unpin chat',       icon: MapPinIcon,            color: 'text-slate-400' },
-            { label: 'Mark as un-read',  icon: ChatBubbleLeftIcon,    color: 'text-slate-600' },
+            { label: 'Pin chat', icon: MapPinIcon, color: 'text-slate-600' },
+            { label: 'Unpin chat', icon: MapPinIcon, color: 'text-slate-400' },
+            { label: 'Mark as un-read', icon: ChatBubbleLeftIcon, color: 'text-slate-600' },
           ].map((item, i) => item.divider ? (
             <div key={`d-${i}`} className="mx-3.5 my-1.5 h-px bg-slate-100" />
           ) : (
-            <button 
+            <button
               key={item.label}
               onClick={() => { setActiveMenu(null); }}
               style={{ animationDelay: `${i * 20}ms` }}
@@ -1550,15 +1546,15 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
           </div>
         </div>
         <div className="grid flex-1 grid-cols-2 gap-1 sm:grid-cols-4">
-          <button 
-            onClick={() => setActiveMenu(activeMenu === 'label' ? null : 'label')} 
+          <button
+            onClick={() => setActiveMenu(activeMenu === 'label' ? null : 'label')}
             className={`flex min-w-0 flex-col items-center justify-center rounded-xl border px-2 py-2 transition-all group ${activeMenu === 'label' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:bg-slate-50 hover:text-slate-900'}`}
           >
             <TagIcon className={`mb-0.5 h-4 w-4 ${activeMenu === 'label' ? 'text-emerald-600' : 'group-hover:text-emerald-600'}`} />
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] leading-none">Add Label</span>
           </button>
-          <button 
-            onClick={() => setActiveMenu(activeMenu === 'status' ? null : 'status')} 
+          <button
+            onClick={() => setActiveMenu(activeMenu === 'status' ? null : 'status')}
             className={`flex min-w-0 flex-col items-center justify-center rounded-xl border px-2 py-2 transition-all group ${activeMenu === 'status' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:bg-slate-50 hover:text-slate-900'}`}
           >
             <ArrowPathIcon className={`mb-0.5 h-4 w-4 ${activeMenu === 'status' ? 'rotate-180 text-emerald-600 transition-transform' : 'group-hover:text-emerald-600'}`} />
@@ -1568,7 +1564,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
             <MegaphoneIcon className="mb-0.5 h-4 w-4 group-hover:-rotate-12 group-hover:text-emerald-600" />
             <span className="text-[10px] font-bold uppercase tracking-[0.12em] leading-none text-center">Send<br />Campaign</span>
           </button>
-          <button 
+          <button
             onClick={() => setActiveMenu(activeMenu === 'more' ? null : 'more')}
             className={`flex min-w-0 flex-col items-center justify-center rounded-xl border px-2 py-2 transition-all group ${activeMenu === 'more' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-white text-slate-500 hover:border-emerald-200 hover:bg-slate-50 hover:text-slate-900'}`}
           >
@@ -1598,26 +1594,26 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
 export default function ContactsCRM() {
   const navigate = useNavigate();
 
-  const [contacts,           setContacts]          = useState([]);
-  const [pagination,         setPagination]        = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
-  const [loading,            setLoading]           = useState(false);
-  const [apiError,           setApiError]          = useState("");
-  const [selectedRows,       setSelectedRows]      = useState([]);
-  const [filterStatus,       setFilterStatus]      = useState("All Contacts");
-  const [searchQuery,        setSearchQuery]       = useState("");
-  const [showColumns,        setShowColumns]       = useState(false);
-  const [showMoreFilters,    setShowMoreFilters]   = useState(false);
-  const [visibleColumns,     setVisibleColumns]    = useState(DEFAULT_VISIBLE);
-  const [advFilters,         setAdvFilters]        = useState({ statuses: [], labels: [] });
-  const [currentPage,        setCurrentPage]       = useState(1);
-  const [rowsPerPage,        setRowsPerPage]       = useState(10);
-  const [isDrawerOpen,       setIsDrawerOpen]      = useState(false);
-  const [deleteModal,        setDeleteModal]       = useState({ isOpen: false, id: null, count: 1, loading: false });
-  const [editingContact,     setEditingContact]    = useState(null);
-  const [profileContact,     setProfileContact]    = useState(null);
-  const [allLabels,          setAllLabels]         = useState(DEFAULT_LABELS);
-  const [allCustomFields,    setAllCustomFields]   = useState([]);
-  const [showAddCustomField, setShowAddCustomField]= useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
+  const [loading, setLoading] = useState(false);
+  const [apiError, setApiError] = useState("");
+  const [selectedRows, setSelectedRows] = useState([]);
+  const [filterStatus, setFilterStatus] = useState("All Contacts");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showColumns, setShowColumns] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState(DEFAULT_VISIBLE);
+  const [advFilters, setAdvFilters] = useState({ statuses: [], labels: [] });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, count: 1, loading: false });
+  const [editingContact, setEditingContact] = useState(null);
+  const [profileContact, setProfileContact] = useState(null);
+  const [allLabels, setAllLabels] = useState(DEFAULT_LABELS);
+  const [allCustomFields, setAllCustomFields] = useState([]);
+  const [showAddCustomField, setShowAddCustomField] = useState(false);
   const searchTimeout = useRef(null);
 
   // ─── FIX: allColumns is derived from allCustomFields (fetched from API on every load).
@@ -1628,11 +1624,11 @@ export default function ContactsCRM() {
     ...allCustomFields
       .filter(f => f.showInContacts === true)
       .map(f => ({
-        key:      `cf_${f._id || f.id}`,
-        label:    f.name || f.fieldName || f.label || "Custom",
-        locked:   false,
+        key: `cf_${f._id || f.id}`,
+        label: f.name || f.fieldName || f.label || "Custom",
+        locked: false,
         isCustom: true,
-        fieldId:  f._id || f.id,
+        fieldId: f._id || f.id,
       })),
   ];
 
@@ -1640,11 +1636,11 @@ export default function ContactsCRM() {
   useEffect(() => {
     apiFetch("GET", "/api/labels")
       .then(res => {
-        const list  = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
+        const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
         const names = list.map(l => (typeof l === "string" ? l : l.name)).filter(Boolean);
         if (names.length > 0) setAllLabels(names);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   /* ── Fetch custom fields ── */
@@ -1654,11 +1650,11 @@ export default function ContactsCRM() {
         const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
         setAllCustomFields(list);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   useEffect(() => { loadCustomFields(); }, [loadCustomFields]);
-  const [allStatuses,        setAllStatuses]       = useState([]);
+  const [allStatuses, setAllStatuses] = useState([]);
 
   /* ── Fetch statuses ── */
   useEffect(() => {
@@ -1667,7 +1663,7 @@ export default function ContactsCRM() {
         const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
         if (list.length > 0) setAllStatuses(list);
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // ─── Listen for cross-page custom field changes (delete / toggle / create).
@@ -1687,12 +1683,12 @@ export default function ContactsCRM() {
     setLoading(true); setApiError("");
     try {
       const res = await fetchContacts({
-        page:     currentPage,
-        limit:    rowsPerPage,
-        status:   filterStatus,
+        page: currentPage,
+        limit: rowsPerPage,
+        status: filterStatus,
         statuses: advFilters.statuses,
-        search:   searchQuery,
-        labels:   advFilters.labels,
+        search: searchQuery,
+        labels: advFilters.labels,
       });
       setContacts(res.data);
       setPagination(res.pagination);
@@ -1707,7 +1703,7 @@ export default function ContactsCRM() {
     return () => clearTimeout(searchTimeout.current);
   }, [loadContacts, searchQuery]);
 
-  const applyFilters      = f => { setAdvFilters(f); setCurrentPage(1); };
+  const applyFilters = f => { setAdvFilters(f); setCurrentPage(1); };
   const activeFilterCount = advFilters.statuses.length + advFilters.labels.length;
 
   /* ── Add contact ── */
@@ -1732,12 +1728,12 @@ export default function ContactsCRM() {
     setContacts(prev => prev.map(c => c._id === res.data._id ? res.data : c));
     if (profileContact?._id === res.data._id) setProfileContact(res.data);
     showToast("success", "Contact Updated", `${res.data.name} has been updated successfully.`);
-    loadContacts(); 
+    loadContacts();
   };
 
   /* ── Delete ── */
   const handleDeleteSingle = (id) => setDeleteModal({ isOpen: true, id, count: 1, loading: false });
-  const handleBulkDelete   = ()  => setDeleteModal({ isOpen: true, id: null, count: selectedRows.length, loading: false });
+  const handleBulkDelete = () => setDeleteModal({ isOpen: true, id: null, count: selectedRows.length, loading: false });
 
   const confirmDelete = async () => {
     setDeleteModal(prev => ({ ...prev, loading: true }));
@@ -1760,7 +1756,7 @@ export default function ContactsCRM() {
   };
 
   const cancelDelete = () => setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
-  
+
   const handleBulkLabel = async (labels) => {
     try {
       const res = await bulkAddLabels(selectedRows, labels);
@@ -1807,8 +1803,8 @@ export default function ContactsCRM() {
   };
 
   const handleSendCampaign = () => {
-    navigate("/admin/campaign/create", { 
-      state: { 
+    navigate("/admin/campaign/create", {
+      state: {
         selectedContactIds: selectedRows,
         source: "contacts_bulk_action"
       }
@@ -1822,7 +1818,7 @@ export default function ContactsCRM() {
   };
 
   /* ── Selection ── */
-  const allPageSelected  = contacts.length > 0 && contacts.every(c => selectedRows.includes(c._id));
+  const allPageSelected = contacts.length > 0 && contacts.every(c => selectedRows.includes(c._id));
   const somePageSelected = !allPageSelected && contacts.some(c => selectedRows.includes(c._id));
 
   const toggleSelectAll = () => {
@@ -1839,11 +1835,11 @@ export default function ContactsCRM() {
 
   const filterTags = [
     ...advFilters.statuses.map(s => ({
-      label:  `Status: ${s}`,
+      label: `Status: ${s}`,
       remove: () => applyFilters({ ...advFilters, statuses: advFilters.statuses.filter(x => x !== s) }),
     })),
     ...advFilters.labels.map(l => ({
-      label:  `Label: ${l}`,
+      label: `Label: ${l}`,
       remove: () => applyFilters({ ...advFilters, labels: advFilters.labels.filter(x => x !== l) }),
     })),
   ];
@@ -1855,7 +1851,7 @@ export default function ContactsCRM() {
       return <span className="text-gray-500 text-sm">{row?.value || <span className="text-gray-300 text-xs italic">—</span>}</span>;
     }
     switch (col.key) {
-      case "name":      return (
+      case "name": return (
         <div className="flex items-center gap-2.5">
           <Avatar initials={contact.initials} color={contact.color} size="sm" />
           <span className="font-medium text-gray-900 truncate">{contact.name}</span>
@@ -1866,17 +1862,17 @@ export default function ContactsCRM() {
           )}
         </div>
       );
-      case "whatsapp":  return <span className="text-gray-500 text-sm">{contact.whatsapp || "Not provided"}</span>;
-      case "status":    return <StatusBadge status={contact.status} />;
-      case "labels":    return contact.labels?.length === 0 ? <span className="text-gray-300 text-xs italic">No labels</span> : <>{contact.labels.map(l => <LabelBadge key={l} label={l} />)}</>;
-      case "email":     return <span className="text-gray-500 text-sm">{contact.email}</span>;
+      case "whatsapp": return <span className="text-gray-500 text-sm">{contact.whatsapp || "Not provided"}</span>;
+      case "status": return <StatusBadge status={contact.status} />;
+      case "labels": return contact.labels?.length === 0 ? <span className="text-gray-300 text-xs italic">No labels</span> : <>{contact.labels.map(l => <LabelBadge key={l} label={l} />)}</>;
+      case "email": return <span className="text-gray-500 text-sm">{contact.email}</span>;
       case "institute": return <span className="text-gray-500 text-sm">{contact.institute}</span>;
-      case "address":   return <span className="text-gray-500 text-sm">{contact.address}</span>;
-      case "phone":     return <span className="text-gray-500 text-sm">{contact.phone || "Not provided"}</span>;
-      case "company":   return <span className="text-gray-500 text-sm">{contact.company}</span>;
-      case "city":      return <span className="text-gray-500 text-sm">{contact.city}</span>;
-      case "country":   return <span className="text-gray-500 text-sm">{contact.country}</span>;
-      default:          return null;
+      case "address": return <span className="text-gray-500 text-sm">{contact.address}</span>;
+      case "phone": return <span className="text-gray-500 text-sm">{contact.phone || "Not provided"}</span>;
+      case "company": return <span className="text-gray-500 text-sm">{contact.company}</span>;
+      case "city": return <span className="text-gray-500 text-sm">{contact.city}</span>;
+      case "country": return <span className="text-gray-500 text-sm">{contact.country}</span>;
+      default: return null;
     }
   };
 
@@ -2107,7 +2103,7 @@ export default function ContactsCRM() {
                   </tr>
                 ) : contacts.map(contact => {
                   const isSelected = selectedRows.includes(contact._id);
-                  const isActive   = profileContact?._id === contact._id;
+                  const isActive = profileContact?._id === contact._id;
                   return (
                     <tr
                       key={contact._id}
@@ -2172,9 +2168,9 @@ export default function ContactsCRM() {
         />
       </div>
 
-      <BulkActionToolbar 
-        selectedCount={selectedRows.length} 
-        onClear={() => setSelectedRows([])} 
+      <BulkActionToolbar
+        selectedCount={selectedRows.length}
+        onClear={() => setSelectedRows([])}
         onDelete={handleBulkDelete}
         onLabel={handleBulkLabel}
         onRemoveLabel={handleBulkRemoveLabel}

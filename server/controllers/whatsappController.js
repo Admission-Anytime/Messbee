@@ -886,11 +886,34 @@ exports.getTemplates = async (req, res, next) => {
     });
   } catch (error) {
     console.error('❌ [Server] Error in getTemplates controller:', error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Server Error fetching templates',
-      error: error.message
-    });
+    
+    // Fallback: If we can't reach WhatsApp, return the templates stored in our database
+    try {
+      const userTemplates = await Template.find({ user: req.user.id });
+      
+      const approvedTemplates = userTemplates.filter((template) => template.status === 'APPROVED');
+      const nonApprovedTemplates = userTemplates.filter((template) => template.status !== 'APPROVED');
+
+      return res.status(200).json({
+        success: true,
+        isOfflineFallback: true,
+        message: 'Could not connect to WhatsApp API. Showing locally saved templates.',
+        data: { data: userTemplates },
+        summary: {
+          total: userTemplates.length,
+          approved: approvedTemplates.length,
+          nonApproved: nonApprovedTemplates.length
+        },
+        approvedTemplates,
+        nonApprovedTemplates
+      });
+    } catch (fallbackError) {
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Server Error fetching templates',
+        error: error.message
+      });
+    }
   }
 };
 

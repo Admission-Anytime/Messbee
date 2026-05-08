@@ -391,7 +391,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
-                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.credits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.credits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
             </div>

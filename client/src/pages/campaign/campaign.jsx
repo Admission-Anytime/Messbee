@@ -379,12 +379,12 @@ const CampaignDashboard = () => {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/60">
                 <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-12 whitespace-nowrap">#</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Campaign Title</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Template</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[20%] whitespace-nowrap">Campaign Title</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[18%] whitespace-nowrap">Template</th>
                 <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Status</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Sent On</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Created By</th>
-                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[10%] text-right whitespace-nowrap">Actions</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Sent On</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-[18%] whitespace-nowrap">Created By</th>
+                <th className="px-5 py-3 text-[11px] font-bold uppercase tracking-widest text-slate-400 w-24 text-right whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
