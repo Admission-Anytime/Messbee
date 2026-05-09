@@ -899,7 +899,23 @@ function CustomRoleCard({data,onDelete,onView}){
           : <ul className="space-y-2">
               {preview.map(p=>(
                 <li key={p} className="flex items-center gap-2">
-                  <svg className="w-4 h-4 flex-shrink-0 text-purple-400" export default function ManageTeams(){
+                  <svg className="w-4 h-4 flex-shrink-0 text-purple-400" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>
+                  <span className="text-sm text-gray-600">{p}</span>
+                </li>
+              ))}
+            </ul>
+        }
+      </div>
+
+      <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
+        <button onClick={onDelete} className="text-sm font-semibold text-red-500 hover:text-red-600 transition">Delete Role</button>
+        <button onClick={onView} className="flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>View</button>
+      </div>
+    </div>
+  );
+}
+
+export default function ManageTeams(){
   const [activeTab,setActiveTab]=useState("Members");
   const [members,setMembers]=useState([]);
   const [loading,setLoading]=useState(true);
