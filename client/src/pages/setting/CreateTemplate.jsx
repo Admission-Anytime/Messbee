@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview } from '../../services/TemplateApi';
+import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 const CreateTemplate = () => {
   const navigate = useNavigate();
@@ -30,10 +30,16 @@ const CreateTemplate = () => {
       ? { 
           preview: location.state.templateData.headerMediaUrl, 
           type: location.state.templateData.headerType?.toLowerCase() || 'image',
-          name: 'Existing Media'
+          name: 'Existing Media',
+          hostedUrl: location.state.templateData.headerMediaUrl // already a hosted URL
         } 
       : null
   );
+  // Tracks the actual uploaded file URL returned by the server (DOCUMENT_GET_URL)
+  const [uploadedMediaUrl, setUploadedMediaUrl] = useState(
+    location.state?.templateData?.headerMediaUrl || null
+  );
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const headerFileRef = useRef(null);
 
   const EMOJIS = [
@@ -173,31 +179,58 @@ const CreateTemplate = () => {
     setButtons(buttons.map(btn => btn.id === id ? { ...btn, [field]: value } : btn));
   };
 
-  const handleHeaderMediaUpload = (e) => {
+  const handleHeaderMediaUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const maxSize = 16 * 1024 * 1024; // 16MB max
     if (file.size > maxSize) {
-      toast.error("File size must be less than 16MB");
+      toast.error('File size must be less than 16MB');
       return;
     }
 
+    const mediaType = file.type.startsWith('image/')
+      ? 'image'
+      : file.type.startsWith('video/')
+        ? 'video'
+        : 'document';
+
+    // Show a local preview immediately
     const reader = new FileReader();
     reader.onload = (event) => {
       setHeaderMedia({
         file: file,
         preview: event.target?.result,
-        type: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'document',
-        name: file.name
+        type: mediaType,
+        name: file.name,
+        hostedUrl: null // will be set after upload completes
       });
     };
     reader.readAsDataURL(file);
-    toast.success("Media uploaded successfully!");
+
+    // Upload to server and get the public DOCUMENT_GET_URL-based URL
+    setIsUploadingMedia(true);
+    try {
+      const response = await uploadTemplateMedia(file);
+      if (response?.success && response?.data?.url) {
+        const hostedUrl = response.data.url;
+        setUploadedMediaUrl(hostedUrl);
+        setHeaderMedia((prev) => prev ? { ...prev, hostedUrl } : prev);
+        toast.success('Media uploaded successfully!');
+      } else {
+        toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+      }
+    } catch (uploadErr) {
+      console.error('Template media upload error:', uploadErr);
+      toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+    } finally {
+      setIsUploadingMedia(false);
+    }
   };
 
   const removeHeaderMedia = () => {
     setHeaderMedia(null);
+    setUploadedMediaUrl(null);
     if (headerFileRef.current) {
       headerFileRef.current.value = '';
     }
@@ -364,12 +397,21 @@ const CreateTemplate = () => {
 
     try {
       const components = [];
-      const mediaHeaderExamples = {
+
+      // Fallback public URLs (only used if no file was uploaded by the user)
+      const mediaHeaderFallbacks = {
         Image: 'https://images.unsplash.com/photo-1497366811353-6870744d04b2?auto=format&fit=crop&w=1200&q=80',
         Video: 'https://samplelib.com/lib/preview/mp4/sample-5s.mp4',
         Document: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf'
       };
-      
+
+      // Prefer the real server-hosted URL from DOCUMENT_GET_URL
+      const getHeaderUrl = (type) => {
+        if (uploadedMediaUrl) return uploadedMediaUrl;
+        if (headerMedia?.hostedUrl) return headerMedia.hostedUrl;
+        return mediaHeaderFallbacks[type];
+      };
+
       // Add HEADER component only if valid
       if (formData.headerType && formData.headerType !== 'None') {
         if (formData.headerType === 'Text') {
@@ -380,28 +422,22 @@ const CreateTemplate = () => {
             text: formData.name.substring(0, 60) // Max 60 chars for header
           });
         } else if (formData.headerType === 'Image') {
-          // Keep media header payload minimal; invalid sample handles/URLs often trigger
-          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'IMAGE',
-            example: { header_url: [mediaHeaderExamples.Image] }
+            example: { header_url: [getHeaderUrl('Image')] }
           });
         } else if (formData.headerType === 'Video') {
-          // Keep media header payload minimal; invalid sample handles/URLs often trigger
-          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'VIDEO',
-            example: { header_url: [mediaHeaderExamples.Video] }
+            example: { header_url: [getHeaderUrl('Video')] }
           });
         } else if (formData.headerType === 'Document') {
-          // Keep media header payload minimal; invalid sample handles/URLs often trigger
-          // WhatsApp "Invalid parameter" on creation.
           components.push({ 
             type: 'HEADER', 
             format: 'DOCUMENT',
-            example: { header_url: [mediaHeaderExamples.Document] }
+            example: { header_url: [getHeaderUrl('Document')] }
           });
         }
       }
@@ -468,6 +504,15 @@ const CreateTemplate = () => {
         createdTemplateResponse = await submitTemplate(templatePayload);
       } catch (primaryError) {
         let latestError = primaryError;
+
+        // ── Network-level errors (ENOTFOUND, timeout, etc.) should never trigger
+        //    a "retry without HEADER" — that just causes WhatsApp to accept the
+        //    template without media and immediately reject it as INVALID_FORMAT.
+        const isNetworkError = !primaryError?.response;
+        if (isNetworkError) {
+          throw primaryError; // propagate immediately
+        }
+
         const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
         const payloadWithoutHeader = {
           ...templatePayload,
@@ -552,16 +597,20 @@ const CreateTemplate = () => {
           createdTemplateResponse?.templateName ||
           createdTemplateResponse?.data?.name ||
           waName;
-        const previewByType = {
-          Image: headerMedia?.preview || mediaHeaderExamples.Image,
-          Video: headerMedia?.preview || mediaHeaderExamples.Video,
-          Document: headerMedia?.preview || mediaHeaderExamples.Document
-        };
 
-        saveTemplateHeaderPreview(actualCreatedName, {
-          url: previewByType[formData.headerType],
-          type: formData.headerType
-        });
+        // Use the real hosted URL (DOCUMENT_GET_URL) for the preview cache
+        const resolvedPreviewUrl =
+          uploadedMediaUrl ||
+          headerMedia?.hostedUrl ||
+          headerMedia?.preview ||
+          null;
+
+        if (resolvedPreviewUrl) {
+          saveTemplateHeaderPreview(actualCreatedName, {
+            url: resolvedPreviewUrl,
+            type: formData.headerType
+          });
+        }
       }
       
       // Template saved/updated successfully
@@ -593,7 +642,11 @@ const CreateTemplate = () => {
         "Failed to create template on WhatsApp. Please try again.";
       
       // Handle specific user-facing errors (like approved template edit attempts)
-      if (error?.message?.includes('This template has been approved by Meta')) {
+      if (!error?.response && (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND') || error?.message?.includes('getaddrinfo'))) {
+        // Network error — server can't reach graph.facebook.com
+        errorMessage = 'Cannot reach WhatsApp servers. Please check that the server has a working internet connection and try again.';
+        toast.error(errorMessage);
+      } else if (error?.message?.includes('This template has been approved by Meta')) {
         errorMessage = 'Approved Template - Cannot Edit\n\n' +
           'WhatsApp does not allow editing templates that have been approved by Meta. ' +
           'To make changes:\n\n' +
@@ -899,6 +952,7 @@ const CreateTemplate = () => {
                               setFormData({...formData, headerType: e.target.value});
                               // Clear previous media when header type changes
                               setHeaderMedia(null);
+                              setUploadedMediaUrl(null);
                               if (headerFileRef.current) {
                                 headerFileRef.current.value = '';
                               }
@@ -948,7 +1002,25 @@ const CreateTemplate = () => {
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-semibold text-gray-800 truncate">{headerMedia.name}</p>
-                                      <p className="text-xs text-gray-500">{(headerMedia.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                      {headerMedia.file && (
+                                        <p className="text-xs text-gray-500">{(headerMedia.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                      )}
+                                      {isUploadingMedia ? (
+                                        <div className="flex items-center gap-1.5 mt-1">
+                                          <svg className="animate-spin h-3 w-3 text-[#10B981]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                          </svg>
+                                          <span className="text-xs text-[#10B981] font-medium">Uploading to server…</span>
+                                        </div>
+                                      ) : (uploadedMediaUrl || headerMedia.hostedUrl) ? (
+                                        <div className="mt-1">
+                                          <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 font-medium">
+                                            ✓ Hosted
+                                          </span>
+                                          <p className="text-xs text-gray-400 truncate mt-0.5 max-w-xs">{uploadedMediaUrl || headerMedia.hostedUrl}</p>
+                                        </div>
+                                      ) : null}
                                     </div>
                                   </div>
                                   <button 

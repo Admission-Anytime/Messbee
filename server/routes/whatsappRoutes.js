@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsappController');
 const { protect } = require('../middleware/auth');
+const upload = require('../middleware/upload');
 
 /**
  * WhatsApp Business API Routes
@@ -46,6 +47,64 @@ router.post('/debug-send', protect, async (req, res) => {
     result
   });
 });
+
+/**
+ * @swagger
+ * /api/whatsapp/templates/upload-media:
+ *   post:
+ *     summary: Upload media for WhatsApp template header
+ *     description: Uploads an image, video, or document to be used as a header in a WhatsApp template. Returns the public URL of the uploaded file.
+ *     tags: [WhatsApp]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - file
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *                 description: The media file to upload (image, video, or document)
+ *     responses:
+ *       200:
+ *         description: File uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: File uploaded successfully
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     filename:
+ *                       type: string
+ *                     originalName:
+ *                       type: string
+ *                     mimetype:
+ *                       type: string
+ *                     size:
+ *                       type: number
+ *                     url:
+ *                       type: string
+ *                       description: The public URL of the uploaded file
+ *       400:
+ *         description: No file uploaded or invalid format
+ *       500:
+ *         description: Server error
+ */
+// Upload media for template header (image/video/document) — must come BEFORE /:templateId routes
+router.post('/templates/upload-media', protect, upload.single('file'), whatsappController.uploadTemplateMedia);
 
 // Get WhatsApp message templates (Protected route)
 router.get('/templates', protect, whatsappController.getTemplates);

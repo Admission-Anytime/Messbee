@@ -1026,6 +1026,15 @@ class WhatsAppService {
         }
 
         if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion && hasMediaHeader) {
+          // Only drop the HEADER for WhatsApp API validation errors (4xx responses).
+          // Network-level errors (ENOTFOUND, ECONNREFUSED, timeout) must propagate immediately
+          // so the client sees the real problem instead of a misleading INVALID_FORMAT rejection.
+          const isWhatsAppApiError = !!error.response; // has HTTP response → WhatsApp returned an error
+          if (!isWhatsAppApiError) {
+            console.error('❌ Network error reaching Facebook Graph API. Not retrying without HEADER.');
+            throw error;
+          }
+
           const componentsWithoutHeader = preparedComponents.filter(
             (component) => String(component?.type || '').toUpperCase() !== 'HEADER'
           );

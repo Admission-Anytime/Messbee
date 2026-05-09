@@ -1118,4 +1118,44 @@ exports.updateTemplate = async (req, res, next) => {
   }
 };
 
+// @desc    Upload image/document for use in a template header
+// @route   POST /api/whatsapp/templates/upload-media
+// @access  Private
+exports.uploadTemplateMedia = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const { getPublicUrl } = require('../middleware/upload');
+    const publicUrl = getPublicUrl(req.file.filename);
+
+    console.log('📎 [uploadTemplateMedia] File uploaded successfully:');
+    console.log('   ├─ Original name :', req.file.originalname);
+    console.log('   ├─ Saved as      :', req.file.filename);
+    console.log('   ├─ MIME type     :', req.file.mimetype);
+    console.log('   ├─ Size          :', (req.file.size / 1024).toFixed(2), 'KB');
+    console.log('   └─ Public URL    :', publicUrl);
+
+    return res.status(200).json({
+      success: true,
+      message: 'File uploaded successfully',
+      data: {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        url: publicUrl
+      }
+    });
+  } catch (error) {
+    console.error('❌ [uploadTemplateMedia] Error:', error.message);
+    next(error);
+  }
+};
+
 module.exports = exports;
+

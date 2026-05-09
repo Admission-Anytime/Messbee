@@ -2,11 +2,60 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure uploads directory exists
-const uploadDir = process.env.UPLOAD_PATH || './uploads';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+/**
+ * Resolve the effective upload directory.
+ *
+ * Rules:
+ *  - On Linux/Mac: use UPLOAD_PATH as-is (absolute or relative).
+ *  - On Windows dev: if UPLOAD_PATH is a Unix-style absolute path (starts with '/')
+ *    it cannot exist locally, so fall back to ./uploads.
+ *  - Always fall back to ./uploads if the configured path can't be created.
+ */
+const rawUploadPath = (process.env.UPLOAD_PATH || './uploads').replace(/[/\\]+$/, ''); // strip trailing slash
+
+const isUnixAbsoluteOnWindows =
+  process.platform === 'win32' && rawUploadPath.startsWith('/');
+
+const uploadDir = isUnixAbsoluteOnWindows
+  ? path.join(__dirname, '..', 'uploads') // local fallback on Windows dev
+  : rawUploadPath;
+
+// Ensure the directory exists (create if needed)
+try {
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+} catch (e) {
+  console.warn(`⚠️  Could not create upload directory "${uploadDir}": ${e.message}`);
 }
+
+if (isUnixAbsoluteOnWindows) {
+  console.info(
+    `ℹ️  UPLOAD_PATH "${rawUploadPath}" is a Unix path and cannot be used on Windows. ` +
+    `Falling back to local: "${uploadDir}"`
+  );
+}
+
+/**
+ * Returns the full public URL for a stored file.
+ *
+ * In production (Linux), files land in UPLOAD_PATH which is the web-root of
+ * documents.messbee.com, so DOCUMENT_GET_URL is the correct base.
+ *
+ * In local Windows dev the file is served from Express at /uploads/…
+ */
+const getPublicUrl = (filename) => {
+  // Always use DOCUMENT_GET_URL if provided, as Meta requires a public URL.
+  // Fall back to localhost only if DOCUMENT_GET_URL is not configured.
+  if (process.env.DOCUMENT_GET_URL) {
+    const baseUrl = process.env.DOCUMENT_GET_URL.replace(/\/$/, '');
+    return `${baseUrl}/${filename}`;
+  }
+  
+  // Fallback for completely unconfigured environments
+  const port = process.env.PORT || 5000;
+  return `http://localhost:${port}/uploads/${filename}`;
+};
 
 // Storage configuration
 const storage = multer.diskStorage({
@@ -14,7 +63,7 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
     const sanitizedFilename = file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_');
     cb(null, file.fieldname + '-' + uniqueSuffix + '-' + sanitizedFilename);
   }
@@ -48,12 +97,14 @@ const fileFilter = (req, file, cb) => {
     return cb(null, true);
   }
 
-  // Also allow by checking common extensions as a fallback
-  const allowedExts = ['.jpg', '.jpeg', '.png', '.gif', '.webp',
+  // Fallback: check by extension
+  const allowedExts = [
+    '.jpg', '.jpeg', '.png', '.gif', '.webp',
     '.mp4', '.mov', '.avi', '.3gp',
     '.mp3', '.ogg', '.wav', '.aac',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
-    '.txt', '.csv', '.zip', '.rar'];
+    '.txt', '.csv', '.zip', '.rar'
+  ];
 
   const ext = path.extname(file.originalname).toLowerCase();
   if (allowedExts.includes(ext)) {
@@ -63,13 +114,13 @@ const fileFilter = (req, file, cb) => {
   cb(new Error(`File type not supported: ${file.mimetype} (${path.extname(file.originalname)})`));
 };
 
-// Configure multer — 25MB limit to match UI
+// Configure multer — 25 MB limit to match UI
 const upload = multer({
-  storage: storage,
-  limits: {
-    fileSize: 25 * 1024 * 1024 // 25MB (matches the UI)
-  },
-  fileFilter: fileFilter
+  storage,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter
 });
 
 module.exports = upload;
+module.exports.getPublicUrl = getPublicUrl;
+module.exports.uploadDir = uploadDir;

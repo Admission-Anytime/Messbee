@@ -105,6 +105,26 @@ export const createWhatsAppTemplate = async (templateData) => {
 };
 
 /**
+ * Upload a media file (image/video/document) to be used as a template header.
+ * The file is stored at UPLOAD_PATH on the server and served via DOCUMENT_GET_URL.
+ * @param {File} file - Browser File object selected by the user
+ * @returns {{ url: string, filename: string, mimetype: string, size: number }}
+ */
+export const uploadTemplateMedia = async (file) => {
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await axios.post('/whatsapp/templates/upload-media', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    return data; // { success, data: { url, filename, mimetype, size } }
+  } catch (error) {
+    console.error('❌ [TemplateApi] Error uploading template media:', error.response?.data || error.message);
+    throw error;
+  }
+};
+
+/**
  * Update an existing template in WhatsApp Business Account
  */
 export const updateWhatsAppTemplate = async (templateId, templateData) => {

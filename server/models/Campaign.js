@@ -13,6 +13,14 @@ const CampaignSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Please add a message template']
   },
+  headerMediaUrl: {
+    type: String,
+    default: null
+  },
+  headerType: {
+    type: String,
+    default: 'None'
+  },
   templateLanguage: {
     type: String,
     default: 'en_US'

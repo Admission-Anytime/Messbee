@@ -79,7 +79,8 @@ app.use((req, res, next) => {
   next();
 });
 
-// ✅ Fix: Static folder setup using path.join
+// Static file serving — always mount the local uploads folder so dev works out of the box.
+// In production, the web server (nginx/apache) serves files from UPLOAD_PATH via DOCUMENT_GET_URL.
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ================== SWAGGER DOCS ==================

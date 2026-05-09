@@ -62,7 +62,10 @@ const CreateCampaign = () => {
                 preview: template.bodyText || '',
                 language: template.language || 'en_US',
                 lastUsed: template.updated || 'Never',
-                category: template.category || 'General'
+                category: template.category || 'General',
+                headerMediaUrl: template.headerMediaUrl,
+                headerType: template.headerType,
+                buttons: template.buttons
             }));
 
             setTemplates(formatted);
@@ -240,7 +243,9 @@ const CreateCampaign = () => {
                 audienceFilter: {
                     tags: selectedOption === 'labels' ? selectedLabels : [],
                     status: selectedOption === 'status' ? selectedStatus : null,
-                }
+                },
+                headerMediaUrl: activeTemplate?.headerMediaUrl,
+                headerType: activeTemplate?.headerType
             };
 
             const res = await CampaignApi.createCampaign(campaignData);
@@ -296,7 +301,9 @@ const CreateCampaign = () => {
                 audienceFilter: {
                     tags: selectedOption === 'labels' ? selectedLabels : [],
                     status: selectedOption === 'status' ? selectedStatus : null,
-                }
+                },
+                headerMediaUrl: activeTemplate?.headerMediaUrl,
+                headerType: activeTemplate?.headerType
             };
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
@@ -764,6 +771,29 @@ const CreateCampaign = () => {
                                     <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-[#e5ddd5]">
                                         {activeTemplate && (
                                             <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
+                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Image' && (
+                                                    <div className="mb-2 rounded-lg overflow-hidden border border-gray-100">
+                                                        <img src={activeTemplate.headerMediaUrl} alt="Template Header" className="w-full h-auto object-cover max-h-[120px]" />
+                                                    </div>
+                                                )}
+                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Document' && (
+                                                    <div className="mb-2 bg-gray-50 p-2 rounded-lg border border-gray-100 flex items-center gap-2">
+                                                        <div className="w-8 h-8 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-[10px]">PDF</div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-[11px] font-bold text-gray-700 truncate">Document</div>
+                                                            <div className="text-[9px] text-gray-400">PDF Document</div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Video' && (
+                                                    <div className="mb-2 bg-black rounded-lg overflow-hidden border border-gray-100 relative h-[120px] flex items-center justify-center">
+                                                        <video src={activeTemplate.headerMediaUrl} className="w-full h-full object-cover opacity-80" />
+                                                        <div className="absolute w-8 h-8 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/50">
+                                                            <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1"></div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                
                                                 <p className="whitespace-pre-wrap leading-relaxed mb-2">
                                                     {(activeTemplate?.preview || '').split(/(\{\{.*?\}\})/).map((part, index) =>
                                                         part.startsWith('{{') ? (
@@ -777,14 +807,15 @@ const CreateCampaign = () => {
                                                     <span className="text-[9px] text-gray-400">12:45 PM</span>
                                                 </div>
                                                 {/* Action Buttons */}
-                                                <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                                                    <button className="w-full py-2 text-center text-emerald-500 font-bold text-[10px] border border-emerald-100 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                                                        📅 Join Webinar
-                                                    </button>
-                                                    <button className="w-full py-2 text-center text-emerald-500 font-bold text-[10px] border border-emerald-100 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                                                        📞 Contact Counselor
-                                                    </button>
-                                                </div>
+                                                {activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
+                                                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+                                                        {activeTemplate.buttons.map(btn => (
+                                                            <button key={btn.id} className="w-full py-2 text-center text-[#00a884] font-bold text-[11px] border border-gray-100 rounded bg-gray-50/50 flex justify-center items-center gap-1.5">
+                                                                {btn.type.includes('Visit') ? '🌐' : btn.type.includes('Call') ? '📞' : '↩️'} {btn.text}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
                                     </div>

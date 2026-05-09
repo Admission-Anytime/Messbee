@@ -15,20 +15,55 @@ const resolveContactPhone = (contact) => {
 };
 
 const buildTemplateComponents = (template, contact, campaign) => {
-  const bodyParamCount = whatsappService.getBodyTemplateParamCount(template);
+  const components = [];
 
-  if (!bodyParamCount) {
-    return [];
+  const templateComponents = Array.isArray(template?.components) ? template.components : [];
+  const headerComponent = templateComponents.find(c => String(c?.type || '').toUpperCase() === 'HEADER');
+  const headerFormat = String(headerComponent?.format || '').toUpperCase();
+  const requiresMediaHeader = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerFormat);
+
+  // Fallback to template's own example URL if campaign doesn't have it saved
+  const fallbackMediaUrl = 
+      headerComponent?.example?.header_handle?.[0] ||
+      headerComponent?.example?.header_url?.[0] ||
+      headerComponent?.example?.url?.[0] ||
+      '';
+
+  const resolvedMediaUrl = campaign?.headerMediaUrl || fallbackMediaUrl;
+
+  // Add Header Component if template requires media and media URL is present
+  if (requiresMediaHeader && resolvedMediaUrl) {
+    let headerParamType = 'image';
+    if (headerFormat === 'DOCUMENT') headerParamType = 'document';
+    else if (headerFormat === 'VIDEO') headerParamType = 'video';
+    
+    components.push({
+      type: 'header',
+      parameters: [
+        {
+          type: headerParamType,
+          [headerParamType]: {
+            link: resolvedMediaUrl
+          }
+        }
+      ]
+    });
   }
 
-  const fallbackValue = contact?.name || campaign?.name || 'there';
-  return [{
-    type: 'body',
-    parameters: Array.from({ length: bodyParamCount }, (_value, index) => ({
-      type: 'text',
-      text: index === 0 ? (contact?.name || fallbackValue) : fallbackValue
-    }))
-  }];
+  // Add Body Component
+  const bodyParamCount = whatsappService.getBodyTemplateParamCount(template);
+  if (bodyParamCount > 0) {
+    const fallbackValue = contact?.name || campaign?.name || 'there';
+    components.push({
+      type: 'body',
+      parameters: Array.from({ length: bodyParamCount }, (_value, index) => ({
+        type: 'text',
+        text: index === 0 ? (contact?.name || fallbackValue) : fallbackValue
+      }))
+    });
+  }
+
+  return components;
 };
 
 const findOrCreateChatForContact = async (contact) => {
