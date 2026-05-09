@@ -146,17 +146,42 @@ const resolveMessageType = (messageType, mediaType) => {
 // Protect all chat routes
 router.use(protect);
 
-// 1. Get All Chats (Sidebar)
+// 1. Get All Chats (Sidebar) — paginated for performance
 router.get("/", async (req, res) => {
   try {
-    // Show chats belonging to this user OR all WhatsApp chats (shared inbox)
-    const chats = await Chat.find({
+    const page  = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit = Math.min(100, parseInt(req.query.limit) || 50);
+    const skip  = (page - 1) * limit;
+
+    const query = {
       $or: [
         { user: req.user.id },
         { source: 'whatsapp' }
       ]
-    }).sort({ isPinned: -1, updatedAt: -1 });
-    res.json(chats);
+    };
+
+    // Only return the fields the sidebar actually needs (keeps payload small)
+    const projection = {
+      name: 1, phone: 1, avatar: 1, status: 1, chatStatus: 1,
+      isPinned: 1, isMuted: 1, isBlocked: 1, isVerified: 1,
+      teamMember: 1, labels: 1, unread: 1, lastMsg: 1, lastMsgTime: 1,
+      whatsappId: 1, source: 1, lastInboundAt: 1, lastActivity: 1,
+      customFields: 1, tags: 1, user: 1, createdAt: 1, updatedAt: 1
+    };
+
+    const [chats, total] = await Promise.all([
+      Chat.find(query, projection)
+        .sort({ isPinned: -1, updatedAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),            // .lean() returns plain JS objects — much faster than Mongoose docs
+      Chat.countDocuments(query)
+    ]);
+
+    res.json({
+      data: chats,
+      pagination: { page, limit, total, hasMore: skip + chats.length < total }
+    });
   } catch (error) {
     res.status(500).json(error);
   }

@@ -70,7 +70,11 @@ exports.createCampaign = async (req, res, next) => {
       }
 
       if (req.body.audienceFilter.status) {
-        filter.status = String(req.body.audienceFilter.status).toUpperCase();
+        if (Array.isArray(req.body.audienceFilter.status)) {
+          filter.status = { $in: req.body.audienceFilter.status.map(s => String(s).toUpperCase()) };
+        } else {
+          filter.status = String(req.body.audienceFilter.status).toUpperCase();
+        }
       }
       
       if (req.body.audienceFilter.createdAfter) {

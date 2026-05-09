@@ -81,7 +81,7 @@ const CreateCampaign = () => {
     // Step 1 State
     const [selectedOption, setSelectedOption] = useState('all');
     const [selectedLabels, setSelectedLabels] = useState([]);
-    const [selectedStatus, setSelectedStatus] = useState('');
+    const [selectedStatus, setSelectedStatus] = useState([]);
     const [csvFile, setCsvFile] = useState(null);
     const fileInputRef = React.useRef(null);
     const [showMapFieldsModal, setShowMapFieldsModal] = useState(false);
@@ -105,8 +105,8 @@ const CreateCampaign = () => {
                         return;
                     }
                 } else if (selectedOption === 'status') {
-                    if (selectedStatus) {
-                        params.set('status', selectedStatus);
+                    if (selectedStatus.length > 0) {
+                        params.set('status', selectedStatus.join(','));
                     } else {
                         setEstimatedCount(0);
                         return;
@@ -319,8 +319,8 @@ const CreateCampaign = () => {
                 toast.error('Please select at least one label.');
                 return;
             }
-            if (selectedOption === 'status' && !selectedStatus) {
-                toast.error('Please select a status.');
+            if (selectedOption === 'status' && selectedStatus.length === 0) {
+                toast.error('Please select at least one status.');
                 return;
             }
             if (selectedOption === 'csv' && !csvFile) {
@@ -532,7 +532,10 @@ const CreateCampaign = () => {
                                         <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50/50 relative">
                                             {selectedLabels.map(label => (
                                                 <span key={label} className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-sm text-gray-700 shadow-sm">
-                                                    {label} <X className="w-3 h-3 text-gray-400 cursor-pointer" onClick={() => setSelectedLabels(prev => prev.filter(l => l !== label))} />
+                                                    {label} <X className="w-3 h-3 text-gray-400 cursor-pointer" onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedLabels(prev => prev.filter(l => l !== label));
+                                                    }} />
                                                 </span>
                                             ))}
                                             <select 
@@ -544,6 +547,7 @@ const CreateCampaign = () => {
                                                     }
                                                     e.target.value = "";
                                                 }}
+                                                onClick={(e) => e.stopPropagation()}
                                             >
                                                 <option value="">Add labels...</option>
                                                 {labelsList.filter(l => !selectedLabels.includes(l)).map(l => (
@@ -573,17 +577,33 @@ const CreateCampaign = () => {
                                         </div>
                                         <p className="text-gray-500 text-sm mb-3">Send messages based on contact lead status.</p>
 
-                                        <select 
-                                            value={selectedStatus}
-                                            onChange={(e) => setSelectedStatus(e.target.value)}
-                                            onClick={(e) => e.stopPropagation()}
-                                            className="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 text-sm text-slate-700 outline-none focus:border-emerald-500"
-                                        >
-                                            <option value="">Select Status...</option>
-                                            {statusOptions.map(opt => (
-                                                <option key={opt} value={opt}>{opt}</option>
+                                        {/* Status Multi-select Area */}
+                                        <div className="flex flex-wrap items-center gap-2 p-2 border border-gray-200 rounded-lg bg-gray-50/50 relative">
+                                            {selectedStatus.map(status => (
+                                                <span key={status} className="flex items-center gap-1 px-3 py-1 bg-white border border-gray-200 rounded-md text-sm text-gray-700 shadow-sm">
+                                                    {status} <X className="w-3 h-3 text-gray-400 cursor-pointer" onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedStatus(prev => prev.filter(s => s !== status));
+                                                    }} />
+                                                </span>
                                             ))}
-                                        </select>
+                                            <select 
+                                                className="flex-1 bg-transparent border-none focus:ring-0 text-sm text-gray-400 min-w-[150px] outline-none"
+                                                onChange={(e) => {
+                                                    const val = e.target.value;
+                                                    if (val && !selectedStatus.includes(val)) {
+                                                        setSelectedStatus(prev => [...prev, val]);
+                                                    }
+                                                    e.target.value = "";
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                            >
+                                                <option value="">Add status...</option>
+                                                {statusOptions.filter(s => !selectedStatus.includes(s)).map(s => (
+                                                    <option key={s} value={s}>{s}</option>
+                                                ))}
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

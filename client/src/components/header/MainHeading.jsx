@@ -86,6 +86,14 @@ const MainHeading = ({ onMenuClick }) => {
     avatar: user?.avatar || "https://i.pravatar.cc/150?u=user" 
   };
 
+   const displayedCredits = (() => {
+      const val = user?.credits;
+      if (val === null || val === undefined || val === "") return "0.00";
+      const num = Number(val);
+      if (Number.isNaN(num)) return "0.00";
+      return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+   })();
+
   // --- LOGIC: DYNAMIC COUNTS ---
   
   // 1. Bell Badge: Counts ALL unread items regardless of type
@@ -183,7 +191,7 @@ const MainHeading = ({ onMenuClick }) => {
            <WalletIcon className="w-4 h-4 text-slate-500 group-hover:text-slate-700" />
            <div className="flex flex-col leading-none items-start">
              <span className="text-[9px] font-bold text-slate-400 uppercase group-hover:text-slate-500">Credits</span>
-             <span className="text-[11px] font-bold text-slate-800">₹{userProfile.credits}</span>
+             <span className="text-[11px] font-bold text-slate-800">₹{displayedCredits}</span>
            </div>
         </button>
 

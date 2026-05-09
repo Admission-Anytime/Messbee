@@ -89,12 +89,12 @@ const Label = () => {
         // Update existing label
         await updateLabel(editingLabel._id, labelData);
         await fetchLabels(); // Refresh the list
-        toast.success('✅ Label updated successfully');
+        toast.success('Label updated successfully');
       } else {
         // Create new label
         await createLabel(labelData);
         await fetchLabels(); // Refresh the list
-        toast.success('✅ Label created successfully');
+        toast.success('Label created successfully');
       }
       closeModal();
     } catch (error) {
@@ -114,7 +114,7 @@ const Label = () => {
       await fetchLabels(); // Refresh the list
       setIsDeleteModalOpen(false);
       setLabelToDelete(null);
-      toast.success('✅ Label deleted successfully');
+      toast.success('Label deleted successfully');
     } catch (error) {
       console.error('Failed to delete label:', error);
       toast.error(`❌ ${error.response?.data?.message || 'Failed to delete label'}`);

@@ -7,14 +7,27 @@ import axios from '../context/axios';
 
 const chatService = {
   /**
-   * Get all chats
+   * Get chats (paginated)
+   * @param {number} page  - Page number (default 1)
+   * @param {number} limit - Items per page (default 50)
    */
-  async getChats() {
+  async getChats(page = 1, limit = 50) {
     try {
-      const response = await axios.get('/chats');
+      const response = await axios.get(`/chats?page=${page}&limit=${limit}`);
+      // Backend now returns { data: [...], pagination: {...} }
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) {
+        return {
+          success: true,
+          data: payload.data,
+          pagination: payload.pagination
+        };
+      }
+      // Backwards compat: plain array response
       return {
         success: true,
-        data: response.data
+        data: Array.isArray(payload) ? payload : [],
+        pagination: null
       };
     } catch (error) {
       console.error('Error fetching chats:', error);
