@@ -47,14 +47,12 @@ if (isUnixAbsoluteOnWindows) {
 const getPublicUrl = (filename) => {
   // Always use DOCUMENT_GET_URL if provided, as Meta requires a public URL.
   // Fall back to localhost only if DOCUMENT_GET_URL is not configured.
-  if (process.env.DOCUMENT_GET_URL) {
-    const baseUrl = process.env.DOCUMENT_GET_URL.replace(/\/$/, '');
-    return `${baseUrl}/${filename}`;
-  }
-  
-  // Fallback for completely unconfigured environments
-  const port = process.env.PORT || 5000;
-  return `http://localhost:${port}/uploads/${filename}`;
+  // Always use DOCUMENT_GET_URL if provided, otherwise default to documents.messbee.com
+  const baseUrl = process.env.DOCUMENT_GET_URL 
+    ? process.env.DOCUMENT_GET_URL.replace(/\/$/, '') 
+    : 'https://documents.messbee.com';
+    
+  return `${baseUrl}/${filename}`;
 };
 
 // Storage configuration
