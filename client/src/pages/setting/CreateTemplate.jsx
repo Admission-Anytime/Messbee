@@ -1249,16 +1249,6 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
                  </div>
               </div>
               
-              <div className="border-t border-gray-100 w-full flex">
-                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
-                    <ExternalLink size={16}/> Shop now
-                 </button>
-              </div>
-              <div className="border-t border-gray-100 w-full flex">
-                 <button className="w-full py-3 flex items-center justify-center gap-2 text-blue-500 font-semibold text-[14px] hover:bg-gray-50 transition-colors">
-                    <Copy size={16}/> Copy code
-                 </button>
-              </div>
            </div>
         </div>
       </div>

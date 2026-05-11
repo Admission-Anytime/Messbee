@@ -228,11 +228,16 @@ const Templates = ({ activeTab }) => {
                 </div>
               </div>
             ) : filteredTemplates.length === 0 ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="flex flex-col items-center gap-2">
-                  <ImageIcon size={32} className="text-gray-300" />
-                  <p className="text-gray-400 font-medium">No templates found</p>
-                  <p className="text-gray-300 text-sm">Create one to get started</p>
+              <div className="flex items-center justify-center p-10 h-64">
+                <div className="flex flex-col items-center gap-3 p-6 border border-gray-200 border-dashed rounded-xl bg-gray-50/50 text-center">
+                  <p className="text-slate-400 font-medium">No templates found.</p>
+                  <button 
+                    onClick={() => navigate('/admin/templates/create')} 
+                    className="flex items-center gap-2 bg-white border border-gray-200 hover:bg-gray-50 text-emerald-600 px-4 py-2 rounded-lg font-bold text-sm transition-all shadow-sm"
+                  >
+                    <Plus size={16} />
+                    <span>Create Template</span>
+                  </button>
                 </div>
               </div>
             ) : (
@@ -298,21 +303,14 @@ const Templates = ({ activeTab }) => {
         
         <div className="w-full lg:w-[320px] bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-sm">
             <div className="flex-1 flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-gray-50 to-gray-100/50">
-              {selectedTemplate ? (
-                  <MobilePreview 
-                    name={selectedTemplate?.name} 
-                    headerType={selectedTemplate?.headerType || 'None'}
-                    headerMediaUrl={selectedTemplate?.headerMediaUrl || ''}
-                    footerText={selectedTemplate?.footerText || ''}
-                    buttons={selectedTemplate?.buttons || []}
-                    body={selectedTemplate?.bodyText || ''} 
-                  />
-              ) : (
-                  <div className="text-center p-10 opacity-40">
-                      <ImageIcon className="mx-auto mb-2 text-gray-300" size={40}/>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">No Selection</p>
-                  </div>
-              )}
+              <MobilePreview 
+                name={selectedTemplate?.name || '/template'} 
+                headerType={selectedTemplate?.headerType || 'None'}
+                headerMediaUrl={selectedTemplate?.headerMediaUrl || ''}
+                footerText={selectedTemplate?.footerText || ''}
+                buttons={selectedTemplate?.buttons || []}
+                body={selectedTemplate?.bodyText || 'Your template message preview appears here.'} 
+              />
             </div>
             
             <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50">
