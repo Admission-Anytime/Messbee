@@ -8,6 +8,7 @@ const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const Template = require('../models/Template');
+const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 
 /**
  * WhatsApp Webhook Controller
@@ -623,7 +624,26 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
   try {
     const { chatId, text, to } = req.body;
 
+    // Log the incoming request
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      requestBody: { chatId, text, to },
+      headers: req.headers
+    });
+
     if (!text || (!chatId && !to)) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send',
+        userId: req.user?.id,
+        statusCode: 400,
+        errorMessage: 'Missing required fields: text and either chatId or to'
+      });
       return res.status(400).json({
         success: false,
         message: 'Missing required fields'
@@ -634,6 +654,14 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
     const chat = chatId ? await Chat.findById(chatId) : await Chat.findOne({ phone: to });
 
     if (!chat) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send',
+        userId: req.user?.id,
+        statusCode: 404,
+        errorMessage: 'Chat not found'
+      });
       return res.status(404).json({
         success: false,
         message: 'Chat not found'
@@ -642,6 +670,14 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
 
     const canSendFreeText = await hasActiveCustomerWindow(chat);
     if (!canSendFreeText) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send',
+        userId: req.user?.id,
+        statusCode: 500,
+        errorMessage: '24-hour window expired'
+      });
       return res.status(500).json({
         success: false,
         message: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use an approved template message to initiate.',
@@ -653,6 +689,16 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
     const result = await whatsappService.sendTextMessage(chat.phone, text);
 
     if (!result.success) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send',
+        userId: req.user?.id,
+        statusCode: 500,
+        responseStatus: 'FAILED',
+        errorMessage: result.error,
+        responseBody: result
+      });
       return res.status(500).json({
         success: false,
         message: 'Failed to send WhatsApp message',
@@ -696,6 +742,17 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       console.error('Socket emit error:', socketError.message);
     }
 
+    // Log successful send
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send',
+      userId: req.user?.id,
+      statusCode: 200,
+      responseStatus: 'SUCCESS',
+      responseBody: { messageId: result.messageId, chatId: chat._id }
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -704,6 +761,14 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       }
     });
   } catch (error) {
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send',
+      userId: req.user?.id,
+      statusCode: 500,
+      errorMessage: error.message
+    });
     next(error);
   }
 };
@@ -722,7 +787,26 @@ exports.sendTemplateMessage = async (req, res, next) => {
       components = []
     } = req.body;
 
+    // Log the incoming request
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send-template',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      requestBody: { chatId, templateName, languageCode, phoneNumber, to },
+      headers: req.headers
+    });
+
     if (!templateName) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send-template',
+        userId: req.user?.id,
+        statusCode: 400,
+        errorMessage: 'Template name is required'
+      });
       return res.status(400).json({
         success: false,
         message: 'Template name is required'
@@ -735,6 +819,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
     if (chatId) {
       chat = await Chat.findById(chatId);
       if (!chat) {
+        logAPICall({
+          timestamp: new Date().toISOString(),
+          method: 'POST',
+          path: '/api/whatsapp/send-template',
+          userId: req.user?.id,
+          statusCode: 404,
+          errorMessage: 'Chat not found'
+        });
         return res.status(404).json({
           success: false,
           message: 'Chat not found'
@@ -744,6 +836,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
     } else {
       const rawPhone = to || phoneNumber;
       if (!rawPhone) {
+        logAPICall({
+          timestamp: new Date().toISOString(),
+          method: 'POST',
+          path: '/api/whatsapp/send-template',
+          userId: req.user?.id,
+          statusCode: 400,
+          errorMessage: 'Either chatId or recipient phone number is required'
+        });
         return res.status(400).json({
           success: false,
           message: 'Either chatId or recipient phone number is required'
@@ -752,6 +852,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
 
       recipientPhone = normalizePhoneNumber(rawPhone);
       if (!recipientPhone) {
+        logAPICall({
+          timestamp: new Date().toISOString(),
+          method: 'POST',
+          path: '/api/whatsapp/send-template',
+          userId: req.user?.id,
+          statusCode: 400,
+          errorMessage: 'Invalid recipient phone number'
+        });
         return res.status(400).json({
           success: false,
           message: 'Invalid recipient phone number'
@@ -788,6 +896,16 @@ exports.sendTemplateMessage = async (req, res, next) => {
     );
 
     if (!result.success) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/send-template',
+        userId: req.user?.id,
+        statusCode: 500,
+        responseStatus: 'FAILED',
+        errorMessage: result.error,
+        responseBody: result
+      });
       return res.status(500).json({
         success: false,
         message: 'Failed to send template',
@@ -838,6 +956,17 @@ exports.sendTemplateMessage = async (req, res, next) => {
       console.error('Socket emit error:', socketError.message);
     }
 
+    // Log successful send
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send-template',
+      userId: req.user?.id,
+      statusCode: 200,
+      responseStatus: 'SUCCESS',
+      responseBody: { messageId: result.messageId, templateName, chatId: chat._id }
+    });
+
     res.status(200).json({
       success: true,
       data: {
@@ -847,6 +976,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
       }
     });
   } catch (error) {
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/send-template',
+      userId: req.user?.id,
+      statusCode: 500,
+      errorMessage: error.message
+    });
     next(error);
   }
 };
@@ -1179,6 +1316,124 @@ exports.uploadTemplateMedia = async (req, res, next) => {
     });
   } catch (error) {
     console.error('❌ [uploadTemplateMedia] Error:', error.message);
+    next(error);
+  }
+};
+
+// @desc    Temporary test endpoint for WhatsApp API testing
+// @route   POST /api/whatsapp/test-temp-path
+// @access  Private
+exports.testTempPath = async (req, res, next) => {
+  try {
+    const { testMessage = 'Test message from temporary path', testNumber } = req.body;
+    
+    // Log the incoming request
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/test-temp-path',
+      userId: req.user?.id,
+      userName: req.user?.name,
+      requestBody: { testMessage, testNumber },
+      headers: req.headers
+    });
+
+    if (!testNumber) {
+      logAPICall({
+        timestamp: new Date().toISOString(),
+        method: 'POST',
+        path: '/api/whatsapp/test-temp-path',
+        userId: req.user?.id,
+        statusCode: 400,
+        errorMessage: 'testNumber is required'
+      });
+      return res.status(400).json({
+        success: false,
+        message: 'testNumber is required for testing'
+      });
+    }
+
+    const normalized = normalizePhoneNumber(testNumber);
+    console.log(`🔬 TEST-TEMP-PATH: testNumber="${testNumber}" → Normalized="${normalized}"`);
+
+    // Send the test message
+    const result = await whatsappService.sendTextMessage(normalized, testMessage);
+
+    // Log the response
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/test-temp-path',
+      userId: req.user?.id,
+      statusCode: 200,
+      responseStatus: result.success ? 'SUCCESS' : 'FAILED',
+      responseBody: result
+    });
+
+    console.log('🔬 TEST-TEMP-PATH RESULT:', JSON.stringify(result, null, 2));
+
+    res.status(200).json({
+      success: result.success,
+      message: result.success ? 'Test message sent successfully' : 'Failed to send test message',
+      data: {
+        input: testNumber,
+        normalized,
+        result
+      }
+    });
+  } catch (error) {
+    console.error('❌ [testTempPath] Error:', error.message);
+    
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'POST',
+      path: '/api/whatsapp/test-temp-path',
+      userId: req.user?.id,
+      statusCode: 500,
+      errorMessage: error.message
+    });
+
+    next(error);
+  }
+};
+
+// @desc    Get recent API call logs (for testing/debugging)
+// @route   GET /api/whatsapp/logs/recent
+// @access  Private
+exports.getRecentAPILogs = async (req, res, next) => {
+  try {
+    const { lines = 50 } = req.query;
+    const logs = getRecentLogs(parseInt(lines));
+
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'GET',
+      path: '/api/whatsapp/logs/recent',
+      userId: req.user?.id,
+      statusCode: 200,
+      responseStatus: 'SUCCESS'
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Recent API logs retrieved',
+      data: {
+        total: logs.length,
+        logs
+      }
+    });
+  } catch (error) {
+    console.error('❌ [getRecentAPILogs] Error:', error.message);
+    
+    logAPICall({
+      timestamp: new Date().toISOString(),
+      method: 'GET',
+      path: '/api/whatsapp/logs/recent',
+      userId: req.user?.id,
+      statusCode: 500,
+      errorMessage: error.message
+    });
+
     next(error);
   }
 };

@@ -124,4 +124,15 @@ router.put('/templates/:templateId', protect, whatsappController.updateTemplate)
 // Delete template (Protected route)
 router.delete('/templates/:templateId', protect, whatsappController.deleteTemplate);
 
+/**
+ * Temporary Testing Routes
+ * These routes are for development/testing purposes only
+ */
+
+// Temporary test path for WhatsApp API testing (Protected route)
+router.post('/test-temp-path', protect, whatsappController.testTempPath);
+
+// Get recent API call logs (Protected route)
+router.get('/logs/recent', protect, whatsappController.getRecentAPILogs);
+
 module.exports = router;
