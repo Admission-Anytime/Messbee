@@ -201,113 +201,118 @@ const QuickReply = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
+      <div className="max-w-7xl mx-auto">
       <div className="flex flex-col xl:flex-row gap-6">
         <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
-              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">
-                Total: {replies.length}/{PLAN_LIMIT}
-              </span>
-            </div>
-            <button
-              onClick={() => {
-                if (replies.length >= PLAN_LIMIT) {
-                  return toast.warning(`⚠️ Limit Reached: You can only create up to ${PLAN_LIMIT} quick replies`);
-                }
-                resetForm();
-                setIsModalOpen(true);
-              }}
-              disabled={replies.length >= PLAN_LIMIT}
-              className={`${replies.length >= PLAN_LIMIT ? 'bg-gray-300 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'} text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
-            >
-              <Plus size={18} /> Add Quick Reply
-            </button>
+          {/* --- STICKY HEADER --- */}
+          <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+             <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-bold text-slate-900">Quick Replies</h1>
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 cursor-help">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+                </svg>
+             </div>
+             <div className="flex flex-wrap items-center gap-3">
+                <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${replies.length >= PLAN_LIMIT ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+                  <span className={`w-2 h-2 rounded-full ${replies.length >= PLAN_LIMIT ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                  Reply used: {replies.length}/{PLAN_LIMIT}
+                </div>
+                <button 
+                  onClick={() => {
+                    if (replies.length >= PLAN_LIMIT) {
+                      return toast.warning(`⚠️ Limit Reached: You can only create up to ${PLAN_LIMIT} quick replies`);
+                    }
+                    resetForm();
+                    setIsModalOpen(true);
+                  }}
+                  disabled={replies.length >= PLAN_LIMIT}
+                  className={`${replies.length >= PLAN_LIMIT ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#00B050] hover:bg-[#009b45] text-white shadow-emerald-200'} px-5 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+                  Add Reply
+                </button>
+             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-            {loading ? (
-              <table className="w-full table-fixed text-left border-collapse">
+          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm mb-10 flex flex-col">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-200">
-                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
-                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
+                    <th className="px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}>
-                      <td className="px-4 md:px-6 py-4"><div className="h-6 w-20 md:w-24 bg-gray-200 animate-pulse rounded-md" /></td>
-                      <td className="px-4 md:px-6 py-4"><div className="h-4 w-4/5 bg-gray-200 animate-pulse rounded" /></td>
-                      <td className="px-4 md:px-6 py-4"><div className="h-5 w-12 md:w-16 bg-gray-200 animate-pulse rounded-md" /></td>
-                      <td className="px-4 md:px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td className="px-6 py-5"><div className="h-6 w-24 bg-gray-100 animate-pulse rounded-md" /></td>
+                        <td className="px-6 py-5"><div className="h-4 w-4/5 bg-gray-100 animate-pulse rounded" /></td>
+                        <td className="px-6 py-5"><div className="h-6 w-12 bg-gray-100 animate-pulse rounded-md" /></td>
+                        <td className="px-6 py-5"><div className="h-8 w-16 bg-gray-100 animate-pulse rounded-lg mx-auto" /></td>
+                      </tr>
+                    ))
+                  ) : replies.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="h-[300px] text-center text-slate-400 text-sm">
+                        No quick replies found. Add one above!
+                      </td>
                     </tr>
-                  ))}
+                  ) : (
+                    replies.map((reply, idx) => (
+                      <tr
+                        key={reply._id || idx}
+                        onClick={() => setActivePreview(reply)}
+                        className={`transition-colors cursor-pointer ${activePreview?._id === reply._id ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'}`}
+                      >
+                        <td className="px-6 py-4">
+                          <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                            {reply.shortcut}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-[13px] text-gray-600 font-medium">
+                          <p className="truncate max-w-xs" title={reply.content}>{reply.content || 'Media only quick reply'}</p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className="inline-flex rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-blue-600">
+                            {reply.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-center items-center gap-2">
+                            <button onClick={(e) => handleEdit(e, idx)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button onClick={(e) => openDeleteConfirmation(e, reply._id)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
-            ) : replies.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400 px-4">
-                <Type size={52} className="mb-3 text-gray-300" />
-                <p className="text-lg font-semibold text-gray-600">No quick replies found</p>
-                <p className="text-sm mt-1">Create your first quick reply to speed up responses.</p>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
+              <span className="text-xs font-medium text-slate-400">
+                Showing {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+              </span>
+              <div className="flex items-center gap-1">
+                <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled>
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                </button>
               </div>
-            ) : (
-              <table className="w-full table-fixed text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-200">
-                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
-                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {replies.map((reply, idx) => (
-                    <tr
-                      key={reply._id || idx}
-                      onClick={() => setActivePreview(reply)}
-                      className={`transition-colors cursor-pointer ${activePreview?._id === reply._id ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'}`}
-                    >
-                      <td className="px-4 md:px-6 py-4">
-                        <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-                          {reply.shortcut}
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 text-[13px] text-gray-600 font-medium">
-                        <p className="truncate md:pr-2">{reply.content || 'Media only quick reply'}</p>
-                      </td>
-                      <td className="px-4 md:px-6 py-4">
-                        <span className="inline-flex rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-blue-600">
-                          {reply.type}
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 text-right">
-                        <div className="flex justify-end gap-3 text-gray-400">
-                          <button
-                            onClick={(e) => handleEdit(e, idx)}
-                            className="hover:text-blue-500 transition-colors"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={(e) => openDeleteConfirmation(e, reply._id)}
-                            className="hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            </div>
           </div>
         </div>
-
         <div className="hidden xl:block xl:w-[360px] 2xl:w-[420px]">
           <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
             <MobilePreview
@@ -321,7 +326,7 @@ const QuickReply = () => {
           </div>
         </div>
       </div>
-
+      </div>
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[200] p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[360px] animate-in zoom-in duration-200 p-6 text-center">
