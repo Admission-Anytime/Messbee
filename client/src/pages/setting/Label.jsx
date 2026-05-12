@@ -80,8 +80,6 @@ const Label = () => {
         name: labelName,
         desc: labelDesc,
         color: selectedColor,
-        bg: 'bg-emerald-50',
-        text: 'text-emerald-800',
         isSystem: false
       };
 
@@ -190,7 +188,14 @@ const Label = () => {
               labels.map((label) => (
                 <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-5">
-                    <span className={`${label.bg || 'bg-gray-100'} ${label.text || 'text-gray-800'} px-2.5 py-1 rounded-md text-[13px] font-semibold`}>
+                    <span 
+                      className="px-2.5 py-1 rounded-md text-[13px] font-semibold border"
+                      style={{ 
+                        backgroundColor: label.color ? `${label.color}15` : '#F3F4F6',
+                        color: label.color || '#374151',
+                        borderColor: label.color ? `${label.color}30` : '#E5E7EB'
+                      }}
+                    >
                       {label.name}
                     </span>
                   </td>

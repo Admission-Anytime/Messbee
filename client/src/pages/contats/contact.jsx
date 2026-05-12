@@ -105,16 +105,16 @@ const DEFAULT_LABELS = [
 ];
 
 const STATUS_CLS = {
-  ACTIVE: "bg-green-50 text-green-800 border border-green-200",
-  WARM: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  INACTIVE: "bg-gray-100 text-gray-500 border border-gray-200",
-  COLD: "bg-blue-50 text-blue-800 border border-blue-200",
+  ACTIVE: "bg-emerald-50 text-emerald-700 border border-emerald-100",
+  WARM: "bg-amber-50 text-amber-700 border border-amber-100",
+  INACTIVE: "bg-slate-100 text-slate-500 border border-slate-200",
+  COLD: "bg-blue-50 text-blue-700 border border-blue-100",
 };
 const STATUS_BTN_SEL = {
-  ACTIVE: "bg-green-50 text-green-800 border-green-300",
-  WARM: "bg-yellow-50 text-yellow-700 border-yellow-300",
-  INACTIVE: "bg-gray-100 text-gray-500 border-gray-300",
-  COLD: "bg-blue-50 text-blue-800 border-blue-300",
+  ACTIVE: "bg-emerald-50 text-emerald-700 border-emerald-300",
+  WARM: "bg-amber-50 text-amber-700 border-amber-300",
+  INACTIVE: "bg-slate-100 text-slate-500 border-slate-300",
+  COLD: "bg-blue-50 text-blue-700 border-blue-300",
 };
 const LABEL_CLS = {
   "Enterprise": "bg-purple-50 text-purple-700",
@@ -123,7 +123,10 @@ const LABEL_CLS = {
   "+2": "bg-violet-50 text-violet-700",
 };
 
-const getLabelColor = (label) => {
+const getLabelColor = (label, labelConfig = []) => {
+  const found = labelConfig.find(l => (typeof l === 'string' ? l : l.name) === label);
+  if (found && typeof found === 'object' && found.color) return found.color;
+  
   const colors = ['#f97316', '#eab308', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
   let hash = 0;
   for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
@@ -151,17 +154,37 @@ function Avatar({ initials, color, size = "sm" }) {
   );
 }
 
-function StatusBadge({ status }) {
+function StatusBadge({ status, color }) {
+  const style = color ? {
+    backgroundColor: `${color}15`,
+    color: color,
+    borderColor: `${color}30`,
+    borderWidth: '1px'
+  } : {};
+  
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide ${STATUS_CLS[status] || ""}`}>
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide ${!color ? (STATUS_CLS[status] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
+      style={style}
+    >
       {status}
     </span>
   );
 }
 
-function LabelBadge({ label }) {
+function LabelBadge({ label, color }) {
+  const style = color ? {
+    backgroundColor: `${color}15`,
+    color: color,
+    borderColor: `${color}30`,
+    borderWidth: '1px'
+  } : {};
+
   return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-1 ${LABEL_CLS[label] || "bg-gray-100 text-gray-500"}`}>
+    <span 
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-1 ${!color ? (LABEL_CLS[label] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
+      style={style}
+    >
       {label}
     </span>
   );
@@ -359,7 +382,7 @@ function AddCustomFieldPanel({ isOpen, onClose, onCreated }) {
 }
 
 /* ─── Edit Contact Modal ─────────────────────────────────────────────────────── */
-function EditContactModal({ contact, onClose, onSave, customFields = [], labels = [] }) {
+function EditContactModal({ contact, onClose, onSave, customFields = [], labels = [], labelConfig = [] }) {
   const [form, setForm] = useState({ ...contact, labels: contact.labels || [] });
   const [saving, setSaving] = useState(false);
   const [labelSearch, setLabelSearch] = useState("");
@@ -558,7 +581,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
                                   <div className="flex items-center gap-3">
                                     <div
                                       className="w-2.5 h-2.5 rounded-full"
-                                      style={{ backgroundColor: getLabelColor(l) }}
+                                      style={{ backgroundColor: getLabelColor(l, labelConfig) }}
                                     />
                                     <span className={`text-sm ${isSelected ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                                   </div>
@@ -605,7 +628,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
 }
 
 /* ─── Contact Profile Side Panel ─────────────────────────────────────────────── */
-function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields = [] }) {
+function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields = [], statuses = [], labels = [] }) {
   if (!contact) return null;
 
   const infoRows = [
@@ -643,10 +666,18 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
         </div>
         <h3 className="text-base font-bold text-gray-900 text-center">{contact.name}</h3>
         <p className="text-xs text-gray-400 mt-0.5">{contact.company || "—"}</p>
-        <div className="mt-2"><StatusBadge status={contact.status} /></div>
+        <div className="mt-2">
+          <StatusBadge 
+            status={contact.status} 
+            color={statuses.find(s => s.name === contact.status)?.color} 
+          />
+        </div>
         {contact.labels?.length > 0 && (
           <div className="flex flex-wrap justify-center gap-1 mt-2">
-            {contact.labels.map(l => <LabelBadge key={l} label={l} />)}
+            {contact.labels.map(l => {
+              const lObj = labels.find(lb => lb.name === l);
+              return <LabelBadge key={l} label={l} color={lObj?.color} />;
+            })}
           </div>
         )}
       </div>
@@ -694,7 +725,7 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
 }
 
 /* ─── Add Contact Drawer ─────────────────────────────────────────────────────── */
-function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, customFields = [], onOpenAddCustomField }) {
+function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, labelConfig = [], customFields = [], onOpenAddCustomField }) {
   const [formData, setFormData] = useState({ name: "", whatsapp: "", labels: [] });
   const [customFieldRows, setCustomFieldRows] = useState([{ fieldId: "", fieldName: "", value: "" }]);
   const [adding, setAdding] = useState(false);
@@ -901,7 +932,7 @@ function AddContactDrawer({ isOpen, onClose, onAdd, labels = DEFAULT_LABELS, cus
                                 <div className="flex items-center gap-3">
                                   <div
                                     className="w-2.5 h-2.5 rounded-full"
-                                    style={{ backgroundColor: getLabelColor(l) }}
+                                    style={{ backgroundColor: getLabelColor(l, labelConfig) }}
                                   />
                                   <span className={`text-sm ${isSelected ? 'text-[#1A233A] font-semibold' : 'text-[#2A3B52] font-medium'}`}>{l}</span>
                                 </div>
@@ -1366,7 +1397,7 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [] }) {
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [], labelConfig = [] }) {
   const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | 'more' | null
   const [showOptions, setShowOptions] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState([]);
@@ -1440,7 +1471,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
                       }`}
                   >
                     <div className="flex items-center gap-2.5">
-                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getLabelColor(l) }} />
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: getLabelColor(l, labelConfig) }} />
                       <span className={`text-[13px] ${isSel ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>{l}</span>
                     </div>
                     {isSel && <CheckCircleIcon className="h-3.5 w-3.5 text-emerald-500" />}
@@ -1633,10 +1664,12 @@ export default function ContactsCRM() {
   ];
 
   /* ── Fetch labels ── */
+  const [labelConfig, setLabelConfig] = useState([]);
   useEffect(() => {
     apiFetch("GET", "/api/labels")
       .then(res => {
         const list = Array.isArray(res) ? res : Array.isArray(res.data) ? res.data : [];
+        setLabelConfig(list);
         const names = list.map(l => (typeof l === "string" ? l : l.name)).filter(Boolean);
         if (names.length > 0) setAllLabels(names);
       })
@@ -1863,8 +1896,21 @@ export default function ContactsCRM() {
         </div>
       );
       case "whatsapp": return <span className="text-gray-500 text-sm">{contact.whatsapp || "Not provided"}</span>;
-      case "status": return <StatusBadge status={contact.status} />;
-      case "labels": return contact.labels?.length === 0 ? <span className="text-gray-300 text-xs italic">No labels</span> : <>{contact.labels.map(l => <LabelBadge key={l} label={l} />)}</>;
+      case "status": {
+        const sObj = allStatuses.find(s => s.name === contact.status);
+        return <StatusBadge status={contact.status} color={sObj?.color} />;
+      }
+      case "labels": {
+        if (!contact.labels || contact.labels.length === 0) return <span className="text-gray-300 text-xs italic">No labels</span>;
+        return (
+          <>
+            {contact.labels.map(l => {
+              const lObj = labelConfig.find(lb => lb.name === l);
+              return <LabelBadge key={l} label={l} color={lObj?.color} />;
+            })}
+          </>
+        );
+      }
       case "email": return <span className="text-gray-500 text-sm">{contact.email}</span>;
       case "institute": return <span className="text-gray-500 text-sm">{contact.institute}</span>;
       case "address": return <span className="text-gray-500 text-sm">{contact.address}</span>;
@@ -1886,6 +1932,7 @@ export default function ContactsCRM() {
           onSave={handleSaveEdit}
           customFields={allCustomFields}
           labels={allLabels}
+          labelConfig={labelConfig}
         />
       )}
 
@@ -2154,6 +2201,8 @@ export default function ContactsCRM() {
               onEdit={() => setEditingContact(profileContact)}
               onDelete={() => handleDeleteSingle(profileContact._id)}
               customFields={allCustomFields}
+              statuses={allStatuses}
+              labels={labelConfig}
             />
           )}
         </div>
@@ -2178,6 +2227,7 @@ export default function ContactsCRM() {
         onCampaign={handleSendCampaign}
         labels={[...new Set([...allLabels, ...contacts.filter(c => selectedRows.includes(c._id)).flatMap(c => c.labels || [])])]}
         statuses={allStatuses}
+        labelConfig={labelConfig}
       />
 
       <AddContactDrawer
@@ -2185,6 +2235,7 @@ export default function ContactsCRM() {
         onClose={() => setIsDrawerOpen(false)}
         onAdd={handleAdd}
         labels={allLabels}
+        labelConfig={labelConfig}
         customFields={allCustomFields}
         onOpenAddCustomField={() => setShowAddCustomField(true)}
       />
