@@ -44,6 +44,24 @@ const isRenderableMediaUrl = (value) =>
   );
 
 /**
+ * Normalizes a media URL for local development.
+ * If running on localhost, it redirects production document URLs to the local backend.
+ */
+const resolveMediaUrlForDev = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  
+  if (isLocalhost && url.includes('documents.messbee.com')) {
+    // Redirect to local backend (port 5000)
+    const filename = url.split('/').pop();
+    return `http://localhost:5000/uploads/${filename}`;
+  }
+  
+  return url;
+};
+
+/**
  * WhatsApp Template API Service
  * Manages template creation, fetching, and deletion
  */
@@ -200,18 +218,32 @@ export const saveTemplateHeaderPreview = (templateName, previewData) => {
   if (!normalizedPreview.url) return;
 
   const normalizedKey = String(templateName).trim().toLowerCase();
+  
+  // Always update runtime cache
   runtimeHeaderPreviewCache[templateName] = normalizedPreview;
   runtimeHeaderPreviewCache[normalizedKey] = normalizedPreview;
 
   try {
     const cache = getTemplateHeaderPreviewCache();
+    
+    // If the URL is a large data: URL (Base64), we might skip saving it to localStorage
+    // but keep it in runtime cache. Short URLs (http/https) are always saved.
+    const isLargeDataUrl = normalizedPreview.url.startsWith('data:') && normalizedPreview.url.length > 50000;
+    
+    if (isLargeDataUrl) {
+      console.info(`ℹ️ [TemplateApi] Large media preview for "${templateName}" kept in memory only.`);
+      return;
+    }
+
     cache[templateName] = normalizedPreview;
     cache[normalizedKey] = normalizedPreview;
     const serialized = JSON.stringify(cache);
 
-    // Prevent storage quota overflow for large data URLs (image/video previews).
+    // Prevent storage quota overflow for large caches.
     if (serialized.length > MAX_LOCALSTORAGE_PREVIEW_LENGTH) {
-      console.warn('⚠️ [TemplateApi] Preview cache too large for localStorage; using runtime cache only.');
+      console.warn('⚠️ [TemplateApi] Preview cache too large for localStorage; pruned oldest entries.');
+      // Simple pruning: clear cache if too big (extreme case)
+      localStorage.removeItem(TEMPLATE_HEADER_PREVIEW_CACHE_KEY);
       return;
     }
     localStorage.setItem(TEMPLATE_HEADER_PREVIEW_CACHE_KEY, serialized);
@@ -319,6 +351,7 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
       footerText: footerComponent?.text || '',
       headerType,
       headerMediaUrl: mediaUrl,
+      headerMediaUrlPreview: resolveMediaUrlForDev(mediaUrl),
       buttons: mappedButtons,
       bodySamples
     };
@@ -342,16 +375,20 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
           ? 'Image'
           : String(cachedPreviewEntry?.type || '').trim();
       const resolvedHeaderMediaUrl = componentData.headerMediaUrl || cachedPreviewUrl;
+      const headerMediaUrlPreview = resolveMediaUrlForDev(resolvedHeaderMediaUrl);
       const templateLevelHeaderType = String(template.header_type || template.headerType || '').toUpperCase();
       const apiHeaderType = componentData.headerType !== 'None'
         ? componentData.headerType
         : (templateLevelHeaderType ? templateLevelHeaderType.charAt(0) + templateLevelHeaderType.slice(1).toLowerCase() : 'None');
 
-      // If API does not return media HEADER metadata but we have cached media preview,
-      // infer its type from cache so list preview can render image/video properly.
-      const resolvedHeaderType = apiHeaderType === 'None' && resolvedHeaderMediaUrl
-        ? (cachedPreviewType || 'Image')
-        : apiHeaderType;
+      // IMPORTANT: We MUST trust what Meta says about the header type.
+      // If Meta says 'None', the template has no header on their servers.
+      // Sending header params to a None-header template causes error [132018].
+      // The URL in our cache is just an example URL used during creation — it does NOT
+      // mean Meta approved/saved the template with that header.
+      // To get a proper IMAGE template, the user must DELETE and RECREATE the template
+      // with a publicly accessible image URL.
+      const resolvedHeaderType = (apiHeaderType && apiHeaderType !== 'None') ? apiHeaderType : 'None';
 
       return {
         id: template.id,
@@ -394,6 +431,7 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         footerText: componentData.footerText,
         headerType: resolvedHeaderType,
         headerMediaUrl: resolvedHeaderMediaUrl,
+        headerMediaUrlPreview: headerMediaUrlPreview,
         buttons: componentData.buttons,
         bodySamples: componentData.bodySamples
       };

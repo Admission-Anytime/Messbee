@@ -45,11 +45,14 @@ if (isUnixAbsoluteOnWindows) {
  * In local Windows dev the file is served from Express at /uploads/…
  */
 const getPublicUrl = (filename) => {
-  // Always use DOCUMENT_GET_URL if provided, as Meta requires a public URL.
-  // Fall back to localhost only if DOCUMENT_GET_URL is not configured.
-  // Always use DOCUMENT_GET_URL if provided, otherwise default to documents.messbee.com
-  const baseUrl = process.env.DOCUMENT_GET_URL 
-    ? process.env.DOCUMENT_GET_URL.replace(/\/$/, '') 
+  const configuredUrl = process.env.DOCUMENT_GET_URL;
+  
+  // We MUST return a public URL here because this function is used 
+  // to provide media links to Meta (WhatsApp). Meta cannot reach 'localhost'.
+  // The Frontend Dashboard already has logic to redirect these to localhost 
+  // for the UI preview if needed.
+  const baseUrl = configuredUrl 
+    ? configuredUrl.replace(/\/$/, '') 
     : 'https://documents.messbee.com';
     
   return `${baseUrl}/${filename}`;

@@ -865,10 +865,34 @@ exports.getTemplates = async (req, res, next) => {
     
     // Get templates owned by this user from our DB
     const userTemplates = await Template.find({ user: req.user.id });
-    const userTemplateNames = new Set(userTemplates.map(t => t.name));
+    const userTemplatesMap = {};
+    userTemplates.forEach(t => {
+      userTemplatesMap[String(t.name).trim()] = t;
+    });
 
-    // Filter Graph API templates to only show those owned by this user
-    const filteredTemplates = allTemplates.filter(t => userTemplateNames.has(t.name));
+    // Merge Graph API templates with local metadata (to restore media URLs)
+    const filteredTemplates = allTemplates
+      .filter(t => userTemplatesMap[String(t.name).trim()])
+      .map(t => {
+        const localTemplate = userTemplatesMap[String(t.name).trim()];
+        
+        // Deep merge components to restore 'example' fields that Meta often strips after approval
+        const mergedComponents = (t.components || []).map(apiComp => {
+          const localComp = (localTemplate.components || []).find(lc => lc.type === apiComp.type);
+          
+          if (localComp && localComp.example && (!apiComp.example || Object.keys(apiComp.example).length === 0)) {
+            return { ...apiComp, example: localComp.example };
+          }
+          return apiComp;
+        });
+
+        return {
+          ...t,
+          components: mergedComponents,
+          // Persist our local status if API status is missing
+          status: t.status || localTemplate.status 
+        };
+      });
 
     const approvedTemplates = filteredTemplates.filter((template) => template.status === 'APPROVED');
     const nonApprovedTemplates = filteredTemplates.filter((template) => template.status !== 'APPROVED');
@@ -1133,12 +1157,13 @@ exports.uploadTemplateMedia = async (req, res, next) => {
     const { getPublicUrl } = require('../middleware/upload');
     const publicUrl = getPublicUrl(req.file.filename);
 
-    console.log('📎 [uploadTemplateMedia] File uploaded successfully:');
-    console.log('   ├─ Original name :', req.file.originalname);
-    console.log('   ├─ Saved as      :', req.file.filename);
-    console.log('   ├─ MIME type     :', req.file.mimetype);
-    console.log('   ├─ Size          :', (req.file.size / 1024).toFixed(2), 'KB');
-    console.log('   └─ Public URL    :', publicUrl);
+    // Upload directly to Meta's servers to get a handle (no public URL needed)
+    const metaUploadResult = await whatsappService.uploadMediaForTemplateHandle(
+      req.file.path,
+      req.file.mimetype
+    );
+
+    const metaHandle = metaUploadResult.success ? metaUploadResult.handle : null;
 
     return res.status(200).json({
       success: true,
@@ -1148,7 +1173,8 @@ exports.uploadTemplateMedia = async (req, res, next) => {
         originalName: req.file.originalname,
         mimetype: req.file.mimetype,
         size: req.file.size,
-        url: publicUrl
+        url: publicUrl,
+        metaHandle: metaHandle  // <-- Frontend uses this for header_handle
       }
     });
   } catch (error) {
