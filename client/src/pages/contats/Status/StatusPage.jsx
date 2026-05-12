@@ -161,14 +161,14 @@ const StatusPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
-      <div className="max-w-7xl mx-auto">
+    <div className="font-['Urbanist'] bg-[#F8FAFC] min-h-screen p-6 lg:p-10 box-border pb-32 relative">
+      <div className="max-w-[1800px] mx-auto">
         
         {/* --- STICKY HEADER --- */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-6 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-8 border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
            
            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">Status</h1>
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900">Status</h1>
               <InformationCircleIcon className="w-5 h-5 text-slate-400 cursor-help" />
            </div>
 
@@ -194,9 +194,9 @@ const StatusPage = () => {
         </div>
 
         {/* --- TABLE CARD --- */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10">
+        <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden mb-10">
            
-           <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50/50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+           <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-5 border-b border-slate-100 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
               <div className="col-span-3">Name</div>
               <div className="col-span-4">Description</div>
               <div className="col-span-2">Colour</div>
@@ -220,8 +220,8 @@ const StatusPage = () => {
                     <div key={status._id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
                        
                        <div className="col-span-3 flex items-center gap-3">
-                          <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
-                          <span className="text-sm font-bold text-slate-800">{status.name}</span>
+                          <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                          <span className="text-sm font-black text-slate-800">{status.name}</span>
                        </div>
 
                        <div className="hidden md:block col-span-4">
@@ -241,7 +241,7 @@ const StatusPage = () => {
 
                        <div className="col-span-2 flex items-center gap-3">
                           <img src={status.avatar} alt="" className="w-6 h-6 rounded-full" />
-                          <span className="text-sm font-semibold text-slate-700">{status.createdBy}</span>
+                          <span className="text-sm font-bold text-slate-700">{status.createdBy}</span>
                        </div>
 
                        <div className="col-span-1 flex justify-center items-center gap-2">

@@ -164,7 +164,7 @@ function StatusBadge({ status, color }) {
   
   return (
     <span 
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold tracking-wide ${!color ? (STATUS_CLS[status] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black tracking-wide ${!color ? (STATUS_CLS[status] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
       style={style}
     >
       {status}
@@ -182,7 +182,7 @@ function LabelBadge({ label, color }) {
 
   return (
     <span 
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mr-1 ${!color ? (LABEL_CLS[label] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black mr-1 ${!color ? (LABEL_CLS[label] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
       style={style}
     >
       {label}
@@ -1923,7 +1923,7 @@ export default function ContactsCRM() {
   };
 
   return (
-    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border pb-28 sm:pb-32">
+    <div className="font-['Urbanist'] bg-[#F8FAFC] min-h-screen p-6 lg:p-10 box-border pb-32 relative">
 
       {editingContact && (
         <EditContactModal
@@ -1943,10 +1943,10 @@ export default function ContactsCRM() {
       />
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Contacts</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage people, labels, and custom fields from one place.</p>
+      <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
+        <div className="max-w-[1800px] mx-auto">
+          <h1 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">Contacts</h1>
+          <p className="text-sm font-bold text-slate-400 mt-1">Manage people, labels, and custom fields from one place.</p>
         </div>
         <div className="flex gap-2.5 flex-wrap w-full lg:w-auto">
           <button
@@ -1965,10 +1965,10 @@ export default function ContactsCRM() {
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
+      <div className="max-w-[1800px] mx-auto bg-white rounded-[32px] shadow-sm border border-slate-100 overflow-visible">
 
         {/* Filter bar */}
-        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-md flex items-center justify-between px-6 py-4 border-b border-slate-100 gap-4 flex-wrap rounded-t-[32px]">
           <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
             <span className="text-sm text-gray-500 font-medium">Filter Status:</span>
             <div className="relative">
@@ -2084,21 +2084,21 @@ export default function ContactsCRM() {
           <div className="flex-1 overflow-x-auto min-w-0">
             <table className="w-full border-collapse min-w-[760px] xl:min-w-[980px]">
               <thead>
-                <tr className="bg-gray-50">
-                  <th className="w-11 px-4 py-3 text-center border-b-2 border-gray-100">
+                <tr className="bg-slate-50/50">
+                  <th className="w-14 px-6 py-4 text-center border-b border-slate-100">
                     <CircularCheckbox checked={allPageSelected} indeterminate={somePageSelected} onChange={toggleSelectAll} />
                   </th>
                   {orderedVisibleCols.map(col => (
-                    <th key={col.key} className="px-4 py-3 text-left text-[11px] font-bold text-gray-400 tracking-widest uppercase border-b-2 border-gray-100 whitespace-nowrap">
+                    <th key={col.key} className="px-6 py-4 text-left text-[10px] font-black text-slate-400 tracking-[0.1em] uppercase border-b border-slate-100 whitespace-nowrap">
                       <span className="flex items-center gap-1.5">
                         {col.label}
                         {col.isCustom && (
-                          <span className="text-[8px] bg-green-100 text-green-600 font-bold px-1 py-0.5 rounded uppercase tracking-wide normal-case">Custom</span>
+                          <span className="text-[8px] bg-emerald-50 text-emerald-600 font-black px-1.5 py-0.5 rounded uppercase tracking-wider">Custom</span>
                         )}
                       </span>
                     </th>
                   ))}
-                  <th className="px-4 py-3 text-center text-[11px] font-bold text-gray-400 tracking-widest uppercase border-b-2 border-gray-100">Actions</th>
+                  <th className="px-6 py-4 text-center text-[10px] font-black text-slate-400 tracking-[0.1em] uppercase border-b border-slate-100">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -2158,14 +2158,14 @@ export default function ContactsCRM() {
                       className={`group border-b border-gray-50 transition-colors duration-100 cursor-pointer
                         ${isActive ? "bg-green-50 border-l-2 border-l-green-400" : isSelected ? "bg-green-50" : "bg-white hover:bg-slate-50"}`}
                     >
-                      <td className="w-11 px-4 py-3.5 text-center">
+                      <td className="w-14 px-6 py-4 text-center">
                         <CircularCheckbox
                           checked={isSelected}
                           onChange={() => setSelectedRows(prev => isSelected ? prev.filter(r => r !== contact._id) : [...prev, contact._id])}
                         />
                       </td>
                       {orderedVisibleCols.map(col => (
-                        <td key={col.key} className="px-4 py-3.5 text-sm text-gray-800 align-middle">
+                        <td key={col.key} className="px-6 py-4 text-sm text-slate-700 font-bold align-middle">
                           {renderCell(contact, col)}
                         </td>
                       ))}

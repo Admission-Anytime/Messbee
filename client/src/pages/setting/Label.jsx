@@ -131,11 +131,11 @@ const Label = () => {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1800px] mx-auto">
       {/* Header */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-6 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-8 border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold text-slate-900">Labels</h1>
+              <h1 className="text-2xl md:text-3xl font-black text-slate-900">Labels</h1>
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 cursor-help">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
               </svg>
@@ -156,15 +156,15 @@ const Label = () => {
            </div>
         </div>
 
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10 flex flex-col">
+      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden mb-10 flex flex-col">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
-            <tr className="bg-gray-50/50 border-b border-gray-200">
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Colour</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-              <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
+            <tr className="bg-slate-50/50 border-b border-slate-100">
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colour</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Created By</th>
+              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -189,7 +189,7 @@ const Label = () => {
                 <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-5">
                     <span 
-                      className="px-2.5 py-1 rounded-md text-[13px] font-semibold border"
+                      className="px-2.5 py-1 rounded-md text-[13px] font-black border"
                       style={{ 
                         backgroundColor: label.color ? `${label.color}15` : '#F3F4F6',
                         color: label.color || '#374151',
@@ -217,7 +217,7 @@ const Label = () => {
                           {label.creator ? label.creator.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??'}
                         </div>
                       )}
-                      <span className="text-sm font-semibold text-gray-700">{label.creator}</span>
+                      <span className="text-sm font-bold text-slate-700">{label.creator}</span>
                     </div>
                   </td>
                   <td className="px-6 py-5">
