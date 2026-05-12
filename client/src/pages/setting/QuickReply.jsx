@@ -299,7 +299,9 @@ const QuickReply = () => {
               </table>
             </div>
             <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
-              <span className="text-xs font-medium text-slate-400">Showing {replies.length} of {replies.length} reply used</span>
+              <span className="text-xs font-medium text-slate-400">
+                Showing {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+              </span>
               <div className="flex items-center gap-1">
                 <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled>
                   <ChevronLeft className="w-4 h-4" />
