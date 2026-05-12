@@ -428,6 +428,73 @@ class WhatsAppService {
   }
   
   /**
+   * Upload media to Meta's servers using the Resumable Upload API.
+   * Returns a 'handle' used in template creation with header_handle.
+   * This avoids the need for a public URL or ngrok entirely.
+   */
+  async uploadMediaForTemplateHandle(filePath, mimeType) {
+    try {
+      await this.syncConfig();
+      this.validateConfig();
+
+      const appId = process.env.WHATSAPP_APP_ID;
+      if (!appId) {
+        throw new Error('WHATSAPP_APP_ID is not set in .env — required for template media upload');
+      }
+
+      const fileBuffer = fs.readFileSync(filePath);
+      const fileSize = fileBuffer.length;
+      const nodePath = require('path');
+      const fileName = nodePath.basename(filePath);
+
+      // Step 1: Create upload session
+      const sessionResponse = await axios.post(
+        `https://graph.facebook.com/${this.apiVersion}/${appId}/uploads`,
+        null,
+        {
+          params: {
+            file_length: fileSize,
+            file_type: mimeType,
+            file_name: fileName,
+            access_token: this.accessToken
+          }
+        }
+      );
+
+      const sessionId = sessionResponse.data.id;
+
+      // Step 2: Upload the actual file bytes
+      const uploadResponse = await axios.post(
+        `https://graph.facebook.com/${this.apiVersion}/${sessionId}`,
+        fileBuffer,
+        {
+          headers: {
+            'Authorization': `OAuth ${this.accessToken}`,
+            'file_offset': '0',
+            'Content-Type': 'application/octet-stream'
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity
+        }
+      );
+
+      const handle = uploadResponse.data.h;
+      if (!handle) {
+        throw new Error('Meta did not return a handle after upload');
+      }
+
+      return { success: true, handle };
+
+    } catch (error) {
+      console.error('❌ [Meta Upload] Error uploading template media:', error.response?.data || error.message);
+      return {
+        success: false,
+        error: error.response?.data || { message: error.message }
+      };
+    }
+  }
+
+  /**
    * Upload media from URL to WhatsApp servers
    */
   async uploadMediaFromUrl(fileUrl, mimeType) {
@@ -499,20 +566,90 @@ class WhatsAppService {
         };
       }
 
+      // INTERCEPT COMPONENTS TO FIX MEDIA LINKS FOR SENDING
+      // Meta rejects 'scontent.whatsapp.net' and 'localhost' URLs when sending templates.
+      // So we intercept any media URL, upload it to Meta to get an 'id', and use that instead.
+      if (components && components.length > 0) {
+        for (let comp of components) {
+          if (comp.type === 'header' && comp.parameters && comp.parameters.length > 0) {
+            let param = comp.parameters[0];
+            let mediaType = param.type; // image, video, document
+            if (['image', 'video', 'document'].includes(mediaType) && param[mediaType] && param[mediaType].link) {
+              const originalLink = param[mediaType].link;
+              
+              try {
+                const fs = require('fs');
+                const path = require('path');
+                const os = require('os');
+                let filePathToUpload = null;
+                let isTempFile = false;
+                
+                // 1. Try to read from local /uploads folder directly if it's a local URL
+                const localMatch = originalLink.match(/\/uploads\/([^?]+)/);
+                if (localMatch) {
+                  const possiblePath = path.join(__dirname, '../uploads', localMatch[1]);
+                  if (fs.existsSync(possiblePath)) {
+                    filePathToUpload = possiblePath;
+                  }
+                }
+                
+                // 2. If not local, download the URL (works for scontent.whatsapp.net too)
+                if (!filePathToUpload) {
+                  filePathToUpload = path.join(os.tmpdir(), `temp_wa_media_${Date.now()}`);
+                  isTempFile = true;
+                  const fileResponse = await axios.get(originalLink, { responseType: 'arraybuffer' });
+                  fs.writeFileSync(filePathToUpload, fileResponse.data);
+                }
+                
+                // Determine mime type
+                let mimeType = 'application/octet-stream';
+                if (mediaType === 'image') mimeType = 'image/jpeg';
+                else if (mediaType === 'video') mimeType = 'video/mp4';
+                else if (mediaType === 'document') mimeType = 'application/pdf';
+                
+                // 3. Upload to Meta API
+                const uploadResult = await this.uploadMedia(filePathToUpload, mimeType);
+                
+                if (uploadResult.success && uploadResult.mediaId) {
+                  // Replace 'link' with 'id'
+                  delete param[mediaType].link;
+                  param[mediaType].id = uploadResult.mediaId;
+                }
+                
+                // Clean up temp file
+                if (isTempFile && fs.existsSync(filePathToUpload)) {
+                  fs.unlinkSync(filePathToUpload);
+                }
+                
+              } catch (err) {
+                console.error(`Error auto-fixing media link:`, err.message);
+              }
+            }
+          }
+        }
+      }
+
+      const payload = {
+        messaging_product: 'whatsapp',
+        to: cleanPhone,
+        type: 'template',
+        template: {
+          name: templateName,
+          language: {
+            code: normalizedLanguage
+          },
+          components: components
+        }
+      };
+
+
+      console.log(`\n📤 [WhatsApp API] Sending Template Message to: ${cleanPhone}`);
+      console.log(`   Template: ${templateName} | Language: ${normalizedLanguage}`);
+      console.log(`   Payload: ${JSON.stringify(payload, null, 2)}`);
+
       const response = await axios.post(
         `${this.baseURL}/messages`,
-        {
-          messaging_product: 'whatsapp',
-          to: cleanPhone,
-          type: 'template',
-          template: {
-            name: templateName,
-            language: {
-              code: normalizedLanguage
-            },
-            components: components
-          }
-        },
+        payload,
         {
           headers: {
             'Authorization': `Bearer ${this.accessToken}`,
@@ -520,6 +657,8 @@ class WhatsAppService {
           }
         }
       );
+
+      console.log(`✅ [WhatsApp API] Send Success! Message ID: ${response.data.messages?.[0]?.id}`);
 
       return {
         success: true,
@@ -1004,8 +1143,23 @@ class WhatsAppService {
         return type === 'HEADER' && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(format);
       });
 
+      const payload = createTemplatePayload(name, preparedComponents);
+      
+      console.log(`\n📤 [WhatsApp API] Creating template: "${name}"`);
+      console.log(`   Category: ${category} | Language: ${language}`);
+      console.log(`   Payload: ${JSON.stringify(payload, null, 2)}`);
+
       try {
-        response = await makeTemplateRequest(name);
+        response = await axios.post(
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+          payload,
+          {
+            headers: {
+              'Authorization': `Bearer ${this.accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
       } catch (error) {
         const errorSubcode = error.response?.data?.error?.error_subcode;
         const isTemplateLanguageBeingDeleted = errorSubcode === 2388023;
@@ -1025,91 +1179,7 @@ class WhatsAppService {
           };
         }
 
-        if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion && hasMediaHeader) {
-          // Only drop the HEADER for WhatsApp API validation errors (4xx responses).
-          // Network-level errors (ENOTFOUND, ECONNREFUSED, timeout) must propagate immediately
-          // so the client sees the real problem instead of a misleading INVALID_FORMAT rejection.
-          const isWhatsAppApiError = !!error.response; // has HTTP response → WhatsApp returned an error
-          if (!isWhatsAppApiError) {
-            console.error('❌ Network error reaching Facebook Graph API. Not retrying without HEADER.');
-            throw error;
-          }
-
-          const componentsWithoutHeader = preparedComponents.filter(
-            (component) => String(component?.type || '').toUpperCase() !== 'HEADER'
-          );
-
-          if (componentsWithoutHeader.length > 0) {
-            console.warn('⚠️ Media header template creation failed. Retrying once without HEADER component.');
-            const originalComponents = [...preparedComponents];
-            preparedComponents.splice(0, preparedComponents.length, ...componentsWithoutHeader);
-            try {
-              response = await makeTemplateRequest(name);
-            } finally {
-              preparedComponents.splice(0, preparedComponents.length, ...originalComponents);
-            }
-
-            return {
-              success: true,
-              data: response.data,
-              templateName: createdName,
-              usedFallbackName: true,
-              originalTemplateName: name
-            };
-          }
-        }
-
-        if (!isTemplateLanguageBeingDeleted && !isCategoryChangeBlockedByDeletion) {
-          const invalidParameter =
-            String(error?.response?.data?.error?.message || '').toLowerCase().includes('invalid parameter');
-
-          if (invalidParameter) {
-            try {
-              const sanitized = sanitizeComponents(preparedComponents).filter((c) => {
-                const type = String(c?.type || '').toUpperCase();
-                return type === 'BODY' || type === 'FOOTER';
-              });
-              if (sanitized.length > 0) {
-                console.warn('⚠️ Retrying template creation with sanitized BODY/FOOTER components');
-                response = await axios.post(
-                  `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
-                  createTemplatePayload(name, sanitized),
-                  {
-                    headers: {
-                      'Authorization': `Bearer ${this.accessToken}`,
-                      'Content-Type': 'application/json'
-                    }
-                  }
-                );
-                return {
-                  success: true,
-                  data: response.data,
-                  templateName: createdName,
-                  usedFallbackName: true,
-                  originalTemplateName: name
-                };
-              }
-            } catch (sanitizeRetryError) {
-              console.error('❌ Sanitized retry failed:', sanitizeRetryError.response?.data || sanitizeRetryError.message);
-            }
-          }
-          throw error;
-        }
-
-        const suggestedName = generateSuggestedTemplateName(name);
-        const apiError = error.response?.data?.error || {};
-
-        return {
-          success: false,
-          error: {
-            message: apiError.error_user_msg || apiError.message || 'Template language is in deletion state. Try again shortly or use a different name.',
-            code: apiError.code,
-            errorSubcode,
-            title: apiError.error_user_title,
-            suggestedName,
-            originalTemplateName: name
-          }
-        };
+        throw error;
       }
 
       if (response?.data?.status === 'REJECTED') {

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
+import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { createPortal } from "react-dom";
 import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
@@ -619,6 +619,48 @@ const Conversion = ({
     * Render template body with proper WhatsApp formatting
     * Converts WhatsApp markdown syntax to visual HTML
     */
+   const renderTemplateHeaderPreview = (template) => {
+      if (!template.headerType || template.headerType === 'None') return null;
+      if (!template.headerMediaUrl) return null;
+
+      if (template.headerType === 'Image') {
+         return (
+            <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 shadow-sm">
+               <img src={template.headerMediaUrl} alt="Header" className="w-full h-32 object-cover" />
+            </div>
+         );
+      }
+
+      if (template.headerType === 'Video') {
+         return (
+            <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-black aspect-video flex items-center justify-center relative">
+               <video src={template.headerMediaUrl} className="w-full h-full object-contain opacity-80" />
+               <div className="absolute w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
+                  <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1"></div>
+               </div>
+            </div>
+         );
+      }
+
+      if (template.headerType === 'Document') {
+         return (
+            <div className="mb-3 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3">
+               <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">PDF</div>
+               <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-bold text-slate-700 truncate">Document Header</div>
+                  <div className="text-[11px] text-slate-400">Template Attachment</div>
+               </div>
+            </div>
+         );
+      }
+
+      return null;
+   };
+
+   /**
+    * Render template body with proper WhatsApp formatting
+    * Converts WhatsApp markdown syntax to visual HTML
+    */
    const renderTemplateBodyPreview = (template) => {
       if (!template?.bodyText && !template?.components) return '';
       
@@ -1161,6 +1203,7 @@ const Conversion = ({
                                  <SolidCheckCircle className="w-3.5 h-3.5 text-emerald-700" />
                               </div>
                               <div className="bg-white rounded-lg p-3 shadow-sm border border-slate-100">
+                                 {confirmTemplate && renderTemplateHeaderPreview(confirmTemplate)}
                                  <div 
                                     className="text-sm text-slate-800 leading-relaxed whitespace-pre-wrap"
                                     dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(confirmPreviewText) }}

@@ -407,15 +407,43 @@ const Chat = () => {
 
     const bodyParamCount = getBodyParamCount(template);
     const fallbackParamText = activeChat?.name || 'there';
-    const components = bodyParamCount > 0
-      ? [{
+    
+    const components = [];
+
+    // 1. Handle Header Component (Media)
+    // Normalize header type to handle both 'Image' and 'IMAGE' from API
+    const normalizedHeaderType = String(template.headerType || '').toUpperCase();
+    // Use public URL for sending; fall back to preview URL if needed
+    const mediaUrlForSend = template.headerMediaUrl || template.headerMediaUrlPreview;
+
+    if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(normalizedHeaderType) && mediaUrlForSend) {
+      let headerParamType = 'image';
+      if (normalizedHeaderType === 'VIDEO') headerParamType = 'video';
+      else if (normalizedHeaderType === 'DOCUMENT') headerParamType = 'document';
+
+      components.push({
+        type: 'header',
+        parameters: [
+          {
+            type: headerParamType,
+            [headerParamType]: {
+              link: mediaUrlForSend
+            }
+          }
+        ]
+      });
+    }
+
+    // 2. Handle Body Component (Variables)
+    if (bodyParamCount > 0) {
+      components.push({
         type: 'body',
         parameters: Array.from({ length: bodyParamCount }, () => ({
           type: 'text',
           text: fallbackParamText
         }))
-      }]
-      : [];
+      });
+    }
 
     try {
       const result = await chatService.sendTemplateMessage(

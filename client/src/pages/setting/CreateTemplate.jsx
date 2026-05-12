@@ -39,6 +39,9 @@ const CreateTemplate = () => {
   const [uploadedMediaUrl, setUploadedMediaUrl] = useState(
     location.state?.templateData?.headerMediaUrl || null
   );
+  // Tracks the Meta handle obtained by uploading to Meta's servers directly (ngrok-free)
+  const [uploadedMetaHandle, setUploadedMetaHandle] = useState(null);
+
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const headerFileRef = useRef(null);
 
@@ -214,9 +217,15 @@ const CreateTemplate = () => {
       const response = await uploadTemplateMedia(file);
       if (response?.success && response?.data?.url) {
         const hostedUrl = response.data.url;
+        const metaHandle = response.data.metaHandle || null;
         setUploadedMediaUrl(hostedUrl);
+        setUploadedMetaHandle(metaHandle);
         setHeaderMedia((prev) => prev ? { ...prev, hostedUrl } : prev);
-        toast.success('Media uploaded successfully!');
+        if (metaHandle) {
+          toast.success('Media uploaded to Meta servers successfully!');
+        } else {
+          toast.success('Media uploaded! (Note: template needs a public URL for Meta)');
+        }
       } else {
         toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
       }
@@ -231,10 +240,12 @@ const CreateTemplate = () => {
   const removeHeaderMedia = () => {
     setHeaderMedia(null);
     setUploadedMediaUrl(null);
+    setUploadedMetaHandle(null);
     if (headerFileRef.current) {
       headerFileRef.current.value = '';
     }
   };
+
 
   const triggerHeaderMediaPicker = () => {
     if (!headerFileRef.current) return;
@@ -395,6 +406,14 @@ const CreateTemplate = () => {
 
     setIsSubmitting(true);
 
+    // Prevent submission if media is still uploading
+    const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
+    if (hasMediaHeader && !uploadedMediaUrl && !headerMedia?.hostedUrl) {
+      toast.error('Please wait for the media to finish uploading before submitting.');
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const components = [];
 
@@ -415,32 +434,28 @@ const CreateTemplate = () => {
       // Add HEADER component only if valid
       if (formData.headerType && formData.headerType !== 'None') {
         if (formData.headerType === 'Text') {
-          // TEXT header format: just type, format, and text
           components.push({ 
             type: 'HEADER', 
             format: 'TEXT', 
-            text: formData.name.substring(0, 60) // Max 60 chars for header
+            text: formData.name.substring(0, 60)
           });
-        } else if (formData.headerType === 'Image') {
-          components.push({ 
-            type: 'HEADER', 
-            format: 'IMAGE',
-            example: { header_url: [getHeaderUrl('Image')] }
-          });
-        } else if (formData.headerType === 'Video') {
-          components.push({ 
-            type: 'HEADER', 
-            format: 'VIDEO',
-            example: { header_url: [getHeaderUrl('Video')] }
-          });
-        } else if (formData.headerType === 'Document') {
-          components.push({ 
-            type: 'HEADER', 
-            format: 'DOCUMENT',
-            example: { header_url: [getHeaderUrl('Document')] }
-          });
+        } else {
+          // For IMAGE/VIDEO/DOCUMENT: prefer Meta handle (ngrok-free), fallback to URL
+          const format = formData.headerType.toUpperCase();
+          const headerComponent = { type: 'HEADER', format };
+
+          if (uploadedMetaHandle) {
+            // Best approach: use handle directly (no public URL needed)
+            headerComponent.example = { header_handle: [uploadedMetaHandle] };
+          } else {
+            // Fallback: use URL (requires public URL like ngrok)
+            const url = getHeaderUrl(formData.headerType);
+            headerComponent.example = { header_url: [url] };
+          }
+          components.push(headerComponent);
         }
       }
+
 
       const bodyComponent = { type: 'BODY', text: strippedBody };
       if (templateVariables.length > 0) {
@@ -552,44 +567,8 @@ const CreateTemplate = () => {
           throw latestError;
         }
 
-        let recovered = false;
-
-        if (hasMediaHeader) {
-          try {
-            console.warn('⚠️ Media header template creation failed, retrying without HEADER component');
-            createdTemplateResponse = await submitTemplate(payloadWithoutHeader);
-            toast.warn('Template saved without media header sample due to WhatsApp validation constraints.');
-            recovered = true;
-          } catch (errorWithoutHeader) {
-            latestError = errorWithoutHeader;
-          }
-        }
-
-        if (!recovered && isInvalidParameterError(latestError) && !isBodyCharacterLimitError(latestError)) {
-          try {
-            console.warn('⚠️ Invalid parameter from WhatsApp API, retrying with BODY/FOOTER only');
-            createdTemplateResponse = await submitTemplate(payloadBodyFooterOnly);
-            toast.warn('Template saved with simplified components due to WhatsApp parameter validation.');
-            recovered = true;
-          } catch (errorBodyFooter) {
-            latestError = errorBodyFooter;
-          }
-        }
-
-        if (!recovered && isInvalidParameterError(latestError) && !isBodyCharacterLimitError(latestError)) {
-          try {
-            console.warn('⚠️ Invalid parameter persists, retrying with sanitized BODY-only payload');
-            createdTemplateResponse = await submitTemplate(payloadBodyOnlySanitized);
-            toast.warn('Template saved with BODY-only payload due to WhatsApp parameter validation.');
-            recovered = true;
-          } catch (errorBodyOnly) {
-            latestError = errorBodyOnly;
-          }
-        }
-
-        if (!recovered) {
-          throw latestError;
-        }
+        // Remove all secret fallbacks. If it fails, the user should know why.
+        throw latestError;
       }
 
       if (['Image', 'Video', 'Document'].includes(formData.headerType)) {
@@ -598,7 +577,8 @@ const CreateTemplate = () => {
           createdTemplateResponse?.data?.name ||
           waName;
 
-        // Use the real hosted URL (DOCUMENT_GET_URL) for the preview cache
+        // Use the real hosted URL (DOCUMENT_GET_URL) for the preview cache.
+        // We prefer the hostedUrl (short string) over the preview (large Base64).
         const resolvedPreviewUrl =
           uploadedMediaUrl ||
           headerMedia?.hostedUrl ||
@@ -610,6 +590,14 @@ const CreateTemplate = () => {
             url: resolvedPreviewUrl,
             type: formData.headerType
           });
+          
+          // Also save to window to ensure immediate availability in navigation
+          if (window.runtimeHeaderPreviewCache) {
+            window.runtimeHeaderPreviewCache[actualCreatedName] = {
+              url: resolvedPreviewUrl,
+              type: formData.headerType
+            };
+          }
         }
       }
       
