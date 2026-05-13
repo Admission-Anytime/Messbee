@@ -621,12 +621,14 @@ const Conversion = ({
     */
    const renderTemplateHeaderPreview = (template) => {
       if (!template.headerType || template.headerType === 'None') return null;
-      if (!template.headerMediaUrl) return null;
+      
+      const mediaUrl = template.headerMediaUrlPreview || template.headerMediaUrl;
+      if (!mediaUrl) return null;
 
       if (template.headerType === 'Image') {
          return (
             <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-               <img src={template.headerMediaUrl} alt="Header" className="w-full h-32 object-cover" />
+               <img src={mediaUrl} alt="Header" className="w-full h-32 object-cover" />
             </div>
          );
       }
@@ -634,7 +636,7 @@ const Conversion = ({
       if (template.headerType === 'Video') {
          return (
             <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-black aspect-video flex items-center justify-center relative">
-               <video src={template.headerMediaUrl} className="w-full h-full object-contain opacity-80" />
+               <video src={mediaUrl} className="w-full h-full object-contain opacity-80" />
                <div className="absolute w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
                   <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1"></div>
                </div>
@@ -672,9 +674,17 @@ const Conversion = ({
       }
       
       if (!bodyText) return '';
+
+      // Replace variables {{1}}, {{2}} etc. with samples if available
+      let processedText = bodyText;
+      if (template.bodySamples) {
+         Object.entries(template.bodySamples).forEach(([key, value]) => {
+            processedText = processedText.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), `<span class="bg-emerald-50 text-emerald-700 font-bold px-1 rounded mx-0.5 border border-emerald-100">${value}</span>`);
+         });
+      }
       
       // Apply WhatsApp markdown formatting
-      let html = String(bodyText)
+      let html = String(processedText)
          .replace(/\*([^*]+)\*/g, '<strong>$1</strong>')        // *bold*
          .replace(/_([^_]+)_/g, '<em>$1</em>')                   // _italic_
          .replace(/~([^~]+)~/g, '<strike>$1</strike>')           // ~strikethrough~
@@ -1120,6 +1130,7 @@ const Conversion = ({
                                  </div>
 
                                  <div className="flex-1 p-4 bg-slate-100 flex flex-col gap-4 overflow-hidden">
+                                    {previewTemplate && renderTemplateHeaderPreview(previewTemplate)}
                                     {previewTemplate?.bodyText && (
                                        <div className="flex items-start gap-2">
                                           <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">

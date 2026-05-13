@@ -1157,10 +1157,31 @@ exports.uploadTemplateMedia = async (req, res, next) => {
     const { getPublicUrl } = require('../middleware/upload');
     const publicUrl = getPublicUrl(req.file.filename);
 
+    let filePathToUpload = req.file.path;
+    let mimeTypeToUpload = req.file.mimetype;
+
+    const isImage = mimeTypeToUpload.startsWith('image/');
+    const isVideo = mimeTypeToUpload.startsWith('video/');
+    const isPdf = mimeTypeToUpload === 'application/pdf';
+
+    // If it is a document, but NOT a PDF (e.g. docx, xlsx, csv), Meta will reject the handle for template creation.
+    // We MUST upload a dummy PDF to Meta to get a valid PDF handle for the template review sample.
+    if (!isImage && !isVideo && !isPdf) {
+      const fs = require('fs');
+      const dummyPdfPath = req.file.path + '.dummy.pdf';
+      const minimalPdfBuffer = Buffer.from(
+        '%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%EOF\n',
+        'binary'
+      );
+      fs.writeFileSync(dummyPdfPath, minimalPdfBuffer);
+      filePathToUpload = dummyPdfPath;
+      mimeTypeToUpload = 'application/pdf';
+    }
+
     // Upload directly to Meta's servers to get a handle (no public URL needed)
     const metaUploadResult = await whatsappService.uploadMediaForTemplateHandle(
-      req.file.path,
-      req.file.mimetype
+      filePathToUpload,
+      mimeTypeToUpload
     );
 
     const metaHandle = metaUploadResult.success ? metaUploadResult.handle : null;
