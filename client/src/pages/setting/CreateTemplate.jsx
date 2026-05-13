@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl } from '../../services/TemplateApi';
+import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl, resolveMediaUrlForDev } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 import axios from '../../context/axios';
 const CreateTemplate = () => {
@@ -29,7 +29,7 @@ const CreateTemplate = () => {
   const [headerMedia, setHeaderMedia] = useState(
     location.state?.templateData?.headerMediaUrl 
       ? { 
-          preview: location.state.templateData.headerMediaUrl, 
+          preview: resolveMediaUrlForDev(location.state.templateData.headerMediaUrl), 
           type: location.state.templateData.headerType?.toLowerCase() || 'image',
           name: 'Existing Media',
           hostedUrl: location.state.templateData.headerMediaUrl // already a hosted URL
@@ -287,12 +287,7 @@ const CreateTemplate = () => {
       setIsLoadingMedia(true);
       const { data } = await axios.get("/media");
       if (data.success) {
-        const mapped = data.data.map(a => {
-          let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
-          let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
-          return { ...a, url: updatedUrl, thumb: updatedThumb };
-        });
-        setMediaAssets(mapped);
+        setMediaAssets(data.data);
       }
     } catch (err) {
       toast.error("Failed to load media assets");
@@ -314,13 +309,10 @@ const CreateTemplate = () => {
 
     // Replace incorrect localhost URLs from old database entries
     let publicUrl = asset.url || '';
-    if (publicUrl.includes('http://localhost:5000/uploads/')) {
-      publicUrl = publicUrl.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/');
-    }
     
     setHeaderMedia({
       file: null,
-      preview: asset.thumb || publicUrl,
+      preview: resolveMediaUrlForDev(asset.thumb || publicUrl),
       type: mt,
       name: asset.name,
       hostedUrl: publicUrl
@@ -1439,9 +1431,9 @@ const CreateTemplate = () => {
                       >
                         <div className="h-32 bg-gray-50 relative flex items-center justify-center overflow-hidden">
                           {isImg ? (
-                            <img src={asset.thumb || asset.url} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                            <img src={resolveMediaUrlForDev(asset.thumb || asset.url)} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
                           ) : isVid ? (
-                            <video src={asset.url} className="w-full h-full object-cover" muted playsInline />
+                            <video src={resolveMediaUrlForDev(asset.url)} className="w-full h-full object-cover" muted playsInline />
                           ) : (
                              <div className="text-gray-400 font-bold text-lg">{asset.name?.split('.').pop().toUpperCase() || 'DOC'}</div>
                           )}

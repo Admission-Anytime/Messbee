@@ -1411,14 +1411,42 @@ exports.uploadTemplateMediaByUrl = async (req, res, next) => {
     const fs = require('fs');
     const path = require('path');
     const os = require('os');
+    const { uploadDir } = require('../middleware/upload');
 
-    // 1. Download the file from the URL to a temporary location
+    // 1. Get the file content (either from disk if it's our own URL, or from the web)
+    let buffer;
+    let mimeType;
+    const isOurUrl = url.includes('documents.messbee.com');
+
+    if (isOurUrl) {
+      const filename = url.split('/').pop();
+      const localPath = path.join(uploadDir, filename);
+      
+      console.log(`📂 [uploadTemplateMediaByUrl] Internal URL detected. Reading from disk: ${localPath}`);
+      
+      if (fs.existsSync(localPath)) {
+        buffer = fs.readFileSync(localPath);
+        // Try to guess mime type from extension
+        const ext = path.extname(filename).toLowerCase();
+        const mimeMap = {
+          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
+          '.mp4': 'video/mp4', '.pdf': 'application/pdf'
+        };
+        mimeType = mimeMap[ext] || 'application/octet-stream';
+      } else {
+        console.warn(`⚠️ [uploadTemplateMediaByUrl] Local file not found at ${localPath}, falling back to fetch.`);
+      }
+    }
+
+    if (!buffer) {
+      const response = await axios.get(url, { responseType: 'arraybuffer' });
+      buffer = Buffer.from(response.data, 'binary');
+      mimeType = response.headers['content-type'] || 'application/octet-stream';
+    }
+
+    // Download the file from the URL to a temporary location
     const tempFilePath = path.join(os.tmpdir(), `temp_upload_${Date.now()}`);
-    const response = await axios.get(url, { responseType: 'arraybuffer' });
-    const buffer = Buffer.from(response.data, 'binary');
     fs.writeFileSync(tempFilePath, buffer);
-
-    const mimeType = response.headers['content-type'] || 'application/octet-stream';
     
     console.log(`📥 [uploadTemplateMediaByUrl] Downloaded file from URL. Size: ${buffer.length} bytes, MIME: ${mimeType}`);
 

@@ -46,15 +46,23 @@ const isRenderableMediaUrl = (value) =>
  * Normalizes a media URL for local development.
  * If running on localhost, it redirects production document URLs to the local backend.
  */
-const resolveMediaUrlForDev = (url) => {
+export const resolveMediaUrlForDev = (url) => {
   if (!url || typeof url !== 'string') return url;
   
-  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  // If it's already a local URL or data URL, don't touch it
+  if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1') || url.startsWith('data:')) {
+    return url;
+  }
+  
+  const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
   
   if (isLocalhost && url.includes('documents.messbee.com')) {
     // Redirect to local backend (port 5000)
     const filename = url.split('/').pop();
-    return `http://localhost:5000/uploads/${filename}`;
+    const backendBase = import.meta.env.VITE_API_URL 
+      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") 
+      : "http://localhost:5000";
+    return `${backendBase}/uploads/${filename}`;
   }
   
   return url;

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { toast } from "react-toastify";
 import axios from "../../context/axios";
+import { resolveMediaUrlForDev } from "../../services/TemplateApi";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 const TABS = ["All Assets", "Images", "Videos", "Documents", "Audio"];
@@ -40,15 +41,7 @@ function formatBytes(bytes) {
 }
 
 function getLocalUrl(url) {
-  if (!url) return "";
-  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "http://localhost:5000";
-    if (url.startsWith("https://documents.messbee.com/")) {
-      // Backend serves express uploads at /uploads/ folder locally
-      return url.replace("https://documents.messbee.com/", backendBase + "/uploads/");
-    }
-  }
-  return url;
+  return resolveMediaUrlForDev(url);
 }
 
 function withPdfPreviewParams(url) {
@@ -678,11 +671,7 @@ export default function MediaGallery() {
       const { data } = await axios.get("/media");
       if (data.success) {
         // Map _id to id for component compatibility
-        const mapped = data.data.map(a => {
-          let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
-          let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
-          return { ...a, id: a._id, url: updatedUrl, thumb: updatedThumb };
-        });
+        const mapped = data.data.map(a => ({ ...a, id: a._id }));
         setAssets(mapped);
       }
     } catch (err) {
@@ -751,11 +740,7 @@ export default function MediaGallery() {
   });
 
   const handleUploadComplete = (newAssetsRaw) => {
-    const newAssets = newAssetsRaw.map(a => {
-      let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
-      let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
-      return { ...a, id: a._id, url: updatedUrl, thumb: updatedThumb };
-    });
+    const newAssets = newAssetsRaw.map(a => ({ ...a, id: a._id }));
     setAssets((prev) => [...newAssets, ...prev]);
   };
 
