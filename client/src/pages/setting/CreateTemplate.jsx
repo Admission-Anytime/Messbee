@@ -192,11 +192,29 @@ const CreateTemplate = () => {
       return;
     }
 
+    const allowedImageTypes = ['image/jpeg', 'image/png'];
+    const allowedVideoTypes = ['video/mp4'];
+    const allowedDocumentTypes = ['application/pdf'];
+
     const mediaType = file.type.startsWith('image/')
       ? 'image'
       : file.type.startsWith('video/')
         ? 'video'
         : 'document';
+
+    // WhatsApp strict validation
+    if (mediaType === 'image' && !allowedImageTypes.includes(file.type)) {
+      toast.error('WhatsApp only supports JPG and PNG images for templates.');
+      return;
+    }
+    if (mediaType === 'video' && !allowedVideoTypes.includes(file.type)) {
+      toast.error('WhatsApp only supports MP4 videos for templates.');
+      return;
+    }
+    if (mediaType === 'document' && !allowedDocumentTypes.includes(file.type)) {
+      toast.info('WhatsApp needs a PDF for the review sample. We will use a dummy PDF for approval, but you can send your file later!');
+      // We don't return here, we let them upload it!
+    }
 
     // Show a local preview immediately
     const reader = new FileReader();
@@ -959,7 +977,7 @@ const CreateTemplate = () => {
                               ref={headerFileRef}
                               type="file" 
                               hidden 
-                              accept={formData.headerType === 'Image' ? 'image/*' : formData.headerType === 'Video' ? 'video/*' : '*'}
+                              accept={formData.headerType === 'Image' ? 'image/jpeg, image/png' : formData.headerType === 'Video' ? 'video/mp4' : '*'}
                               onChange={handleHeaderMediaUpload}
                             />
                             {!headerMedia ? (
@@ -970,7 +988,7 @@ const CreateTemplate = () => {
                                 <div className="flex flex-col items-center gap-2">
                                   <ImageIcon size={32} className="text-gray-400"/>
                                   <p className="text-sm font-semibold text-gray-700">Click to upload {formData.headerType.toLowerCase()}</p>
-                                  <p className="text-xs text-gray-500">Max 16MB • {formData.headerType === 'Image' ? 'PNG, JPG, GIF' : formData.headerType === 'Video' ? 'MP4, WebM' : 'PDF, DOCX, XLSX'}</p>
+                                  <p className="text-xs text-gray-500">Max 16MB • {formData.headerType === 'Image' ? 'JPG, PNG' : formData.headerType === 'Video' ? 'MP4' : 'Any Document (PDF, DOCX, CSV)'}</p>
                                 </div>
                               </div>
                             ) : (

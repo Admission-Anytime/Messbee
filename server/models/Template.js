@@ -33,6 +33,6 @@ const templateSchema = new mongoose.Schema({
 });
 
 // Ensure unique template names per user
-templateSchema.index({ name: 1, userId: 1 }, { unique: true });
+templateSchema.index({ name: 1, user: 1 }, { unique: true });
 
 module.exports = mongoose.model('Template', templateSchema);
