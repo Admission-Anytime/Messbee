@@ -36,12 +36,11 @@ const getTemplateHeaderPreviewCache = () => {
 const isRenderableMediaUrl = (value) =>
   typeof value === 'string' &&
   (
-    value.startsWith('http://') ||
-    value.startsWith('https://') ||
-    value.startsWith('data:image/') ||
-    value.startsWith('data:video/') ||
-    value.startsWith('data:application/')
-  );
+    value.startsWith('http') ||
+    value.startsWith('data:') ||
+    value.includes('.') ||
+    value.includes('/')
+  ) && !value.startsWith('h_');
 
 /**
  * Normalizes a media URL for local development.
@@ -318,15 +317,55 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
   const parseTemplateComponents = (components = []) => {
     const safeComponents = Array.isArray(components) ? components : [];
 
+    // 1. Find Header Component
+    const headerComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'HEADER');
     const bodyComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'BODY');
     const footerComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'FOOTER');
-    const headerComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'HEADER');
     const buttonComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'BUTTONS');
 
-    const normalizedHeaderFormat = String(headerComponent?.format || '').toUpperCase();
-    const headerType = normalizedHeaderFormat
-      ? normalizedHeaderFormat.charAt(0) + normalizedHeaderFormat.slice(1).toLowerCase()
+    // 2. Determine Header Type (trusting format first, then searching)
+    let headerFormat = String(headerComponent?.format || '').toUpperCase();
+    
+    // If headerComponent not found by type, search all components for a format
+    if (!headerComponent || headerFormat === '') {
+       const anyMediaComp = safeComponents.find(c => ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(String(c?.format || '').toUpperCase()));
+       if (anyMediaComp) headerFormat = String(anyMediaComp.format).toUpperCase();
+    }
+
+    const headerType = headerFormat && headerFormat !== ''
+      ? headerFormat.charAt(0) + headerFormat.slice(1).toLowerCase()
       : 'None';
+
+    // 3. Extract Media URL (Aggressive search)
+    let mediaUrl = '';
+    
+    // Check Header example first
+    const headerExample = headerComponent?.example;
+    const candidate = 
+      headerExample?.header_handle?.[0] || 
+      headerExample?.header_url?.[0] || 
+      headerExample?.url?.[0] ||
+      headerExample?.header_handle ||
+      headerExample?.url;
+
+    if (candidate && isRenderableMediaUrl(candidate)) {
+       mediaUrl = candidate;
+    } else {
+       // Deep search in all components for anything that looks like a URL
+       for (const comp of safeComponents) {
+          const ex = comp.example;
+          if (!ex) continue;
+          
+          const possible = 
+            ex.header_url?.[0] || ex.url?.[0] || ex.header_handle?.[0] ||
+            ex.body_text?.[0]?.[0]; // sometimes body text examples contain URLs
+            
+          if (isRenderableMediaUrl(possible)) {
+             mediaUrl = possible;
+             break;
+          }
+       }
+    }
 
     const mappedButtons = Array.isArray(buttonComponent?.buttons)
       ? buttonComponent.buttons.map((btn, idx) => {
@@ -342,13 +381,6 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
           };
         })
       : [];
-
-    const mediaUrlCandidate =
-      headerComponent?.example?.header_handle?.[0] ||
-      headerComponent?.example?.header_url?.[0] ||
-      headerComponent?.example?.url?.[0] ||
-      '';
-    const mediaUrl = isRenderableMediaUrl(mediaUrlCandidate) ? mediaUrlCandidate : '';
 
     // Extract body variable samples if present
     const bodySamples = {};

@@ -10,7 +10,7 @@ import {
    TrashIcon, NoSymbolIcon, UserCircleIcon,
    FolderIcon, ArchiveBoxIcon, LockClosedIcon, StarIcon, CheckCircleIcon,
    MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, BoltIcon,
-   ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon,
+   ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon, ArrowDownTrayIcon,
    UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
 } from "@heroicons/react/24/outline";
 import { Pin } from "lucide-react";
@@ -605,7 +605,7 @@ const Conversion = ({
       }
    }, [showTemplates, filteredTemplates, selectedTemplateId]);
 
-   const selectedTemplate = useMemo(() => {
+const selectedTemplate = useMemo(() => {
       return filteredTemplates.find((template) => template.id === selectedTemplateId) || null;
    }, [filteredTemplates, selectedTemplateId]);
 
@@ -616,27 +616,107 @@ const Conversion = ({
       : "";
 
    /**
+    * Resolve media URL (handles relative paths)
+    */
+   const resolveMediaUrl = (url) => {
+      if (!url) return "";
+      if (url.startsWith('http') || url.startsWith('data:')) return url;
+      // If it's a relative path, prefix with API base URL
+      const API_BASE = import.meta.env.VITE_API_URL 
+         ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') 
+         : 'http://localhost:5000';
+      return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
+   };
+
+   /**
+    * Get media information from message (handles template metadata fallback)
+    */
+   const getMediaFromMessage = (msg) => {
+      // 1. Check top-level media fields first
+      if (msg.mediaUrl) {
+         const isRenderable = typeof msg.mediaUrl === 'string' && (msg.mediaUrl.startsWith('http') || msg.mediaUrl.includes('.') || msg.mediaUrl.startsWith('/'));
+         if (isRenderable) return { url: msg.mediaUrl, type: msg.mediaType || 'image' };
+      }
+      
+      if (msg.media?.url) return { url: msg.media.url, type: msg.media.type || 'image' };
+      
+      // 2. Try to extract from metadata (templates)
+      if (msg.messageType === 'template') {
+         if (msg.metadata?.components) {
+            const header = msg.metadata.components.find(c => String(c.type).toLowerCase() === 'header');
+            if (header && header.parameters && header.parameters[0]) {
+               const param = header.parameters[0];
+               const pType = String(param.type).toLowerCase();
+               const url = param[pType]?.link || param[pType]?.url || param[pType]?.id;
+               
+               // Only return if it looks like a real URL (not a Meta handle/ID)
+               const isRenderable = url && typeof url === 'string' && (url.startsWith('http') || url.includes('.') || url.startsWith('/'));
+               if (isRenderable) {
+                  return { url, type: pType };
+               }
+            }
+         }
+         
+         // 3. Last Fallback: Find template by name in our local templates list
+         if (msg.templateName && Array.isArray(filteredTemplates)) {
+            const t = filteredTemplates.find(temp => temp.name === msg.templateName);
+            if (t) {
+               const url = t.headerMediaUrlPreview || t.headerMediaUrl;
+               if (url) return { url, type: t.headerType?.toLowerCase() || 'image' };
+            }
+         }
+      }
+      return null;
+   };
+
+   /**
     * Render template body with proper WhatsApp formatting
     * Converts WhatsApp markdown syntax to visual HTML
     */
    const renderTemplateHeaderPreview = (template) => {
-      if (!template.headerType || template.headerType === 'None') return null;
+      const headerFormat = template.headerType || template.header_type;
+      if (!headerFormat || headerFormat === 'None' || headerFormat === 'TEXT') return null;
       
-      const mediaUrl = template.headerMediaUrlPreview || template.headerMediaUrl;
-      if (!mediaUrl) return null;
+      let mediaUrl = template.headerMediaUrlPreview || template.headerMediaUrl;
+      
+      // Fallback: search components if not at top level
+      if (!mediaUrl && Array.isArray(template.components)) {
+         const header = template.components.find(c => String(c.type).toUpperCase() === 'HEADER');
+         if (header) {
+            const example = header.example;
+            const candidate = example?.header_url?.[0] || example?.url?.[0] || example?.header_handle?.[0];
+            if (candidate && !String(candidate).startsWith('h_')) {
+               mediaUrl = candidate;
+            }
+         }
+      }
 
-      if (template.headerType === 'Image') {
+      const url = mediaUrl ? resolveMediaUrl(mediaUrl) : null;
+      const type = String(headerFormat).toUpperCase();
+
+      if (type === 'IMAGE') {
          return (
-            <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 shadow-sm">
-               <img src={mediaUrl} alt="Header" className="w-full h-32 object-cover" />
+            <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 shadow-sm bg-slate-50 min-h-[120px] flex items-center justify-center">
+               {url ? (
+                  <img src={url} alt="Header" className="w-full h-32 object-cover" />
+               ) : (
+                  <div className="flex flex-col items-center gap-2 text-slate-300">
+                     <PhotoIcon className="w-10 h-10" />
+                     <span className="text-[10px] font-bold uppercase tracking-wider">Template Image</span>
+                  </div>
+               )}
             </div>
          );
       }
 
-      if (template.headerType === 'Video') {
+      if (type === 'VIDEO') {
          return (
             <div className="mb-3 rounded-xl overflow-hidden border border-slate-100 bg-black aspect-video flex items-center justify-center relative">
-               <video src={mediaUrl} className="w-full h-full object-contain opacity-80" />
+               {url ? (
+                  <video src={url} className="w-full h-full object-contain opacity-80" />
+               ) : (
+                  <FilmIcon className="w-12 h-12 text-white/20" />
+               )}
                <div className="absolute w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30">
                   <div className="w-0 h-0 border-t-[6px] border-t-transparent border-l-[10px] border-l-white border-b-[6px] border-b-transparent ml-1"></div>
                </div>
@@ -644,7 +724,7 @@ const Conversion = ({
          );
       }
 
-      if (template.headerType === 'Document') {
+      if (type === 'DOCUMENT') {
          return (
             <div className="mb-3 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3">
                <div className="w-10 h-10 bg-red-100 text-red-600 rounded-lg flex items-center justify-center font-bold text-xs shadow-sm">PDF</div>
@@ -872,7 +952,7 @@ const Conversion = ({
             )}
          </div>
 
-          {/* 2. MESSAGES AREA */}
+{/* 2. MESSAGES AREA */}
          <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-5 py-3 lg:py-4 space-y-2.5 lg:space-y-3 z-10 custom-scrollbar bg-white">
             
             {data.messages?.map((msg, index) => {
@@ -909,23 +989,53 @@ const Conversion = ({
                                     : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
                                  : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
                            }`}>
-                              {(msg.media || msg.mediaUrl) && (
-                                 <div className={`mb-1 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-200'}`}>
-                                    {((msg.media?.type === 'image') || (msg.messageType === 'image') || (msg.mediaUrl && (msg.mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i)))) ? (
-                                       <img src={msg.media?.url || msg.mediaUrl} alt="attachment" className="max-w-full sm:max-w-[240px] rounded-xl object-cover shadow-sm bg-slate-100" />
-                                    ) : (
-                                       <div className={`flex items-center gap-3 p-3 rounded-xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
-                                          {(msg.media?.type === 'video' || msg.messageType === 'video') ? <FilmIcon className="w-8 h-8 shrink-0" /> : 
-                                          (msg.media?.type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> :
-                                          <DocumentIcon className="w-8 h-8 shrink-0" />}
-                                          <div className="flex flex-col min-w-0 pr-4">
-                                             <span className="text-sm font-bold truncate">{msg.media?.name || msg.fileName || 'Document'}</span>
-                                             <span className="text-[10px] opacity-80">{msg.media?.size || (msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File')}</span>
-                                          </div>
-                                       </div>
-                                    )}
-                                 </div>
-                              )}
+                               {(() => {
+                                  const mediaInfo = getMediaFromMessage(msg);
+                                  if (!mediaInfo) return null;
+                                  
+                                  const { url, type } = mediaInfo;
+                                  const isImage = type === 'image' || (typeof url === 'string' && url.match(/\.(jpeg|jpg|gif|png|webp|svg)$/i));
+                                  const isVideo = type === 'video' || (typeof url === 'string' && url.match(/\.(mp4|3gp|mov|m4v)$/i));
+                                  const isDocument = type === 'document' || (typeof url === 'string' && url.match(/\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|txt)$/i));
+                                  
+                                  return (
+                                     <div className={`mb-2 ${msg.text ? 'border-b pb-3 mb-3' : ''} ${msg.sender === 'me' ? 'border-white/30' : 'border-slate-100'}`}>
+                                        {isImage ? (
+                                           <img src={resolveMediaUrl(url)} alt="attachment" className="max-w-full sm:max-w-[280px] rounded-2xl object-cover shadow-sm bg-slate-100 cursor-pointer hover:opacity-95 transition-opacity" onClick={() => window.open(resolveMediaUrl(url), '_blank')} />
+                                        ) : isVideo ? (
+                                           <div className="relative max-w-full sm:max-w-[280px] aspect-video bg-black rounded-2xl overflow-hidden shadow-sm group cursor-pointer" onClick={() => window.open(resolveMediaUrl(url), '_blank')}>
+                                              <video src={resolveMediaUrl(url)} className="w-full h-full object-cover opacity-70" />
+                                              <div className="absolute inset-0 flex items-center justify-center">
+                                                 <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center border border-white/30 group-hover:scale-110 transition-transform">
+                                                    <div className="w-0 h-0 border-t-[8px] border-t-transparent border-l-[14px] border-l-white border-b-[8px] border-b-transparent ml-1"></div>
+                                                 </div>
+                                              </div>
+                                           </div>
+                                        ) : isDocument ? (
+                                           <a href={resolveMediaUrl(url)} target="_blank" rel="noopener noreferrer" className={`flex items-center gap-3 p-3 rounded-2xl transition-all hover:bg-black/5 no-underline border ${msg.sender === 'me' ? 'bg-white/20 border-white/20 text-white' : 'bg-slate-50 border-slate-200 text-slate-800'}`}>
+                                              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${msg.sender === 'me' ? 'bg-white/20 text-white' : 'bg-red-50 text-red-600'}`}>
+                                                 {url.toLowerCase().endsWith('.pdf') ? <span className="font-bold text-[10px]">PDF</span> : <DocumentIcon className="w-6 h-6" />}
+                                              </div>
+                                              <div className="flex flex-col min-w-0 pr-2">
+                                                 <span className="text-[13px] font-bold truncate">{msg.fileName || url.split('/').pop() || 'Document'}</span>
+                                                 <span className="text-[10px] opacity-70 uppercase font-bold tracking-wider">{msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'Download File'}</span>
+                                              </div>
+                                              <div className="ml-auto opacity-40 group-hover:opacity-100 transition-opacity">
+                                                 <ArrowDownTrayIcon className="w-4 h-4" />
+                                              </div>
+                                           </a>
+                                        ) : (
+                                           <div className={`flex items-center gap-3 p-3 rounded-2xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
+                                              {(type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> : <DocumentIcon className="w-8 h-8 shrink-0" />}
+                                              <div className="flex flex-col min-w-0 pr-4">
+                                                 <span className="text-sm font-bold truncate">{msg.fileName || 'Attachment'}</span>
+                                                 <span className="text-[10px] opacity-80">{msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File'}</span>
+                                              </div>
+                                           </div>
+                                        )}
+                                     </div>
+                                  );
+                               })()}
                               {msg.text && (
                                  <div 
                                     className="leading-relaxed whitespace-pre-wrap" 

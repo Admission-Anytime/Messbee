@@ -888,6 +888,49 @@ exports.sendTemplateMessage = async (req, res, next) => {
       }
     }
 
+    // Extract media info from components if present (to show in chat history)
+    let mediaUrl = null;
+    let mediaType = null;
+    let fileName = null;
+
+    if (Array.isArray(components)) {
+      const headerComponent = components.find(c => String(c.type).toLowerCase() === 'header');
+      if (headerComponent && Array.isArray(headerComponent.parameters) && headerComponent.parameters.length > 0) {
+        const param = headerComponent.parameters[0];
+        const pType = String(param.type).toLowerCase();
+        
+        if (['image', 'video', 'document'].includes(pType)) {
+          mediaUrl = param[pType]?.link || param[pType]?.url;
+          mediaType = pType;
+          if (pType === 'document') {
+            fileName = param.document?.filename || 'Document';
+          }
+        }
+      }
+    }
+
+    // Fallback: Try to find template in database to get media URL if not in request
+    if (!mediaUrl) {
+      try {
+        const Template = require('../models/Template');
+        const dbTemplate = await Template.findOne({ name: templateName });
+        if (dbTemplate && Array.isArray(dbTemplate.components)) {
+          const headerComp = dbTemplate.components.find(c => String(c.type).toUpperCase() === 'HEADER');
+          if (headerComp && headerComp.format && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComp.format)) {
+            mediaType = headerComp.format.toLowerCase();
+            // Look for example URL in component
+            if (headerComp.example && headerComp.example.header_handle) {
+               // If it's a handle, we still can't show it directly, but maybe there's a link elsewhere
+            }
+            // Check if our own system stored a preview URL
+            mediaUrl = headerComp.headerMediaUrl || headerComp.headerMediaUrlPreview;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching template for media fallback:', err.message);
+      }
+    }
+
     const result = await whatsappService.sendTemplateMessage(
       recipientPhone,
       templateName,
@@ -921,13 +964,16 @@ exports.sendTemplateMessage = async (req, res, next) => {
 
     const newMessage = await Message.create({
       chatId: chat._id,
-      text: `Template: ${templateName}`,
+      text: result.displayText || `Template: ${templateName}`,
       sender: 'me',
       time,
       whatsappMessageId: result.messageId,
       messageType: 'template',
       templateName,
       templateLanguage: languageCode || 'en_US',
+      mediaUrl,
+      mediaType,
+      fileName,
       metadata: {
         components
       },

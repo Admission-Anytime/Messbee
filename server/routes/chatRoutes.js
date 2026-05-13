@@ -778,38 +778,92 @@ router.post("/send-template", async (req, res) => {
       minute: '2-digit'
     });
 
-    const newMessage = await Message.create({
-      chatId: chatId,
-      text: result.displayText || `Template: ${templateName}`,
-      sender: 'me',
-      time: time,
-      whatsappMessageId: result.messageId,
-      messageType: 'template',
-      templateName: result.templateName || templateName,
-      templateLanguage: result.templateLanguage || (languageCode || 'en_US'),
-      metadata: {
-        components: components || []
-      },
-      status: 'sent'
-    });
+    // Extract media info from components if present (to show in chat history)
+    let mediaUrl = null;
+    let mediaType = null;
+    let fileName = null;
 
-    // Update chat metadata
-    await Chat.findByIdAndUpdate(chatId, {
-      lastMsg: result.displayText || `Template: ${templateName}`,
-      lastMsgTime: time,
-      lastActivity: new Date()
-    });
+    if (Array.isArray(components)) {
+      const headerComponent = components.find(c => String(c.type).toLowerCase() === 'header');
+      if (headerComponent && Array.isArray(headerComponent.parameters) && headerComponent.parameters.length > 0) {
+        const param = headerComponent.parameters[0];
+        const pType = String(param.type).toLowerCase();
+        
+        if (['image', 'video', 'document'].includes(pType)) {
+          mediaUrl = param[pType]?.link || param[pType]?.url || param[pType]?.id;
+          mediaType = pType;
+          if (pType === 'document') {
+            fileName = param.document?.filename || 'Document';
+          }
+        }
+      }
+    }
 
-    res.json({
-      success: true,
-      data: newMessage,
-      whatsappMessageId: result.messageId
-    });
+    // Fallback: Try to find template in database to get media URL if not in request
+    if (!mediaUrl) {
+      try {
+        const Template = require('../models/Template');
+        const dbTemplate = await Template.findOne({ name: templateName });
+        if (dbTemplate && Array.isArray(dbTemplate.components)) {
+          const headerComp = dbTemplate.components.find(c => String(c.type).toUpperCase() === 'HEADER');
+          if (headerComp && headerComp.format && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComp.format)) {
+            mediaType = headerComp.format.toLowerCase();
+            // Check for our own system stored a preview URL
+            mediaUrl = headerComp.headerMediaUrl || headerComp.headerMediaUrlPreview;
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching template for media fallback:', err.message);
+      }
+    }
+
+    // Save template message to database
+    try {
+      const newMessage = await Message.create({
+        chatId: chatId,
+        text: result.displayText || `Template: ${templateName}`,
+        sender: 'me',
+        time: time,
+        whatsappMessageId: result.messageId,
+        messageType: 'template',
+        templateName: result.templateName || templateName,
+        templateLanguage: result.templateLanguage || (languageCode || 'en_US'),
+        mediaUrl,
+        mediaType,
+        fileName,
+        metadata: {
+          components: components || []
+        },
+        status: 'sent'
+      });
+
+      // Update chat metadata
+      await Chat.findByIdAndUpdate(chatId, {
+        lastMsg: result.displayText || `Template: ${templateName}`,
+        lastMsgTime: time,
+        lastActivity: new Date()
+      });
+
+      return res.json({
+        success: true,
+        data: newMessage,
+        whatsappMessageId: result.messageId
+      });
+    } catch (dbError) {
+      console.error("❌ Error saving template message to DB:", dbError);
+      // Still return success if WhatsApp sent it, but mention DB error
+      return res.status(200).json({
+        success: true,
+        whatsappMessageId: result.messageId,
+        warning: "Message sent but failed to save to history",
+        dbError: dbError.message
+      });
+    }
   } catch (error) {
-    console.error("Error sending template:", error);
+    console.error("❌ Unexpected error in send-template route:", error);
     res.status(500).json({
-      error: "Failed to send template",
-      details: error.message
+      success: false,
+      error: error.message || "An unexpected error occurred"
     });
   }
 });
