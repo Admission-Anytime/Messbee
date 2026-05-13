@@ -1297,13 +1297,14 @@ exports.uploadTemplateMedia = async (req, res, next) => {
     let filePathToUpload = req.file.path;
     let mimeTypeToUpload = req.file.mimetype;
 
-    const isImage = mimeTypeToUpload.startsWith('image/');
-    const isVideo = mimeTypeToUpload.startsWith('video/');
-    const isPdf = mimeTypeToUpload === 'application/pdf';
+    const isSupportedImage = mimeTypeToUpload === 'image/jpeg' || mimeTypeToUpload === 'image/png';
+    const isSupportedVideo = mimeTypeToUpload === 'video/mp4';
+    const isSupportedPdf = mimeTypeToUpload === 'application/pdf';
 
-    // If it is a document, but NOT a PDF (e.g. docx, xlsx, csv), Meta will reject the handle for template creation.
-    // We MUST upload a dummy PDF to Meta to get a valid PDF handle for the template review sample.
-    if (!isImage && !isVideo && !isPdf) {
+    // If it is NOT a supported format for template headers (JPG, PNG, MP4, PDF),
+    // Meta will reject the handle for template creation. 
+    // We fallback to a dummy PDF for the template review sample so the template can still be created.
+    if (!isSupportedImage && !isSupportedVideo && !isSupportedPdf) {
       const fs = require('fs');
       const dummyPdfPath = req.file.path + '.dummy.pdf';
       const minimalPdfBuffer = Buffer.from(
@@ -1320,6 +1321,12 @@ exports.uploadTemplateMedia = async (req, res, next) => {
       filePathToUpload,
       mimeTypeToUpload
     );
+
+    // Clean up dummy PDF if created
+    const fs = require('fs');
+    if (filePathToUpload !== req.file.path && fs.existsSync(filePathToUpload)) {
+      try { fs.unlinkSync(filePathToUpload); } catch (e) {}
+    }
 
     const metaHandle = metaUploadResult.success ? metaUploadResult.handle : null;
 
@@ -1338,6 +1345,96 @@ exports.uploadTemplateMedia = async (req, res, next) => {
   } catch (error) {
     console.error('❌ [uploadTemplateMedia] Error:', error.message);
     next(error);
+  }
+};
+
+// @desc    Upload media from a URL for use in a template header
+// @route   POST /api/whatsapp/templates/upload-media-by-url
+// @access  Private
+exports.uploadTemplateMediaByUrl = async (req, res, next) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'Media URL is required'
+      });
+    }
+
+    const axios = require('axios');
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    // 1. Download the file from the URL to a temporary location
+    const tempFilePath = path.join(os.tmpdir(), `temp_upload_${Date.now()}`);
+    const response = await axios.get(url, { responseType: 'arraybuffer' });
+    const buffer = Buffer.from(response.data, 'binary');
+    fs.writeFileSync(tempFilePath, buffer);
+
+    const mimeType = response.headers['content-type'] || 'application/octet-stream';
+    
+    console.log(`📥 [uploadTemplateMediaByUrl] Downloaded file from URL. Size: ${buffer.length} bytes, MIME: ${mimeType}`);
+
+    let filePathToUpload = tempFilePath;
+    let mimeTypeToUpload = mimeType;
+
+    const isSupportedImage = mimeTypeToUpload === 'image/jpeg' || mimeTypeToUpload === 'image/png';
+    const isSupportedVideo = mimeTypeToUpload === 'video/mp4';
+    const isSupportedPdf = mimeTypeToUpload === 'application/pdf';
+
+    // If it is NOT a supported format for template headers (JPG, PNG, MP4, PDF),
+    // Meta will reject the handle for template creation.
+    // We MUST upload a dummy PDF to Meta to get a valid PDF handle for the template review sample.
+    if (!isSupportedImage && !isSupportedVideo && !isSupportedPdf) {
+      console.log(`📄 [uploadTemplateMediaByUrl] Unsupported format (${mimeTypeToUpload}) detected. Creating dummy PDF for Meta handle.`);
+      const dummyPdfPath = tempFilePath + '.dummy.pdf';
+      const minimalPdfBuffer = Buffer.from(
+        '%PDF-1.0\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/MediaBox[0 0 3 3]>>endobj\nxref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n149\n%EOF\n',
+        'binary'
+      );
+      fs.writeFileSync(dummyPdfPath, minimalPdfBuffer);
+      filePathToUpload = dummyPdfPath;
+      mimeTypeToUpload = 'application/pdf';
+    }
+
+    // 2. Upload to Meta's servers to get a handle
+    const metaUploadResult = await whatsappService.uploadMediaForTemplateHandle(
+      filePathToUpload,
+      mimeTypeToUpload
+    );
+
+    // 3. Clean up the temporary files
+    if (fs.existsSync(tempFilePath)) {
+      fs.unlinkSync(tempFilePath);
+    }
+    if (filePathToUpload !== tempFilePath && fs.existsSync(filePathToUpload)) {
+      fs.unlinkSync(filePathToUpload);
+    }
+
+    if (!metaUploadResult.success) {
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to upload media to Meta servers',
+        error: metaUploadResult.error
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Media processed successfully',
+      data: {
+        url: url,
+        metaHandle: metaUploadResult.handle
+      }
+    });
+  } catch (error) {
+    console.error('❌ [uploadTemplateMediaByUrl] Error:', error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Error processing media URL',
+      error: error.message
+    });
   }
 };
 

@@ -105,6 +105,7 @@ router.post('/debug-send', protect, async (req, res) => {
  */
 // Upload media for template header (image/video/document) — must come BEFORE /:templateId routes
 router.post('/templates/upload-media', protect, upload.single('file'), whatsappController.uploadTemplateMedia);
+router.post('/templates/upload-media-by-url', protect, whatsappController.uploadTemplateMediaByUrl);
 
 // Get WhatsApp message templates (Protected route)
 router.get('/templates', protect, whatsappController.getTemplates);

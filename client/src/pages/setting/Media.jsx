@@ -39,9 +39,22 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getLocalUrl(url) {
+  if (!url) return "";
+  if (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    const backendBase = import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "http://localhost:5000";
+    if (url.startsWith("https://documents.messbee.com/")) {
+      // Backend serves express uploads at /uploads/ folder locally
+      return url.replace("https://documents.messbee.com/", backendBase + "/uploads/");
+    }
+  }
+  return url;
+}
+
 function withPdfPreviewParams(url) {
   if (!url) return "";
-  return `${url}${url.includes("?") ? "&" : "?"}toolbar=0&navpanes=0&scrollbar=0`;
+  const finalUrl = getLocalUrl(url);
+  return `${finalUrl}${finalUrl.includes("?") ? "&" : "?"}toolbar=0&navpanes=0&scrollbar=0`;
 }
 
 // ─── Delete Confirm Modal ──────────────────────────────────────────────────────
@@ -103,7 +116,7 @@ function TypeBadge({ type, size = "sm" }) {
 function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const fi = FILE_ICONS[asset.type] || FILE_ICONS.IMAGE;
-  const previewSrc = asset.thumb || ((asset.type === "IMAGE" || asset.type === "VIDEO") ? asset.url : "");
+  const previewSrc = getLocalUrl(asset.thumb || ((asset.type === "IMAGE" || asset.type === "VIDEO") ? asset.url : ""));
   const pdfPreviewSrc = asset.type === "PDF" ? withPdfPreviewParams(asset.url) : "";
 
   if (viewMode === "list") {
@@ -127,7 +140,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           {menuOpen && (
             <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
               <a 
-                href={asset.url} 
+                href={getLocalUrl(asset.url)} 
                 download={asset.name}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -140,7 +153,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigator.clipboard.writeText(asset.url);
+                  navigator.clipboard.writeText(getLocalUrl(asset.url));
                   toast.success("Link copied to clipboard");
                 }} 
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
@@ -189,7 +202,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           />
         ) : asset.type === "AUDIO" && asset.url ? (
           <div className="w-full h-full flex items-center justify-center p-3 bg-violet-50">
-            <audio src={asset.url} controls className="w-full max-w-[92%] h-9" preload="metadata" />
+            <audio src={getLocalUrl(asset.url)} controls className="w-full max-w-[92%] h-9" preload="metadata" />
           </div>
         ) : asset.type === "PDF" && pdfPreviewSrc ? (
           <iframe title={asset.name} src={pdfPreviewSrc} className="w-full h-full border-0" />
@@ -215,7 +228,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
           {menuOpen && (
             <div className="absolute right-0 bottom-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
               <a 
-                href={asset.url} 
+                href={getLocalUrl(asset.url)} 
                 download={asset.name}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -228,7 +241,7 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
               <button 
                 onClick={(e) => {
                   e.stopPropagation();
-                  navigator.clipboard.writeText(asset.url);
+                  navigator.clipboard.writeText(getLocalUrl(asset.url));
                   toast.success("Link copied to clipboard");
                 }} 
                 className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
@@ -665,7 +678,11 @@ export default function MediaGallery() {
       const { data } = await axios.get("/media");
       if (data.success) {
         // Map _id to id for component compatibility
-        const mapped = data.data.map(a => ({ ...a, id: a._id }));
+        const mapped = data.data.map(a => {
+          let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
+          let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
+          return { ...a, id: a._id, url: updatedUrl, thumb: updatedThumb };
+        });
         setAssets(mapped);
       }
     } catch (err) {
@@ -734,7 +751,11 @@ export default function MediaGallery() {
   });
 
   const handleUploadComplete = (newAssetsRaw) => {
-    const newAssets = newAssetsRaw.map(a => ({ ...a, id: a._id }));
+    const newAssets = newAssetsRaw.map(a => {
+      let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
+      let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
+      return { ...a, id: a._id, url: updatedUrl, thumb: updatedThumb };
+    });
     setAssets((prev) => [...newAssets, ...prev]);
   };
 

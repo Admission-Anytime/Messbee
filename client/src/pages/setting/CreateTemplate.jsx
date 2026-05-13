@@ -3,8 +3,9 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia } from '../../services/TemplateApi';
+import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
+import axios from '../../context/axios';
 const CreateTemplate = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -43,6 +44,7 @@ const CreateTemplate = () => {
   const [uploadedMetaHandle, setUploadedMetaHandle] = useState(null);
 
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const headerFileRef = useRef(null);
 
   const EMOJIS = [
@@ -231,8 +233,12 @@ const CreateTemplate = () => {
 
     // Upload to server and get the public DOCUMENT_GET_URL-based URL
     setIsUploadingMedia(true);
+    setUploadProgress(0);
     try {
-      const response = await uploadTemplateMedia(file);
+      const response = await uploadTemplateMedia(file, (progressEvent) => {
+        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+        setUploadProgress(percentCompleted);
+      });
       if (response?.success && response?.data?.url) {
         const hostedUrl = response.data.url;
         const metaHandle = response.data.metaHandle || null;
@@ -270,6 +276,88 @@ const CreateTemplate = () => {
     // Allow selecting the same file again after "Change" click.
     headerFileRef.current.value = '';
     headerFileRef.current.click();
+  };
+
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
+  const [mediaAssets, setMediaAssets] = useState([]);
+  const [isLoadingMedia, setIsLoadingMedia] = useState(false);
+
+  const fetchMediaAssets = async () => {
+    try {
+      setIsLoadingMedia(true);
+      const { data } = await axios.get("/media");
+      if (data.success) {
+        const mapped = data.data.map(a => {
+          let updatedUrl = a.url ? a.url.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.url;
+          let updatedThumb = a.thumb ? a.thumb.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/') : a.thumb;
+          return { ...a, url: updatedUrl, thumb: updatedThumb };
+        });
+        setMediaAssets(mapped);
+      }
+    } catch (err) {
+      toast.error("Failed to load media assets");
+    } finally {
+      setIsLoadingMedia(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isMediaModalOpen) {
+      fetchMediaAssets();
+    }
+  }, [isMediaModalOpen]);
+
+  const handleSelectExistingMedia = async (asset) => {
+    let mt = 'document';
+    if (asset.type === 'IMAGE') mt = 'image';
+    if (asset.type === 'VIDEO') mt = 'video';
+
+    // Replace incorrect localhost URLs from old database entries
+    let publicUrl = asset.url || '';
+    if (publicUrl.includes('http://localhost:5000/uploads/')) {
+      publicUrl = publicUrl.replace('http://localhost:5000/uploads/', 'https://documents.messbee.com/');
+    }
+    
+    setHeaderMedia({
+      file: null,
+      preview: asset.thumb || publicUrl,
+      type: mt,
+      name: asset.name,
+      hostedUrl: publicUrl
+    });
+    setUploadedMediaUrl(publicUrl);
+    setUploadedMetaHandle(null);
+    setIsMediaModalOpen(false);
+
+    try {
+      setIsUploadingMedia(true);
+      setUploadProgress(0);
+      const toastId = toast.loading('Generating Meta handle for template media...');
+      
+      const uploadResp = await uploadTemplateMediaByUrl(publicUrl, (progressEvent) => {
+        if(progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
+      });
+
+      if (uploadResp?.success) {
+        setUploadedMediaUrl(uploadResp.data.url);
+        if (uploadResp.data.metaHandle) {
+          setUploadedMetaHandle(uploadResp.data.metaHandle);
+          toast.update(toastId, { render: 'Meta handle generated!', type: 'success', isLoading: false, autoClose: 2000 });
+        } else {
+          toast.update(toastId, { render: 'Media processed, but no handle generated.', type: 'info', isLoading: false, autoClose: 2500 });
+        }
+      } else {
+        toast.update(toastId, { render: 'Failed to generate Meta handle.', type: 'error', isLoading: false, autoClose: 3000 });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Error generating Meta handle.');
+    } finally {
+      setIsUploadingMedia(false);
+    }
   };
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -981,14 +1069,26 @@ const CreateTemplate = () => {
                               onChange={handleHeaderMediaUpload}
                             />
                             {!headerMedia ? (
-                              <div 
-                                onClick={triggerHeaderMediaPicker}
-                                className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
-                              >
-                                <div className="flex flex-col items-center gap-2">
-                                  <ImageIcon size={32} className="text-gray-400"/>
-                                  <p className="text-sm font-semibold text-gray-700">Click to upload {formData.headerType.toLowerCase()}</p>
-                                  <p className="text-xs text-gray-500">Max 16MB • {formData.headerType === 'Image' ? 'JPG, PNG' : formData.headerType === 'Video' ? 'MP4' : 'Any Document (PDF, DOCX, CSV)'}</p>
+                              <div className="flex gap-4">
+                                <div 
+                                  onClick={triggerHeaderMediaPicker}
+                                  className="flex-1 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
+                                >
+                                  <div className="flex flex-col items-center gap-2">
+                                    <ImageIcon size={32} className="text-gray-400"/>
+                                    <p className="text-sm font-semibold text-gray-700">Upload {formData.headerType}</p>
+                                    <p className="text-xs text-gray-500">Max 16MB • {formData.headerType === 'Image' ? 'JPG, PNG' : formData.headerType === 'Video' ? 'MP4' : 'Any Document (PDF, DOCX, CSV)'}</p>
+                                  </div>
+                                </div>
+                                <div 
+                                  onClick={() => setIsMediaModalOpen(true)}
+                                  className="flex-1 border-2 border-dashed border-gray-300 rounded-xl p-6 text-center cursor-pointer hover:border-[#10B981] hover:bg-green-50/30 transition-all duration-300"
+                                >
+                                  <div className="flex flex-col items-center gap-2">
+                                    <Globe size={32} className="text-gray-400"/>
+                                    <p className="text-sm font-semibold text-gray-700">Choose from Media</p>
+                                    <p className="text-xs text-gray-500">Select existing assets</p>
+                                  </div>
                                 </div>
                               </div>
                             ) : (
@@ -1012,19 +1112,23 @@ const CreateTemplate = () => {
                                         <p className="text-xs text-gray-500">{(headerMedia.file.size / 1024 / 1024).toFixed(2)} MB</p>
                                       )}
                                       {isUploadingMedia ? (
-                                        <div className="flex items-center gap-1.5 mt-1">
-                                          <svg className="animate-spin h-3 w-3 text-[#10B981]" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                          </svg>
-                                          <span className="text-xs text-[#10B981] font-medium">Uploading to server…</span>
+                                        <div className="flex items-center gap-2 mt-2 w-48">
+                                          <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div 
+                                              className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                                              style={{ width: `${Math.max(10, uploadProgress)}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-xs text-[#10B981] font-bold w-9 text-right">{uploadProgress}%</span>
                                         </div>
                                       ) : (uploadedMediaUrl || headerMedia.hostedUrl) ? (
                                         <div className="mt-1">
                                           <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5 font-medium">
-                                            ✓ Hosted
+                                            ✓ Ready for Template
                                           </span>
-                                          <p className="text-xs text-gray-400 truncate mt-0.5 max-w-xs">{uploadedMediaUrl || headerMedia.hostedUrl}</p>
+                                          <p className="text-xs text-gray-400 truncate mt-0.5 max-w-xs">
+                                            {uploadedMetaHandle ? "Media securely linked with Meta" : "Media processed successfully"}
+                                          </p>
                                         </div>
                                       ) : null}
                                     </div>
@@ -1286,6 +1390,76 @@ const CreateTemplate = () => {
             </div>
         </div>
       </div>
+
+      {/* Media Selection Modal */}
+      {isMediaModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsMediaModalOpen(false)}>
+          <div 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-4xl max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Select Media</h3>
+                <p className="text-sm text-gray-500 mt-1">Choose a media asset from your gallery</p>
+              </div>
+              <button 
+                onClick={() => setIsMediaModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition"
+              >
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {isLoadingMedia ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                  <RotateCw size={28} className="animate-spin text-green-500" />
+                  <p className="text-sm text-gray-500 font-medium">Loading media gallery...</p>
+                </div>
+              ) : mediaAssets.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-3">
+                  <ImageIcon size={40} className="text-gray-300" />
+                  <p className="text-sm text-gray-500 font-medium">No media files found</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {mediaAssets.filter(a => {
+                      if(formData.headerType === 'Image') return a.type === 'IMAGE';
+                      if(formData.headerType === 'Video') return a.type === 'VIDEO';
+                      return a.type === 'PDF' || a.type === 'ARCHIVE' || a.type === 'DOCUMENT';
+                  }).map(asset => {
+                    const isImg = asset.type === 'IMAGE';
+                    const isVid = asset.type === 'VIDEO';
+                    return (
+                      <div 
+                        key={asset._id || asset.id} 
+                        onClick={() => handleSelectExistingMedia(asset)}
+                        className="group border border-gray-200 rounded-xl overflow-hidden cursor-pointer hover:border-green-500 hover:ring-2 hover:ring-green-100 transition-all"
+                      >
+                        <div className="h-32 bg-gray-50 relative flex items-center justify-center overflow-hidden">
+                          {isImg ? (
+                            <img src={asset.thumb || asset.url} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>
+                          ) : isVid ? (
+                            <video src={asset.url} className="w-full h-full object-cover" muted playsInline />
+                          ) : (
+                             <div className="text-gray-400 font-bold text-lg">{asset.name?.split('.').pop().toUpperCase() || 'DOC'}</div>
+                          )}
+                          <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded font-semibold uppercase">{asset.type}</div>
+                        </div>
+                        <div className="p-3">
+                          <p className="text-xs font-semibold text-gray-800 truncate">{asset.name}</p>
+                          <p className="text-[10px] text-gray-500 mt-0.5">{asset.size || 'Unknown size'}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

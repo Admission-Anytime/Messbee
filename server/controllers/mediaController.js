@@ -51,9 +51,8 @@ exports.uploadMedia = async (req, res, next) => {
     const ext = path.extname(originalname).replace('.', '').toUpperCase() || 'BIN';
 
     // Build the public URL for this file
-    const protocol = req.protocol;
-    const host = req.get('host');
-    const url = `${protocol}://${host}/uploads/${filename}`;
+    const { getPublicUrl } = require('../middleware/upload');
+    const url = getPublicUrl(filename);
 
     const media = await Media.create({
       name: originalname,

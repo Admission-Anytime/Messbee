@@ -109,6 +109,18 @@ export const sendTemplateMessage = async (chatId, templateName, languageCode = '
  * Note: This requires more complex implementation with WhatsApp Business Management API
  * Currently, templates must be created via WhatsApp Manager UI
  */
+export const uploadTemplateMediaByUrl = async (url, onUploadProgress) => {
+  try {
+    const response = await axios.post('/whatsapp/templates/upload-media-by-url', { url }, {
+      onUploadProgress
+    });
+    return response.data;
+  } catch (error) {
+    console.error('❌ [TemplateApi] Error generating handle by URL:', error.response?.data || error.message);
+    throw error.response?.data || { success: false, message: 'An unknown error has occurred.' };
+  }
+};
+
 export const createWhatsAppTemplate = async (templateData) => {
   try {
     const { data } = await axios.post("/whatsapp/templates", templateData);
@@ -128,12 +140,13 @@ export const createWhatsAppTemplate = async (templateData) => {
  * @param {File} file - Browser File object selected by the user
  * @returns {{ url: string, filename: string, mimetype: string, size: number }}
  */
-export const uploadTemplateMedia = async (file) => {
+export const uploadTemplateMedia = async (file, onUploadProgress) => {
   try {
     const formData = new FormData();
     formData.append('file', file);
     const { data } = await axios.post('/whatsapp/templates/upload-media', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+      headers: { 'Content-Type': 'multipart/form-data' },
+      onUploadProgress
     });
     return data; // { success, data: { url, filename, mimetype, size } }
   } catch (error) {
