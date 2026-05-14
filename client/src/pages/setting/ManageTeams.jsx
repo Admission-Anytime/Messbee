@@ -1,4 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
 
 
@@ -75,12 +77,12 @@ function StatusDot({status}){const map={Active:{dot:"bg-green-500",text:"text-gr
 function Avatar({member,size="md"}){const sz=size==="md"?"w-10 h-10 text-sm":size==="sm"?"w-9 h-9 text-xs":"w-8 h-8 text-xs";if(member.avatar)return<img src={member.avatar} alt={member.name} className={`${sz} rounded-full object-cover flex-shrink-0`}/>;return<div className={`${sz} rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 flex-shrink-0`}>{getInitials(member.name)}</div>;}
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
-function Toggle({checked,onChange,size="md"}){
+function Toggle({checked,onChange,size="md",disabled=false}){
   const w=size==="sm"?"w-9 h-5":"w-11 h-6";
   const dot=size==="sm"?"w-4 h-4":"w-5 h-5";
   const on=size==="sm"?"translateX(16px)":"translateX(22px)";
   return(
-    <button onClick={()=>onChange(!checked)} className={`relative inline-flex items-center ${w} rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${checked?"bg-green-500":"bg-gray-200"}`}>
+    <button disabled={disabled} onClick={()=>!disabled&&onChange(!checked)} className={`relative inline-flex items-center ${w} rounded-full transition-colors duration-200 focus:outline-none flex-shrink-0 ${disabled?"cursor-not-allowed":""} ${checked?"bg-green-500":"bg-gray-200"}`}>
       <span className={`inline-block ${dot} bg-white rounded-full shadow transition-transform duration-200`} style={{transform:checked?on:"translateX(2px)"}}/>
       {checked&&<svg className="absolute right-1 w-3 h-3 text-white" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>}
     </button>
@@ -804,13 +806,28 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
 
 function EditPermissionsView({initialRole,toast}){
   const [selectedRole,setSelectedRole]=useState(initialRole);
-  const [allPerms,setAllPerms]=useState(()=>{const i={};ROLES_LIST.forEach(r=>{i[r.name]={...DEFAULT_ROLE_PERMISSIONS[r.name]};});return i;});
-  const [savedPerms,setSavedPerms]=useState(()=>{const i={};ROLES_LIST.forEach(r=>{i[r.name]={...DEFAULT_ROLE_PERMISSIONS[r.name]};});return i;});
+  const initPerms = () => {
+    const saved = localStorage.getItem('rolePerms');
+    if (saved) return JSON.parse(saved);
+    const i={};ROLES_LIST.forEach(r=>{i[r.name]={...DEFAULT_ROLE_PERMISSIONS[r.name]};});return i;
+  };
+  const [allPerms,setAllPerms]=useState(initPerms);
+  const [savedPerms,setSavedPerms]=useState(initPerms);
   const perms=allPerms[selectedRole]||{};
   const isDirty=JSON.stringify(allPerms[selectedRole])!==JSON.stringify(savedPerms[selectedRole]);
   const setPerms=(updater)=>setAllPerms(prev=>({...prev,[selectedRole]:updater(prev[selectedRole])}));
-  const handleSave=()=>{setSavedPerms(prev=>({...prev,[selectedRole]:{...allPerms[selectedRole]}}));toast(`${selectedRole} permissions saved`);};
+  const handleSave=()=>{
+    const updated = {...allPerms};
+    setSavedPerms(updated);
+    localStorage.setItem('rolePerms', JSON.stringify(updated));
+    toast(`${selectedRole} permissions saved`);
+  };
   const handleDiscard=()=>setAllPerms(prev=>({...prev,[selectedRole]:{...savedPerms[selectedRole]}}));
+  const isToggleDisabled = (permId) => {
+    // Disable all toggles for predefined roles (Admin, Manager, Agent) so they are read-only.
+    // They remain visually green or gray, but cannot be clicked.
+    return ROLES_LIST.some(r => r.name === selectedRole);
+  };
   return(
     <div className="flex gap-5" style={{animation:"fadeUp 0.25s ease"}}>
       <div className="w-56 flex-shrink-0 flex flex-col gap-2">
@@ -820,7 +837,7 @@ function EditPermissionsView({initialRole,toast}){
       <div className="flex-1 min-w-0">
         <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 mb-4 flex items-center justify-between shadow-sm"><div><h3 className="text-base font-bold text-gray-900">Role Details: {selectedRole}</h3><p className="text-sm text-gray-400 mt-0.5">Configure granular platform access for this role</p></div><div className="flex items-center gap-2"><button onClick={handleDiscard} disabled={!isDirty} className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed">Discard</button><button onClick={handleSave} disabled={!isDirty} className="px-5 py-2 text-sm font-semibold text-white bg-green-500 hover:bg-green-600 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed">Save Changes</button></div></div>
         <div className="space-y-4">
-          {PERMISSION_CATEGORIES.map(cat=>(<div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm"><div className="flex items-center gap-2.5 px-6 py-4 border-b border-gray-100 bg-gray-50/50"><CategoryIcon id={cat.icon} className="w-5 h-5 text-gray-400"/><p className="text-xs font-bold text-gray-500 tracking-widest">{cat.label}</p></div>{cat.permissions.map((perm,idx)=>(<div key={perm.id} className={`flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition ${idx<cat.permissions.length-1?"border-b border-gray-100":""}`}><div><p className="text-sm font-semibold text-gray-800">{perm.label}</p><p className="text-xs text-gray-400 mt-0.5">{perm.desc}</p></div><div className="ml-6 flex-shrink-0"><Toggle checked={!!perms[perm.id]} onChange={val=>setPerms(p=>({...p,[perm.id]:val}))}/></div></div>))}</div>))}
+          {PERMISSION_CATEGORIES.map(cat=>(<div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm"><div className="flex items-center gap-2.5 px-6 py-4 border-b border-gray-100 bg-gray-50/50"><CategoryIcon id={cat.icon} className="w-5 h-5 text-gray-400"/><p className="text-xs font-bold text-gray-500 tracking-widest">{cat.label}</p></div>{cat.permissions.map((perm,idx)=>(<div key={perm.id} className={`flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition ${idx<cat.permissions.length-1?"border-b border-gray-100":""}`}><div><p className="text-sm font-semibold text-gray-800">{perm.label}</p><p className="text-xs text-gray-400 mt-0.5">{perm.desc}</p></div><div className="ml-6 flex-shrink-0"><Toggle disabled={isToggleDisabled(perm.id)} checked={!!perms[perm.id]} onChange={val=>setPerms(p=>({...p,[perm.id]:val}))}/></div></div>))}</div>))}
         </div>
       </div>
     </div>
@@ -925,6 +942,11 @@ function CustomRoleCard({data,onDelete,onView}){
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function ManageTeams(){
+  const navigate = useNavigate();
+  const { user } = useContext(userContext);
+  const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
+  const canCreateCustomRole = currentPlan === "enterprise";
+
   const [activeTab,setActiveTab]=useState("Members");
   const [members,setMembers]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -943,13 +965,21 @@ export default function ManageTeams(){
           lastActive: u.lastActive ? new Date(u.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never',
           avatar: u.avatar || null
         }));
-        setMembers(mapped);
+        const localMembers = localStorage.getItem('teamMembers');
+        if (localMembers) {
+          setMembers(JSON.parse(localMembers));
+        } else {
+          setMembers(mapped);
+          localStorage.setItem('teamMembers', JSON.stringify(mapped));
+        }
       } else {
-        setMembers([]);
+        const localMembers = localStorage.getItem('teamMembers');
+        setMembers(localMembers ? JSON.parse(localMembers) : []);
       }
     } catch (error) {
       console.error("Error fetching team members:", error);
-      setMembers([]);
+      const localMembers = localStorage.getItem('teamMembers');
+      setMembers(localMembers ? JSON.parse(localMembers) : []);
     } finally {
       setLoading(false);
     }
@@ -959,13 +989,25 @@ export default function ManageTeams(){
     fetchMembers();
   }, []);
 
+  useEffect(() => {
+    if (!loading) {
+      localStorage.setItem('teamMembers', JSON.stringify(members));
+    }
+  }, [members, loading]);
+
   const [search,setSearch]=useState("");
   const [page,setPage]=useState(1);
   const [showInvite,setShowInvite]=useState(false);
   const [editTarget,setEditTarget]=useState(null);
   const [removeTarget,setRemoveTarget]=useState(null);
   const [rolesView,setRolesView]=useState(null);
-  const [customRoles,setCustomRoles]=useState([]);
+  const [customRoles,setCustomRoles]=useState(() => {
+    const saved = localStorage.getItem('customRoles');
+    return saved ? JSON.parse(saved) : [];
+  });
+  useEffect(() => {
+    localStorage.setItem('customRoles', JSON.stringify(customRoles));
+  }, [customRoles]);
   const {toasts,show:showToast}=useToast();
   const CARD_TO_PERM={Admin:"Admin",Manager:"Manager",Agent:"Support Agent"};
   const filtered=members.filter(m=>m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase()));
@@ -1018,7 +1060,14 @@ export default function ManageTeams(){
             ):isEditView?(
               <button onClick={()=>setRolesView(null)} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 text-sm font-semibold rounded-xl shadow-sm transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>Back to Roles</button>
             ):(
-              <button onClick={()=>setRolesView("create")} className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition">
+              <button onClick={()=>{
+                if(canCreateCustomRole) {
+                  setRolesView("create");
+                } else {
+                  showToast("Enterprise plan is required to create custom roles.");
+                  setTimeout(() => navigate("/admin/plan/upgrade"), 1500);
+                }
+              }} className="flex items-center gap-2 px-4 py-2.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
                 Create Custom Role
               </button>
@@ -1077,7 +1126,7 @@ export default function ManageTeams(){
                 />
               ))}
             </div>
-            <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm flex items-center justify-between"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg></div><div><p className="text-sm font-bold text-gray-900">Custom Role Capability</p><p className="text-sm text-gray-500 mt-0.5">Need more specific access control? Enterprise plans can create up to 25 unique custom roles with granular permission toggles.</p></div></div><button className="ml-6 flex-shrink-0 px-4 py-2 text-sm font-bold text-green-600 hover:text-green-700 transition whitespace-nowrap">Upgrade Plan</button></div>
+            <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm flex items-center justify-between"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg></div><div><p className="text-sm font-bold text-gray-900">Custom Role Capability</p><p className="text-sm text-gray-500 mt-0.5">Need more specific access control? Enterprise plans can create up to 25 unique custom roles with granular permission toggles.</p></div></div><button onClick={() => navigate("/admin/plan/upgrade")} className="ml-6 flex-shrink-0 px-4 py-2 text-sm font-bold text-green-600 hover:text-green-700 transition whitespace-nowrap">Upgrade Plan</button></div>
           </div>
         )}
       </div>
