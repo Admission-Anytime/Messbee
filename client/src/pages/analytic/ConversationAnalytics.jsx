@@ -76,37 +76,47 @@ const ConversationAnalytics = () => {
               <p className="text-sm text-slate-500 font-medium">Detailed performance metrics across communication channels</p>
             </div>
 
-            {/* FILTERS */}
-            <div className="flex flex-wrap items-end gap-4 mb-6">
-              <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">From Date</p>
-                <DatePicker value={dateRange[0]} onChange={(val) => setDateRange([val, dateRange[1]])}
-                  slotProps={{ textField: { sx: { width: 170, ...inputSx } } }} />
-              </div>
-              <div>
-                <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">To Date</p>
-                <DatePicker value={dateRange[1]} onChange={(val) => setDateRange([dateRange[0], val])}
-                  slotProps={{ textField: { sx: { width: 170, ...inputSx } } }} />
-              </div>
-
-              {/* Toggle */}
-              <div className="flex h-[42px]">
-                <button onClick={() => setView('table')}
-                  className={`px-6 text-sm font-bold border rounded-l-lg transition-all ${view === 'table' ? 'bg-white text-[#10B981] border-[#10B981]' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'}`}>
-                  Table View
-                </button>
-                <button onClick={() => setView('chart')}
-                  className={`px-6 text-sm font-bold border-t border-b border-r rounded-r-lg transition-all ${view === 'chart' ? 'bg-white text-[#10B981] border-[#10B981]' : 'bg-white text-slate-500 border-slate-200 hover:text-slate-700'}`}>
-                  Chart View
-                </button>
-              </div>
-            </div>
-
             {/* MAIN GRID */}
-            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
 
               {/* LEFT - TABLE or CHART */}
               <div className="xl:col-span-2 space-y-4">
+
+                {/* FILTERS ROW inside left column */}
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">From Date</p>
+                    <DatePicker value={dateRange[0]} onChange={(val) => setDateRange([val, dateRange[1]])}
+                      slotProps={{ textField: { sx: { width: 170, ...inputSx } } }} />
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">To Date</p>
+                    <DatePicker value={dateRange[1]} onChange={(val) => setDateRange([dateRange[0], val])}
+                      slotProps={{ textField: { sx: { width: 170, ...inputSx } } }} />
+                  </div>
+
+                  {/* Toggle — pill style matching Marketing/Utility/Authentication tabs */}
+                  <div className="flex bg-gray-50/50 p-1.5 rounded-xl border border-gray-100 gap-1 h-fit">
+                    <button
+                      onClick={() => setView('table')}
+                      className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2
+                        ${view === 'table'
+                          ? 'bg-white shadow-sm text-gray-900 border border-gray-100'
+                          : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Table View
+                    </button>
+                    <button
+                      onClick={() => setView('chart')}
+                      className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all flex items-center gap-2
+                        ${view === 'chart'
+                          ? 'bg-white shadow-sm text-gray-900 border border-gray-100'
+                          : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Chart View
+                    </button>
+                  </div>
+                </div>
                 {view === 'table' ? (
                   <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
                     <div className="overflow-x-auto">
@@ -181,8 +191,8 @@ const ConversationAnalytics = () => {
               {/* RIGHT SIDEBAR */}
               <div className="xl:col-span-1 space-y-4">
 
-                {/* Apply Filter Button - Always at Top */}
-                <button className="w-full h-[50px] bg-[#10B981] text-white text-sm font-black rounded-2xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-500/25">
+                {/* Apply Filter Button — top-margin matches date-label height so it aligns with the toggle row */}
+                <button className="w-full h-[42px] mt-[21px] bg-[#10B981] text-white text-sm font-black rounded-2xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-500/25">
                   Apply Filter
                 </button>
 

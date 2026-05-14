@@ -74,13 +74,14 @@ const CampaignAnalytics = () => {
   const campaigns = [
     {
       id: 1,
-      title: "Camp (22/04/26 3:31 pm)",
-      templateName: "madara_uchiha",
+      title: "Camp (07/05/26 11:32 pm)",
+      templateName: "hi_chat",
       status: "Completed",
       progress: 100,
-      sentOn: "22 Apr 2026, 03:31 pm",
-      createdBy: "Vishal",
-      initials: "VI"
+      sentOn: "07 May 2026, 11:32 pm",
+      createdBy: "Payal",
+      initials: "PA",
+      count: "5"
     },
     {
       id: 2,
@@ -90,7 +91,8 @@ const CampaignAnalytics = () => {
       progress: 100,
       sentOn: "07 Apr, 2026 5:07 pm",
       createdBy: "Ant Kumar Ass",
-      initials: "AK"
+      initials: "AK",
+      count: "4"
     },
     {
       id: 3,
@@ -100,7 +102,8 @@ const CampaignAnalytics = () => {
       progress: 100,
       sentOn: "05 Feb, 2026 3:58 pm",
       createdBy: "Ant Kumar Ass",
-      initials: "AK"
+      initials: "AK",
+      count: "4"
     },
     {
       id: 4,
@@ -110,7 +113,8 @@ const CampaignAnalytics = () => {
       progress: 100,
       sentOn: "04 Feb, 2025 12:37 pm",
       createdBy: "Ant Kumar Ass",
-      initials: "AK"
+      initials: "AK",
+      count: "6b"
     }
   ];
 
@@ -148,7 +152,7 @@ const CampaignAnalytics = () => {
                   <select 
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-bold text-xs outline-none cursor-pointer pr-8"
+                    className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-[#eff3f6] rounded-lg text-slate-900 hover:bg-gray-100 transition-colors font-bold text-xs outline-none cursor-pointer pr-8"
                   >
                     <option value="All">Status: All</option>
                     <option value="Completed">Completed</option>
@@ -161,7 +165,7 @@ const CampaignAnalytics = () => {
                   <select 
                     value={filterTemplate}
                     onChange={(e) => setFilterTemplate(e.target.value)}
-                    className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-bold text-xs outline-none cursor-pointer pr-8"
+                    className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-[#eff3f6] rounded-lg text-slate-900 hover:bg-gray-100 transition-colors font-bold text-xs outline-none cursor-pointer pr-8"
                   >
                     <option value="All">Template: All</option>
                     <option value="madara_uchiha">madara_uchiha</option>
@@ -178,7 +182,7 @@ const CampaignAnalytics = () => {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Search campaigns..."
-                  className="pl-9 pr-4 py-2 w-full border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#10B981]/50 focus:border-[#10B981] text-xs text-slate-700 placeholder:text-slate-400 font-bold transition"
+                  className="pl-9 pr-4 py-2 w-full rounded-xl bg-[#eff3f6] focus:outline-none focus:ring-2 focus:ring-[#10B981]/50 focus:border-[#10B981] text-xs text-slate-900 placeholder:text-slate-400 font-bold transition"
                 />
               </div>
             </div>
@@ -189,12 +193,13 @@ const CampaignAnalytics = () => {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/60">
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-12 whitespace-nowrap">#</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Campaign Title</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[22%] whitespace-nowrap">Template</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[20%] whitespace-nowrap">Campaign Title</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[18%] whitespace-nowrap">Template</th>
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Status</th>
                     <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[14%] whitespace-nowrap">Sent On</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[16%] whitespace-nowrap">Created By</th>
-                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[10%] text-right whitespace-nowrap">Actions</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[15%] whitespace-nowrap">Created By</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[8%] whitespace-nowrap">Count</th>
+                    <th className="px-5 py-3 text-[10px] font-black uppercase tracking-widest text-slate-400 w-[9%] text-right whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -227,11 +232,14 @@ const CampaignAnalytics = () => {
                         </td>
                         <td className="px-5 py-5 align-middle">
                           <div className="flex items-center gap-2.5">
-                            <div className="w-7 h-7 rounded-full bg-gradient-to-br from-teal-400 to-[#10B981] flex items-center justify-center shrink-0">
+                            <div className="w-7 h-7 rounded-full bg-[#10B981] flex items-center justify-center shrink-0">
                               <span className="text-[9px] font-black text-white uppercase">{camp.initials}</span>
                             </div>
                             <span className="text-xs font-black text-slate-700">{camp.createdBy}</span>
                           </div>
+                        </td>
+                        <td className="px-5 py-5 align-middle">
+                          <span className="text-xs font-black text-slate-600">{camp.count}</span>
                         </td>
                         <td className="px-5 py-5 align-middle">
                           <div className="flex justify-end items-center gap-1">
