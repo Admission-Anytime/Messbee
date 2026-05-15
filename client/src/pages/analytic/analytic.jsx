@@ -40,7 +40,7 @@ const Analytic = () => {
                       '& .MuiOutlinedInput-root': {
                         fontFamily: 'Urbanist',
                         borderRadius: '10px',
-                        backgroundColor: '#f8fafc',
+                        backgroundColor: '#eff3f6',
                       },
                     },
                   },
@@ -59,7 +59,7 @@ const Analytic = () => {
                       '& .MuiOutlinedInput-root': {
                         fontFamily: 'Urbanist',
                         borderRadius: '10px',
-                        backgroundColor: '#f8fafc',
+                        backgroundColor: '#eff3f6',
                       },
                     },
                   },

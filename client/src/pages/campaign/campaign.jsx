@@ -96,6 +96,8 @@ const CampaignDashboard = () => {
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
 
   /* modal state */
   const [analyticsId, setAnalyticsId] = useState(null);
@@ -267,6 +269,16 @@ const CampaignDashboard = () => {
     return matchesSearch && matchesStatus && matchesTemplate;
   });
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedStart = (safePage - 1) * ITEMS_PER_PAGE;
+  const paginated = filtered.slice(paginatedStart, paginatedStart + ITEMS_PER_PAGE);
+
+  // Reset to page 1 when filters/search change
+  const handleSearchChange = (val) => { setSearch(val); setCurrentPage(1); };
+  const handleStatusChange = (val) => { setFilterStatus(val); setCurrentPage(1); };
+  const handleTemplateChange = (val) => { setFilterTemplate(val); setCurrentPage(1); };
+
   const completedCount = campaigns.filter((c) => c.status === 'Completed').length;
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
 
@@ -336,7 +348,7 @@ const CampaignDashboard = () => {
             <div className="relative group">
               <select 
                 value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
                 className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
               >
                 <option value="All">Status: All</option>
@@ -350,8 +362,8 @@ const CampaignDashboard = () => {
             <div className="relative group">
               <select 
                 value={filterTemplate}
-                onChange={(e) => setFilterTemplate(e.target.value)}
-                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8"
+                onChange={(e) => handleTemplateChange(e.target.value)}
+                className="appearance-none flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-slate-600 hover:bg-gray-100 transition-colors font-medium outline-none cursor-pointer pr-8 max-w-[180px]"
               >
                 <option value="All">Template: All</option>
                 {templateOptions.map(opt => (
@@ -366,7 +378,7 @@ const CampaignDashboard = () => {
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder="Search campaigns…"
               className="pl-9 pr-4 py-2 w-full border border-gray-200 rounded-xl bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-400/50 focus:border-emerald-400 text-sm text-slate-700 placeholder:text-slate-400 font-medium transition"
             />
@@ -413,12 +425,12 @@ const CampaignDashboard = () => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((camp, index) => (
+                paginated.map((camp, index) => (
                   <tr
                     key={camp.id}
                     className={`group transition-colors ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
                   >
-                    <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{index + 1}</td>
+                    <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{paginatedStart + index + 1}</td>
                     <td className="px-5 py-4 align-middle">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-semibold text-slate-800">{camp.title}</span>
@@ -429,12 +441,12 @@ const CampaignDashboard = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-5 py-4 align-middle">
+                    <td className="px-5 py-4 align-middle max-w-0">
                       <span
-                        className="inline-flex max-w-[240px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate align-middle"
+                        className="inline-block w-full max-w-[180px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate"
                         title={camp.templateName}
                       >
-                        {truncateText(camp.templateName, 48)}
+                        {camp.templateName}
                       </span>
                     </td>
                     <td className="px-5 py-4 align-middle">
@@ -480,12 +492,48 @@ const CampaignDashboard = () => {
           </table>
         </div>
 
-        {/* Footer */}
+        {/* Footer / Pagination */}
         {filtered.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/40">
+          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
             <p className="text-xs text-slate-400 font-medium">
-              Showing <span className="font-bold text-slate-600">{filtered.length}</span> of <span className="font-bold text-slate-600">{campaigns.length}</span> campaigns
+              Showing{' '}
+              <span className="font-bold text-slate-600">{paginatedStart + 1}</span>
+              {' '}–{' '}
+              <span className="font-bold text-slate-600">{Math.min(paginatedStart + ITEMS_PER_PAGE, filtered.length)}</span>
+              {' '}of{' '}
+              <span className="font-bold text-slate-600">{filtered.length}</span> campaigns
             </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-slate-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  ← Prev
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                  <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors border ${
+                      p === safePage
+                        ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                        : 'border-gray-200 text-slate-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-slate-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

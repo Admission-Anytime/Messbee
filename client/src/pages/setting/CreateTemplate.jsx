@@ -135,6 +135,7 @@ const CreateTemplate = () => {
     language: location.state?.templateData?.language || 'English (US)',
     offerTitle: '20% OFF',
     headerType: location.state?.templateData?.headerType || 'None',
+    headerText: location.state?.templateData?.headerText || '',
     bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
     expirationDate: '24h',
@@ -535,7 +536,7 @@ const CreateTemplate = () => {
           components.push({ 
             type: 'HEADER', 
             format: 'TEXT', 
-            text: formData.name.substring(0, 60)
+            text: (formData.headerText || formData.name || '').substring(0, 60)
           });
         } else {
           // For IMAGE/VIDEO/DOCUMENT: prefer Meta handle (ngrok-free), fallback to URL
@@ -598,7 +599,7 @@ const CreateTemplate = () => {
       const submitTemplate = async (payload) => {
         if (isEditing && templateData?.id) {
           // Check if template is approved - WhatsApp doesn't allow editing approved templates
-          if (templateData?.status === 'APPROVED') {
+          if (templateData?.status?.toUpperCase() === 'APPROVED') {
             throw new Error(
               'This template has been approved by Meta and cannot be edited. '
               + 'To make changes, please duplicate this template to create a new version. '
@@ -606,7 +607,10 @@ const CreateTemplate = () => {
             );
           }
           console.log(`Updating existing template: ${originalName} (ID: ${templateData.id})`);
-          return await updateWhatsAppTemplate(templateData.id, { components: payload.components });
+          return await updateWhatsAppTemplate(templateData.id, { 
+            components: payload.components,
+            category: payload.category
+          });
         }
         
         console.log(`Creating new template: ${waName}`);
@@ -1050,6 +1054,20 @@ const CreateTemplate = () => {
                             <option>Video</option>
                             <option>Document</option>
                         </select>
+
+                        {formData.headerType === 'Text' && (
+                          <div className="mt-4 space-y-2">
+                            <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Header Text</label>
+                            <input 
+                              type="text" 
+                              placeholder="Enter header title..." 
+                              value={formData.headerText}
+                              onChange={(e) => setFormData({...formData, headerText: e.target.value})}
+                              className="w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
+                            />
+                            <p className="text-[10px] text-gray-400">Max 60 characters. You can use variables like {"{{1}}"} here.</p>
+                          </div>
+                        )}
 
                         {formData.headerType !== 'None' && formData.headerType !== 'Text' && (
                           <div className="mt-6 space-y-4">
@@ -1565,10 +1583,10 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
                 {headerMedia ? (
                   <>
                     {headerMedia.type === 'image' && (
-                      <img src={headerMedia.preview} alt="header" className="w-full h-auto max-h-[250px] object-cover"/>
+                      <img src={headerMedia.preview} alt="header" className="w-full h-36 object-contain bg-gray-50"/>
                     )}
                     {headerMedia.type === 'video' && (
-                      <video src={headerMedia.preview} className="w-full h-auto max-h-[250px] object-cover" controls={false}/>
+                      <video src={headerMedia.preview} className="w-full h-36 object-contain bg-gray-50" controls={false}/>
                     )}
                     {headerMedia.type === 'document' && (
                       <div className="w-full h-36 bg-red-50 flex items-center justify-center flex-col gap-2">
