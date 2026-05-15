@@ -4,14 +4,26 @@ const {
   updateProfile,
   uploadAvatar,
   updateSubscription,
-  getUsers
+  getUsers,
+  createUser,
+  updateUser,
+  deleteUser,
+  bulkDeleteUsers
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 const router = express.Router();
 
-router.get('/', protect, getUsers);
+router.route('/')
+  .get(protect, getUsers)
+  .post(protect, createUser);
+
+router.post('/bulk-delete', protect, bulkDeleteUsers);
+
+router.route('/:id')
+  .put(protect, updateUser)
+  .delete(protect, deleteUser);
 
 
 /**

@@ -74,6 +74,29 @@ function StatusBadge({status}){const map={Active:"bg-green-100 text-green-700 bo
 function StatusDot({status}){const map={Active:{dot:"bg-green-500",text:"text-gray-700"},Pending:{dot:"bg-yellow-400",text:"text-gray-700"},Offline:{dot:"bg-gray-300",text:"text-gray-400"}};const s=map[status]||map.Offline;return<span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full inline-block ${s.dot}`}/><span className={`text-sm font-medium ${s.text}`}>{status}</span></span>;}
 function Avatar({member,size="md"}){const sz=size==="md"?"w-10 h-10 text-sm":size==="sm"?"w-9 h-9 text-xs":"w-8 h-8 text-xs";if(member.avatar)return<img src={member.avatar} alt={member.name} className={`${sz} rounded-full object-cover flex-shrink-0`}/>;return<div className={`${sz} rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-600 flex-shrink-0`}>{getInitials(member.name)}</div>;}
 
+// ─── Checkbox ──────────────────────────────────────────────────────────────────
+function CircularCheckbox({ checked, onChange, indeterminate }) {
+  return (
+    <div onClick={(e) => { e.stopPropagation(); onChange(); }} className="cursor-pointer inline-flex items-center justify-center select-none">
+      {checked ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="9" fill="#4CAF50" />
+          <path d="M5.5 9.5L7.8 12L12.5 6" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : indeterminate ? (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8.5" stroke="#4CAF50" strokeWidth="1.5" fill="#f0fdf4" />
+          <rect x="5" y="8.25" width="8" height="1.5" rx="0.75" fill="#4CAF50" />
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <circle cx="9" cy="9" r="8.5" stroke="#D1D5DB" strokeWidth="1.5" fill="white" />
+        </svg>
+      )}
+    </div>
+  );
+}
+
 // ─── Toggle ────────────────────────────────────────────────────────────────────
 function Toggle({checked,onChange,size="md"}){
   const w=size==="sm"?"w-9 h-5":"w-11 h-6";
@@ -94,6 +117,42 @@ function useToast(){
   return{toasts,show};
 }
 function ToastContainer({toasts}){return(<div className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2">{toasts.map(t=>(<div key={t.id} className="bg-gray-900 text-white text-sm font-medium px-4 py-3 rounded-xl shadow-lg flex items-center gap-2" style={{animation:"fadeUp 0.25s ease"}}><svg className="w-4 h-4 text-green-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg>{t.msg}</div>))}</div>);}
+
+// ─── Delete Confirm Modal ─────────────────────────────────────────────────────
+function DeleteConfirmModal({ isOpen, onConfirm, onCancel, count, loading }) {
+  if (!isOpen) return null;
+  const isBulk = count > 1;
+  return (
+    <div className="fixed inset-0 z-[700] flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30 backdrop-blur-[2px]" onClick={onCancel} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-[400px] p-6 flex flex-col items-center text-center" style={{animation: "popIn 0.2s ease"}}>
+        <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center mb-4">
+          <svg className="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        </div>
+        <h2 className="text-lg font-bold text-gray-900 mb-1">
+          {isBulk ? `Delete ${count} Members?` : "Delete Member?"}
+        </h2>
+        <p className="text-sm text-gray-500 leading-relaxed mb-6">
+          {isBulk
+            ? `You're about to permanently delete ${count} members. This action cannot be undone.`
+            : "You're about to permanently delete this member. This action cannot be undone."}
+        </p>
+        <div className="flex gap-3 w-full">
+          <button onClick={onCancel} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className="flex-1 px-4 py-2.5 bg-red-500 hover:bg-red-600 rounded-xl text-sm font-semibold text-white transition-colors disabled:opacity-60"
+          >
+            {loading ? "Deleting…" : isBulk ? `Delete ${count} Members` : "Delete Member"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── PermPreviewTable ──────────────────────────────────────────────────────────
 function PermPreviewTable({perms}){
@@ -830,7 +889,7 @@ function EditPermissionsView({initialRole,toast}){
 function InviteModal({open,onClose,onInvite,toast}){
   const [form,setForm]=useState({name:"",email:"",role:"Admin",message:""});const[errors,setErrors]=useState({});const[sending,setSending]=useState(false);
   const validate=()=>{const e={};if(!form.name.trim())e.name="Full name is required";if(!form.email.trim())e.email="Work email is required";else if(!/\S+@\S+\.\S+/.test(form.email))e.email="Enter a valid email";return e;};
-  const handleSubmit=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}setSending(true);await new Promise(r=>setTimeout(r,1000));setSending(false);onInvite({name:form.name,email:form.email,role:form.role.toUpperCase()});setForm({name:"",email:"",role:"Admin",message:""});setErrors({});onClose();toast(`Invitation sent to ${form.email}`);};
+  const handleSubmit=async()=>{const e=validate();if(Object.keys(e).length){setErrors(e);return;}setSending(true);try{await onInvite({name:form.name,email:form.email,role:form.role.toUpperCase()});setForm({name:"",email:"",role:"Admin",message:""});setErrors({});onClose();}catch(err){}finally{setSending(false);}};
   const handleClose=()=>{setForm({name:"",email:"",role:"Admin",message:""});setErrors({});onClose();};
   if(!open)return null;
   return(<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm" onClick={handleClose}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4" style={{animation:"popIn 0.2s ease"}} onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between px-6 pt-6 pb-4"><h3 className="text-xl font-bold text-gray-900">Invite Team Member</h3><button onClick={handleClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition text-lg">×</button></div><div className="px-6 pb-6 space-y-5"><div><label className="block text-sm font-semibold text-gray-800 mb-1.5">Full Name</label><input type="text" placeholder="e.g. John Doe" value={form.name} onChange={e=>{setForm(f=>({...f,name:e.target.value}));setErrors(er=>({...er,name:""}));}} className={`w-full px-4 py-2.5 text-sm border rounded-xl outline-none transition ${errors.name?"border-red-400 focus:ring-2 focus:ring-red-100":"border-gray-200 focus:border-green-400 focus:ring-2 focus:ring-green-100"}`}/>{errors.name&&<p className="text-xs text-red-500 mt-1">{errors.name}</p>}</div><div><label className="block text-sm font-semibold text-gray-800 mb-1.5">Work Email</label><input type="email" placeholder="name@company.com" value={form.email} onChange={e=>{setForm(f=>({...f,email:e.target.value}));setErrors(er=>({...er,email:""}));}} className={`w-full px-4 py-2.5 text-sm border rounded-xl outline-none transition ${errors.email?"border-red-400 focus:ring-2 focus:ring-red-100":"border-gray-200 focus:border-green-400 focus:ring-2 focus:ring-green-100"}`}/>{errors.email&&<p className="text-xs text-red-500 mt-1">{errors.email}</p>}</div><div><label className="block text-sm font-semibold text-gray-800 mb-1.5">Select Role</label><div className="relative"><select value={form.role} onChange={e=>setForm(f=>({...f,role:e.target.value}))} className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-green-400 appearance-none bg-white transition"><option>Admin</option><option>Manager</option><option>Agent</option></select><svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg></div></div><div><div className="flex items-center justify-between mb-1.5"><label className="text-sm font-semibold text-gray-800">Personal Message</label><span className="text-xs font-semibold text-gray-400 tracking-wider">OPTIONAL</span></div><textarea rows={3} placeholder="Welcome to the team!" value={form.message} onChange={e=>setForm(f=>({...f,message:e.target.value}))} className="w-full px-4 py-3 text-sm border border-gray-200 rounded-xl outline-none focus:border-green-400 resize-none transition placeholder-gray-300"/></div><div className="flex items-center justify-end gap-3 pt-1"><button onClick={handleClose} className="px-5 py-2.5 text-sm font-semibold text-gray-600 hover:text-gray-800 transition">Cancel</button><button onClick={handleSubmit} disabled={sending} className="flex items-center gap-2 px-6 py-2.5 text-sm font-semibold text-white bg-green-500 hover:bg-green-600 rounded-xl transition disabled:opacity-60">{sending&&<svg className="w-4 h-4" style={{animation:"spin 0.8s linear infinite"}} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>}{sending?"Sending...":"Send Invitation"}</button></div></div></div></div>);
@@ -843,10 +902,7 @@ function EditMemberModal({member,open,onClose,onSave,toast}){
   return(<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm" onClick={onClose}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" style={{animation:"popIn 0.2s ease"}} onClick={e=>e.stopPropagation()}><div className="flex items-center justify-between mb-5"><h3 className="text-lg font-bold text-gray-900">Edit Member</h3><button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 transition text-lg">×</button></div><div className="flex items-center gap-3 mb-5 p-3 bg-gray-50 rounded-xl border border-gray-100"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div className="space-y-4"><div><label className="block text-sm font-semibold text-gray-700 mb-1.5">Role</label><div className="relative"><select value={role} onChange={e=>setRole(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-green-400 appearance-none bg-white"><option value="ADMIN">Admin</option><option value="MANAGER">Manager</option><option value="AGENT">Agent</option></select><svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg></div></div><div><label className="block text-sm font-semibold text-gray-700 mb-1.5">Status</label><div className="relative"><select value={status} onChange={e=>setStatus(e.target.value)} className="w-full px-3 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-green-400 appearance-none bg-white"><option>Active</option><option>Offline</option><option>Pending</option></select><svg className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7"/></svg></div></div></div><div className="flex gap-3 mt-6"><button onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition">Cancel</button><button onClick={handleSave} className="flex-1 py-2.5 text-sm font-semibold text-white bg-green-500 hover:bg-green-600 rounded-xl transition">Save Changes</button></div></div></div>);
 }
 
-function RemoveMemberModal({member,open,onClose,onConfirm,toast}){
-  if(!open||!member)return null;
-  return(<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 backdrop-blur-sm" onClick={onClose}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 p-6" style={{animation:"popIn 0.2s ease"}} onClick={e=>e.stopPropagation()}><div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mx-auto mb-4"><svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></div><h3 className="text-lg font-bold text-gray-900 text-center mb-1">Remove Member?</h3><p className="text-sm text-gray-500 text-center mb-5">Remove <span className="font-semibold text-gray-700">{member.name}</span> from the team?</p><div className="flex gap-3"><button onClick={onClose} className="flex-1 py-2.5 text-sm font-semibold text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition">Cancel</button><button onClick={()=>{onConfirm(member.id);onClose();toast(`${member.name} removed from team`);}} className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-xl transition">Remove</button></div></div></div>);
-}
+
 
 function RoleCard({data,onEdit,onView}){
   return(
@@ -939,7 +995,7 @@ export default function ManageTeams(){
           email: u.email,
           role: u.role ? (['user','admin'].includes(u.role) ? (u.role === 'admin' ? 'ADMIN' : 'AGENT') : u.role.toUpperCase()) : 'AGENT',
           status: u.isActive ? 'Active' : 'Offline',
-          dateAdded: new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: '2024' }),
+          dateAdded: new Date(u.createdAt).toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }),
           lastActive: u.lastActive ? new Date(u.lastActive).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never',
           avatar: u.avatar || null
         }));
@@ -961,9 +1017,10 @@ export default function ManageTeams(){
 
   const [search,setSearch]=useState("");
   const [page,setPage]=useState(1);
+  const [selectedRows, setSelectedRows] = useState([]);
   const [showInvite,setShowInvite]=useState(false);
   const [editTarget,setEditTarget]=useState(null);
-  const [removeTarget,setRemoveTarget]=useState(null);
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, count: 1, loading: false });
   const [rolesView,setRolesView]=useState(null);
   const [customRoles,setCustomRoles]=useState([]);
   const {toasts,show:showToast}=useToast();
@@ -975,8 +1032,72 @@ export default function ManageTeams(){
   const managers=members.filter(m=>m.role==="MANAGER").length;
   const agents=members.filter(m=>m.role==="AGENT").length;
 
-  const handleChangeRole=(id,nr)=>setMembers(prev=>prev.map(m=>m.id===id?{...m,role:nr}:m));
-  const handleRemoveMember=(id)=>setMembers(prev=>prev.filter(m=>m.id!==id));
+  const allPageSelected = paginated.length > 0 && paginated.every(m => selectedRows.includes(m.id));
+  const somePageSelected = !allPageSelected && paginated.some(m => selectedRows.includes(m.id));
+  
+  const toggleSelectAll = () => {
+    const ids = paginated.map(m => m.id);
+    setSelectedRows(prev => allPageSelected ? prev.filter(id => !ids.includes(id)) : [...new Set([...prev, ...ids])]);
+  };
+  
+  const toggleSelect = (id) => {
+    setSelectedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedRows.length === 0) return;
+    setDeleteModal({ isOpen: true, id: null, count: selectedRows.length, loading: false });
+  };
+  
+  const handleRemoveMember = (memberId) => {
+    setDeleteModal({ isOpen: true, id: memberId, count: 1, loading: false });
+  };
+
+  const confirmDelete = async () => {
+    setDeleteModal(prev => ({ ...prev, loading: true }));
+    try {
+      if (deleteModal.id !== null) {
+        await axios.delete(`/users/${deleteModal.id}`);
+        fetchMembers();
+        showToast(`Member removed successfully`);
+      } else {
+        await axios.post("/users/bulk-delete", { ids: selectedRows });
+        fetchMembers();
+        setSelectedRows([]);
+        showToast(`${deleteModal.count} members removed successfully`);
+      }
+      setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
+    } catch (err) {
+      console.error(err);
+      showToast(`Failed to remove members`);
+      setDeleteModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const cancelDelete = () => setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
+
+  const handleInvite = async (d) => {
+    try {
+      await axios.post("/users", d);
+      fetchMembers();
+      showToast(`Invitation sent to ${d.email}`);
+    } catch (err) {
+      console.error(err);
+      showToast(err.response?.data?.message || `Failed to send invitation`);
+      throw err;
+    }
+  };
+
+  const handleEditMember = async (id, u) => {
+    try {
+      await axios.put(`/users/${id}`, u);
+      fetchMembers();
+    } catch (err) {
+      console.error(err);
+      showToast(`Failed to update member`);
+    }
+  };
+
   const getRoleMembers=(role)=>{const rm={Admin:"ADMIN",Manager:"MANAGER",Agent:"AGENT"};return members.filter(m=>m.role===(rm[role]||role.toUpperCase()));};
   const isViewMode=rolesView?.startsWith("view:");
   const isEditView=rolesView?.startsWith("edit:");
@@ -1005,9 +1126,9 @@ export default function ManageTeams(){
     <>
       <style>{`@keyframes popIn{from{transform:scale(0.94);opacity:0}to{transform:scale(1);opacity:1}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes fadeUp{from{transform:translateY(8px);opacity:0}to{transform:translateY(0);opacity:1}}`}</style>
       <ToastContainer toasts={toasts}/>
-      <InviteModal open={showInvite} onClose={()=>setShowInvite(false)} onInvite={d=>setMembers(p=>[...p,{id:Date.now(),...d,status:"Pending",lastActive:"Never",dateAdded:"Just now",avatar:null}])} toast={showToast}/>
-      <EditMemberModal member={editTarget} open={!!editTarget} onClose={()=>setEditTarget(null)} onSave={(id,u)=>setMembers(p=>p.map(m=>m.id===id?{...m,...u}:m))} toast={showToast}/>
-      <RemoveMemberModal member={removeTarget} open={!!removeTarget} onClose={()=>setRemoveTarget(null)} onConfirm={id=>setMembers(p=>p.filter(m=>m.id!==id))} toast={showToast}/>
+      <InviteModal open={showInvite} onClose={()=>setShowInvite(false)} onInvite={handleInvite} toast={showToast}/>
+      <EditMemberModal member={editTarget} open={!!editTarget} onClose={()=>setEditTarget(null)} onSave={handleEditMember} toast={showToast}/>
+      <DeleteConfirmModal isOpen={deleteModal.isOpen} count={deleteModal.count} loading={deleteModal.loading} onConfirm={confirmDelete} onCancel={cancelDelete}/>
 
       <div className="min-h-screen bg-[#f8fafc] p-6">
         {!isViewMode&&(
@@ -1038,8 +1159,31 @@ export default function ManageTeams(){
           <>
             <div className="mb-4"><div className="relative inline-block"><svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg><input type="text" placeholder="Search by name or email..." value={search} onChange={e=>{setSearch(e.target.value);setPage(1);}} className="pl-9 pr-4 py-2.5 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition w-72"/></div></div>
             <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-6 shadow-sm" style={{animation:"fadeUp 0.3s ease"}}>
-              <div className="grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-3 border-b border-gray-100 bg-gray-50/60">{["NAME","ROLE","STATUS","LAST ACTIVE","ACTIONS"].map(h=><p key={h} className="text-xs font-bold text-gray-400 tracking-wider">{h}</p>)}</div>
-              {paginated.length===0?(<div className="py-16 text-center text-gray-400"><p className="font-semibold">No members found</p></div>):(paginated.map((member,idx)=>(<div key={member.id} className={`grid grid-cols-[2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-4 items-center hover:bg-gray-50/50 transition ${idx<paginated.length-1?"border-b border-gray-100":""}`}><div className="flex items-center gap-3"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-sm ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>setRemoveTarget(member)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>setRemoveTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
+              {selectedRows.length > 0 && (
+                <div className="bg-emerald-50 border-b border-emerald-100 px-6 py-3 flex items-center justify-between transition-all">
+                  <div className="flex items-center gap-3">
+                    <span className="flex items-center justify-center w-6 h-6 rounded-md bg-emerald-100 text-emerald-700 text-xs font-bold">{selectedRows.length}</span>
+                    <span className="text-sm font-semibold text-emerald-800">Members selected</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => setSelectedRows([])} className="px-3 py-1.5 text-xs font-bold text-emerald-600 bg-white border border-emerald-200 rounded-lg shadow-sm hover:bg-emerald-50 transition">Clear</button>
+                    <button onClick={handleBulkDelete} className="px-3 py-1.5 text-xs font-bold text-white bg-red-500 rounded-lg shadow-sm hover:bg-red-600 transition flex items-center gap-1.5">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg> Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-[50px_2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-3 border-b border-gray-100 bg-gray-50/60 items-center">
+                <div className="flex justify-start items-center">
+                  <CircularCheckbox checked={allPageSelected} indeterminate={somePageSelected} onChange={toggleSelectAll} />
+                </div>
+                {["NAME","ROLE","STATUS","LAST ACTIVE","ACTIONS"].map(h=><p key={h} className="text-xs font-bold text-gray-400 tracking-wider">{h}</p>)}
+              </div>
+              {paginated.length===0?(<div className="py-16 text-center text-gray-400"><p className="font-semibold">No members found</p></div>):(paginated.map((member,idx)=>(<div key={member.id} className={`grid grid-cols-[50px_2fr_1fr_1fr_1.2fr_1.2fr] px-6 py-4 items-center hover:bg-gray-50/50 transition ${idx<paginated.length-1?"border-b border-gray-100":""} ${selectedRows.includes(member.id) ? "bg-emerald-50/50" : ""}`}>
+                <div className="flex justify-start items-center">
+                  <CircularCheckbox checked={selectedRows.includes(member.id)} onChange={() => toggleSelect(member.id)} />
+                </div>
+                <div className="flex items-center gap-3"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-sm ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>handleRemoveMember(member.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>handleRemoveMember(member.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
               <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:Math.max(totalPages,3)},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
             </div>
             <div className="grid grid-cols-3 gap-4">{[{label:"ADMINS",count:admins,sub:"Total active",icon:"🛡️",color:"text-green-600 bg-green-50"},{label:"MANAGERS",count:managers,sub:"Total active",icon:"👥",color:"text-blue-600 bg-blue-50"},{label:"AGENTS",count:agents,sub:"Across 3 teams",icon:"🎧",color:"text-purple-600 bg-purple-50"}].map(({label,count,sub,icon,color})=>(<div key={label} className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm flex items-center justify-between"><div><p className="text-xs font-bold text-gray-400 tracking-widest mb-1">{label}</p><div className="flex items-baseline gap-2"><span className="text-3xl font-black text-gray-900">{count}</span><span className="text-sm text-gray-400">{sub}</span></div></div><div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${color}`}>{icon}</div></div>))}</div>
