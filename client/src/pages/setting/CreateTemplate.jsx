@@ -1466,29 +1466,78 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
         </div>
         
         {/* Screen Background */}
-        <div className="w-full h-full bg-[#FAFAFA] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+        <div className="w-full h-full bg-[#e5ddd5] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
            {/* Message Bubble Card */}
-           <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full">
-              {/* Image banner */}
-              <div className="w-full bg-[#1A8B88] h-36 flex items-end justify-center overflow-hidden">
-                <svg width="220" height="130" viewBox="0 0 220 130" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M80 130C80 90 95 70 110 70C125 70 140 90 140 130" fill="#4B9CB3"/>
-                  <rect x="98" y="25" width="24" height="45" rx="12" fill="#FFD7B5"/>
-                  <path d="M85 40C85 20 100 10 110 10C120 10 135 20 135 40L135 55L85 55L85 40Z" fill="#1e293b"/>
-                  <circle cx="110" cy="45" r="5" fill="#1e293b"/>
-                  <rect x="70" y="90" width="80" height="40" rx="3" fill="#E2E8F0"/>
-                  <rect x="80" y="45" width="60" height="20" rx="2" fill="#4A5568"/>
-                </svg>
+           <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
+              {/* Header banner */}
+              <div className="w-full bg-[#922b21] p-4 flex flex-col items-center text-white shrink-0">
+                <h1 className="text-[13px] font-bold uppercase tracking-wider">AAYUSH</h1>
+                <h2 className="text-[10px] font-bold uppercase tracking-wider mt-0.5">Institute of Professional Studies</h2>
+                <div className="mt-2 bg-white/20 px-3 py-1 rounded-full text-[8px] font-bold uppercase">
+                  Excellence in Education for 24+ Years
+                </div>
               </div>
               
               <div className="p-4 flex flex-col">
-                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-4">
-                   Hey there! Check out our fresh groceries now!
-                 </p>
-                 <p className="text-[13px] text-gray-800 font-medium leading-relaxed mb-1">
-                   Use code <span className="font-bold">HEALTH</span> to get additional 10% off on your entire purchase.
-                 </p>
-                 <div className="flex justify-end mt-1">
+                 {/* Congratulations */}
+                 <div className="text-center mb-4">
+                   <p className="text-[11px] font-bold text-[#1a1a1a] mb-1">Congratulations, Class 12 Students!</p>
+                   <p className="text-[9px] text-[#333] font-medium">CBSE Results 2026 Declared</p>
+                   <p className="text-[9px] text-[#333] font-medium">Your hard work has paid off!</p>
+                 </div>
+                 
+                 {/* Body copy */}
+                 <div className="text-left mb-4">
+                   <p className="text-[9px] text-[#333] leading-relaxed">
+                     Class 12 is the <strong>first big step</strong> toward your dream college and career. Choosing the right course and guidance now is the most important decision.
+                   </p>
+                 </div>
+                 
+                 {/* Checklist */}
+                 <div className="text-left mb-4">
+                   <p className="text-[10px] font-bold text-[#922b21] uppercase mb-2">Admission Guidance Available For</p>
+                   <ul className="space-y-1 text-[9px] text-[#333]">
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Engineering</strong> — JEE Main, JoSAA, NITs, IIITs</li>
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>DU / GGSIPU</strong> — B.Tech, BCA, BBA, MBA</li>
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Medical, Pharmacy</strong> & Paramedical</li>
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Polytechnic, Law</strong> & Professional</li>
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>UG / PG / Online</strong> & Distance Programs</li>
+                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Choice Filling</strong> & Admission Support</li>
+                   </ul>
+                 </div>
+                 
+                 {/* Trust bar */}
+                 <div className="flex justify-around border-t border-b border-gray-100 py-2 mb-4 text-center items-center">
+                   <div>
+                     <p className="text-[10px] font-bold text-[#922b21]">20+</p>
+                     <p className="text-[8px] text-gray-500">Years Exp.</p>
+                   </div>
+                   <div className="border-l border-gray-100 h-6"></div>
+                   <div>
+                     <p className="text-[10px] font-bold text-[#922b21]">100%</p>
+                     <p className="text-[8px] text-gray-500">Support</p>
+                   </div>
+                   <div className="border-l border-gray-100 h-6"></div>
+                   <div>
+                     <p className="text-[10px] font-bold text-[#922b21]">Expert</p>
+                     <p className="text-[8px] text-gray-500">Guidance</p>
+                   </div>
+                 </div>
+                 
+                 {/* Footer */}
+                 <div className="text-center text-[9px] text-gray-400 italic mb-2">
+                   We Guide. You Decide.
+                 </div>
+                 
+                 {/* CTA button */}
+                 <button className="w-full bg-[#25d366] text-white text-[9px] font-bold py-2.5 rounded-lg hover:bg-[#1ebd53] transition-colors mb-1">
+                   Call Us: +91-62840 63840
+                 </button>
+                 <div className="text-center text-[8px] text-[#25d366] hover:underline cursor-pointer">
+                   admissionanytime.com
+                 </div>
+                 
+                 <div className="flex justify-end mt-2">
                     <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
                  </div>
               </div>
@@ -1508,18 +1557,18 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
       </div>
       
       {/* Screen Background */}
-      <div className="w-full h-full bg-[#FAFAFA] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+      <div className="w-full h-full bg-[#e5ddd5] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
-         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full">
+         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
             {showImage && (
-              <div className="w-full relative overflow-hidden bg-gray-50">
+              <div className="w-full relative overflow-hidden bg-gray-50 shrink-0">
                 {headerMedia ? (
                   <>
                     {headerMedia.type === 'image' && (
-                      <img src={headerMedia.preview} alt="header" className="w-full h-36 object-cover"/>
+                      <img src={headerMedia.preview} alt="header" className="w-full h-auto max-h-[250px] object-cover"/>
                     )}
                     {headerMedia.type === 'video' && (
-                      <video src={headerMedia.preview} className="w-full h-36 object-cover" controls={false}/>
+                      <video src={headerMedia.preview} className="w-full h-auto max-h-[250px] object-cover" controls={false}/>
                     )}
                     {headerMedia.type === 'document' && (
                       <div className="w-full h-36 bg-red-50 flex items-center justify-center flex-col gap-2">
@@ -1537,7 +1586,7 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
             
             <div className="p-4 flex flex-col">
                {name && <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name}]</p>}
-               <div className="text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
+               <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
                
                {isLimited && (
                   <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-100 flex items-center justify-between">
@@ -1546,7 +1595,7 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
                   </div>
                )}
 
-               {footer && <p className="text-[12px] text-gray-400 mt-3 font-medium">{footer}</p>}
+               {footer && <p className="text-[10px] text-gray-400 mt-3 font-medium">{footer}</p>}
 
                <div className="flex justify-end mt-2">
                   <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
@@ -1554,21 +1603,21 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
             </div>
             
             {buttons && buttons.length > 0 && (
-               <div className="flex flex-col border-t border-gray-100 w-full">
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
                      <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
-                        <span className="text-blue-500 font-semibold text-[14px] flex items-center gap-2 hover:opacity-80 transition-opacity">
-                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <ExternalLink size={16} className="text-blue-500"/> : btn.text.toLowerCase().includes('copy') ? <Copy size={16} className="text-blue-500"/> : null} 
+                        <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2 hover:opacity-80 transition-opacity">
+                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <ExternalLink size={12} className="text-[#25d366]"/> : btn.text.toLowerCase().includes('copy') ? <Copy size={12} className="text-[#25d366]"/> : null} 
                           {btn.text}
                         </span>
                      </div>
-                  ))}
-               </div>
-            )}
-         </div>
+                   ))}
+                </div>
+             )}
+          </div>
+       </div>
       </div>
-    </div>
-  );
+    );
 };
 
 export default CreateTemplate;
