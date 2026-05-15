@@ -22,6 +22,16 @@ const TemplateAnalytics = () => {
   const [dateRange, setDateRange] = useState([dayjs('2026-04-14'), dayjs('2026-04-20')]);
   const [sortBy, setSortBy] = useState("Daily");
 
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '12px', bgcolor: '#f1f5f9', height: '40px',
+      '& fieldset': { borderColor: 'transparent' },
+      '&:hover fieldset': { borderColor: '#10b981' },
+      '&.Mui-focused fieldset': { borderColor: '#10b981' },
+      '& .MuiInputBase-input': { fontWeight: 700, color: '#0f172a', fontSize: '0.813rem', padding: '0 10px' }
+    }
+  };
+
   // Chart options for Performance Tracking
   const chartOptions = {
     chart: {
@@ -31,15 +41,29 @@ const TemplateAnalytics = () => {
       zoom: { enabled: false }
     },
     colors: ['#3b82f6', '#10b981', '#f43f5e'], // blue (Sent), green (Delivered), red (Read)
+    dataLabels: {
+      enabled: false
+    },
     stroke: {
       width: 3,
-      curve: 'smooth'
+      curve: 'smooth',
+      lineCap: 'round'
+    },
+    markers: {
+      size: 0,
+      hover: {
+        size: 6,
+        sizeOffset: 3
+      },
+      colors: ['#fff'],
+      strokeColors: ['#3b82f6', '#10b981', '#f43f5e'],
+      strokeWidth: 3,
     },
     fill: {
       type: 'gradient',
       gradient: {
         shadeIntensity: 1,
-        opacityFrom: 0.1,
+        opacityFrom: 0.2,
         opacityTo: 0.05,
         stops: [0, 90, 100]
       }
@@ -50,7 +74,15 @@ const TemplateAnalytics = () => {
       axisTicks: { show: false },
       labels: { 
         style: { colors: '#94a3b8', fontSize: '11px', fontWeight: 600 } 
-      }
+      },
+      crosshairs: {
+        show: true,
+        stroke: {
+          color: '#e2e8f0',
+          width: 1,
+          dashArray: 4,
+        },
+      },
     },
     yaxis: {
       min: 0,
@@ -63,7 +95,7 @@ const TemplateAnalytics = () => {
     },
     grid: {
       borderColor: '#f1f5f9',
-      strokeDashArray: 0,
+      strokeDashArray: 4,
       yaxis: { lines: { show: true } },
       xaxis: { lines: { show: false } }
     },
@@ -71,14 +103,22 @@ const TemplateAnalytics = () => {
       show: true,
       position: 'top',
       horizontalAlign: 'right',
-      fontSize: '10px',
+      fontSize: '11px',
       fontWeight: 700,
-      markers: { radius: 12, size: 4 },
-      itemMargin: { horizontal: 10 }
+      markers: { radius: 12, size: 5, offsetLeft: -5 },
+      itemMargin: { horizontal: 15, vertical: 5 }
     },
     tooltip: {
       theme: 'light',
-      x: { show: true }
+      shared: true,
+      intersect: false,
+      y: {
+        formatter: (val) => val.toLocaleString()
+      },
+      style: {
+        fontSize: '12px',
+        fontFamily: 'Urbanist'
+      }
     }
   };
 
@@ -89,6 +129,7 @@ const TemplateAnalytics = () => {
   ];
 
   return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
     <div className="flex flex-col h-full bg-[#f8fafc] overflow-hidden font-['Urbanist']">
       
      
@@ -102,15 +143,15 @@ const TemplateAnalytics = () => {
           </div>
 
           {/* 3. FILTERS */}
-          <div className="flex flex-wrap items-center gap-4 mb-8 bg-white/50 p-2 rounded-2xl border border-slate-100 backdrop-blur-sm">
-            <div className="flex items-center gap-4 flex-1 min-w-[300px]">
+          <div className="flex flex-wrap items-center gap-4 mb-8">
+            <div className="flex items-center gap-3 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">SORT BY</span>
-                <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2 min-w-[120px] shadow-sm">
+                <div className="bg-[#f1f5f9] rounded-xl px-3 py-2 flex items-center gap-1.5 min-w-[100px]">
                   <select 
                     value={sortBy} 
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="w-full text-xs font-bold text-slate-700 focus:outline-none bg-transparent appearance-none cursor-pointer"
+                    className="w-full text-xs font-bold text-slate-900 focus:outline-none bg-transparent appearance-none cursor-pointer"
                   >
                     <option>Daily</option>
                     <option>Weekly</option>
@@ -120,13 +161,32 @@ const TemplateAnalytics = () => {
                 </div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-3 shadow-sm flex-1 max-w-[280px]">
-                <Calendar className="w-4 h-4 text-[#10B981]" />
-                <span className="text-xs font-bold text-slate-600">14-04-2026 — 20-04-2026</span>
+              {/* Date Range Display */}
+              <div className="bg-[#f1f5f9] rounded-xl px-3 py-2 flex items-center gap-2 min-w-[180px]">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <span className="text-xs font-bold text-slate-900">
+                  {dateRange[0]?.format('DD-MM-YYYY')} — {dateRange[1]?.format('DD-MM-YYYY')}
+                </span>
               </div>
+
+              {/* From DatePicker */}
+              <DatePicker
+                value={dateRange[0]}
+                onChange={(val) => setDateRange([val, dateRange[1]])}
+                slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
+              />
+
+              <span className="text-slate-300 font-bold text-lg">/</span>
+
+              {/* To DatePicker */}
+              <DatePicker
+                value={dateRange[1]}
+                onChange={(val) => setDateRange([dateRange[0], val])}
+                slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
+              />
             </div>
 
-            <button className="px-10 py-2.5 bg-[#10B981] text-white text-sm font-bold rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-[#10B981]/20">
+            <button className="ml-auto px-10 py-2.5 bg-[#10B981] text-white text-sm font-bold rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-[#10B981]/20">
               Apply Filter
             </button>
           </div>
@@ -236,6 +296,7 @@ const TemplateAnalytics = () => {
         </div>
       </div>
     </div>
+    </LocalizationProvider>
   );
 };
 

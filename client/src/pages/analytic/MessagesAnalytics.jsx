@@ -6,22 +6,28 @@ import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import Chart from "react-apexcharts";
 import { 
-  Search, 
-  Bell, 
-  Settings, 
   FileText,
-  Megaphone,
-  ShieldCheck,
-  ChevronRight,
-  Layout,
-  Send,
-  Link2
+  ChevronDown,
+  Calendar,
+  Play,
+  Star,
+  Crosshair
 } from "lucide-react";
 
 const MessagesAnalytics = () => {
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState([dayjs('2026-04-19'), dayjs('2026-04-20')]);
   const [timeframe, setTimeframe] = useState("Daily");
+
+  const inputSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: '12px', bgcolor: '#f1f5f9', height: '40px',
+      '& fieldset': { borderColor: 'transparent' },
+      '&:hover fieldset': { borderColor: '#10b981' },
+      '&.Mui-focused fieldset': { borderColor: '#10b981' },
+      '& .MuiInputBase-input': { fontWeight: 700, color: '#0f172a', fontSize: '0.813rem', padding: '0 10px' }
+    }
+  };
 
   // Chart options for Performance Trend
   const chartOptions = {
@@ -58,12 +64,7 @@ const MessagesAnalytics = () => {
       yaxis: { lines: { show: true } }
     },
     legend: {
-      position: 'top',
-      horizontalAlign: 'right',
-      fontSize: '10px',
-      fontWeight: 700,
-      markers: { radius: 12 },
-      itemMargin: { horizontal: 10 }
+      show: false
     },
     tooltip: {
       theme: 'light',
@@ -77,9 +78,8 @@ const MessagesAnalytics = () => {
   ];
 
   return (
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
     <div className="flex flex-col h-full bg-[#f8fafc] overflow-hidden font-['Urbanist']">
-      
-
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-6 lg:p-8 2xl:p-10">
         <div className="max-w-[1600px] mx-auto">
@@ -92,28 +92,46 @@ const MessagesAnalytics = () => {
 
           {/* 3. FILTERS */}
           <div className="flex flex-wrap items-center gap-4 mb-8">
-            <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-2 min-w-[120px]">
-              <select 
-                value={timeframe} 
-                onChange={(e) => setTimeframe(e.target.value)}
-                className="w-full text-xs font-bold text-slate-700 focus:outline-none bg-transparent appearance-none cursor-pointer"
-              >
-                <option>Daily</option>
-                <option>Weekly</option>
-                <option>Monthly</option>
-              </select>
-              <ChevronRight className="w-4 h-4 text-slate-400 rotate-90" />
-            </div>
+            <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">SORT BY</span>
+                <div className="bg-[#f1f5f9] rounded-xl px-3 py-2 flex items-center gap-1.5 min-w-[100px]">
+                  <select 
+                    value={timeframe} 
+                    onChange={(e) => setTimeframe(e.target.value)}
+                    className="w-full text-xs font-bold text-slate-900 focus:outline-none bg-transparent appearance-none cursor-pointer"
+                  >
+                    <option>Daily</option>
+                    <option>Weekly</option>
+                    <option>Monthly</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+                </div>
+              </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl px-4 py-2 flex items-center gap-3">
-              <FileText className="w-4 h-4 text-[#10B981]" />
-              <span className="text-xs font-bold text-slate-600">19 Apr 2026 – 20 Apr 2026</span>
-            </div>
+              {/* Date Range Display */}
+              <div className="bg-[#f1f5f9] rounded-xl px-3 py-2 flex items-center gap-2 min-w-[180px]">
+                <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                <span className="text-xs font-bold text-slate-900">
+                  {dateRange[0]?.format('DD-MM-YYYY')} — {dateRange[1]?.format('DD-MM-YYYY')}
+                </span>
+              </div>
 
-            <div className="flex items-center bg-slate-100 rounded-xl px-4 py-2 gap-2">
-              <span className="text-xs font-bold text-slate-400">2026-04-19</span>
-              <span className="text-slate-300">/</span>
-              <span className="text-xs font-bold text-slate-400">2026-04-20</span>
+              {/* From DatePicker */}
+              <DatePicker
+                value={dateRange[0]}
+                onChange={(val) => setDateRange([val, dateRange[1]])}
+                slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
+              />
+
+              <span className="text-slate-300 font-bold text-lg">/</span>
+
+              {/* To DatePicker */}
+              <DatePicker
+                value={dateRange[1]}
+                onChange={(val) => setDateRange([dateRange[0], val])}
+                slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
+              />
             </div>
 
             <button className="ml-auto px-8 py-2.5 bg-[#10B981] text-white text-sm font-bold rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-[#10B981]/20">
@@ -196,53 +214,53 @@ const MessagesAnalytics = () => {
           </div>
 
           {/* 5. BOTTOM NAVIGATION CARDS */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div 
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+            {/* Campaign Analysis */}
+            <div
               onClick={() => navigate('/admin/analytic/campaign')}
-              className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group cursor-pointer"
+              className="bg-[#F1F5F9] border border-slate-200 rounded-2xl p-6 cursor-pointer hover:bg-slate-200/40 transition-all group"
             >
-              <div className="w-10 h-10 bg-emerald-50 text-[#10B981] rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Send className="w-5 h-5" />
+              <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center mb-5">
+                <Play className="w-4 h-4 text-[#059669]" fill="#059669" />
               </div>
-              <h4 className="text-sm font-black text-slate-900 mb-1">Campaign Analysis</h4>
-              <p className="text-[11px] font-bold text-slate-400 mb-4">Review active broadcast segments.</p>
-              <div className="flex items-center text-[#10B981] text-[11px] font-black uppercase tracking-widest">
-                View Details <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
-              </div>
+              <h4 className="text-sm font-bold text-slate-900 mb-1.5">Campaign Analysis</h4>
+              <p className="text-[13px] text-slate-500 mb-5 leading-snug">Review active broadcast segments.</p>
+              <span className="text-sm font-semibold text-[#10B981]">View Details →</span>
             </div>
 
-            <div 
+            {/* Template Performance */}
+            <div
               onClick={() => navigate('/admin/analytic/template')}
-              className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group cursor-pointer"
+              className="bg-[#F1F5F9] border border-slate-200 rounded-2xl p-6 cursor-pointer hover:bg-slate-200/40 transition-all group"
             >
-              <div className="w-10 h-10 bg-emerald-50 text-[#10B981] rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Layout className="w-5 h-5" />
+              <div className="w-10 h-10 bg-slate-200 rounded-lg flex items-center justify-center mb-5">
+                <Star className="w-4 h-4 text-slate-600" />
               </div>
-              <h4 className="text-sm font-black text-slate-900 mb-1">Template Performance</h4>
-              <p className="text-[11px] font-bold text-slate-400 mb-4">Top converting message flows.</p>
-              <div className="flex items-center text-[#10B981] text-[11px] font-black uppercase tracking-widest">
-                View Details <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
-              </div>
+              <h4 className="text-sm font-bold text-slate-900 mb-1.5">Template Performance</h4>
+              <p className="text-[13px] text-slate-500 mb-5 leading-snug">Top converting message flows.</p>
+              <span className="text-sm font-semibold text-[#10B981]">View Details →</span>
             </div>
 
-            <div 
+            {/* API Integration */}
+            <div
               onClick={() => navigate('/admin/integration/apps')}
-              className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all group cursor-pointer"
+              className="bg-[#F1F5F9] border border-slate-200 rounded-2xl p-6 cursor-pointer hover:bg-slate-200/40 transition-all group"
             >
-              <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Link2 className="w-5 h-5" />
+              <div className="w-10 h-10 bg-rose-100 rounded-lg flex items-center justify-center mb-5">
+                <Crosshair className="w-4 h-4 text-rose-500" />
               </div>
-              <h4 className="text-sm font-black text-slate-900 mb-1">API Integration</h4>
-              <p className="text-[11px] font-bold text-slate-400 mb-4">Status of endpoint connections.</p>
-              <div className="flex items-center text-[#10B981] text-[11px] font-black uppercase tracking-widest">
-                View Details <ChevronRight className="w-3 h-3 ml-1 group-hover:translate-x-1 transition-transform" />
-              </div>
+              <h4 className="text-sm font-bold text-slate-900 mb-1.5">API Integration</h4>
+              <p className="text-[13px] text-slate-500 mb-5 leading-snug">Status of endpoint connections.</p>
+              <span className="text-sm font-semibold text-[#10B981]">View Details →</span>
             </div>
+
           </div>
 
         </div>
       </div>
     </div>
+    </LocalizationProvider>
   );
 };
 
