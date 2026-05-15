@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const crypto = require('crypto');
 
 // @desc    Get user profile
 // @route   GET /api/users/profile
@@ -25,6 +26,123 @@ exports.getUsers = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: users
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Create a new user (Team Member)
+// @route   POST /api/users
+// @access  Private (Admin/Manager only ideally)
+exports.createUser = async (req, res, next) => {
+  try {
+    const { name, email, role } = req.body;
+
+    const userExists = await User.findOne({ email });
+    if (userExists) {
+      return res.status(400).json({ success: false, message: 'User already exists' });
+    }
+
+    // Generate a random secure password for the invited user
+    const password = crypto.randomBytes(12).toString('hex');
+    
+    // Convert role to standard backend format
+    let finalRole = role ? role.toUpperCase() : 'AGENT';
+    if (!['ADMIN', 'MANAGER', 'AGENT', 'user', 'admin'].includes(finalRole)) {
+      finalRole = 'AGENT';
+    }
+
+    const user = await User.create({
+      name,
+      email,
+      role: finalRole,
+      password,
+      isActive: true,
+      isEmailVerified: false
+    });
+
+    res.status(201).json({
+      success: true,
+      data: user,
+      message: 'User created successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update user role or status (Team Member)
+// @route   PUT /api/users/:id
+// @access  Private (Admin only ideally)
+exports.updateUser = async (req, res, next) => {
+  try {
+    const { role, status } = req.body;
+    const updateData = {};
+    
+    if (role) {
+      let finalRole = role.toUpperCase();
+      if (['ADMIN', 'MANAGER', 'AGENT'].includes(finalRole)) {
+        updateData.role = finalRole;
+      }
+    }
+    
+    if (status) {
+      updateData.isActive = status === 'Active';
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      updateData,
+      { new: true, runValidators: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete user (Team Member)
+// @route   DELETE /api/users/:id
+// @access  Private (Admin only ideally)
+exports.deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndDelete(req.params.id);
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Bulk delete users (Team Members)
+// @route   POST /api/users/bulk-delete
+// @access  Private (Admin only ideally)
+exports.bulkDeleteUsers = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, message: 'No IDs provided' });
+    }
+    await User.deleteMany({ _id: { $in: ids } });
+    res.status(200).json({
+      success: true,
+      data: {}
     });
   } catch (error) {
     next(error);
