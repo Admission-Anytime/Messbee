@@ -206,7 +206,7 @@ const QuickReply = () => {
       <div className="flex flex-col xl:flex-row gap-6">
         <div className="flex-1 min-w-0">
           {/* --- STICKY HEADER --- */}
-          <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+          <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center py-4 transition-all">
              <div className="flex items-center gap-2">
                 <h1 className="text-2xl font-bold text-slate-900">Quick Replies</h1>
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 cursor-help">

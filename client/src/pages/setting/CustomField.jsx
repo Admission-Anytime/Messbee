@@ -334,7 +334,7 @@ const CustomFieldsSection = () => {
     <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
       <div className="max-w-7xl mx-auto">
       {/* Header */}
-      <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+      <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center py-4 transition-all">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold text-slate-900">Custom Fields</h1>
           <InformationCircleIcon className="w-5 h-5 text-slate-400 cursor-help" />

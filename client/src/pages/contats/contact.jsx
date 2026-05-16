@@ -1943,8 +1943,8 @@ export default function ContactsCRM() {
       />
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-8 gap-4 flex-wrap">
-        <div className="max-w-[1800px] mx-auto">
+      <div className="max-w-[1800px] mx-auto flex items-start justify-between mb-8 gap-4 flex-wrap">
+        <div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 leading-tight">Contacts</h1>
           <p className="text-sm font-bold text-slate-400 mt-1">Manage people, labels, and custom fields from one place.</p>
         </div>

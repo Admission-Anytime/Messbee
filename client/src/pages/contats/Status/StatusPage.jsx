@@ -165,7 +165,7 @@ const StatusPage = () => {
       <div className="max-w-[1800px] mx-auto">
         
         {/* --- STICKY HEADER --- */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-6 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-8 border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
+        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center py-4 transition-all">
            
            <div className="flex items-center gap-3">
               <h1 className="text-2xl md:text-3xl font-black text-slate-900">Status</h1>
