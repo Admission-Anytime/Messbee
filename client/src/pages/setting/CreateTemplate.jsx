@@ -1487,75 +1487,32 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
         <div className="w-full h-full bg-[#e5ddd5] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
            {/* Message Bubble Card */}
            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
-              {/* Header banner */}
-              <div className="w-full bg-[#922b21] p-4 flex flex-col items-center text-white shrink-0">
-                <h1 className="text-[13px] font-bold uppercase tracking-wider">AAYUSH</h1>
-                <h2 className="text-[10px] font-bold uppercase tracking-wider mt-0.5">Institute of Professional Studies</h2>
-                <div className="mt-2 bg-white/20 px-3 py-1 rounded-full text-[8px] font-bold uppercase">
-                  Excellence in Education for 24+ Years
-                </div>
+              
+              {/* Header Image CSS Art */}
+              <div className="w-full h-[140px] relative bg-[#1d8a83] flex items-end justify-center shrink-0 overflow-hidden">
+                 {/* Person Head */}
+                 <div className="absolute bottom-[46px] flex flex-col items-center z-10">
+                    {/* Hat Top */}
+                    <div className="w-[56px] h-[36px] bg-[#2c3546] rounded-t-[30px]"></div>
+                    {/* Hat Brim */}
+                    <div className="w-[74px] h-[14px] bg-[#525d6e] rounded-[4px] -mt-1 z-20"></div>
+                    {/* Face */}
+                    <div className="w-[16px] h-[10px] bg-[#f2cdab] rounded-b-full"></div>
+                 </div>
+                 {/* Person Body */}
+                 <div className="w-[52px] h-[46px] bg-[#5197a9] rounded-t-[26px] absolute bottom-[30px] z-0"></div>
+                 {/* Laptop */}
+                 <div className="w-[86px] h-[30px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
               </div>
               
               <div className="p-4 flex flex-col">
-                 {/* Congratulations */}
-                 <div className="text-center mb-4">
-                   <p className="text-[11px] font-bold text-[#1a1a1a] mb-1">Congratulations, Class 12 Students!</p>
-                   <p className="text-[9px] text-[#333] font-medium">CBSE Results 2026 Declared</p>
-                   <p className="text-[9px] text-[#333] font-medium">Your hard work has paid off!</p>
+                 <div className="text-[13px] text-[#2c3e50] font-normal leading-relaxed mb-2">
+                   Hey there! Check out our fresh groceries now!
+                   <br /><br />
+                   Use code <strong>HEALTH</strong> to get additional 10% off on your entire purchase.
                  </div>
                  
-                 {/* Body copy */}
-                 <div className="text-left mb-4">
-                   <p className="text-[9px] text-[#333] leading-relaxed">
-                     Class 12 is the <strong>first big step</strong> toward your dream college and career. Choosing the right course and guidance now is the most important decision.
-                   </p>
-                 </div>
-                 
-                 {/* Checklist */}
-                 <div className="text-left mb-4">
-                   <p className="text-[10px] font-bold text-[#922b21] uppercase mb-2">Admission Guidance Available For</p>
-                   <ul className="space-y-1 text-[9px] text-[#333]">
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Engineering</strong> — JEE Main, JoSAA, NITs, IIITs</li>
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>DU / GGSIPU</strong> — B.Tech, BCA, BBA, MBA</li>
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Medical, Pharmacy</strong> & Paramedical</li>
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Polytechnic, Law</strong> & Professional</li>
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>UG / PG / Online</strong> & Distance Programs</li>
-                     <li className="flex items-center gap-1"><span>✔️</span> <strong>Choice Filling</strong> & Admission Support</li>
-                   </ul>
-                 </div>
-                 
-                 {/* Trust bar */}
-                 <div className="flex justify-around border-t border-b border-gray-100 py-2 mb-4 text-center items-center">
-                   <div>
-                     <p className="text-[10px] font-bold text-[#922b21]">20+</p>
-                     <p className="text-[8px] text-gray-500">Years Exp.</p>
-                   </div>
-                   <div className="border-l border-gray-100 h-6"></div>
-                   <div>
-                     <p className="text-[10px] font-bold text-[#922b21]">100%</p>
-                     <p className="text-[8px] text-gray-500">Support</p>
-                   </div>
-                   <div className="border-l border-gray-100 h-6"></div>
-                   <div>
-                     <p className="text-[10px] font-bold text-[#922b21]">Expert</p>
-                     <p className="text-[8px] text-gray-500">Guidance</p>
-                   </div>
-                 </div>
-                 
-                 {/* Footer */}
-                 <div className="text-center text-[9px] text-gray-400 italic mb-2">
-                   We Guide. You Decide.
-                 </div>
-                 
-                 {/* CTA button */}
-                 <button className="w-full bg-[#25d366] text-white text-[9px] font-bold py-2.5 rounded-lg hover:bg-[#1ebd53] transition-colors mb-1">
-                   Call Us: +91-62840 63840
-                 </button>
-                 <div className="text-center text-[8px] text-[#25d366] hover:underline cursor-pointer">
-                   admissionanytime.com
-                 </div>
-                 
-                 <div className="flex justify-end mt-2">
+                 <div className="flex justify-end">
                     <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
                  </div>
               </div>
