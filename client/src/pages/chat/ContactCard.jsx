@@ -601,9 +601,14 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       const normalizedActiveTab = String(activeTab || "All Chats").toLowerCase();
       const matchesSearch =
         searchValue.length === 0 ||
-        c.name?.toLowerCase().includes(searchValue) ||
-        c.phone?.toLowerCase().includes(searchValue) ||
-        c.lastMsg?.toLowerCase().includes(searchValue);
+        (searchValue.length === 1
+          ? c.name?.toLowerCase().startsWith(searchValue)   // single letter → name starts with
+          : (
+              c.name?.toLowerCase().includes(searchValue) ||
+              c.phone?.toLowerCase().includes(searchValue) ||
+              c.lastMsg?.toLowerCase().includes(searchValue)
+            )
+        );
       const isDeleted = chatModifications.deleted.has(chatId);
       const unreadCount = getChatUnreadCount(c);
       const chatStatus = getChatStatus(c);
@@ -1100,10 +1105,30 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       return;
     }
 
+    const fullPhone = `91${newChatPhone}`; // Add country code
+
+    // ── Client-side duplicate check ──────────────────────────────────────────
+    const duplicate = normalizedChats.find((c) => {
+      const chatPhone = String(c.phone || c.phoneNumber || "").replace(/\D/g, "");
+      const enteredPhone = fullPhone.replace(/\D/g, "");
+      return (
+        chatPhone === enteredPhone ||
+        chatPhone === newChatPhone ||          // without country code
+        chatPhone.endsWith(newChatPhone)       // e.g. stored as +91XXXXXXXXXX
+      );
+    });
+
+    if (duplicate) {
+      setCreateError(
+        `This number already exists as "${duplicate.name || duplicate.phone || fullPhone}". Open the existing chat instead.`
+      );
+      return;
+    }
+    // ─────────────────────────────────────────────────────────────────────────
+
     setIsCreating(true);
     setCreateError("");
 
-    const fullPhone = `91${newChatPhone}`; // Add country code
     const name = newChatName.trim() || fullPhone;
 
     const result = await onCreateChat(name, fullPhone);
@@ -1115,7 +1140,15 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       setNewChatPhone("");
       setCreateError("");
     } else {
-      setCreateError(result.error || "Failed to create chat. Please try again.");
+      // Normalise server-side duplicate messages to a friendly string
+      const errMsg = result.error || "Failed to create chat. Please try again.";
+      const isDuplicateErr =
+        /already exists/i.test(errMsg) || /duplicate/i.test(errMsg);
+      setCreateError(
+        isDuplicateErr
+          ? `A chat with this number already exists. Please check your chat list.`
+          : errMsg
+      );
     }
 
     setIsCreating(false);
