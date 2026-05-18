@@ -295,6 +295,7 @@ async function handleIncomingMessage(data) {
         teamMember: 'Unassigned',
         whatsappId: normalizedFrom,
         source: 'whatsapp',
+        lastActivity: new Date(),
         user: assignedUserId // Link to the user who owns the contact in CRM
       });
       
@@ -883,7 +884,8 @@ exports.sendTemplateMessage = async (req, res, next) => {
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
           teamMember: 'Unassigned',
           whatsappId: recipientPhone,
-          source: 'whatsapp'
+          source: 'whatsapp',
+          lastActivity: new Date()
         });
       }
     }

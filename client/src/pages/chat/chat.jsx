@@ -135,6 +135,7 @@ const Chat = () => {
             ...prevChats[idx],
             lastMsg: data.message?.text || '📎 Media',
             lastMsgTime: data.message?.time,
+            lastActivity: new Date(),
             // Increment unread only if NOT viewing this chat
             unread: activeChatIdRef.current?.toString() === incomingChatId
               ? 0
@@ -321,7 +322,7 @@ const Chat = () => {
       setChats((prev) => {
         return prev.map(c =>
           c._id === activeChatId
-            ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time }
+            ? { ...c, lastMsg: media ? `📸 ${media.type || 'Media'}` : text, lastMsgTime: time, lastActivity: new Date() }
             : c
         );
       });

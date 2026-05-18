@@ -171,7 +171,7 @@ router.get("/", async (req, res) => {
 
     const [chats, total] = await Promise.all([
       Chat.find(query, projection)
-        .sort({ isPinned: -1, updatedAt: -1 })
+        .sort({ isPinned: -1, lastActivity: -1, createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .lean(),            // .lean() returns plain JS objects — much faster than Mongoose docs
@@ -255,6 +255,7 @@ router.post("/", async (req, res) => {
       unread: 0,
       lastMsg: "",
       lastMsgTime: "",
+      lastActivity: new Date(),
       user: req.user.id
     });
 
@@ -610,7 +611,7 @@ router.put("/:chatId/read", async (req, res) => {
         ] 
       },
       { unread: 0 },
-      { new: true }
+      { new: true, timestamps: false }
     );
     if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 

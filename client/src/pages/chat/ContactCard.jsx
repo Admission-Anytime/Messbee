@@ -671,7 +671,11 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
       if (aIsPinned && !bIsPinned) return -1;
       if (!aIsPinned && bIsPinned) return 1;
-      return 0;
+
+      // Both are pinned or both are unpinned, sort by lastActivity or createdAt descending
+      const aTime = new Date(a.lastActivity || a.createdAt || a.created_at || 0).getTime();
+      const bTime = new Date(b.lastActivity || b.createdAt || b.created_at || 0).getTime();
+      return bTime - aTime;
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [normalizedChats, debouncedSearch, activeTab, quickFilters, advancedFilters, chatModifications, presenceNow]);
