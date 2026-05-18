@@ -704,7 +704,7 @@ function RevokeAccessModal({member, open, onClose, onRevoke, toast}) {
 }
 
 // ─── RoleMembersView (with Revoke Access integrated) ──────────────────────────
-function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,onBack,toast}){
+function RoleMembersView({roleName,roleMembers,onChangeRole,onRemove,onBack,toast}){
   const [search,setSearch]=useState("");
   const [statusFilter,setStatusFilter]=useState("All");
   const [openDropdown,setOpenDropdown]=useState(null);
@@ -713,11 +713,11 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
   const [showStatusMenu,setShowStatusMenu]=useState(false);
   const statusRef=useRef(null);
   useEffect(()=>{const h=e=>{if(statusRef.current&&!statusRef.current.contains(e.target))setShowStatusMenu(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  const members=(roleMembers&&roleMembers.length>0?roleMembers:allMembers).filter(m=>{const ms=m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase());const sf=statusFilter==="All"||m.status===statusFilter;return ms&&sf;});
+  const members=roleMembers.filter(m=>{const ms=m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase());const sf=statusFilter==="All"||m.status===statusFilter;return ms&&sf;});
   const totalPages=Math.max(1,Math.ceil(members.length/PAGE_SIZE_ROLE));
   const paginated=members.slice((page-1)*PAGE_SIZE_ROLE,page*PAGE_SIZE_ROLE);
   const tip=ROLE_QUICK_TIPS[roleName]||ROLE_QUICK_TIPS["Admin"];
-  const totalCount=roleMembers?.length||members.length||14;
+  const totalCount=roleMembers.length;
   const displayRole=roleName.charAt(0).toUpperCase()+roleName.slice(1);
 
   const handleRevoke=(memberId, deleteScheduled)=>{
@@ -911,7 +911,13 @@ function RoleCard({data,onEdit,onView}){
       <div className="mb-5"><p className="text-xs font-bold text-gray-400 tracking-widest mb-3">CORE PERMISSIONS</p><ul className="space-y-2">{data.permissions.map(p=>(<li key={p} className="flex items-center gap-2"><svg className={`w-4 h-4 flex-shrink-0 ${data.checkColor}`} fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/></svg><span className="text-sm text-gray-600">{p}</span></li>))}</ul></div>
       <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
         <button onClick={()=>onEdit(data.role)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Edit Permissions</button>
-        <button onClick={()=>onView(data.role)} className="flex items-center gap-1.5 text-sm font-semibold text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>View</button>
+        <button onClick={()=>onView(data.role)} className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700 transition">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          View Members
+        </button>
       </div>
     </div>
   );
@@ -966,7 +972,10 @@ function CustomRoleCard({data,onDelete,onView}){
 
       <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-100">
         <button onClick={onView} className="flex items-center gap-1.5 text-sm font-semibold text-purple-500 hover:text-purple-600 transition">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
           View Members
         </button>
         <button onClick={onDelete}
@@ -1027,6 +1036,13 @@ export default function ManageTeams(){
   const CARD_TO_PERM={Admin:"Admin",Manager:"Manager",Agent:"Support Agent"};
   const filtered=members.filter(m=>m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase()));
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages || 1);
+    }
+  }, [totalPages, page]);
+
   const paginated=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
   const admins=members.filter(m=>m.role==="ADMIN").length;
   const managers=members.filter(m=>m.role==="MANAGER").length;
@@ -1095,6 +1111,17 @@ export default function ManageTeams(){
     } catch (err) {
       console.error(err);
       showToast(`Failed to update member`);
+    }
+  };
+
+  const handleChangeRole = async (id, newRole) => {
+    try {
+      await axios.put(`/users/${id}`, { role: newRole });
+      fetchMembers();
+      showToast(`Role updated to ${newRole}`);
+    } catch (err) {
+      console.error(err);
+      showToast(`Failed to update role`);
     }
   };
 
@@ -1184,7 +1211,7 @@ export default function ManageTeams(){
                   <CircularCheckbox checked={selectedRows.includes(member.id)} onChange={() => toggleSelect(member.id)} />
                 </div>
                 <div className="flex items-center gap-3"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-sm ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>handleRemoveMember(member.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>handleRemoveMember(member.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
-              <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:Math.max(totalPages,3)},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
+              <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:totalPages},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
             </div>
             <div className="grid grid-cols-3 gap-4">{[{label:"ADMINS",count:admins,sub:"Total active",icon:"🛡️",color:"text-green-600 bg-green-50"},{label:"MANAGERS",count:managers,sub:"Total active",icon:"👥",color:"text-blue-600 bg-blue-50"},{label:"AGENTS",count:agents,sub:"Across 3 teams",icon:"🎧",color:"text-purple-600 bg-purple-50"}].map(({label,count,sub,icon,color})=>(<div key={label} className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm flex items-center justify-between"><div><p className="text-xs font-bold text-gray-400 tracking-widest mb-1">{label}</p><div className="flex items-baseline gap-2"><span className="text-3xl font-black text-gray-900">{count}</span><span className="text-sm text-gray-400">{sub}</span></div></div><div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${color}`}>{icon}</div></div>))}</div>
           </>
@@ -1192,7 +1219,6 @@ export default function ManageTeams(){
           <RoleMembersView
             roleName={viewRoleName}
             roleMembers={getRoleMembers(viewRoleName)}
-            allMembers={members}
             onChangeRole={handleChangeRole}
             onRemove={handleRemoveMember}
             onBack={()=>setRolesView(null)}
