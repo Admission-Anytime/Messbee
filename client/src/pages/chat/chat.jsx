@@ -684,6 +684,7 @@ const Chat = () => {
             onLoadMore={loadMoreChats}
             hasMoreChats={hasMoreChats}
             isLoadingMore={isLoadingMore}
+            statusOptions={statusOptions}
           />
         )}
       </div>

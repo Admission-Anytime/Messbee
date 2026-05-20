@@ -26,7 +26,7 @@ const LAST_SEEN_FILTERS = [
   { value: "30d", label: "Last 30 days" }
 ];
 
-const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat, onUpdateStatus, onTogglePin, onUpdateLabels, onLoadMore, hasMoreChats, isLoadingMore }) => {
+const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat, onUpdateStatus, onTogglePin, onUpdateLabels, onLoadMore, hasMoreChats, isLoadingMore, statusOptions = [] }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -230,7 +230,8 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
   const getChatStatus = (chat) => {
     const chatId = chat._id || chat.id;
-    const status = chatModifications.status[chatId] ?? chat.chatStatus ?? chat.status ?? "";
+    let status = chatModifications.status[chatId] ?? chat.chatStatus ?? chat.status;
+    if (!status || String(status).toLowerCase() === "open") status = "opened";
     return String(status).toLowerCase();
   };
 
@@ -632,13 +633,13 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
         normalizedActiveTab === "all chats" ||
         normalizedActiveTab === "all" ||
         (normalizedActiveTab === "unread" && unreadCount > 0) ||
-        (normalizedActiveTab === "active" && ["open", "active"].includes(chatStatus)) ||
+        (normalizedActiveTab === "active" && ["opened", "active"].includes(chatStatus)) ||
         (normalizedActiveTab === "resolved" && ["resolved", "closed"].includes(chatStatus)) ||
         (normalizedActiveTab === "mine" && !!c.isMine);
 
       const matchesQuickFilters =
         (!quickFilters.unreadChats || unreadCount > 0) &&
-        (!quickFilters.openSessionChats || ["open", "active"].includes(chatStatus) || c.isSessionOpen) &&
+        (!quickFilters.openSessionChats || ["opened", "active"].includes(chatStatus) || c.isSessionOpen) &&
         (!quickFilters.pinnedChats || isPinned) &&
         (!quickFilters.mutedChats || isMuted) &&
         (!quickFilters.unassignedChats || teamMember === "Unassigned") &&
@@ -1272,7 +1273,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleBulkUpdateStatus("open");
+                      handleBulkUpdateStatus("opened");
                       setOpenMenuId(null);
                     }}
                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
@@ -1851,7 +1852,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               <div>
                 <p className="text-xs font-bold text-slate-500 uppercase tracking-wide mb-2">Status</p>
                 <div className="flex flex-wrap gap-2">
-                  {["open", "active", "resolved", "closed", "pending"].map((statusValue) => (
+                  {["opened", "active", "resolved", "closed", "pending"].map((statusValue) => (
                     <button
                       key={statusValue}
                       onClick={() => toggleSetFilter("status", statusValue)}
@@ -2263,14 +2264,35 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                 {chat.lastMsg || "No messages yet"}
               </p>
               <div className="mt-1 flex justify-between items-center">
-                {getChatStatus(chat) && (
-                  <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${getChatStatus(chat) === 'open' ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
-                    getChatStatus(chat) === 'closed' ? 'text-slate-600 bg-slate-100 border border-slate-200' :
-                      'text-blue-600 bg-blue-50 border border-blue-200'
-                    }`}>
-                    {getChatStatus(chat)}
-                  </span>
-                )}
+                {getChatStatus(chat) && (() => {
+                  const statusLabel = getChatStatus(chat);
+                  const isOpened = statusLabel === 'opened';
+                  const isClosed = statusLabel === 'closed';
+                  
+                  const customStatus = statusOptions.find(s => s.label.toLowerCase() === statusLabel);
+                  const customColor = customStatus?.original?.color;
+
+                  if (customColor && !isOpened && !isClosed) {
+                    return (
+                      <span className="inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm" style={{
+                        backgroundColor: customColor + '15',
+                        color: customColor,
+                        borderColor: customColor + '30'
+                      }}>
+                        {statusLabel}
+                      </span>
+                    );
+                  }
+
+                  return (
+                    <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm ${isOpened ? 'text-[#16a34a] bg-[#f0fdf4] border border-[#bbf7d0]' :
+                      isClosed ? 'text-slate-600 bg-slate-100 border border-slate-200' :
+                        'text-blue-600 bg-blue-50 border border-blue-200'
+                      }`}>
+                      {isOpened ? 'OPENED' : statusLabel}
+                    </span>
+                  );
+                })()}
                 {getUnreadCount(chat) > 0 && (
                   <span className="min-w-[1.25rem] h-5 px-1.5 bg-[#22C55E] text-white text-[10px] font-bold flex items-center justify-center rounded-full shadow-sm">
                     {getUnreadCount(chat)}
