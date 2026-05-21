@@ -89,7 +89,8 @@ const findOrCreateChatForContact = async (contact) => {
       teamMember: 'Unassigned',
       unread: 0,
       lastMsg: '',
-      lastMsgTime: ''
+      lastMsgTime: '',
+      lastActivity: new Date()
     });
   }
 

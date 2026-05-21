@@ -105,7 +105,7 @@ const MENU_ITEMS = [
 ];
 
 const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
-  const isOpen = openSubmenu === item.title;
+  const isOpen = openSubmenu === item.title || !!item._forceOpen;
   const isFloatingOpen = activeFloating === item.title;
   const isChildActive = item.children?.some((child) => window.location.pathname.includes(child.path));
   const active = isActive(item.path);
@@ -218,9 +218,25 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
   const filteredMenuItems = useMemo(() => {
     if (!searchQuery) return MENU_ITEMS;
+    const q = searchQuery.toLowerCase();
     return MENU_ITEMS.map((cat) => ({
       ...cat,
-      items: cat.items.filter((item) => item.title.toLowerCase().includes(searchQuery.toLowerCase())),
+      items: cat.items
+        .map((item) => {
+          // Direct top-level title match — include as-is
+          if (item.title.toLowerCase().includes(q)) return item;
+          // Submenu: filter children by sub-title match
+          if (item.isSubmenu && item.children) {
+            const matchedChildren = item.children.filter((child) =>
+              child.title.toLowerCase().includes(q)
+            );
+            if (matchedChildren.length > 0) {
+              return { ...item, children: matchedChildren, _forceOpen: true };
+            }
+          }
+          return null;
+        })
+        .filter(Boolean),
     })).filter((cat) => cat.items.length > 0);
   }, [searchQuery]);
 
