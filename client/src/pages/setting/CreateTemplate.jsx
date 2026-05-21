@@ -769,6 +769,14 @@ const CreateTemplate = () => {
       } else if (errorSubcode === 2388124) {
         errorMessage = "WhatsApp limitation: You can only edit an active template once every 24 hours. Please wait or try creating a new template with a different name.";
         toast.error(errorMessage);
+      } else if (errorSubcode === 2388047) {
+        // Message body format error - show ONLY if it contains emoji or newline validation issues
+        const errorDetails = nestedWaError?.error_user_msg || waError?.error_user_msg || errorMsg || '';
+        if (errorDetails.toLowerCase().includes('emoji') || 
+            errorDetails.toLowerCase().includes('newline') || 
+            errorDetails.toLowerCase().includes('consecutive')) {
+          toast.error(errorDetails);
+        }
       } else {
         toast.error(errorMessage);
       }
