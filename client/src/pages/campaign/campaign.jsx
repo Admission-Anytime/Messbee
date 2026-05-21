@@ -24,8 +24,7 @@ import {
   ClockIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
-
-/* ── helpers ── */
+import CampaignDetail from '../analytic/CampaignDetail';
 const mapStatus = (status) => {
   switch (status) {
     case 'completed': return 'Completed';
@@ -77,11 +76,15 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
     createdBy: camp.user?.name || 'User',
     initials: (camp.user?.name || camp.name || 'U').substring(0, 2).toUpperCase(),
     sentOn: formatDate(camp.createdAt),
+    rawCreatedAt: camp.createdAt,
+    count: String((camp.targetAudience || []).length),
+    targetAudience: camp.targetAudience || [],
     stats: {
       total: (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
       sent: camp.stats?.sent || 0,
       delivered: camp.stats?.delivered || 0,
       read: camp.stats?.read || 0,
+      replied: camp.stats?.replied || 0,
       failed: camp.stats?.failed || 0,
     },
   };
@@ -97,10 +100,10 @@ const CampaignDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 10;
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  /* modal state */
-  const [analyticsId, setAnalyticsId] = useState(null);
+  /* state */
+  const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [duplicatedId, setDuplicatedId] = useState(null);
 
@@ -136,6 +139,7 @@ const CampaignDashboard = () => {
                 sent: stats.sent || 0,
                 delivered: stats.delivered || 0,
                 read: stats.read || 0,
+                replied: stats.replied || c.stats?.replied || 0,
                 failed: stats.failed || 0,
               },
               status: mapStatus(status),
@@ -269,10 +273,10 @@ const CampaignDashboard = () => {
     return matchesSearch && matchesStatus && matchesTemplate;
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const safePage = Math.min(currentPage, totalPages);
-  const paginatedStart = (safePage - 1) * ITEMS_PER_PAGE;
-  const paginated = filtered.slice(paginatedStart, paginatedStart + ITEMS_PER_PAGE);
+  const paginatedStart = (safePage - 1) * itemsPerPage;
+  const paginated = filtered.slice(paginatedStart, paginatedStart + itemsPerPage);
 
   // Reset to page 1 when filters/search change
   const handleSearchChange = (val) => { setSearch(val); setCurrentPage(1); };
@@ -281,6 +285,15 @@ const CampaignDashboard = () => {
 
   const completedCount = campaigns.filter((c) => c.status === 'Completed').length;
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
+
+  if (selectedCampaign) {
+    return (
+      <CampaignDetail
+        campaign={selectedCampaign}
+        onBack={() => setSelectedCampaign(null)}
+      />
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 font-['Urbanist']">
@@ -428,7 +441,14 @@ const CampaignDashboard = () => {
                 paginated.map((camp, index) => (
                   <tr
                     key={camp.id}
-                    className={`group transition-colors ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
+                    className={`group transition-colors cursor-pointer ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
+                    onClick={() => {
+                      if (String(camp.status).toLowerCase() === 'draft') {
+                        navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
+                      } else {
+                        setSelectedCampaign(camp);
+                      }
+                    }}
                   >
                     <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{paginatedStart + index + 1}</td>
                     <td className="px-5 py-4 align-middle">
@@ -443,7 +463,7 @@ const CampaignDashboard = () => {
                     </td>
                     <td className="px-5 py-4 align-middle max-w-0">
                       <span
-                        className="inline-block w-full max-w-[180px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate"
+                        className="inline-block max-w-[180px] rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-xs font-semibold text-emerald-700 truncate"
                         title={camp.templateName}
                       >
                         {camp.templateName}
@@ -469,19 +489,26 @@ const CampaignDashboard = () => {
                           icon={<ChartBarIcon className="w-4 h-4" />}
                           hoverColor="hover:text-emerald-500 hover:bg-emerald-50"
                           title="Analytics"
-                          onClick={() => setAnalyticsId(camp.id)}
+                          onClick={(e) => { 
+                            e.stopPropagation();
+                            if (String(camp.status).toLowerCase() === 'draft') {
+                              navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
+                            } else {
+                              setSelectedCampaign(camp);
+                            }
+                          }}
                         />
                         <ActionBtn
                           icon={<DocumentDuplicateIcon className="w-4 h-4" />}
                           hoverColor="hover:text-blue-500 hover:bg-blue-50"
                           title="Duplicate"
-                          onClick={() => handleDuplicate(camp)}
+                          onClick={(e) => { e.stopPropagation(); handleDuplicate(camp); }}
                         />
                         <ActionBtn
                           icon={<TrashIcon className="w-4 h-4" />}
                           hoverColor="hover:text-red-500 hover:bg-red-50"
                           title="Delete"
-                          onClick={() => setDeleteTarget(camp)}
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(camp); }}
                         />
                       </div>
                     </td>
@@ -494,58 +521,60 @@ const CampaignDashboard = () => {
 
         {/* Footer / Pagination */}
         {filtered.length > 0 && (
-          <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/40 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <p className="text-xs text-slate-400 font-medium">
-              Showing{' '}
-              <span className="font-bold text-slate-600">{paginatedStart + 1}</span>
-              {' '}–{' '}
-              <span className="font-bold text-slate-600">{Math.min(paginatedStart + ITEMS_PER_PAGE, filtered.length)}</span>
-              {' '}of{' '}
-              <span className="font-bold text-slate-600">{filtered.length}</span> campaigns
-            </p>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage === 1}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-slate-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  ← Prev
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <button
-                    key={p}
-                    onClick={() => setCurrentPage(p)}
-                    className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors border ${
-                      p === safePage
-                        ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
-                        : 'border-gray-200 text-slate-500 hover:bg-gray-100'
-                    }`}
-                  >
-                    {p}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={safePage === totalPages}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-200 text-slate-500 hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next →
-                </button>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans">
+            <span className="text-sm text-gray-500">Total campaigns: <strong className="text-gray-900">{filtered.length}</strong></span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-gray-500">Rows per page:</span>
+              <select
+                value={itemsPerPage}
+                onChange={e => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-emerald-400"
+              >
+                {[10, 25, 50, 100].map(n => <option key={n}>{n}</option>)}
+              </select>
+              <span className="text-sm text-gray-500 min-w-[90px] text-center">{paginatedStart + 1}–{Math.min(paginatedStart + itemsPerPage, filtered.length)} of {filtered.length}</span>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" /></svg>
+              </button>
+              <div className="flex gap-1">
+                {(() => {
+                  const getPages = () => {
+                    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+                    const pages = [1];
+                    if (safePage > 3) pages.push("...");
+                    for (let i = Math.max(2, safePage - 1); i <= Math.min(totalPages - 1, safePage + 1); i++) pages.push(i);
+                    if (safePage < totalPages - 2) pages.push("...");
+                    pages.push(totalPages);
+                    return pages;
+                  };
+                  return getPages().map((p, i) =>
+                    p === "..."
+                      ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+                      : <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === safePage ? "bg-emerald-500 text-white border-emerald-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-emerald-400 hover:text-emerald-700"}`}
+                      >
+                        {p}
+                      </button>
+                  )
+                })()}
               </div>
-            )}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages || totalPages === 0}
+                className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" /></svg>
+              </button>
+            </div>
           </div>
         )}
       </div>
-
-      {/* ── Analytics Modal ── */}
-      
-      {analyticsId && (
-        <AnalyticsModal
-          campaign={campaigns.find(c => c.id === analyticsId)}
-          onClose={() => setAnalyticsId(null)}
-        />
-      )}
 
       {/* ── Delete Confirm Modal ── */}
       {deleteTarget && (
@@ -558,102 +587,6 @@ const CampaignDashboard = () => {
     </div>
   );
 };
-
-/* ═══════════════════════════════════════════════════════════════
-   Analytics Modal
-═══════════════════════════════════════════════════════════════ */
-const AnalyticsModal = ({ campaign, onClose }) => {
-  const s = campaign.stats;
-  const deliveryRate = s.sent > 0 ? Math.round((s.delivered / s.sent) * 100) : 0;
-  const readRate = s.delivered > 0 ? Math.round((s.read / s.delivered) * 100) : 0;
-
-  const rows = [
-    { label: 'Total Recipients', value: s.total, icon: <UserGroupIcon className="w-4 h-4" />, bg: 'bg-slate-50', border: 'border-slate-100', text: 'text-slate-600' },
-    { label: 'Sent', value: s.sent, icon: <PaperAirplaneIcon className="w-4 h-4" />, bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-600' },
-    { label: 'Delivered', value: s.delivered, icon: <CheckIcon className="w-4 h-4" />, bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-600' },
-    { label: 'Read', value: s.read, icon: <EyeIcon className="w-4 h-4" />, bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-600' },
-    { label: 'Failed', value: s.failed, icon: <ExclamationTriangleIcon className="w-4 h-4" />, bg: 'bg-red-50', border: 'border-red-100', text: 'text-red-500' },
-  ];
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
-      <div
-        className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-lg font-['Urbanist'] overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
-              <ArrowTrendingUpIcon className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-slate-800 leading-tight">Campaign Analytics</h2>
-              <p className="text-xs text-slate-400 font-medium mt-0.5 truncate max-w-[260px]">{campaign.title}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-gray-100 transition-colors"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Meta row */}
-        <div className="flex items-center gap-4 px-6 py-3 bg-gray-50/60 border-b border-gray-100 text-xs text-slate-500 font-medium">
-          <span className="flex items-center gap-1.5">
-            <ClockIcon className="w-3.5 h-3.5 text-slate-400" /> {campaign.sentOn}
-          </span>
-          <span className="flex items-center gap-1.5 truncate max-w-[160px]">
-            <DocumentDuplicateIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" /> {campaign.templateName}
-          </span>
-          <StatusBadge status={campaign.status} progress={campaign.progress} />
-        </div>
-
-        {/* Stat Cards */}
-        <div className="grid grid-cols-2 gap-3 p-6">
-          {rows.map((r) => (
-            <div
-              key={r.label}
-              className={`flex items-center gap-3 ${r.bg} border ${r.border} rounded-xl p-3.5`}
-            >
-              <div className={`w-8 h-8 rounded-lg bg-white border ${r.border} flex items-center justify-center ${r.text}`}>
-                {r.icon}
-              </div>
-              <div>
-                <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">{r.label}</p>
-                <p className={`text-lg font-bold ${r.text}`}>{r.value.toLocaleString()}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Rate bars */}
-        <div className="px-6 pb-6 flex flex-col gap-3">
-          <RateBar label="Delivery Rate" value={deliveryRate} color="bg-emerald-500" />
-          <RateBar label="Read Rate" value={readRate} color="bg-violet-500" />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const RateBar = ({ label, value, color }) => (
-  <div>
-    <div className="flex justify-between items-center mb-1.5">
-      <span className="text-xs font-semibold text-slate-500">{label}</span>
-      <span className="text-xs font-bold text-slate-700">{value}%</span>
-    </div>
-    <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full ${color} transition-all duration-700`}
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  </div>
-);
 
 /* ═══════════════════════════════════════════════════════════════
    Delete Confirmation Modal

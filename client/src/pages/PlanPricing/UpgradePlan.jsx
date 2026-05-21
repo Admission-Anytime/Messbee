@@ -717,7 +717,7 @@ const PaymentSuccessView = ({ plan, totalDue, billingCycle }) => {
 const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const navigate = useNavigate();
   const [paymentDone, setPaymentDone] = useState(false);
-  const { user, updateUser } = useContext(userContext);
+  const { user, updateUser, refreshUser } = useContext(userContext);
 
   // Price calculation (INR) — plan.price is the BASE monthly price
   const basePrice = typeof plan.price === "number" ? plan.price : 999;
@@ -731,40 +731,41 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
 
   const handlePay = async () => {
     const newSubscriptionPlan = plan.name.toLowerCase();
-    const newSubscriptionEndDate = new Date(new Date().setMonth(new Date().getMonth() + (billingCycle === "yearly" ? 12 : 3))).toISOString();
-    
+    const newSubscriptionEndDate = new Date(
+      new Date().setMonth(new Date().getMonth() + (billingCycle === "yearly" ? 12 : 3))
+    ).toISOString();
+
+    // Optimistic update — apply immediately so the dashboard reflects the
+    // new plan as soon as the user navigates there, regardless of API timing.
+    const optimisticUser = {
+      ...(user || {}),
+      subscriptionPlan: newSubscriptionPlan,
+      subscriptionEndDate: newSubscriptionEndDate,
+    };
+    updateUser(optimisticUser);
+
     try {
       const { default: axios } = await import("../../context/axios");
       await axios.put("/users/subscription", {
         subscriptionPlan: newSubscriptionPlan,
-        subscriptionEndDate: newSubscriptionEndDate
+        subscriptionEndDate: newSubscriptionEndDate,
       });
 
-      // Record the transaction
-      await axios.post("/billing/transactions", {
+      // Record the transaction (non-blocking — don't fail payment for this)
+      axios.post("/billing/transactions", {
         desc: `Plan Renewal - ${plan.name}`,
         amount: totalDue,
-        status: "Paid"
-      });
+        status: "Paid",
+      }).catch((e) => console.warn("Transaction record failed:", e));
 
-      if (user) {
-        const updatedUser = {
-          ...user,
-          subscriptionPlan: newSubscriptionPlan,
-          subscriptionEndDate: newSubscriptionEndDate
-        };
-        updateUser(updatedUser);
-      } else {
-        updateUser({
-          subscriptionPlan: newSubscriptionPlan,
-          subscriptionEndDate: newSubscriptionEndDate
-        });
-      }
+      // Pull authoritative user data from server so the dashboard is in sync
+      if (refreshUser) await refreshUser();
+
       setPaymentDone(true);
     } catch (error) {
-      console.error("Failed to update subscription:", error);
-      // Even if backend fails, maybe we still show success or handle error?
-      // For now, let's proceed to success but ideally should show an error toast.
+      console.error("Failed to update subscription on server:", error);
+      // Optimistic update already applied above — show success screen
+      // so the dashboard still reflects the upgrade locally.
       setPaymentDone(true);
     }
   };

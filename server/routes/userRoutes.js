@@ -21,10 +21,17 @@ router.route('/')
 
 router.post('/bulk-delete', protect, bulkDeleteUsers);
 
+router.route('/profile')
+  .get(protect, getProfile)
+  .put(protect, updateProfile);
+
+router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
+
+router.put('/subscription', protect, updateSubscription);
+
 router.route('/:id')
   .put(protect, updateUser)
   .delete(protect, deleteUser);
-
 
 /**
  * @swagger
@@ -69,10 +76,6 @@ router.route('/:id')
  *       200:
  *         description: Profile updated successfully
  */
-router.route('/profile')
-  .get(protect, getProfile)
-  .put(protect, updateProfile);
-
 /**
  * @swagger
  * /api/users/avatar:
@@ -95,8 +98,6 @@ router.route('/profile')
  *       200:
  *         description: Avatar uploaded successfully
  */
-router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
-
 /**
  * @swagger
  * /api/users/subscription:
@@ -122,6 +123,4 @@ router.post('/avatar', protect, upload.single('avatar'), uploadAvatar);
  *       200:
  *         description: Subscription updated successfully
  */
-router.put('/subscription', protect, updateSubscription);
-
 module.exports = router;

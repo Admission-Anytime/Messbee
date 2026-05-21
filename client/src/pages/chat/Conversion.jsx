@@ -868,13 +868,36 @@ const selectedTemplate = useMemo(() => {
                            <span className={`w-2 h-2 rounded-full ${presenceInfo.isOnline ? 'bg-[#22C55E]' : 'bg-slate-300'}`}></span>
                            <span className="text-[11px] lg:text-xs font-medium text-slate-500 whitespace-nowrap truncate">{presenceInfo.label}</span>
                            <span className="text-slate-300 text-xs">•</span>
-                           <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-md shadow-sm border truncate" style={{
-                              backgroundColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '15') || '#f1f5f9',
-                              color: statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color || '#64748b',
-                              borderColor: (statusOptions.find(s => s.label.toLowerCase() === data.chatStatus?.toLowerCase())?.original?.color + '30') || '#e2e8f0'
-                           }}>
-                              {data.chatStatus ? data.chatStatus.charAt(0).toUpperCase() + data.chatStatus.slice(1) : 'Open'}
-                           </span>
+                           {(() => {
+                              let statusLabel = (data.chatStatus || 'open').toLowerCase();
+                              if (statusLabel === 'opened') statusLabel = 'open';
+                              const isOpened = statusLabel === 'open';
+                              const isClosed = statusLabel === 'closed';
+                              const customStatus = statusOptions.find(s => s.label.toLowerCase() === statusLabel);
+                              const customColor = customStatus?.original?.color;
+
+                              if (customColor && !isOpened && !isClosed) {
+                                return (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm border" style={{
+                                    backgroundColor: customColor + '15',
+                                    color: customColor,
+                                    borderColor: customColor + '30'
+                                  }}>
+                                    {statusLabel}
+                                  </span>
+                                );
+                              }
+
+                              return (
+                                <span className={`inline-block px-2 py-0.5 rounded text-[9px] font-extrabold uppercase tracking-wider shadow-sm border ${
+                                  isOpened ? 'text-[#16a34a] bg-[#f0fdf4] border-[#bbf7d0]' :
+                                  isClosed ? 'text-slate-600 bg-slate-100 border-slate-200' :
+                                  'text-blue-600 bg-blue-50 border-blue-200'
+                                }`}>
+                                  {isOpened ? 'OPEN' : statusLabel}
+                                </span>
+                              );
+                           })()}
                         </div>
                      </div>
                   </div>
