@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
 import LabelApi from '../../services/LabelApi';
 import StatusApi from '../../services/StatusApi';
@@ -18,8 +18,9 @@ import {
 
 const CreateCampaign = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const { user, updateUser } = useContext(userContext);
-    const [currentStep, setCurrentStep] = useState(1);
+    const [currentStep, setCurrentStep] = useState(location.state?.step || 1);
 
     // Dynamic Data State
     const [labelsList, setLabelsList] = useState([]);

@@ -28,7 +28,7 @@ exports.createTransaction = async (req, res, next) => {
       await User.findByIdAndUpdate(req.user.id, {
         $set: { credits: currentCredits + Number(wccAmount) }
       });
-    } else if (desc && desc.toLowerCase().includes("campaign launch")) {
+    } else if (desc && (desc.toLowerCase().includes("campaign launch") || desc.toLowerCase().includes("campaign resend"))) {
       // Amount is negative for campaigns
       await User.findByIdAndUpdate(req.user.id, {
         $set: { credits: currentCredits + Number(amount) }

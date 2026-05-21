@@ -70,6 +70,19 @@ const Context = (props) => {
     localStorage.setItem("user", JSON.stringify(userData));
   };
 
+  // Re-fetch latest user data from server (call after actions like plan upgrade)
+  const refreshUser = async () => {
+    try {
+      const response = await getCurrentUser();
+      if (response.success && response.data) {
+        setUser(response.data);
+        localStorage.setItem("user", JSON.stringify(response.data));
+      }
+    } catch (error) {
+      console.error("Failed to refresh user:", error);
+    }
+  };
+
   // Login user - Save user data to localStorage (tokens are in HTTP-only cookies)
   const loginUser = (userData) => {
     setUser(userData);
@@ -97,6 +110,7 @@ const Context = (props) => {
     user,
     setUser,
     updateUser,
+    refreshUser,
     loading,
     authChecked,
     isLoggedIn,

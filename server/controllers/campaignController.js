@@ -38,7 +38,8 @@ exports.getCampaign = async (req, res, next) => {
       });
     }
 
-    if (campaign.user.toString() !== req.user.id) {
+    const campaignUserId = campaign.user._id ? campaign.user._id.toString() : campaign.user.toString();
+    if (campaignUserId !== req.user.id) {
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this campaign'
