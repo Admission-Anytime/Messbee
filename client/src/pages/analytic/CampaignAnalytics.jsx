@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
 import {
   Search,
   ChevronDown,
@@ -8,6 +9,7 @@ import {
   Copy,
   BarChart2,
   Check,
+  AlertTriangle,
 } from "lucide-react";
 import CampaignApi from "../../services/CampaignApi";
 import CampaignDetail from "./CampaignDetail";
@@ -125,6 +127,10 @@ const CampaignAnalytics = () => {
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [currentPage,      setCurrentPage]     = useState(1);
   const [itemsPerPage,     setItemsPerPage]    = useState(10);
+  const [duplicatingId,    setDuplicatingId]   = useState(null);
+  const [deletingId,       setDeletingId]      = useState(null);
+  const [deleteModal,      setDeleteModal]     = useState(null); // campaign object to confirm delete
+  const [duplicateModal,   setDuplicateModal]  = useState(null); // campaign object to confirm duplicate
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -166,6 +172,43 @@ const CampaignAnalytics = () => {
     };
   }, [fetchCampaigns]);
 
+  const handleDuplicate = async (camp) => {
+    setDuplicateModal(null);
+    setDuplicatingId(camp.id);
+    try {
+      const res = await CampaignApi.createCampaign({
+        name:            `${camp.title} (Copy)`,
+        messageTemplate: camp.templateName,
+        status:          'draft',
+        targetAudience:  camp.targetAudience || [],
+      });
+      if (res.success) {
+        toast.success(`"${camp.title}" duplicated as a draft!`);
+        fetchCampaigns();
+      } else {
+        toast.error(res.message || 'Failed to duplicate campaign');
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to duplicate campaign');
+    } finally {
+      setDuplicatingId(null);
+    }
+  };
+
+  const handleDeleteCampaign = async (camp) => {
+    setDeletingId(camp.id);
+    setDeleteModal(null);
+    try {
+      await CampaignApi.deleteCampaign(camp.id);
+      toast.success(`"${camp.title}" deleted successfully!`);
+      fetchCampaigns();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to delete campaign');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   if (selectedCampaign) {
     return (
       <CampaignDetail
@@ -193,6 +236,7 @@ const CampaignAnalytics = () => {
   const handleTemplate = (v) => { setFilterTemplate(v); setCurrentPage(1); };
 
   return (
+    <>
     <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 font-['Urbanist']">
 
       {/* Header */}
@@ -337,16 +381,24 @@ const CampaignAnalytics = () => {
                           }}
                         />
                         <ActionBtn
-                          icon={<Copy className="w-4 h-4" />}
+                          icon={
+                            duplicatingId === camp.id
+                              ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                              : <Copy className="w-4 h-4" />
+                          }
                           hoverColor="hover:text-blue-500 hover:bg-blue-50"
                           title="Duplicate"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setDuplicateModal(camp); }}
                         />
                         <ActionBtn
-                          icon={<Trash2 className="w-4 h-4" />}
+                          icon={
+                            deletingId === camp.id
+                              ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+                              : <Trash2 className="w-4 h-4" />
+                          }
                           hoverColor="hover:text-red-500 hover:bg-red-50"
                           title="Delete"
-                          onClick={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); setDeleteModal(camp); }}
                         />
                       </div>
                     </td>
@@ -414,6 +466,77 @@ const CampaignAnalytics = () => {
         )}
       </div>
     </div>
+
+    {/* ── Delete Confirm Modal ── */}
+    {deleteModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDeleteModal(null)}>
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-sm font-['Urbanist'] p-6 flex flex-col items-center text-center gap-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-14 h-14 bg-red-50 border border-red-100 rounded-2xl flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-red-500" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Delete Campaign?</h2>
+            <p className="text-sm text-slate-500 font-medium mt-1 leading-relaxed">
+              <span className="font-semibold text-slate-700">"{deleteModal.title}"</span> will be permanently removed. This action cannot be undone.
+            </p>
+          </div>
+          <div className="flex gap-3 w-full mt-1">
+            <button
+              onClick={() => setDeleteModal(null)}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleDeleteCampaign(deleteModal)}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-colors"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ── Duplicate Confirm Modal ── */}
+    {duplicateModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setDuplicateModal(null)}>
+        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" />
+        <div
+          className="relative bg-white rounded-2xl border border-gray-200 shadow-2xl w-full max-w-sm font-['Urbanist'] p-6 flex flex-col items-center text-center gap-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-14 h-14 bg-blue-50 border border-blue-100 rounded-2xl flex items-center justify-center">
+            <Copy className="w-7 h-7 text-blue-500" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-800">Duplicate Campaign?</h2>
+            <p className="text-sm text-slate-500 font-medium mt-1 leading-relaxed">
+              A copy of <span className="font-semibold text-slate-700">"{duplicateModal.title}"</span> will be created as a <span className="font-semibold text-blue-500">Draft</span>. You can edit it before sending.
+            </p>
+          </div>
+          <div className="flex gap-3 w-full mt-1">
+            <button
+              onClick={() => setDuplicateModal(null)}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-semibold text-sm hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => handleDuplicate(duplicateModal)}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2"
+            >
+              <Copy className="w-4 h-4" /> Duplicate
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 
