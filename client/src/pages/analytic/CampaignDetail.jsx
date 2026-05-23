@@ -90,8 +90,8 @@ const CampaignDetail = ({ campaign, onBack }) => {
   if (!campaign) return null;
 
   const stats      = campaign.stats || {};
-  const total      = (stats.sent || 0) + (stats.failed || 0);
   const contacts   = campaign.targetAudience || [];
+  const total      = contacts.length; // total unique contacts in the campaign
 
   const contactStatus = (idx) => {
     let offset = 0;
@@ -107,6 +107,14 @@ const CampaignDetail = ({ campaign, onBack }) => {
     _globalIdx: idx,
     computedStatus: contactStatus(idx)
   }));
+
+  // Derive per-status counts directly from computed contacts (so stat numbers always match filter results)
+  const countSent    = contactsWithStatus.filter(c => c.computedStatus === "Sent").length;
+  const countDel     = contactsWithStatus.filter(c => c.computedStatus === "Delivered").length;
+  const countRead    = contactsWithStatus.filter(c => c.computedStatus === "Read").length;
+  const countReply   = contactsWithStatus.filter(c => c.computedStatus === "Text reply").length;
+  const countBtn     = contactsWithStatus.filter(c => c.computedStatus === "Button clicked").length;
+  const countFailed  = contactsWithStatus.filter(c => c.computedStatus === "Failed").length;
 
   const filteredContacts = (filterStatus === "Overview" 
     ? contactsWithStatus 
@@ -338,7 +346,7 @@ const CampaignDetail = ({ campaign, onBack }) => {
                 }} 
                 series={[{
                   name: 'Contacts',
-                  data: [stats.sent || 0, stats.delivered || 0, stats.read || 0, stats.replied || 0, 0, stats.failed || 0]
+                  data: [countSent, countDel, countRead, countReply, countBtn, countFailed]
                 }]} 
                 type="bar" 
                 height="100%" 
@@ -346,13 +354,13 @@ const CampaignDetail = ({ campaign, onBack }) => {
             </div>
           ) : (
             <div className="flex flex-wrap justify-between gap-y-5">
-              <StatBox label="Overview"       value={total}            isActive={filterStatus === "Overview"}       onClick={() => handleFilter("Overview")} />
-              <StatBox label="Send"           value={stats.sent}       isActive={filterStatus === "Send"}           onClick={() => handleFilter("Send")} />
-              <StatBox label="Delivered"      value={stats.delivered}  isActive={filterStatus === "Delivered"}      onClick={() => handleFilter("Delivered")} />
-              <StatBox label="Read"           value={stats.read}       isActive={filterStatus === "Read"}           onClick={() => handleFilter("Read")} />
-              <StatBox label="Text reply"     value={stats.replied}    isActive={filterStatus === "Text reply"}     onClick={() => handleFilter("Text reply")} />
-              <StatBox label="Button clicked" value={0}                isActive={filterStatus === "Button clicked"} onClick={() => handleFilter("Button clicked")} />
-              <StatBox label="Failed"         value={stats.failed}     isActive={filterStatus === "Failed"}         onClick={() => handleFilter("Failed")} />
+              <StatBox label="Overview"       value={total}       isActive={filterStatus === "Overview"}       onClick={() => handleFilter("Overview")} />
+              <StatBox label="Send"           value={countSent}   isActive={filterStatus === "Send"}           onClick={() => handleFilter("Send")} />
+              <StatBox label="Delivered"      value={countDel}    isActive={filterStatus === "Delivered"}      onClick={() => handleFilter("Delivered")} />
+              <StatBox label="Read"           value={countRead}   isActive={filterStatus === "Read"}           onClick={() => handleFilter("Read")} />
+              <StatBox label="Text reply"     value={countReply}  isActive={filterStatus === "Text reply"}     onClick={() => handleFilter("Text reply")} />
+              <StatBox label="Button clicked" value={countBtn}    isActive={filterStatus === "Button clicked"} onClick={() => handleFilter("Button clicked")} />
+              <StatBox label="Failed"         value={countFailed} isActive={filterStatus === "Failed"}         onClick={() => handleFilter("Failed")} />
             </div>
           )}
         </div>
