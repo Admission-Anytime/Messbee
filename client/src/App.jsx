@@ -83,6 +83,7 @@ const ForgotPassword = lazy(() => import("./pages/Auth/ForgotPassword"));
 const VerifyOTP = lazy(() => import("./pages/Auth/VerifyOTP"));
 const ResetPassword = lazy(() => import("./pages/Auth/ResetPassword"));
 const Onboarding = lazy(() => import("./pages/Auth/Onboarding"));
+const VerificationForm = lazy(() => import("./pages/VerificationForm"));
 
 // --- LAZY LOADED HELP PAGES ---
 const HelpLayout = lazy(() => import("./pages/help/help"));
@@ -211,6 +212,7 @@ function App() {
         <Route path="/verify-otp" element={<PublicRoute><Suspense fallback={<PageLoader />}><VerifyOTP /></Suspense></PublicRoute>} />
         <Route path="/reset-password" element={<PublicRoute><Suspense fallback={<PageLoader />}><ResetPassword /></Suspense></PublicRoute>} />
         <Route path="/onboarding" element={<ProtectedRoute><Suspense fallback={<PageLoader />}><Onboarding /></Suspense></ProtectedRoute>} />
+        <Route path="/form" element={<Suspense fallback={<PageLoader />}><VerificationForm /></Suspense>} />
 
         {/* PROTECTED ROUTES - Require Authentication */}
         <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
