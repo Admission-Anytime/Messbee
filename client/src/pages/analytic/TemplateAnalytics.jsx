@@ -77,7 +77,20 @@ const TemplateAnalytics = () => {
 
   const fetchData = useCallback(async (range, group) => {
     const r = range  || dateRange;
-    const g = group  || groupByMap[sortBy];
+    let g = group  || groupByMap[sortBy];
+
+    // Smart groupBy: if Monthly selected but start & end are in the same month,
+    // auto-switch to daily so we get a meaningful day-by-day breakdown
+    if (g === 'monthly' && r[0] && r[1]) {
+      const sameMonth = r[0].format('YYYY-MM') === r[1].format('YYYY-MM');
+      if (sameMonth) g = 'daily';
+    }
+    // Similarly, if Weekly selected but range is within the same week, use daily
+    if (g === 'weekly' && r[0] && r[1]) {
+      const sameWeek = r[0].startOf('week').format('YYYY-MM-DD') === r[1].startOf('week').format('YYYY-MM-DD');
+      if (sameWeek) g = 'daily';
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -97,8 +110,8 @@ const TemplateAnalytics = () => {
         const fetchedMode = Object.keys(groupByMap).find(k => groupByMap[k] === g) || "Daily";
         setAppliedSortBy(fetchedMode);
         
-        // Persist preference
-        localStorage.setItem("template_analytics_sortBy", fetchedMode);
+        // Persist user's UI preference (not the auto-downgraded groupBy)
+        localStorage.setItem("template_analytics_sortBy", sortBy);
       }
     } catch (err) {
       setError(err?.response?.data?.message || "Failed to load analytics.");

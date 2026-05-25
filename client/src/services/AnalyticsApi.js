@@ -23,6 +23,14 @@ const AnalyticsApi = {
     return response.data;
   },
 
+  getMessageAnalytics: async ({ startDate, endDate, groupBy = 'daily' } = {}) => {
+    const params = { groupBy };
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    const response = await axios.get('/analytics/messages', { params });
+    return response.data;
+  },
+
   getCampaignAnalytics: async () => {
     const response = await axios.get('/analytics/campaigns');
     return response.data;

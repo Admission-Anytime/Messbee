@@ -63,10 +63,20 @@ router.get('/dashboard', getDashboardAnalytics);
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: period
+ *         name: startDate
  *         schema:
  *           type: string
- *           enum: [7d, 30d, 90d]
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly]
  *     responses:
  *       200:
  *         description: Message analytics data
