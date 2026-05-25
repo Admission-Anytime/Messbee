@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const { getIO } = require('../config/socket');
+const { createAndEmitNotification } = require('../services/notificationService');
 
 // @desc    Get all conversations
 // @route   GET /api/chats/conversations

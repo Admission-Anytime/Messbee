@@ -17,6 +17,33 @@ import { Pin } from "lucide-react";
 import { PaperAirplaneIcon, MegaphoneIcon, DocumentTextIcon, Squares2X2Icon, CheckCircleIcon as SolidCheckCircle, CheckIcon } from "@heroicons/react/24/solid";
 import EmojiPicker from "emoji-picker-react";
 
+// Skeleton Loading Component
+const MessageSkeleton = ({ isMe = false, width = 'w-40' }) => (
+   <div className={`flex items-end gap-1.5 ${isMe ? 'justify-end' : 'justify-start'} mb-2.5 lg:mb-3`}>
+      {!isMe && <div className="w-7 h-7 lg:w-8 lg:h-8 rounded-xl bg-slate-200 animate-pulse shrink-0 mb-3" />}
+      <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} max-w-[78%] lg:max-w-[72%] gap-1`}>
+         <div className={`h-10 rounded-2xl ${isMe ? 'bg-emerald-100' : 'bg-slate-100'} animate-pulse ${width}`} />
+      </div>
+   </div>
+);
+
+const ChatSkeletonLoader = () => (
+   <div className="w-full h-full flex flex-col justify-start space-y-1 py-2">
+      <MessageSkeleton isMe={false} width="w-48" />
+      <MessageSkeleton isMe={false} width="w-64" />
+      <MessageSkeleton isMe={true} width="w-52" />
+      <MessageSkeleton isMe={false} width="w-56" />
+      <MessageSkeleton isMe={false} width="w-40" />
+      <MessageSkeleton isMe={true} width="w-60" />
+      <MessageSkeleton isMe={false} width="w-44" />
+      <MessageSkeleton isMe={true} width="w-48" />
+      <MessageSkeleton isMe={false} width="w-52" />
+      <MessageSkeleton isMe={true} width="w-56" />
+      <MessageSkeleton isMe={false} width="w-40" />
+      <MessageSkeleton isMe={true} width="w-64" />
+   </div>
+);
+
 // --- MOCK DATA ---
 const QUICK_REPLIES_MOCK = [
    "Yes, please!",
@@ -119,12 +146,33 @@ const Conversion = ({
    // Applied labels local state for the modal
    const [appliedLabels, setAppliedLabels] = useState([]);
 
+   // Chat loading skeleton state
+   const [isLoadingChat, setIsLoadingChat] = useState(false);
+   const previousChatIdRef = useRef(null);
+
    const messagesEndRef = useRef(null);
    const messageRefs = useRef({});
    const menuRef = useRef(null);
    const emojiRef = useRef(null);
    const templateRef = useRef(null);
    const fileInputRef = useRef(null);
+
+   // Detect when chat changes - show loading skeleton
+   useEffect(() => {
+      const currentChatId = data?._id || data?.id;
+      
+      if (currentChatId && previousChatIdRef.current !== currentChatId) {
+         setIsLoadingChat(true);
+         previousChatIdRef.current = currentChatId;
+         
+         // Hide skeleton after 300ms
+         const timer = setTimeout(() => {
+            setIsLoadingChat(false);
+         }, 300);
+         
+         return () => clearTimeout(timer);
+      }
+   }, [data?._id, data?.id]);
 
    useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -978,7 +1026,10 @@ const selectedTemplate = useMemo(() => {
 {/* 2. MESSAGES AREA */}
          <div className="flex-1 overflow-y-auto px-3 sm:px-4 lg:px-5 py-3 lg:py-4 space-y-2.5 lg:space-y-3 z-10 custom-scrollbar bg-white">
             
-            {data.messages?.map((msg, index) => {
+            {isLoadingChat ? (
+               <ChatSkeletonLoader />
+            ) : (
+            data.messages?.map((msg, index) => {
                const msgDate = new Date(msg.createdAt || Date.now()).toDateString();
                const prevMsgDate = index > 0 ? new Date(data.messages[index - 1].createdAt || Date.now()).toDateString() : null;
                const showDateSeparator = msgDate !== prevMsgDate;
@@ -1085,7 +1136,8 @@ const selectedTemplate = useMemo(() => {
                      </div>
                   </React.Fragment>
                );
-            })}
+            })
+            )}
             <div ref={messagesEndRef} />
          </div>
 

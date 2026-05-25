@@ -5,7 +5,8 @@ const {
   createCampaign,
   updateCampaign,
   deleteCampaign,
-  updateCampaignStats
+  updateCampaignStats,
+  sendCampaign
 } = require('../controllers/campaignController');
 const { protect } = require('../middleware/auth');
 
@@ -168,5 +169,25 @@ router.route('/:id')
  *         description: Stats updated successfully
  */
 router.put('/:id/stats', updateCampaignStats);
+
+/**
+ * @swagger
+ * /api/campaigns/{id}/send:
+ *   post:
+ *     summary: Send a campaign
+ *     tags: [Campaigns]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Campaign started sending successfully
+ */
+router.post('/:id/send', sendCampaign);
 
 module.exports = router;

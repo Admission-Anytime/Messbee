@@ -2,6 +2,7 @@ const Contact  = require('../models/Contact');
 const mongoose = require('mongoose');
 const fs       = require('fs');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
+const { createAndEmitNotification } = require('../services/notificationService');
 
 
 /* ── Built-in CSV parser — no external dependency needed ── */
@@ -217,6 +218,26 @@ exports.createContact = async (req, res, next) => {
       initials:  initials   || name.trim().substring(0, 2).toUpperCase(),
       color:     color      || AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
     });
+
+    // Create notification for new contact
+    await createAndEmitNotification(
+      req.user.id,
+      'contact',
+      `New contact added: ${name.trim()}`,
+      `Added to your contacts with WhatsApp: ${normalizedWhatsapp}`,
+      {
+        meta: [
+          { label: 'Name', value: name.trim() },
+          { label: 'WhatsApp', value: normalizedWhatsapp }
+        ],
+        relatedId: contact._id,
+        data: {
+          contactId: contact._id.toString(),
+          name: name.trim(),
+          whatsapp: normalizedWhatsapp
+        }
+      }
+    );
 
     return res.status(201).json({ success: true, data: toClientContact(contact) });
   } catch (err) {
@@ -575,6 +596,28 @@ exports.importContacts = async (req, res, next) => {
       }
     }
 
+    // Create notification for successful import
+    if (successful.length > 0) {
+      await createAndEmitNotification(
+        req.user.id,
+        'contact',
+        'Contacts imported successfully',
+        `${successful.length} of ${rows.length} contacts were imported`,
+        {
+          meta: [
+            { label: 'Imported', value: successful.length.toString() },
+            { label: 'Failed', value: failed.length.toString() },
+            { label: 'Total', value: rows.length.toString() }
+          ],
+          data: {
+            successfulCount: successful.length,
+            failedCount: failed.length,
+            totalCount: rows.length
+          }
+        }
+      );
+    }
+
     return res.status(201).json({
       success:    true,
       total:      rows.length,
@@ -587,4 +630,4 @@ exports.importContacts = async (req, res, next) => {
     cleanupFile();
     next(err);
   }
-};
+};
