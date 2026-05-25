@@ -1,6 +1,7 @@
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
 const { sendBulkMessages } = require('../services/messageService');
+const { createAndEmitNotification } = require('../services/notificationService');
 
 // @desc    Get all campaigns
 // @route   GET /api/campaigns
@@ -227,6 +228,136 @@ exports.updateCampaignStats = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
+      data: campaign
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Send campaign
+// @route   POST /api/campaigns/:id/send
+// @access  Private
+exports.sendCampaign = async (req, res, next) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id).populate('targetAudience');
+
+    if (!campaign) {
+      return res.status(404).json({
+        success: false,
+        message: 'Campaign not found'
+      });
+    }
+
+    if (campaign.user.toString() !== req.user.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Not authorized to send this campaign'
+      });
+    }
+
+    if (!campaign.targetAudience || campaign.targetAudience.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Campaign has no target audience'
+      });
+    }
+
+    if (!campaign.messageTemplate || campaign.messageTemplate.trim() === '') {
+      return res.status(400).json({
+        success: false,
+        message: 'Campaign has no message template'
+      });
+    }
+
+    // Update campaign status to active
+    campaign.status = 'active';
+    campaign.stats = {
+      sent: 0,
+      delivered: 0,
+      read: 0,
+      replied: 0,
+      failed: 0
+    };
+    await campaign.save();
+
+    // Create notification for campaign start
+    await createAndEmitNotification(
+      req.user.id,
+      'campaign',
+      `Campaign "${campaign.name}" started`,
+      `Sending to ${campaign.targetAudience.length} contacts via WhatsApp`,
+      {
+        meta: [
+          { label: 'Recipients', value: campaign.targetAudience.length.toString() },
+          { label: 'Status', value: 'active' },
+          { label: 'Template', value: campaign.name }
+        ],
+        relatedId: campaign._id,
+        data: {
+          campaignId: campaign._id.toString(),
+          recipientCount: campaign.targetAudience.length,
+          templateName: campaign.name
+        }
+      }
+    );
+
+    // Send messages in background (no await - respond immediately)
+    sendBulkMessages(req.user.id, campaign._id, campaign.targetAudience, campaign.messageTemplate)
+      .then(async (result) => {
+        // Update campaign with results
+        const updatedCampaign = await Campaign.findById(campaign._id);
+        if (updatedCampaign) {
+          updatedCampaign.status = 'completed';
+          updatedCampaign.stats = result.stats || { sent: result.totalProcessed, delivered: 0, read: 0, replied: 0, failed: result.failed };
+          await updatedCampaign.save();
+
+          // Create completion notification
+          await createAndEmitNotification(
+            req.user.id,
+            'campaign',
+            `Campaign "${campaign.name}" completed`,
+            `Sent to ${result.totalProcessed} contacts. Failed: ${result.failed}`,
+            {
+              meta: [
+                { label: 'Sent', value: result.totalProcessed.toString() },
+                { label: 'Failed', value: result.failed.toString() },
+                { label: 'Status', value: 'completed' }
+              ],
+              relatedId: campaign._id,
+              data: { campaignId: campaign._id.toString(), ...result }
+            }
+          );
+        }
+      })
+      .catch(async (err) => {
+        console.error('Campaign sending failed:', err);
+        const updatedCampaign = await Campaign.findById(campaign._id);
+        if (updatedCampaign) {
+          updatedCampaign.status = 'failed';
+          await updatedCampaign.save();
+
+          // Create failure notification
+          await createAndEmitNotification(
+            req.user.id,
+            'alert',
+            `Campaign "${campaign.name}" failed`,
+            err.message || 'Failed to send campaign messages',
+            {
+              meta: [
+                { label: 'Status', value: 'failed' },
+                { label: 'Error', value: err.message || 'Unknown error' }
+              ],
+              relatedId: campaign._id,
+              data: { campaignId: campaign._id.toString(), error: err.message }
+            }
+          );
+        }
+      });
+
+    res.status(200).json({
+      success: true,
+      message: `Campaign "${campaign.name}" started sending!`,
       data: campaign
     });
   } catch (error) {

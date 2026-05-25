@@ -73,4 +73,22 @@ const getIO = () => {
   return io;
 };
 
-module.exports = { initializeSocket, getIO };
+// Function to emit notification in real-time to a user
+const emitNotification = (userId, notification) => {
+  const socketIO = getIO();
+  if (socketIO) {
+    socketIO.to(userId).emit('new_notification', notification);
+  }
+};
+
+// Function to emit notification to multiple users
+const emitNotificationToUsers = (userIds, notification) => {
+  const socketIO = getIO();
+  if (socketIO) {
+    userIds.forEach(userId => {
+      socketIO.to(userId).emit('new_notification', notification);
+    });
+  }
+};
+
+module.exports = { initializeSocket, getIO, emitNotification, emitNotificationToUsers };

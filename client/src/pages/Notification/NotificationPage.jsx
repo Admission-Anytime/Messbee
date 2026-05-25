@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useContext } from "react";
 import { 
   CheckCircleIcon, 
   TrashIcon, 
@@ -15,105 +15,184 @@ import {
   ArchiveBoxIcon,
   FunnelIcon
 } from "@heroicons/react/24/outline";
-
-// --- MOCK DATA ---
-const MOCK_LOGS = [
-  { 
-    id: 1, type: 'chat', user: 'Sarah Miller', avatar: 'https://i.pravatar.cc/150?u=sarah', 
-    title: 'Enterprise Plan Inquiry',
-    message: 'Hi team, I am looking to upgrade to the Enterprise plan for my agency. Can you send over the pricing documentation and API limits?', 
-    meta: [{ label: 'Source', value: 'Web Chat' }, { label: 'Region', value: 'North America' }],
-    time: '10:42 AM', date: 'Today', isUnread: true, tag: 'Sales' 
-  },
-  { 
-    id: 2, type: 'mention', user: 'David Chen', avatar: null, 
-    title: 'Mentioned in Ticket #4829',
-    message: 'Hey @Admission, could you check the webhook logs for this client? They are reporting a 403 error on callback.', 
-    meta: [{ label: 'Priority', value: 'High' }],
-    time: '09:15 AM', date: 'Today', isUnread: true, tag: 'Support' 
-  },
-  { 
-    id: 3, type: 'system', user: 'System Alert', avatar: null, 
-    title: 'Database Backup Successful',
-    message: 'Daily automated backup completed successfully. Total size: 4.2GB. No errors reported.', 
-    meta: [{ label: 'Server', value: 'AWS-East-1' }],
-    time: '06:00 AM', date: 'Today', isUnread: false, tag: 'System' 
-  },
-  { 
-    id: 4, type: 'lead', user: 'New Inbound Lead', avatar: null, 
-    title: 'Lead from Google Ads',
-    message: 'New contact via WhatsApp Widget. Interested in "Bulk Messaging" features.', 
-    meta: [{ label: 'Campaign', value: 'Q1_Marketing' }],
-    time: '04:30 PM', date: 'Yesterday', isUnread: false, tag: 'Marketing' 
-  },
-  { 
-    id: 5, type: 'alert', user: 'API Credit Low', avatar: null, 
-    title: 'Low Balance Warning',
-    message: 'Your account balance has dropped below 1,000 credits. Auto-recharge is currently disabled.', 
-    meta: [{ label: 'Balance', value: '980' }],
-    time: '02:00 PM', date: 'Yesterday', isUnread: true, tag: 'Billing' 
-  },
-];
+import NotificationApi from "../../services/NotificationApi";
+import { userContext } from "../../context/Context";
+import toast from "react-hot-toast";
 
 const NotificationPage = () => {
-  const [logs, setLogs] = useState(MOCK_LOGS);
+  const { socket } = useContext(userContext);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedId, setExpandedId] = useState(null);
+  const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, pages: 0 });
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // --- LOAD NOTIFICATIONS ON MOUNT ---
+  useEffect(() => {
+    fetchNotifications();
+    fetchUnreadCount();
+  }, []);
+
+  // --- LISTEN FOR REAL-TIME NOTIFICATIONS ---
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('new_notification', (notification) => {
+      console.log('🔔 New notification received:', notification);
+      // Add to top of list
+      setNotifications(prev => [notification, ...prev]);
+      // Update unread count
+      setUnreadCount(prev => prev + 1);
+      // Show toast
+      toast.success(`${notification.title}`);
+    });
+
+    return () => {
+      socket.off('new_notification');
+    };
+  }, [socket]);
+
+  // --- FETCH NOTIFICATIONS ---
+  const fetchNotifications = async (page = 1, isRead = null) => {
+    try {
+      setLoading(true);
+      const response = await NotificationApi.getNotifications(page, 10, isRead);
+      if (response.success) {
+        setNotifications(response.data);
+        setPagination(response.pagination);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+      toast.error('Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- FETCH UNREAD COUNT ---
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await NotificationApi.getUnreadCount();
+      if (response.success) {
+        setUnreadCount(response.data.unreadCount);
+      }
+    } catch (error) {
+      console.error('Error fetching unread count:', error);
+    }
+  };
 
   // --- STATS ---
   const stats = {
-    total: logs.length,
-    unread: logs.filter(l => l.isUnread).length,
-    critical: logs.filter(l => l.tag === 'Billing' || l.tag === 'System').length
+    total: pagination.total || 0,
+    unread: unreadCount,
+    critical: notifications.filter(n => n.type === 'alert' || n.type === 'system').length
   };
 
   // --- FILTERING ---
-  const filteredLogs = useMemo(() => {
-    return logs.filter(log => {
-      const matchesSearch = log.message.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                            log.user.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredNotifications = useMemo(() => {
+    return notifications.filter(notif => {
+      const matchesSearch = notif.message.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            notif.title.toLowerCase().includes(searchQuery.toLowerCase());
       if (!matchesSearch) return false;
       if (activeFilter === "All") return true;
-      if (activeFilter === "Unread") return log.isUnread;
-      if (activeFilter === "System") return log.type === 'alert' || log.type === 'system';
-      if (activeFilter === "Mentions") return log.type === 'mention';
+      if (activeFilter === "Unread") return !notif.isRead;
+      if (activeFilter === "System") return notif.type === 'alert' || notif.type === 'system';
+      if (activeFilter === "Mentions") return notif.type === 'mention';
       return true;
     });
-  }, [logs, activeFilter, searchQuery]);
+  }, [notifications, activeFilter, searchQuery]);
 
   // --- ACTIONS ---
-  const handleCardClick = (id) => {
+  const handleCardClick = async (id) => {
     setExpandedId(expandedId === id ? null : id);
-    setLogs(prevLogs => prevLogs.map(log => log.id === id ? { ...log, isUnread: false } : log));
+    // Mark as read
+    const notif = notifications.find(n => n._id === id);
+    if (notif && !notif.isRead) {
+      try {
+        await NotificationApi.markAsRead(id);
+        setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
   };
 
-  const markAllRead = () => setLogs(logs.map(l => ({ ...l, isUnread: false })));
+  const markAllRead = async () => {
+    try {
+      await NotificationApi.markAllAsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+      setUnreadCount(0);
+      toast.success('All marked as read');
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+      toast.error('Failed to mark all as read');
+    }
+  };
   
-  const deleteLog = (e, id) => {
+  const deleteNotification = async (e, id) => {
     e.stopPropagation();
-    setLogs(logs.filter(l => l.id !== id));
+    try {
+      await NotificationApi.deleteNotification(id);
+      setNotifications(prev => prev.filter(n => n._id !== id));
+      const notif = notifications.find(n => n._id === id);
+      if (notif && !notif.isRead) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      toast.success('Notification deleted');
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+      toast.error('Failed to delete notification');
+    }
   };
 
-  const markAsReadSingle = (e, id) => {
+  const markAsReadSingle = async (e, id) => {
     e.stopPropagation();
-    setLogs(logs.map(l => l.id === id ? { ...l, isUnread: false } : l));
+    try {
+      await NotificationApi.markAsRead(id);
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, isRead: true } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
+    }
+  };
+
+  // --- FORMAT TIME ---
+  const formatTime = (date) => {
+    const now = new Date();
+    const notifDate = new Date(date);
+    const diffMs = now - notifDate;
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return notifDate.toLocaleDateString();
   };
 
   // --- ICONS ---
-  const renderAvatar = (log) => {
-    if (log.avatar) return <img src={log.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm" />;
-    
-    let Icon = CheckCircleIcon;
-    let style = "bg-slate-100 text-slate-500";
-    if (log.type === 'mention') { Icon = AtSymbolIcon; style = "bg-blue-100 text-blue-600"; }
-    else if (log.type === 'alert') { Icon = ExclamationTriangleIcon; style = "bg-amber-100 text-amber-600"; }
-    else if (log.type === 'lead') { Icon = UserPlusIcon; style = "bg-emerald-100 text-emerald-600"; }
-    else if (log.type === 'system') { Icon = BellIcon; style = "bg-purple-100 text-purple-600"; }
+  const renderAvatar = (notif) => {
+    const typeConfig = {
+      chat: { Icon: ChatBubbleLeftEllipsisIcon, style: "bg-blue-100 text-blue-600" },
+      mention: { Icon: AtSymbolIcon, style: "bg-blue-100 text-blue-600" },
+      system: { Icon: BellIcon, style: "bg-purple-100 text-purple-600" },
+      alert: { Icon: ExclamationTriangleIcon, style: "bg-amber-100 text-amber-600" },
+      lead: { Icon: UserPlusIcon, style: "bg-emerald-100 text-emerald-600" },
+      campaign: { Icon: BellIcon, style: "bg-indigo-100 text-indigo-600" },
+      contact: { Icon: UserPlusIcon, style: "bg-emerald-100 text-emerald-600" }
+    };
+
+    const config = typeConfig[notif.type] || typeConfig.system;
+    const { Icon, style } = config;
 
     return (
       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${style} shadow-sm`}>
-         <Icon className="w-5 h-5" />
+        <Icon className="w-5 h-5" />
       </div>
     );
   };
@@ -206,40 +285,44 @@ const NotificationPage = () => {
 
         {/* --- LIST --- */}
         <div className="space-y-3 w-full">
-           {filteredLogs.length > 0 ? (
-              filteredLogs.map((log) => {
-                 const isExpanded = expandedId === log.id;
+           {loading ? (
+              <div className="flex items-center justify-center py-20">
+                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+              </div>
+           ) : filteredNotifications.length > 0 ? (
+              filteredNotifications.map((notif) => {
+                 const isExpanded = expandedId === notif._id;
                  return (
                     <div 
-                      key={log.id} 
-                      onClick={() => handleCardClick(log.id)}
+                      key={notif._id} 
+                      onClick={() => handleCardClick(notif._id)}
                       className={`group relative bg-white rounded-xl border transition-all duration-200 cursor-pointer overflow-hidden w-full
                                  ${isExpanded ? 'border-emerald-500 shadow-lg ring-1 ring-emerald-500/20' : 'border-gray-200 hover:border-emerald-300 hover:shadow-md'}
-                                 ${log.isUnread && !isExpanded ? 'bg-slate-50/40' : ''}`}
+                                 ${!notif.isRead && !isExpanded ? 'bg-slate-50/40' : ''}`}
                     >
                        <div className="p-4 flex items-start gap-4">
-                          {log.isUnread && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>}
+                          {!notif.isRead && <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500"></div>}
 
-                          {renderAvatar(log)}
+                          {renderAvatar(notif)}
 
                           <div className="flex-1 min-w-0 pt-0.5">
                              <div className="flex justify-between items-start">
                                 <div>
-                                   <h4 className={`text-sm font-bold ${log.isUnread ? 'text-slate-900' : 'text-slate-700'}`}>
-                                      {log.title}
+                                   <h4 className={`text-sm font-bold ${!notif.isRead ? 'text-slate-900' : 'text-slate-700'}`}>
+                                      {notif.title}
                                    </h4>
-                                   <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-2">
-                                      {log.user} <span className="w-1 h-1 rounded-full bg-slate-300"></span> {log.date}
+                                   <p className="text-xs text-slate-500 mt-0.5">
+                                      {notif.type.toUpperCase()}
                                    </p>
                                 </div>
                                 <div className="flex items-center gap-3">
-                                   <span className="text-xs font-semibold text-slate-400">{log.time}</span>
+                                   <span className="text-xs font-semibold text-slate-400">{formatTime(notif.createdAt)}</span>
                                    
                                    <div className="hidden group-hover:flex items-center gap-1 opacity-100 transition-opacity">
-                                      {log.isUnread && (
-                                         <button onClick={(e) => markAsReadSingle(e, log.id)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="Mark Read"><CheckCircleIcon className="w-4 h-4" /></button>
+                                      {!notif.isRead && (
+                                         <button onClick={(e) => markAsReadSingle(e, notif._id)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-md transition-colors" title="Mark Read"><CheckCircleIcon className="w-4 h-4" /></button>
                                       )}
-                                      <button onClick={(e) => deleteLog(e, log.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete"><TrashIcon className="w-4 h-4" /></button>
+                                      <button onClick={(e) => deleteNotification(e, notif._id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Delete"><TrashIcon className="w-4 h-4" /></button>
                                    </div>
                                    
                                    <ChevronDownIcon className={`w-4 h-4 text-slate-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
@@ -247,8 +330,8 @@ const NotificationPage = () => {
                              </div>
                              
                              {!isExpanded && (
-                                <p className={`mt-2 text-sm truncate ${log.isUnread ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>
-                                   {log.message}
+                                <p className={`mt-2 text-sm truncate ${!notif.isRead ? 'text-slate-800 font-medium' : 'text-slate-500'}`}>
+                                   {notif.message}
                                 </p>
                              )}
                           </div>
@@ -257,12 +340,12 @@ const NotificationPage = () => {
                        <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-96 opacity-100 border-t border-gray-100' : 'max-h-0 opacity-0'}`}>
                           <div className="p-5 bg-slate-50/30">
                              <p className="text-sm text-slate-700 leading-relaxed">
-                                {log.message}
+                                {notif.message}
                              </p>
                              
-                             {log.meta && (
+                             {notif.meta && notif.meta.length > 0 && (
                                 <div className="flex flex-wrap gap-2 mt-4">
-                                   {log.meta.map((item, idx) => (
+                                   {notif.meta.map((item, idx) => (
                                       <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-200 rounded-md shadow-sm">
                                          <span className="text-[10px] font-bold text-slate-400 uppercase">{item.label}</span>
                                          <span className="text-xs font-semibold text-slate-700">{item.value}</span>
@@ -272,7 +355,7 @@ const NotificationPage = () => {
                              )}
 
                              <div className="flex items-center justify-end gap-3 mt-5 pt-4 border-t border-gray-100">
-                                <button onClick={(e) => deleteLog(e, log.id)} className="text-xs font-bold text-red-500 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors">
+                                <button onClick={(e) => deleteNotification(e, notif._id)} className="text-xs font-bold text-red-500 hover:text-red-700 px-3 py-2 rounded-lg hover:bg-red-50 transition-colors">
                                    Remove Log
                                 </button>
                                 <button className="px-4 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 rounded-lg shadow-md hover:shadow-lg transition-all flex items-center gap-2">
