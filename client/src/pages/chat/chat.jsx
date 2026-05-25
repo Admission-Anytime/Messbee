@@ -26,6 +26,7 @@ const Chat = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [activeTab, setActiveTab] = useState("All");
   const [loading, setLoading] = useState(true);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState(null);
   const [sendError, setSendError] = useState(null);  // WhatsApp send error
 
@@ -220,6 +221,10 @@ const Chat = () => {
   useEffect(() => {
     if (!activeChatId || !socketRef.current) return;
 
+    // Clear previous messages immediately so there's no visual lag
+    setMessages([]);
+    setMessagesLoading(true);
+
     const fetchMessages = async () => {
       try {
         if (previousChatIdRef.current) {
@@ -252,6 +257,8 @@ const Chat = () => {
         refreshGlobalUnread();
       } catch (err) {
         console.error("Error fetching messages:", err);
+      } finally {
+        setMessagesLoading(false);
       }
     };
 
@@ -703,7 +710,13 @@ const Chat = () => {
         )}
         {activeChat ? (
           <div className="flex h-full w-full relative">
-            <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">
+            <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100 relative">
+              {messagesLoading && (
+                <div className="absolute inset-0 bg-slate-50/65 backdrop-blur-[1px] z-30 flex flex-col items-center justify-center gap-3">
+                  <div className="w-10 h-10 border-4 border-[#00B050] border-t-transparent rounded-full animate-spin shadow-sm"></div>
+                  <p className="text-sm font-bold text-slate-500 animate-pulse">Loading messages...</p>
+                </div>
+              )}
               <Conversion
                 data={{ ...activeChat, messages: messages }}
                 onSendMessage={handleSendMessage}
