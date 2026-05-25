@@ -21,6 +21,9 @@ const { createAndEmitNotification } = require('../services/notificationService')
 // @access  Private
 exports.testConnection = async (req, res, next) => {
   try {
+    // Sync configuration from database first
+    await whatsappService.syncConfig();
+
     // Validate configuration
     whatsappService.validateConfig();
     
