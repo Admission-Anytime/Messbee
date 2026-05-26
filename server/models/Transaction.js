@@ -27,6 +27,35 @@ const transactionSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
+  },
+  // Razorpay Integration Fields
+  razorpayOrderId: {
+    type: String,
+    index: true
+  },
+  razorpayPaymentId: {
+    type: String,
+    index: true
+  },
+  razorpaySignature: {
+    type: String
+  },
+  // Payment metadata
+  metadata: {
+    type: {
+      scenario: {
+        type: String,
+        enum: ['subscription', 'credit_topup', 'campaign_cost'],
+        description: 'Type of transaction'
+      },
+      planType: String,
+      billingCycle: String,
+      topupAmount: Number,
+      campaignId: mongoose.Schema.ObjectId,
+      paymentMethod: String,
+      failureReason: String
+    },
+    default: {}
   }
 }, {
   timestamps: true

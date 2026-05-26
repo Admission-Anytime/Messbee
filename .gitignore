@@ -1,0 +1,3 @@
+# Ignore all markdown files in server directory except README.md
+/server/*.md
+!/server/README.md
