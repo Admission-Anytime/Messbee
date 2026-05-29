@@ -6,9 +6,13 @@ import {
   Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, Phone, Smile, Paperclip, Send, CheckCheck 
 } from 'lucide-react';
 import { toast } from 'react-toastify';
-import ErrorState from '../../components/ui/ErrorState'; 
+import ErrorState from '../../components/ui/ErrorState';
+import { userContext } from '../../context/Context';
+import { PLAN_LIMITS } from '../../utils/planLimits';
+import { useContext } from 'react';
 
 const QuickReply = () => {
+  const { user } = useContext(userContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false); // Delete confirmation state
   const [itemToDelete, setItemToDelete] = useState(null); // ID of item to delete
@@ -25,6 +29,11 @@ const QuickReply = () => {
   const [activePreview, setActivePreview] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Plan based limit
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const PLAN_LIMIT = PLAN_LIMITS[currentPlan]?.quickReplies || PLAN_LIMITS.free.quickReplies;
+  const isLimitReached = replies.length >= PLAN_LIMIT;
 
   const API_URL = '/quick-replies';
   const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'; 
@@ -205,15 +214,27 @@ const QuickReply = () => {
                 Total: {replies.length}
               </span>
             </div>
-            <button
-              onClick={() => {
-                resetForm();
-                setIsModalOpen(true);
-              }}
-              className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
-            >
-              <Plus size={18} /> Add Quick Reply
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+                <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                Quick Replies: {replies.length}/{PLAN_LIMIT}
+              </div>
+              <button
+                id="btn-add-quick-reply"
+                onClick={() => {
+                  if (isLimitReached) {
+                    toast.error(`Plan Limit Reached: You can only create up to ${PLAN_LIMIT} quick replies.`);
+                    return;
+                  }
+                  resetForm();
+                  setIsModalOpen(true);
+                }}
+                disabled={isLimitReached}
+                className={`${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-200'} px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
+              >
+                <Plus size={18} /> Add Quick Reply
+              </button>
+            </div>
           </div>
 
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -324,12 +345,14 @@ const QuickReply = () => {
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
               <button
+                id="btn-cancel-delete-quick-reply"
                 onClick={() => setIsDeleteModalOpen(false)}
                 className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
+                id="btn-confirm-delete-quick-reply"
                 onClick={handleConfirmDelete}
                 className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px"
               >
@@ -387,6 +410,7 @@ const QuickReply = () => {
                   <div className="relative group">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 font-bold group-focus-within:text-emerald-500">/</span>
                     <input
+                      id="input-quick-reply-shortcut"
                       type="text"
                       value={shortcut}
                       onChange={(e) => setShortcut(e.target.value)}
@@ -441,6 +465,7 @@ const QuickReply = () => {
                   ))}
                 </div>
                 <textarea
+                  id="textarea-quick-reply-message"
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows="5"
@@ -483,10 +508,11 @@ const QuickReply = () => {
             </div>
 
             <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
-              <button onClick={closeModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">
+              <button id="btn-cancel-quick-reply" onClick={closeModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">
                 Cancel
               </button>
               <button
+                id="btn-save-quick-reply"
                 onClick={handleSave}
                 className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px"
               >

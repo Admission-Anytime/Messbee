@@ -3,6 +3,7 @@ import { getAllLabels, createLabel, updateLabel, deleteLabel } from '../../servi
 import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState';
 import { userContext } from '../../context/Context';
+import { PLAN_LIMITS } from '../../utils/planLimits';
 
 const Label = () => {
   const { user } = useContext(userContext);
@@ -12,8 +13,8 @@ const Label = () => {
   const [error, setError] = useState(null);
   
   // Plan based limit
-  const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
-  const PLAN_LIMIT = 5; 
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const PLAN_LIMIT = PLAN_LIMITS[currentPlan]?.labels || PLAN_LIMITS.free.labels; 
   
   // --- DELETE MODAL STATE ---
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -146,6 +147,7 @@ const Label = () => {
                 Label used: {labels.length}/{PLAN_LIMIT}
               </div>
               <button 
+                id="btn-add-label"
                 onClick={() => handleOpenModal()} 
                 disabled={labels.length >= PLAN_LIMIT}
                 className={`${labels.length >= PLAN_LIMIT ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#00B050] hover:bg-[#009b45] text-white shadow-emerald-200'} px-5 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm`}
@@ -272,12 +274,12 @@ const Label = () => {
                   <label className="text-[13px] font-bold text-gray-700">Label Name</label>
                   <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">{labelName.length} / 25</span>
                 </div>
-                <input type="text" value={labelName} onChange={(e) => setLabelName(e.target.value)} maxLength={25} placeholder="e.g. VIP Customer" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
+                <input id="input-label-name" type="text" value={labelName} onChange={(e) => setLabelName(e.target.value)} maxLength={25} placeholder="e.g. VIP Customer" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
               </div>
 
               <div>
                 <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Description</label>
-                <textarea rows="3" value={labelDesc} onChange={(e) => setLabelDesc(e.target.value)} placeholder="Add a description for this label..." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium resize-none bg-gray-50/30 leading-relaxed" />
+                <textarea id="textarea-label-desc" rows="3" value={labelDesc} onChange={(e) => setLabelDesc(e.target.value)} placeholder="Add a description for this label..." className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium resize-none bg-gray-50/30 leading-relaxed" />
               </div>
 
               <div>
@@ -298,8 +300,8 @@ const Label = () => {
             </div>
 
             <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
-              <button onClick={closeModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
-              <button onClick={handleSave} className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px">Save Label</button>
+              <button id="btn-cancel-label" onClick={closeModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
+              <button id="btn-save-label" onClick={handleSave} className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px">Save Label</button>
             </div>
           </div>
         </div>
@@ -316,10 +318,10 @@ const Label = () => {
             <p className="text-[13px] font-medium text-gray-500 mb-8 px-2 leading-relaxed">This will permanently remove the label. Are you sure you want to proceed?</p>
             
             <div className="flex flex-col sm:flex-row gap-3">
-              <button onClick={() => setIsDeleteModalOpen(false)} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+              <button id="btn-cancel-delete-label" onClick={() => setIsDeleteModalOpen(false)} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button onClick={executeDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
+              <button id="btn-confirm-delete-label" onClick={executeDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
                 Confirm
               </button>
             </div>

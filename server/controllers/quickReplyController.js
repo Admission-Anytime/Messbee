@@ -1,4 +1,5 @@
 const QuickReply = require('../models/QuickReply');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 
 // 1. Get all quick replies
 exports.getQuickReplies = async (req, res) => {
@@ -27,6 +28,18 @@ exports.createQuickReply = async (req, res) => {
         const existingReply = await QuickReply.findOne({ shortcut, user });
         if (existingReply) {
             return res.status(400).json({ message: `Shortcut "${shortcut}" already exists for your account` });
+        }
+
+        // Check plan limit dynamically
+        const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+        const limit = PLAN_LIMITS[userPlan]?.quickReplies || PLAN_LIMITS.free.quickReplies;
+
+        const quickReplyCount = await QuickReply.countDocuments({ user });
+        if (quickReplyCount >= limit) {
+            return res.status(403).json({
+                message: `Quick reply limit reached. You can only create up to ${limit} quick replies. Please upgrade your plan.`,
+                limitReached: true
+            });
         }
 
         const data = { ...req.body, user };
