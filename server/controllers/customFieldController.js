@@ -1,5 +1,6 @@
 const CustomField = require('../models/CustomField');
 const { successResponse, errorResponse, getPagination } = require('../utils/response');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 
 // @desc    Get all custom fields for a user
 // @route   GET /api/custom-fields
@@ -91,6 +92,19 @@ exports.createCustomField = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: 'Technical key must be unique. This key already exists.'
+      });
+    }
+
+    // Check plan limit dynamically
+    const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+    const limit = PLAN_LIMITS[userPlan]?.customFields || PLAN_LIMITS.free.customFields;
+
+    const customFieldsCount = await CustomField.countDocuments({ userId });
+    if (customFieldsCount >= limit) {
+      return res.status(403).json({
+        success: false,
+        message: `Custom field limit reached. You can only create up to ${limit} custom fields on your current plan. Please upgrade your plan.`,
+        limitReached: true
       });
     }
 

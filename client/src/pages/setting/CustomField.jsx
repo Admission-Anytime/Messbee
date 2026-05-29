@@ -17,6 +17,9 @@ import {
 } from "../../services/CustomfieldApi";
 import { showToast } from "../../utils/showToast";
 import ErrorState from "../../components/ui/ErrorState";
+import { userContext } from "../../context/Context";
+import { PLAN_LIMITS } from "../../utils/planLimits";
+import { useContext } from "react";
 
 const slugifyKey = (value) =>
   value
@@ -64,10 +67,16 @@ function ToggleSwitch({ checked, onChange, title }) {
 }
 
 const CustomFieldsSection = () => {
+  const { user } = useContext(userContext);
   const [fields, setFields] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Plan based limit
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const PLAN_LIMIT = PLAN_LIMITS[currentPlan]?.customFields || PLAN_LIMITS.free.customFields;
+  const isLimitReached = fields.length >= PLAN_LIMIT;
 
   // ─── Fetch custom fields ──────────────────────────────────────────────────
   const fetchCustomFields = async () => {
@@ -251,6 +260,10 @@ const CustomFieldsSection = () => {
   const existingKeys = useMemo(() => new Set(Array.isArray(fields) ? fields.map((f) => f.key) : []), [fields]);
 
   const openCreateModal = () => {
+    if (isLimitReached) {
+      showToast.error("Plan Limit Reached", `You can only create up to ${PLAN_LIMIT} custom fields.`);
+      return;
+    }
     setForm({ name: "", type: "Text", key: "", description: "", showInContacts: true });
     setCreateKeyManuallyEdited(false);
     setIsCreateOpen(true);
@@ -390,13 +403,15 @@ const CustomFieldsSection = () => {
           <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
         </div>
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center bg-blue-50 border border-blue-100 px-4 py-1.5 rounded-full">
-            <span className="w-2 h-2 bg-blue-600 rounded-full mr-2"></span>
-            <span className="text-blue-700 font-semibold text-xs whitespace-nowrap">Custom fields: {fields.length}</span>
+          <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+            <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+            Custom fields: {fields.length}/{PLAN_LIMIT}
           </div>
           <button
+            id="btn-add-custom-field"
             onClick={openCreateModal}
-            className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+            disabled={isLimitReached}
+            className={`${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-200'} px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
           >
             <span className="text-lg">+</span>
             <span>Create Custom Fields</span>
@@ -562,10 +577,10 @@ const CustomFieldsSection = () => {
             </p>
             
             <div className="flex flex-col sm:flex-row gap-3">
-              <button type="button" onClick={closeDeleteModal} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
+              <button id="btn-cancel-delete-custom-field" type="button" onClick={closeDeleteModal} className="flex-1 order-2 sm:order-1 px-4 py-2.5 border border-gray-200 rounded-xl text-[13px] font-bold text-gray-600 hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
-              <button type="button" onClick={confirmDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
+              <button id="btn-confirm-delete-custom-field" type="button" onClick={confirmDelete} className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px">
                 Confirm
               </button>
             </div>
@@ -587,7 +602,7 @@ const CustomFieldsSection = () => {
 
                 <div className="mb-5">
                   <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Field Name</label>
-                  <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Order Status" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
+                  <input id="input-custom-field-name" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Order Status" className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30" />
                 </div>
 
                 <div className="mb-5">
@@ -630,8 +645,8 @@ const CustomFieldsSection = () => {
             </div>
 
             <div className="sticky bottom-0 bg-white flex justify-end items-center gap-3 px-6 py-4 border-t">
-              <button type="button" onClick={closeCreateModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
-              <button type="submit" form="createForm" disabled={!!createError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${createError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Create Field</button>
+              <button id="btn-cancel-custom-field" type="button" onClick={closeCreateModal} className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2">Cancel</button>
+              <button id="btn-save-custom-field" type="submit" form="createForm" disabled={!!createError} className={`px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px text-white ${createError ? "bg-emerald-300 cursor-not-allowed" : "bg-[#10B981] hover:bg-[#059669]"}`}>Create Field</button>
             </div>
           </div>
         </div>

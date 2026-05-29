@@ -1,4 +1,5 @@
 const Label = require('../models/Label');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 
 // 1. Get all labels
 exports.getLabels = async (req, res) => {
@@ -30,6 +31,18 @@ exports.createLabel = async (req, res) => {
 
         if (name.length > 25) {
             return res.status(400).json({ message: 'Label name cannot exceed 25 characters' });
+        }
+
+        // Check plan limit dynamically
+        const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+        const limit = PLAN_LIMITS[userPlan]?.labels || PLAN_LIMITS.free.labels;
+
+        const labelCount = await Label.countDocuments({ user: req.user?._id });
+        if (labelCount >= limit) {
+            return res.status(403).json({ 
+                message: `Label limit reached. You can only create up to ${limit} labels. Please upgrade your plan.`,
+                limitReached: true 
+            });
         }
 
         // Set creator from authenticated user

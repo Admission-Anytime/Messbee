@@ -14,6 +14,7 @@ import {
 
 // Import context
 import { userContext } from "../../../context/Context";
+import { PLAN_LIMITS } from "../../../utils/planLimits";
 
 // Import the toast utility
 import { showToast } from "../../../utils/showToast"; 
@@ -39,8 +40,8 @@ const StatusPage = () => {
   const [copiedId, setCopiedId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
-  const PLAN_LIMIT = 5;
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const PLAN_LIMIT = PLAN_LIMITS[currentPlan]?.status || PLAN_LIMIT.free.status;
   const usedCount = statuses.length;
   // ✅ NEW: Boolean to easily check if limit is reached
   const isLimitReached = usedCount >= PLAN_LIMIT;
@@ -179,6 +180,7 @@ const StatusPage = () => {
               </div>
 
               <button 
+                id="btn-add-status"
                 onClick={() => openModal()}
                 // ✅ NEW: Disable button visually and functionally if limit reached
                 disabled={isLimitReached}
@@ -288,14 +290,14 @@ const StatusPage = () => {
                  <button onClick={() => setIsModalOpen(false)}><XMarkIcon className="w-5 h-5 text-slate-400 hover:text-slate-600" /></button>
               </div>
               <form onSubmit={handleSave} className="p-6 space-y-4">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Name</label>
-                    <input type="text" required value={currentStatus?.name || ""} onChange={(e) => setCurrentStatus({...currentStatus, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
-                    <textarea rows="2" value={currentStatus?.description || ""} onChange={(e) => setCurrentStatus({...currentStatus, description: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none" />
-                 </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Name</label>
+                     <input id="input-status-name" type="text" required value={currentStatus?.name || ""} onChange={(e) => setCurrentStatus({...currentStatus, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
+                     <textarea id="textarea-status-desc" rows="2" value={currentStatus?.description || ""} onChange={(e) => setCurrentStatus({...currentStatus, description: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none" />
+                  </div>
                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Color</label>
                     <div className="flex gap-3 flex-wrap">
@@ -305,10 +307,10 @@ const StatusPage = () => {
                        <label className="w-8 h-8 rounded-full border border-gray-200 cursor-pointer flex items-center justify-center hover:bg-gray-50"><input type="color" className="opacity-0 w-0 h-0" onChange={(e) => setCurrentStatus({...currentStatus, color: e.target.value})} /><SwatchIcon className="w-4 h-4 text-slate-400" /></label>
                     </div>
                  </div>
-                 <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50">Cancel</button>
-                    <button type="submit" className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 shadow-lg shadow-slate-200">{isEditMode ? "Save Changes" : "Create Status"}</button>
-                 </div>
+                  <div className="pt-4 flex gap-3">
+                     <button id="btn-cancel-status" type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50">Cancel</button>
+                     <button id="btn-save-status" type="submit" className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 shadow-lg shadow-slate-200">{isEditMode ? "Save Changes" : "Create Status"}</button>
+                  </div>
               </form>
            </div>
         </div>
@@ -329,18 +331,20 @@ const StatusPage = () => {
               </p>
               
               <div className="flex gap-3">
-                 <button 
-                    onClick={() => setConfirmDeleteId(null)} 
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                    onClick={confirmDelete} 
-                    className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
-                 >
-                    Delete
-                 </button>
+                  <button 
+                     id="btn-cancel-delete-status"
+                     onClick={() => setConfirmDeleteId(null)} 
+                     className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors"
+                  >
+                     Cancel
+                  </button>
+                  <button 
+                     id="btn-confirm-delete-status"
+                     onClick={confirmDelete} 
+                     className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                  >
+                     Delete
+                  </button>
               </div>
 
            </div>
