@@ -12,11 +12,11 @@ let authToken = '';
 
 // Test data (update with your actual test data)
 const testData = {
-  token: 'YOUR_JWT_TOKEN_HERE', // Get from login endpoint
-  userId: 'USER_ID',
-  orderId: 'order_ABC123', // From Razorpay
-  paymentId: 'pay_ABC123', // From Razorpay
-  signature: 'signature_from_razorpay', // From Razorpay
+  token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMTEzZTM4NWQ0MDgyMzczYTdlMDcyNCIsImVtYWlsIjoiaGl0ZXNoQGdtYWlsLmNvbSIsInJvbGUiOiJBR0VOVCIsImlhdCI6MTc4MDMzMDkwMCwiZXhwIjoxNzgwNDE3MzAwfQ.qSDjEQY_ANmHXPLz7AChJniaZUxSP1L_0Pv8C1DosGA', // from login response
+  userId: '6a113e385d4082373a7e0724',
+  orderId: 'order_ABC123', // From Razorpay — replace with real value
+  paymentId: 'pay_ABC123', // From Razorpay — replace with real value
+  signature: 'signature_from_razorpay', // From Razorpay — replace with real value
   transactionId: 'TXN-12345678'
 };
 
@@ -35,6 +35,23 @@ const log = {
   info: (msg) => console.log(`${colors.blue}ℹ️  ${msg}${colors.reset}`),
   warn: (msg) => console.log(`${colors.yellow}⚠️  ${msg}${colors.reset}`)
 };
+
+function printError(err) {
+  try {
+    if (!err) return console.error('Error: <no error object>');
+    console.error('--- Error Start ---');
+    if (err.response) {
+      console.error('Response status:', err.response.status);
+      console.error('Response headers:', JSON.stringify(err.response.headers || {}, null, 2));
+      console.error('Response data:', JSON.stringify(err.response.data || err.response.text || {}, null, 2));
+    }
+    console.error('Message:', err.message);
+    if (err.stack) console.error('Stack:', err.stack);
+    console.error('--- Error End ---');
+  } catch (ex) {
+    console.error('Failed to print error details', ex);
+  }
+}
 
 /**
  * Test 1: Cross-Verify Payment
@@ -69,7 +86,7 @@ async function testCrossVerifyPayment() {
     return response.data;
   } catch (error) {
     log.error('Cross-Verify Payment test failed');
-    console.error('Error:', error.response?.data || error.message);
+    printError(error);
     return null;
   }
 }
@@ -100,7 +117,7 @@ async function testGetOrderStatus() {
     return response.data;
   } catch (error) {
     log.error('Get Order Status test failed');
-    console.error('Error:', error.response?.data || error.message);
+    printError(error);
     return null;
   }
 }
@@ -141,7 +158,7 @@ async function testReconcilePayment() {
     return response.data;
   } catch (error) {
     log.error('Reconcile Payment test failed');
-    console.error('Error:', error.response?.data || error.message);
+    printError(error);
     return null;
   }
 }
@@ -181,7 +198,7 @@ async function testFraudDetection() {
     return response.data;
   } catch (error) {
     log.error('Fraud Detection test failed');
-    console.error('Error:', error.response?.data || error.message);
+    printError(error);
     return null;
   }
 }
@@ -215,7 +232,7 @@ async function testMissingParameters() {
       console.log('Error Response:', JSON.stringify(error.response.data, null, 2));
     } else {
       log.error('Unexpected error');
-      console.error('Error:', error.message);
+      printError(error);
     }
   }
 }

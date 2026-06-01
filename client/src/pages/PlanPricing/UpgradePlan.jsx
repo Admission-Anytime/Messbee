@@ -753,29 +753,56 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
         order_id: orderId,
         handler: async (response) => {
           try {
-            // Step 3: Verify payment signature with backend
-            const verifyResponse = await axios.post(
-              "/billing/razorpay/verify-payment",
-              {
-                orderId,
-                paymentId: response.razorpay_payment_id,
-                signature: response.razorpay_signature,
-                transactionId
-              }
-            );
+            const paymentId = response.razorpay_payment_id;
+            const signature = response.razorpay_signature;
 
-            if (verifyResponse.data.success) {
-              // Pull authoritative user data from server
+            // 1) Verify signature & update transaction
+            const verifyResponse = await axios.post('/billing/razorpay/verify-payment', {
+              orderId,
+              paymentId,
+              signature,
+              transactionId
+            });
+
+            if (verifyResponse.data?.success) {
+              toast.success('Payment signature verified');
+            } else {
+              toast.warn('Signature verification failed; proceeding to server checks');
+            }
+
+            // 2) Cross-verify with Razorpay
+            const crossVerifyResponse = await axios.post('/billing/razorpay/cross-verify', {
+              orderId,
+              paymentId,
+              transactionId
+            });
+
+            if (crossVerifyResponse.data?.verified || crossVerifyResponse.data?.success) {
+              toast.success('Server confirmed payment with Razorpay');
+            } else {
+              toast.warn('Server could not fully verify payment with Razorpay');
+            }
+
+            // 3) Reconcile for final decision
+            const reconcileResponse = await axios.post('/billing/razorpay/reconcile', {
+              orderId,
+              clientPaymentId: paymentId,
+              clientSignature: signature,
+              clientStatus: verifyResponse.data?.success ? 'success' : 'failed',
+              transactionId
+            });
+
+            if (reconcileResponse.data?.success || reconcileResponse.data?.reconciled) {
+              toast.success('Payment reconciled successfully');
               if (refreshUser) await refreshUser();
               setPaymentDone(true);
             } else {
-              toast.error("Payment verification failed. Please contact support.");
+              const reason = (reconcileResponse.data?.mismatches || []).join('; ') || reconcileResponse.data?.message || 'Reconciliation failed';
+              toast.error('Payment reconciliation failed: ' + reason);
             }
           } catch (error) {
-            console.error("Payment verification error:", error);
-            toast.error(
-              error.response?.data?.message || "Payment verification failed"
-            );
+            console.error('Payment verification error:', error);
+            toast.error(error.response?.data?.message || 'Payment verification failed');
           }
         },
         prefill: {

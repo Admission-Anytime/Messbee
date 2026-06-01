@@ -52,30 +52,53 @@ export const initiatePayment = async (
       order_id: orderId,
       handler: async (response) => {
         try {
-          // Step 3: Verify payment signature
-          const verifyResponse = await axios.post(
-            '/billing/razorpay/verify-payment',
-            {
-              orderId,
-              paymentId: response.razorpay_payment_id,
-              signature: response.razorpay_signature,
-              transactionId
-            }
-          );
+          const paymentId = response.razorpay_payment_id;
+          const signature = response.razorpay_signature;
 
-          if (verifyResponse.data.success) {
-            if (onSuccess) {
-              onSuccess(verifyResponse.data.data);
-            }
-            return {
-              success: true,
-              data: verifyResponse.data.data
-            };
+          // 1) Verify signature on server (updates transaction)
+          const verifyResponse = await axios.post('/billing/razorpay/verify-payment', {
+            orderId,
+            paymentId,
+            signature,
+            transactionId
+          });
+
+          // 2) Cross-verify directly with Razorpay (server queries Razorpay)
+          const crossVerifyResponse = await axios.post('/billing/razorpay/cross-verify', {
+            orderId,
+            paymentId,
+            transactionId
+          });
+
+          // 3) Reconcile client-reported data with Razorpay authoritative data
+          const reconcileResponse = await axios.post('/billing/razorpay/reconcile', {
+            orderId,
+            clientPaymentId: paymentId,
+            clientSignature: signature,
+            clientStatus: verifyResponse.data?.success ? 'success' : 'failed',
+            transactionId
+          });
+
+          const resultPayload = {
+            verify: verifyResponse.data,
+            crossVerify: crossVerifyResponse.data,
+            reconcile: reconcileResponse.data
+          };
+
+          const reconciled = Boolean(reconcileResponse.data?.success || reconcileResponse.data?.reconciled);
+          const anySuccess = reconciled || Boolean(verifyResponse.data?.success) || Boolean(crossVerifyResponse.data?.success);
+
+          if (anySuccess) {
+            if (onSuccess) onSuccess(resultPayload);
+            return { success: true, data: resultPayload };
           }
+
+          if (onFailure) onFailure(resultPayload);
+          const err = new Error(reconcileResponse.data?.message || 'Payment reconciliation failed');
+          err.details = resultPayload;
+          throw err;
         } catch (error) {
-          if (onFailure) {
-            onFailure(error);
-          }
+          if (onFailure) onFailure(error);
           throw error;
         }
       },
