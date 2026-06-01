@@ -238,3 +238,35 @@ exports.refundPayment = async (paymentId, amount = null) => {
     throw new Error(`Failed to refund payment: ${error.message}`);
   }
 };
+
+/**
+ * Cross-verify payment by querying Razorpay directly (server-side verification)
+ * @param {string} paymentId - Razorpay payment ID
+ * @returns {Promise<object>} Complete verified payment details
+ */
+exports.crossVerifyPayment = async (paymentId) => {
+  try {
+    const payment = await razorpay.payments.fetch(paymentId);
+    
+    return {
+      success: true,
+      paymentId: payment.id,
+      orderId: payment.order_id,
+      amount: payment.amount,
+      currency: payment.currency,
+      status: payment.status, // 'captured', 'failed', 'refunded', etc.
+      method: payment.method,
+      email: payment.email,
+      contact: payment.contact,
+      fee: payment.fee,
+      tax: payment.tax,
+      captured: payment.captured,
+      description: payment.description,
+      notes: payment.notes,
+      acquirerData: payment.acquirer_data,
+      createdAt: payment.created_at
+    };
+  } catch (error) {
+    throw new Error(`Cross-verification failed: ${error.message}`);
+  }
+};

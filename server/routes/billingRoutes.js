@@ -4,6 +4,9 @@ const {
   getTransactions,
   createRazorpayOrder,
   verifyRazorpayPayment,
+  crossVerifyPayment,
+  getOrderStatus,
+  reconcilePayment,
   razorpayWebhook
 } = require('../controllers/billingController');
 const { protect } = require('../middleware/auth');
@@ -21,5 +24,8 @@ router.route('/transactions').post(createTransaction).get(getTransactions);
 // Razorpay integration routes
 router.post('/razorpay/create-order', createRazorpayOrder);
 router.post('/razorpay/verify-payment', verifyRazorpayPayment);
+router.post('/razorpay/cross-verify', crossVerifyPayment);
+router.post('/razorpay/order-status', getOrderStatus);
+router.post('/razorpay/reconcile', reconcilePayment);
 
 module.exports = router;

@@ -244,6 +244,218 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
 };
 
 /**
+ * @desc    Cross-verify payment (Server queries Razorpay independently)
+ * @route   POST /api/billing/razorpay/cross-verify
+ * @access  Private
+ * @body    {
+ *   orderId: string,
+ *   paymentId: string,
+ *   transactionId: string
+ * }
+ */
+exports.crossVerifyPayment = async (req, res, next) => {
+  try {
+    const { orderId, paymentId, transactionId } = req.body;
+    const userId = req.user.id;
+
+    if (!orderId || !paymentId || !transactionId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID, Payment ID, and Transaction ID are required'
+      });
+    }
+
+    // Step 1: Get transaction from DB
+    const transaction = await Transaction.findOne({
+      transactionId,
+      user: userId,
+      razorpayOrderId: orderId
+    });
+
+    if (!transaction) {
+      return res.status(404).json({
+        success: false,
+        message: 'Transaction not found'
+      });
+    }
+
+    // Step 2: Query Razorpay directly (server-side verification)
+    const razorpayPayment = await razorpayService.crossVerifyPayment(paymentId);
+
+    // Step 3: Cross-check data
+    const verificationResult = {
+      transactionId,
+      razorpayPaymentId: paymentId,
+      status: razorpayPayment.status,
+      checks: {
+        paymentCaptured: razorpayPayment.captured === true,
+        amountMatches: razorpayPayment.amount === Math.round(transaction.amount * 100),
+        orderMatches: razorpayPayment.orderId === orderId,
+        dbStatusMatches: (razorpayPayment.status === 'captured' && transaction.status === 'Paid') || 
+                        (razorpayPayment.status === 'failed' && transaction.status === 'Failed')
+      },
+      details: {
+        razorpayAmount: razorpayPayment.amount / 100,
+        dbAmount: transaction.amount,
+        razorpayStatus: razorpayPayment.status,
+        dbStatus: transaction.status,
+        method: razorpayPayment.method,
+        email: razorpayPayment.email
+      }
+    };
+
+    // Step 4: Determine if verified
+    const isVerified = 
+      verificationResult.checks.paymentCaptured &&
+      verificationResult.checks.amountMatches &&
+      verificationResult.checks.orderMatches;
+
+    // If there's a mismatch but Razorpay shows captured, auto-correct DB
+    if (!isVerified && razorpayPayment.status === 'captured') {
+      console.warn(`Mismatch detected for transaction ${transactionId}. Auto-correcting DB.`);
+      transaction.status = 'Paid';
+      transaction.razorpayPaymentId = paymentId;
+      transaction.metadata.paymentMethod = razorpayPayment.method;
+      await transaction.save();
+      verificationResult.corrected = true;
+    }
+
+    res.status(200).json({
+      success: isVerified || (razorpayPayment.status === 'captured'),
+      verified: isVerified || (razorpayPayment.status === 'captured'),
+      message: isVerified ? 'Payment verified successfully' : 'Payment status confirmed with Razorpay',
+      data: verificationResult
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Get order status directly from Razorpay
+ * @route   POST /api/billing/razorpay/order-status
+ * @access  Private
+ * @body    { orderId: string }
+ */
+exports.getOrderStatus = async (req, res, next) => {
+  try {
+    const { orderId } = req.body;
+
+    if (!orderId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID is required'
+      });
+    }
+
+    const orderDetails = await razorpayService.getOrderDetails(orderId);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orderId: orderDetails.id,
+        amount: orderDetails.amount / 100, // Convert paisa to rupees
+        currency: orderDetails.currency,
+        status: orderDetails.status,
+        receipt: orderDetails.receipt,
+        createdAt: orderDetails.created_at,
+        notes: orderDetails.notes
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Reconcile payment (Compare client data with Razorpay)
+ * @route   POST /api/billing/razorpay/reconcile
+ * @access  Private
+ * @body    {
+ *   orderId: string,
+ *   clientPaymentId: string,
+ *   clientSignature: string,
+ *   clientStatus: 'success|failed',
+ *   transactionId?: string
+ * }
+ */
+exports.reconcilePayment = async (req, res, next) => {
+  try {
+    const { orderId, clientPaymentId, clientSignature, clientStatus, transactionId } = req.body;
+    const userId = req.user.id;
+
+    if (!orderId || !clientPaymentId || !clientSignature) {
+      return res.status(400).json({
+        success: false,
+        message: 'Order ID, Payment ID, and Signature are required'
+      });
+    }
+
+    // Verify signature (validate client data)
+    const isSignatureValid = razorpayService.verifySignature(orderId, clientPaymentId, clientSignature);
+    if (!isSignatureValid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid signature - client data cannot be trusted',
+        reconciled: false,
+        action: 'reject'
+      });
+    }
+
+    // Get actual payment from Razorpay
+    const razorpayPayment = await razorpayService.crossVerifyPayment(clientPaymentId);
+
+    // Build mismatch report
+    const mismatches = [];
+    if (razorpayPayment.status !== 'captured' && clientStatus === 'success') {
+      mismatches.push(`Client claims success but Razorpay status is: ${razorpayPayment.status}`);
+    }
+    if (razorpayPayment.orderId !== orderId) {
+      mismatches.push('Order ID mismatch');
+    }
+    if (razorpayPayment.status === 'failed') {
+      mismatches.push('Payment failed in Razorpay');
+    }
+
+    const reconciled = mismatches.length === 0 && razorpayPayment.status === 'captured';
+
+    // If reconciled, update transaction if provided
+    if (reconciled && transactionId) {
+      const transaction = await Transaction.findOne({
+        transactionId,
+        user: userId,
+        razorpayOrderId: orderId
+      });
+
+      if (transaction) {
+        transaction.status = 'Verified';
+        transaction.razorpayPaymentId = clientPaymentId;
+        transaction.metadata.reconciled = true;
+        await transaction.save();
+      }
+    }
+
+    res.status(200).json({
+      success: reconciled,
+      reconciled,
+      mismatches,
+      action: reconciled ? 'approve' : 'reject',
+      data: {
+        paymentId: clientPaymentId,
+        amount: razorpayPayment.amount / 100,
+        razorpayStatus: razorpayPayment.status,
+        clientStatus,
+        method: razorpayPayment.method,
+        email: razorpayPayment.email,
+        matches: !mismatches.length
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * @desc    Handle Razorpay webhook events
  * @route   POST /api/billing/razorpay/webhook
  * @access  Public (but signature verified)
