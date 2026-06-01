@@ -11,7 +11,23 @@ import { getDaysRemaining, getSubscriptionProgress } from "../../utils/subscript
 
 function ManageSubscription() {
     const navigate = useNavigate();
-    const { user } = useContext(userContext);
+    const { user, rolePermissions } = useContext(userContext);
+    const [showBillingBlocked, setShowBillingBlocked] = React.useState(false);
+
+    // Check manage_billing permission
+    const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
+    const isAdmin = userRole === "Admin";
+    // Check manage_billing permission — reads from rolePermissions for all roles including Admin
+    const DEFAULT_BILLING_PERMS = { Admin: true, Manager: false, Agent: false };
+    const hasBillingAccess = rolePermissions?.[userRole]?.manage_billing
+      ?? DEFAULT_BILLING_PERMS[userRole]
+      ?? false;
+
+    const handleUpgradePlanClick = () => {
+      if (hasBillingAccess) {
+        navigate("/admin/plan/upgrade");
+      }
+    };
 
     const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
     const planName = user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free";
@@ -120,8 +136,10 @@ function ManageSubscription() {
                             {/* Action Buttons */}
                             <div className="flex flex-col gap-2">
                                 <button
-                                    onClick={() => navigate("/admin/plan/upgrade")}
-                                    className="px-6 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
+                                    onClick={handleUpgradePlanClick}
+                                    disabled={!hasBillingAccess}
+                                    className={`px-6 py-2.5 text-sm font-bold rounded-lg transition-colors shadow-sm ${hasBillingAccess ? "bg-emerald-500 hover:bg-emerald-600 text-white cursor-pointer" : "bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200"}`}
+                                    title={!hasBillingAccess ? "Manage Billing permission is disabled" : ""}
                                 >
                                     Upgrade Plan
                                 </button>

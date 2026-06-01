@@ -69,10 +69,16 @@ exports.requestSignupOTP = async (req, res, next) => {
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.isEmailVerified) {
-      return res.status(400).json({
-        success: false,
-        message: 'User with this email already exists'
-      });
+      // Allow re-registration only if the account was deactivated (removed from team)
+      // A deactivated + verified account means the user was deleted via ManageTeams
+      if (existingUser.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: 'User with this email already exists'
+        });
+      }
+      // Account exists but is deactivated — delete the old record so they can re-register
+      await existingUser.deleteOne();
     }
 
     // Generate OTP

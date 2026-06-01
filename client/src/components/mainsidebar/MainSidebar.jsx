@@ -213,21 +213,61 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { logoutUser, user } = useContext(userContext);
+  const { logoutUser, user, rolePermissions } = useContext(userContext);
   const handleLogout = async () => { await logoutUser(); navigate("/login"); };
 
+  const hasAccessToItem = (itemTitle) => {
+    if (!rolePermissions || !user?.role) return true;
+    
+    const roleCapitalized = user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase();
+    const myPerms = rolePermissions[roleCapitalized];
+    if (!myPerms) return true;
+
+    const permsMap = {
+      "Developer API": "api_configuration",
+      "App integration": "api_configuration",
+      "Manage Teams": "manage_team",
+    };
+
+    // Admin must never lose access to Manage Teams (lockout prevention)
+    if (itemTitle === "Manage Teams" && roleCapitalized === "Admin") return true;
+
+    const requiredKey = permsMap[itemTitle];
+    if (requiredKey && myPerms[requiredKey] === false) {
+      return false;
+    }
+    return true;
+  };
+
   const filteredMenuItems = useMemo(() => {
-    if (!searchQuery) return MENU_ITEMS;
     const q = searchQuery.toLowerCase();
     return MENU_ITEMS.map((cat) => ({
       ...cat,
       items: cat.items
+        .filter((item) => hasAccessToItem(item.title))
         .map((item) => {
+          // If no search query, just filter children by permissions and return
+          if (!searchQuery) {
+            if (item.isSubmenu && item.children) {
+              const filteredAllowedChildren = item.children.filter((child) => hasAccessToItem(child.title));
+              if (filteredAllowedChildren.length === 0) return null;
+              return { ...item, children: filteredAllowedChildren };
+            }
+            return item;
+          }
+
           // Direct top-level title match — include as-is
-          if (item.title.toLowerCase().includes(q)) return item;
-          // Submenu: filter children by sub-title match
+          if (item.title.toLowerCase().includes(q)) {
+            if (item.isSubmenu && item.children) {
+              const filteredAllowedChildren = item.children.filter((child) => hasAccessToItem(child.title));
+              return { ...item, children: filteredAllowedChildren };
+            }
+            return item;
+          }
+          // Submenu: filter children by sub-title match and permissions
           if (item.isSubmenu && item.children) {
-            const matchedChildren = item.children.filter((child) =>
+            const filteredAllowedChildren = item.children.filter((child) => hasAccessToItem(child.title));
+            const matchedChildren = filteredAllowedChildren.filter((child) =>
               child.title.toLowerCase().includes(q)
             );
             if (matchedChildren.length > 0) {
@@ -238,7 +278,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         })
         .filter(Boolean),
     })).filter((cat) => cat.items.length > 0);
-  }, [searchQuery]);
+  }, [searchQuery, rolePermissions, user?.role]);
 
   const handleCollapsedSearchClick = () => { setIsOpen(true); setTimeout(() => searchInputRef.current?.focus(), 100); };
 

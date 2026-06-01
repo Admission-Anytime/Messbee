@@ -27,11 +27,27 @@ router.get("/:key", async (req, res) => {
 router.post("/", async (req, res) => {
   try {
     const { key, value, description } = req.body;
-    const setting = await Setting.findOneAndUpdate(
-      { key },
-      { value, description },
-      { upsert: true, new: true }
-    );
+
+    let setting = await Setting.findOne({ key });
+
+    if (setting) {
+      setting.value = value;
+      if (description !== undefined) setting.description = description;
+      setting.markModified("value");
+      await setting.save();
+    } else {
+      setting = await Setting.create({ key, value, description });
+    }
+
+    // Broadcast permissions update to all connected clients via Socket.IO
+    if (key === "role_permissions") {
+      try {
+        const { getIO } = require("../config/socket");
+        const io = getIO();
+        if (io) io.emit("permissions_updated", { value });
+      } catch (_) {}
+    }
+
     res.json(setting);
   } catch (error) {
     res.status(500).json({ error: error.message });

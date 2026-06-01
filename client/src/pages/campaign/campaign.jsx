@@ -91,7 +91,13 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
 
 const CampaignDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useContext(userContext);
+  const { user, rolePermissions } = useContext(userContext);
+
+  // ── Permission gate for create_campaigns ──────────────────────────────────
+  const _roleKey = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
+  const _perms = rolePermissions && _roleKey ? rolePermissions[_roleKey] : null;
+  const canCreateCampaigns = !_perms || _perms.create_campaigns !== false;
+
   const socketRef = useRef(null);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -281,6 +287,33 @@ const CampaignDashboard = () => {
 
   const completedCount = campaigns.filter((c) => c.status === 'Completed').length;
   const processingCount = campaigns.filter((c) => c.status === 'Processing').length;
+
+  // Access gate — shown when create_campaigns is toggled off
+  if (!canCreateCampaigns) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center bg-[#F8FAFC] p-4 font-['Urbanist']">
+        <div className="max-w-md w-full bg-white rounded-3xl p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] text-center space-y-6 border border-slate-100">
+          <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+            <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-6V7m0 0a4 4 0 100-8 4 4 0 000 8zm0 0v2"/>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}/>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">Access Restricted</h2>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            You don't have permission to create or view campaigns.<br/>
+            Please contact your administrator.
+          </p>
+          <button
+            onClick={() => window.history.back()}
+            className="w-full py-4 bg-[#1e293b] hover:bg-[#0f172a] text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-200 cursor-pointer"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 font-['Urbanist']">

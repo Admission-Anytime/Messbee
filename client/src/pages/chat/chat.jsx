@@ -11,6 +11,7 @@ import QuickReplyApi from "../../services/QuickReplyApi";
 import io from "socket.io-client";
 import ErrorState from "../../components/ui/ErrorState";
 import { ChatContext } from "../../context/ChatContext";
+import { userContext } from "../../context/Context";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
@@ -20,6 +21,16 @@ const SOCKET_URL =
 
 const Chat = () => {
   const { fetchChats: refreshGlobalUnread } = useContext(ChatContext);
+  const { user, rolePermissions } = useContext(userContext);
+
+  const roleCapitalized = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
+  const myPerms = rolePermissions && roleCapitalized ? rolePermissions[roleCapitalized] : null;
+
+  const canViewConversations = !myPerms || myPerms.view_conversations !== false;
+  const canReply = !myPerms || myPerms.reply_messages !== false;
+  const canDelete = !myPerms || myPerms.delete_conversations !== false;
+  const canAssign = !myPerms || myPerms.assign_conversations !== false;
+
   const [chats, setChats] = useState([]);
   const [messages, setMessages] = useState([]);
   const [activeChatId, setActiveChatId] = useState(null);
@@ -634,6 +645,33 @@ const Chat = () => {
     return <ActivityLog data={activeChat} onBack={() => setShowActivityLog(false)} />;
   }
 
+  // Access gate — shown when view_conversations is toggled off
+  if (!canViewConversations) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center bg-[#F8FAFC] p-4 font-['Urbanist']">
+        <div className="max-w-md w-full bg-white rounded-3xl p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] text-center space-y-6 border border-slate-100">
+          <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+            <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m0 0v2m0-2h2m-2 0H10m2-6V7m0 0a4 4 0 100-8 4 4 0 000 8zm0 0v2"/>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8}/>
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">Access Restricted</h2>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            You don't have permission to view conversations.<br/>
+            Please contact your administrator.
+          </p>
+          <button
+            onClick={() => window.history.back()}
+            className="w-full py-4 bg-[#1e293b] hover:bg-[#0f172a] text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-200 cursor-pointer"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex w-full h-full bg-white font-sans overflow-hidden">
       <style>{` .custom-scrollbar::-webkit-scrollbar { width: 5px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; } .hide-scrollbar::-webkit-scrollbar { display: none; } `}</style>
@@ -685,6 +723,8 @@ const Chat = () => {
             hasMoreChats={hasMoreChats}
             isLoadingMore={isLoadingMore}
             statusOptions={statusOptions}
+            canAssign={canAssign}
+            canDelete={canDelete}
           />
         )}
       </div>
@@ -706,12 +746,12 @@ const Chat = () => {
             <div className="flex-1 h-full min-w-0 flex flex-col border-r border-slate-100">
               <Conversion
                 data={{ ...activeChat, messages: messages }}
-                onSendMessage={handleSendMessage}
-                onSendTemplate={handleSendTemplate}
+                onSendMessage={canReply ? handleSendMessage : null}
+                onSendTemplate={canReply ? handleSendTemplate : null}
                 onBack={() => setActiveChatId(null)}
                 onToggleProfile={() => setShowProfile(!showProfile)}
-                onClearChat={handleClearChat}
-                onDeleteChat={handleDeleteChat}
+                onClearChat={canDelete ? handleClearChat : null}
+                onDeleteChat={canDelete ? handleDeleteChat : null}
                 onUpdateStatus={handleUpdateStatus}
                 onUpdateLabels={handleUpdateLabels}
                 onTogglePin={handleTogglePin}
@@ -719,6 +759,9 @@ const Chat = () => {
                 availableLabels={availableLabels}
                 statusOptions={statusOptions}
                 quickReplies={quickReplies}
+                canReply={canReply}
+                canDelete={canDelete}
+                canAssign={canAssign}
               />
             </div>
 

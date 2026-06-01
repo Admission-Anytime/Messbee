@@ -913,6 +913,15 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
    ═══════════════════════════════════════════ */
 const UpgradePlan = () => {
   const navigate = useNavigate();
+  const { user, rolePermissions } = useContext(userContext);
+  const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
+  const isAdmin = userRole === "Admin";
+
+  // Check manage_billing permission — reads from rolePermissions for all roles including Admin
+  const DEFAULT_BILLING_PERMS = { Admin: true, Manager: false, Agent: false };
+  const hasBillingAccess = rolePermissions?.[userRole]?.manage_billing
+    ?? DEFAULT_BILLING_PERMS[userRole]
+    ?? false;
 
   // FIX 1: unified billing cycle state (was split into billingCycle + billingPeriod)
   const [billingCycle, setBillingCycle] = useState("yearly");
@@ -956,6 +965,29 @@ const UpgradePlan = () => {
   const handlePlanSelect = (plan) => {
     setSelectedPlan(plan);
   };
+
+  if (!hasBillingAccess) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center bg-[#F8FAFC] p-4 font-['Urbanist']">
+        <div className="max-w-md w-full bg-white rounded-3xl p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] text-center space-y-6 border border-slate-100">
+          <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+            <Lock className="w-10 h-10 text-red-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-slate-900">Access Restricted</h2>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            You don't have the access to manage billing or upgrade plans. 
+            Please contact your administrator.
+          </p>
+          <button 
+            onClick={() => navigate(-1)}
+            className="w-full py-4 bg-[#1e293b] hover:bg-[#0f172a] text-white font-bold rounded-2xl transition-all shadow-lg shadow-slate-200 cursor-pointer"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const plans = [
     {

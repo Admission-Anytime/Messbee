@@ -288,3 +288,44 @@ exports.sendPasswordResetEmail = async ({ email, name, resetUrl }) => {
     throw new Error('Failed to send password reset email');
   }
 };
+
+/**
+ * Send team invitation email with login credentials
+ * @param {Object} options - Email options
+ * @param {string} options.email - Recipient email
+ * @param {string} options.name - Recipient name
+ * @param {string} options.password - Generated password
+ * @param {string} options.role - Assigned role
+ */
+exports.sendTeamInviteEmail = async ({ email, name, password, role }) => {
+  try {
+    const transporter = createTransporter();
+
+    const message = {
+      from: `"${process.env.FROM_NAME || 'Messbee'}" <${process.env.FROM_EMAIL || 'noreply@messbee.com'}>`,
+      to: email,
+      subject: 'You have been invited to join Messbee!',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
+          <h2>Welcome to Messbee, ${name}!</h2>
+          <p>You have been invited to join the team as a <strong>${role}</strong>.</p>
+          <p>Here are your login credentials:</p>
+          <div style="background: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Email:</strong> ${email}</p>
+            <p style="margin: 10px 0 0 0;"><strong>Password:</strong> ${password}</p>
+          </div>
+          <p>We recommend changing your password after your first login.</p>
+          <p>Best regards,<br>Messbee Team</p>
+        </body>
+        </html>
+      `
+    };
+
+    await transporter.sendMail(message);
+    console.log('✅ Team invite email sent to:', email);
+  } catch (error) {
+    console.error('Team invite email error:', error);
+  }
+};
