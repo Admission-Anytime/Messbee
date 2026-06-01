@@ -27,7 +27,7 @@ const StatusSchema = new mongoose.Schema({
     },
     avatar: {
         type: String,
-        default: 'https://i.pravatar.cc/150?u=default'
+        default: 'https://ui-avatars.com/api/?name=Status&background=10B981&color=fff'
     },
     user: {
         type: mongoose.Schema.Types.ObjectId,

@@ -5,6 +5,7 @@ import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import dayjs from "dayjs";
 import { getDaysRemaining, getSubscriptionProgress } from "../utils/subscription";
+import { getPerformanceOverview } from "../services/PerformanceApi";
 
 import {
    ArrowPathIcon,
@@ -54,53 +55,68 @@ function Dashboard() {
    const [selectedDate, setSelectedDate] = useState(dayjs());
    const [dateString, setDateString] = useState(dayjs().format("YYYY-MM-DD"));
 
+   // --- PERFORMANCE DATA (dynamic from API) ---
    const [performanceData, setPerformanceData] = useState({
-      chats: 0,
-      unread: 0,
-      open: 0,
-      failed: 0,
-      free: 0,
-      agents: user?.agents?.length || 1
+      chats:   { value: 0, change: 0, trend: 'neutral' },
+      unread:  { value: 0, change: 0, trend: 'neutral' },
+      open:    { value: 0, change: 0, trend: 'neutral' },
+      failed:  { value: 0, change: 0, trend: 'neutral' },
+      freeTier:{ value: 0, limit: 1000, trend: 'neutral' },
+      agents:  { value: 1, status: 'active' }
    });
+
+   // Fetch performance data from real API
+   const fetchPerformance = useCallback(async (date) => {
+      setIsSyncing(true);
+      try {
+         const res = await getPerformanceOverview(date);
+         if (res.success && res.data?.metrics) {
+            const m = res.data.metrics;
+            setPerformanceData({
+               chats:    m.totalChats,
+               unread:   m.unread,
+               open:     m.openCases,
+               failed:   m.failed,
+               freeTier: m.freeTier,
+               agents:   m.agents,
+            });
+         }
+      } catch (err) {
+         console.warn("Performance fetch failed:", err?.response?.data?.message || err.message);
+         // Keep previous data on error — don't blank the UI
+      } finally {
+         setIsSyncing(false);
+      }
+   }, []);
 
    const handleDateChange = (date) => {
       setSelectedDate(date);
-      setDateString(date.format("YYYY-MM-DD"));
-      setIsSyncing(true);
-
-      setTimeout(() => {
-         setPerformanceData({
-            chats: Math.floor(Math.random() * 500) + 100,
-            unread: Math.floor(Math.random() * 50),
-            open: Math.floor(Math.random() * 100),
-            failed: Math.floor(Math.random() * 5),
-            free: Math.floor(Math.random() * 20),
-            agents: user?.agents?.length || 1
-         });
-         setIsSyncing(false);
-      }, 800);
+      const formatted = date.format("YYYY-MM-DD");
+      setDateString(formatted);
+      fetchPerformance(formatted);
    };
 
    const handleSyncData = useCallback(() => {
-      setIsSyncing(true);
-      // In a real app, this would fetch from an API
-      setTimeout(() => { 
-         setPerformanceData({
-            chats: 217,
-            unread: 31,
-            open: 71,
-            failed: 0,
-            free: 13,
-            agents: user?.agents?.length || 1
-         });
-         setIsSyncing(false); 
-      }, 1500);
-   }, [user?.agents?.length]);
+      fetchPerformance(dateString);
+   }, [fetchPerformance, dateString]);
 
-   // Simulate loading real performance data
+   // Load real performance data on mount
    useEffect(() => {
-      handleSyncData();
-   }, [handleSyncData]);
+      fetchPerformance(dayjs().format("YYYY-MM-DD"));
+   }, [fetchPerformance]);
+
+   // Helper: render trend badge
+   const TrendBadge = ({ trend, change, suffix = "%" }) => {
+      if (trend === 'neutral' || change === 0) {
+         return <span className="text-xs font-bold text-slate-400">~ 0%</span>;
+      }
+      if (trend === 'up') {
+         return <span className="text-xs font-bold text-emerald-500">↗ {change}{suffix}</span>;
+      }
+      return <span className="text-xs font-bold text-amber-500">↘ {change}{suffix}</span>;
+   };
+
+
 
    return (
       <div className="p-4 md:p-6 lg:p-8 max-w-[1400px] mx-auto flex flex-col gap-6 h-full font-['Urbanist']">
@@ -263,27 +279,45 @@ function Dashboard() {
             <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6 transition-opacity duration-300 ${isSyncing ? "opacity-50" : "opacity-100"}`}>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Chats</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.chats} <span className="text-xs font-bold text-emerald-500">↗ 12%</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.chats?.value ?? 0}{" "}
+                     <TrendBadge trend={performanceData.chats?.trend} change={performanceData.chats?.change} />
+                  </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Unread</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.unread} <span className="text-xs font-bold text-amber-500">↘ 5%</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.unread?.value ?? 0}{" "}
+                     <TrendBadge trend={performanceData.unread?.trend} change={performanceData.unread?.change} />
+                  </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Open Cases</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.open} <span className="text-xs font-bold text-slate-400">~ 0%</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.open?.value ?? 0}{" "}
+                     <TrendBadge trend={performanceData.open?.trend} change={performanceData.open?.change} />
+                  </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Failed</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.failed} <span className="text-xs font-bold text-emerald-500">↘ 0%</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.failed?.value ?? 0}{" "}
+                     <TrendBadge trend={performanceData.failed?.trend} change={performanceData.failed?.change} />
+                  </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Free Tier</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.free} <span className="text-xs font-medium text-slate-400">/ 1k</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.freeTier?.value ?? 0}{" "}
+                     <span className="text-xs font-medium text-slate-400">/ {(performanceData.freeTier?.limit ?? 1000) >= 1000 ? `${(performanceData.freeTier?.limit ?? 1000) / 1000}k` : performanceData.freeTier?.limit}</span>
+                  </p>
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Agents</p>
-                  <p className="text-2xl font-black text-slate-800">{performanceData.agents} <span className="text-xs font-bold text-emerald-500 uppercase">Active</span></p>
+                  <p className="text-2xl font-black text-slate-800">
+                     {performanceData.agents?.value ?? 1}{" "}
+                     <span className="text-xs font-bold text-emerald-500 uppercase">{performanceData.agents?.status || "Active"}</span>
+                  </p>
                </div>
             </div>
          </div>

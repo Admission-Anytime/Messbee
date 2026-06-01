@@ -134,6 +134,7 @@ app.use('/api/commerce', require('./routes/commerceRoutes'));
 app.use('/api/dev', require('./routes/devApiRoutes'));
 app.use('/api/billing', require('./routes/billingRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes')); // Notification routes
+app.use('/api/performance', require('./routes/performanceRoutes')); // Dashboard Performance Overview
 
 // ================== HEALTH CHECK ==================
 

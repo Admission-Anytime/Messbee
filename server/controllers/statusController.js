@@ -42,7 +42,7 @@ exports.createStatus = async (req, res) => {
 
         // Set creator from authenticated user
         const createdBy = req.user.name || req.user.email || 'User';
-        const avatar = req.user.avatar || req.user.profilePicture || `https://i.pravatar.cc/150?u=${req.user.email}`;
+        const avatar = req.user.avatar || req.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user.name || req.user.email || 'User')}&background=10B981&color=fff`;
 
         const newStatus = new Status({
             name,

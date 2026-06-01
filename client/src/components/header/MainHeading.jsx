@@ -46,7 +46,7 @@ const MainHeading = ({ onMenuClick }) => {
     email: user?.email || "", 
     phone: user?.phone || "", 
     credits: user?.credits || "0.00", 
-    avatar: user?.avatar || "https://i.pravatar.cc/150?u=user" 
+    avatar: user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`
   };
 
    const displayedCredits = (() => {

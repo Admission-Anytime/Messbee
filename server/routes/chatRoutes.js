@@ -1132,7 +1132,7 @@ router.post("/seed", async (req, res) => {
     status: "active",
     teamMember: "Akshay Tomar",
     labels: ["Warm Lead"],
-    avatar: "https://i.pravatar.cc/150?u=1",
+    avatar: "https://ui-avatars.com/api/?name=Agent&background=10B981&color=fff",
     lastMsg: "Hello",
     lastMsgTime: "12:00 PM",
     source: "whatsapp",
