@@ -717,7 +717,7 @@ const PaymentSuccessView = ({ plan, totalDue, billingCycle }) => {
 const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const navigate = useNavigate();
   const [paymentDone, setPaymentDone] = useState(false);
-  const { user, updateUser } = useContext(userContext);
+  const { user, updateUser, refreshUser } = useContext(userContext);
 
   // Price calculation (INR) — plan.price is the BASE monthly price
   const basePrice = typeof plan.price === "number" ? plan.price : 999;
@@ -730,42 +730,77 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const fmtINR = (n) => Number(n).toLocaleString("en-IN");
 
   const handlePay = async () => {
-    const newSubscriptionPlan = plan.name.toLowerCase();
-    const newSubscriptionEndDate = new Date(new Date().setMonth(new Date().getMonth() + (billingCycle === "yearly" ? 12 : 3))).toISOString();
-    
     try {
       const { default: axios } = await import("../../context/axios");
-      await axios.put("/users/subscription", {
-        subscriptionPlan: newSubscriptionPlan,
-        subscriptionEndDate: newSubscriptionEndDate
-      });
 
-      // Record the transaction
-      await axios.post("/billing/transactions", {
-        desc: `Plan Renewal - ${plan.name}`,
+      // Step 1: Create Razorpay order on backend
+      const orderResponse = await axios.post("/billing/razorpay/create-order", {
+        scenario: "subscription",
         amount: totalDue,
-        status: "Paid"
+        planType: plan.name.toLowerCase(),
+        billingCycle: billingCycle
       });
 
-      if (user) {
-        const updatedUser = {
-          ...user,
-          subscriptionPlan: newSubscriptionPlan,
-          subscriptionEndDate: newSubscriptionEndDate
-        };
-        updateUser(updatedUser);
-      } else {
-        updateUser({
-          subscriptionPlan: newSubscriptionPlan,
-          subscriptionEndDate: newSubscriptionEndDate
-        });
-      }
-      setPaymentDone(true);
+      const { orderId, keyId, transactionId } = orderResponse.data.data;
+
+      // Step 2: Open Razorpay checkout
+      const options = {
+        key: keyId,
+        amount: totalDue * 100, // Amount in paisa
+        currency: "INR",
+        name: "MessBee",
+        description: `${plan.name} Plan - ${billingCycle}`,
+        order_id: orderId,
+        handler: async (response) => {
+          try {
+            // Step 3: Verify payment signature with backend
+            const verifyResponse = await axios.post(
+              "/billing/razorpay/verify-payment",
+              {
+                orderId,
+                paymentId: response.razorpay_payment_id,
+                signature: response.razorpay_signature,
+                transactionId
+              }
+            );
+
+            if (verifyResponse.data.success) {
+              // Pull authoritative user data from server
+              if (refreshUser) await refreshUser();
+              setPaymentDone(true);
+            } else {
+              toast.error("Payment verification failed. Please contact support.");
+            }
+          } catch (error) {
+            console.error("Payment verification error:", error);
+            toast.error(
+              error.response?.data?.message || "Payment verification failed"
+            );
+          }
+        },
+        prefill: {
+          name: user?.name || "",
+          email: user?.email || "",
+          contact: user?.phone || ""
+        },
+        theme: {
+          color: "#10B981" // Emerald color matching your UI
+        },
+        modal: {
+          ondismiss: () => {
+            toast.info("Payment cancelled");
+          }
+        }
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.open();
     } catch (error) {
-      console.error("Failed to update subscription:", error);
-      // Even if backend fails, maybe we still show success or handle error?
-      // For now, let's proceed to success but ideally should show an error toast.
-      setPaymentDone(true);
+      console.error("Payment initialization error:", error);
+      toast.error(
+        error.response?.data?.message ||
+        "Failed to initialize payment. Please try again."
+      );
     }
   };
 

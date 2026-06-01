@@ -9,6 +9,7 @@ const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const Template = require('../models/Template');
 const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
+const { createAndEmitNotification } = require('../services/notificationService');
 
 /**
  * WhatsApp Webhook Controller
@@ -20,6 +21,9 @@ const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 // @access  Private
 exports.testConnection = async (req, res, next) => {
   try {
+    // Sync configuration from database first
+    await whatsappService.syncConfig();
+
     // Validate configuration
     whatsappService.validateConfig();
     
@@ -474,6 +478,29 @@ async function handleIncomingMessage(data) {
     chat.unread = (chat.unread || 0) + 1;
     chat.lastInboundAt = new Date(parseInt(timestamp) * 1000);
     await chat.save();
+
+    // Create notification for incoming message if chat has an owner
+    if (chat.user) {
+      await createAndEmitNotification(
+        chat.user,
+        'chat',
+        `New message from ${contactName}`,
+        lastMsgText || messageText || '📎 Media',
+        {
+          meta: [
+            { label: 'From', value: contactName },
+            { label: 'Type', value: messageType }
+          ],
+          relatedId: chat._id,
+          data: {
+            chatId: chat._id.toString(),
+            messageId: newMessage._id.toString(),
+            from: contactName,
+            messageType: messageType
+          }
+        }
+      );
+    }
 
     // Emit to socket for real-time update
     try {

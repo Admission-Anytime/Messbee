@@ -104,7 +104,7 @@ function ManageSubscription() {
                                     </>
                                 ) : (
                                     <>
-                                        {!isFreePlan && (
+                                        {!isFreePlan && currentPlan !== "professional" && (
                                             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
                                                 <div className="flex items-center justify-between mb-4">
                                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plan Progress</p>

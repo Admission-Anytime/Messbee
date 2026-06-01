@@ -231,7 +231,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
   const getChatStatus = (chat) => {
     const chatId = chat._id || chat.id;
     let status = chatModifications.status[chatId] ?? chat.chatStatus ?? chat.status;
-    if (!status || String(status).toLowerCase() === "open") status = "opened";
+    if (!status || String(status).toLowerCase() === "opened") status = "open";
     return String(status).toLowerCase();
   };
 
@@ -633,13 +633,13 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
         normalizedActiveTab === "all chats" ||
         normalizedActiveTab === "all" ||
         (normalizedActiveTab === "unread" && unreadCount > 0) ||
-        (normalizedActiveTab === "active" && ["opened", "active"].includes(chatStatus)) ||
+        (normalizedActiveTab === "active" && ["open", "opened", "active"].includes(chatStatus)) ||
         (normalizedActiveTab === "resolved" && ["resolved", "closed"].includes(chatStatus)) ||
         (normalizedActiveTab === "mine" && !!c.isMine);
 
       const matchesQuickFilters =
         (!quickFilters.unreadChats || unreadCount > 0) &&
-        (!quickFilters.openSessionChats || ["opened", "active"].includes(chatStatus) || c.isSessionOpen) &&
+        (!quickFilters.openSessionChats || ["open", "opened", "active"].includes(chatStatus) || c.isSessionOpen) &&
         (!quickFilters.pinnedChats || isPinned) &&
         (!quickFilters.mutedChats || isMuted) &&
         (!quickFilters.unassignedChats || teamMember === "Unassigned") &&
@@ -2274,7 +2274,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               <div className="mt-1 flex justify-between items-center">
                 {getChatStatus(chat) && (() => {
                   const statusLabel = getChatStatus(chat);
-                  const isOpened = statusLabel === 'opened';
+                  const isOpened = statusLabel === 'open' || statusLabel === 'opened';
                   const isClosed = statusLabel === 'closed';
                   
                   const customStatus = statusOptions.find(s => s.label.toLowerCase() === statusLabel);
@@ -2297,7 +2297,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                       isClosed ? 'text-slate-600 bg-slate-100 border border-slate-200' :
                         'text-blue-600 bg-blue-50 border border-blue-200'
                       }`}>
-                      {isOpened ? 'OPENED' : statusLabel}
+                      {isOpened ? 'OPEN' : statusLabel}
                     </span>
                   );
                 })()}

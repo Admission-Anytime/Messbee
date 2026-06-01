@@ -71,9 +71,14 @@ const ConversationAnalytics = () => {
           <div className="max-w-[1600px] mx-auto">
 
             {/* HEADER */}
-            <div className="mb-6">
-              <h1 className="text-3xl font-black text-slate-900 mb-1">Conversational Analytics</h1>
-              <p className="text-sm text-slate-500 font-medium">Detailed performance metrics across communication channels</p>
+            <div className="mb-6 flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+                <FileText className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-slate-800 tracking-tight">Conversational Analytics</h1>
+                <p className="text-xs text-slate-400 font-medium mt-0.5">Detailed performance metrics across communication channels</p>
+              </div>
             </div>
 
             {/* MAIN GRID */}

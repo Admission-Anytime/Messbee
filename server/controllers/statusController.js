@@ -1,4 +1,5 @@
 const Status = require('../models/Status');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 
 // 1. Get all statuses for a user
 exports.getStatuses = async (req, res) => {
@@ -27,11 +28,14 @@ exports.createStatus = async (req, res) => {
             return res.status(400).json({ message: 'Status name cannot exceed 50 characters' });
         }
 
-        // Check plan limit (5 statuses per user)
+        // Check plan limit dynamically
+        const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+        const limit = PLAN_LIMITS[userPlan]?.status || PLAN_LIMITS.free.status;
+
         const statusCount = await Status.countDocuments({ user });
-        if (statusCount >= 5) {
+        if (statusCount >= limit) {
             return res.status(403).json({ 
-                message: 'Status limit reached. You can only create up to 5 statuses. Please upgrade your plan.',
+                message: `Status limit reached. You can only create up to ${limit} statuses. Please upgrade your plan.`,
                 limitReached: true 
             });
         }

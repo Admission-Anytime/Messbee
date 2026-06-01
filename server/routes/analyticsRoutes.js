@@ -2,7 +2,8 @@ const express = require('express');
 const {
   getDashboardAnalytics,
   getMessageAnalytics,
-  getCampaignAnalytics
+  getCampaignAnalytics,
+  getTemplateAnalytics
 } = require('../controllers/analyticsController');
 const { protect } = require('../middleware/auth');
 
@@ -62,10 +63,20 @@ router.get('/dashboard', getDashboardAnalytics);
  *       - bearerAuth: []
  *     parameters:
  *       - in: query
- *         name: period
+ *         name: startDate
  *         schema:
  *           type: string
- *           enum: [7d, 30d, 90d]
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly]
  *     responses:
  *       200:
  *         description: Message analytics data
@@ -85,5 +96,35 @@ router.get('/messages', getMessageAnalytics);
  *         description: Campaign analytics data
  */
 router.get('/campaigns', getCampaignAnalytics);
+
+/**
+ * @swagger
+ * /api/analytics/templates:
+ *   get:
+ *     summary: Get template analytics
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: groupBy
+ *         schema:
+ *           type: string
+ *           enum: [daily, weekly, monthly]
+ *     responses:
+ *       200:
+ *         description: Template analytics data
+ */
+router.get('/templates', getTemplateAnalytics);
 
 module.exports = router;

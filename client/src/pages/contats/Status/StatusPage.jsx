@@ -14,6 +14,7 @@ import {
 
 // Import context
 import { userContext } from "../../../context/Context";
+import { PLAN_LIMITS } from "../../../utils/planLimits";
 
 // Import the toast utility
 import { showToast } from "../../../utils/showToast"; 
@@ -39,8 +40,8 @@ const StatusPage = () => {
   const [copiedId, setCopiedId] = useState(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
-  const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
-  const PLAN_LIMIT = 5;
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const PLAN_LIMIT = PLAN_LIMITS[currentPlan]?.status || PLAN_LIMIT.free.status;
   const usedCount = statuses.length;
   // ✅ NEW: Boolean to easily check if limit is reached
   const isLimitReached = usedCount >= PLAN_LIMIT;
@@ -161,14 +162,14 @@ const StatusPage = () => {
   }
 
   return (
-    <div className="font-['Urbanist'] bg-[#F8FAFC] min-h-screen p-6 lg:p-10 box-border pb-32 relative">
-      <div className="max-w-[1800px] mx-auto">
+    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
+      <div className="max-w-7xl mx-auto">
         
         {/* --- STICKY HEADER --- */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center py-4 transition-all">
+        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
            
            <div className="flex items-center gap-3">
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900">Status</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Status</h1>
               <InformationCircleIcon className="w-5 h-5 text-slate-400 cursor-help" />
            </div>
 
@@ -179,6 +180,7 @@ const StatusPage = () => {
               </div>
 
               <button 
+                id="btn-add-status"
                 onClick={() => openModal()}
                 // ✅ NEW: Disable button visually and functionally if limit reached
                 disabled={isLimitReached}
@@ -194,9 +196,9 @@ const StatusPage = () => {
         </div>
 
         {/* --- TABLE CARD --- */}
-        <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden mb-10">
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10">
            
-           <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-5 border-b border-slate-100 bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+           <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50/50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <div className="col-span-3">Name</div>
               <div className="col-span-4">Description</div>
               <div className="col-span-2">Colour</div>
@@ -220,8 +222,8 @@ const StatusPage = () => {
                     <div key={status._id} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center hover:bg-slate-50/50 transition-colors group">
                        
                        <div className="col-span-3 flex items-center gap-3">
-                          <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
-                          <span className="text-sm font-black text-slate-800">{status.name}</span>
+                          <div className={`w-2.5 h-2.5 rounded-full ${status.isActive ? 'bg-emerald-500' : 'bg-gray-300'}`}></div>
+                          <span className="text-sm font-bold text-slate-800">{status.name}</span>
                        </div>
 
                        <div className="hidden md:block col-span-4">
@@ -241,7 +243,7 @@ const StatusPage = () => {
 
                        <div className="col-span-2 flex items-center gap-3">
                           <img src={status.avatar} alt="" className="w-6 h-6 rounded-full" />
-                          <span className="text-sm font-bold text-slate-700">{status.createdBy}</span>
+                          <span className="text-sm font-semibold text-slate-700">{status.createdBy}</span>
                        </div>
 
                        <div className="col-span-1 flex justify-center items-center gap-2">
@@ -288,14 +290,14 @@ const StatusPage = () => {
                  <button onClick={() => setIsModalOpen(false)}><XMarkIcon className="w-5 h-5 text-slate-400 hover:text-slate-600" /></button>
               </div>
               <form onSubmit={handleSave} className="p-6 space-y-4">
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Name</label>
-                    <input type="text" required value={currentStatus?.name || ""} onChange={(e) => setCurrentStatus({...currentStatus, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" />
-                 </div>
-                 <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
-                    <textarea rows="2" value={currentStatus?.description || ""} onChange={(e) => setCurrentStatus({...currentStatus, description: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none" />
-                 </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Name</label>
+                     <input id="input-status-name" type="text" required value={currentStatus?.name || ""} onChange={(e) => setCurrentStatus({...currentStatus, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none" />
+                  </div>
+                  <div>
+                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-1.5">Description</label>
+                     <textarea id="textarea-status-desc" rows="2" value={currentStatus?.description || ""} onChange={(e) => setCurrentStatus({...currentStatus, description: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl font-medium focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none" />
+                  </div>
                  <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Color</label>
                     <div className="flex gap-3 flex-wrap">
@@ -305,10 +307,10 @@ const StatusPage = () => {
                        <label className="w-8 h-8 rounded-full border border-gray-200 cursor-pointer flex items-center justify-center hover:bg-gray-50"><input type="color" className="opacity-0 w-0 h-0" onChange={(e) => setCurrentStatus({...currentStatus, color: e.target.value})} /><SwatchIcon className="w-4 h-4 text-slate-400" /></label>
                     </div>
                  </div>
-                 <div className="pt-4 flex gap-3">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50">Cancel</button>
-                    <button type="submit" className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 shadow-lg shadow-slate-200">{isEditMode ? "Save Changes" : "Create Status"}</button>
-                 </div>
+                  <div className="pt-4 flex gap-3">
+                     <button id="btn-cancel-status" type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50">Cancel</button>
+                     <button id="btn-save-status" type="submit" className="flex-1 py-2.5 rounded-xl bg-slate-900 text-white font-bold hover:bg-slate-800 shadow-lg shadow-slate-200">{isEditMode ? "Save Changes" : "Create Status"}</button>
+                  </div>
               </form>
            </div>
         </div>
@@ -329,18 +331,20 @@ const StatusPage = () => {
               </p>
               
               <div className="flex gap-3">
-                 <button 
-                    onClick={() => setConfirmDeleteId(null)} 
-                    className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors"
-                 >
-                    Cancel
-                 </button>
-                 <button 
-                    onClick={confirmDelete} 
-                    className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
-                 >
-                    Delete
-                 </button>
+                  <button 
+                     id="btn-cancel-delete-status"
+                     onClick={() => setConfirmDeleteId(null)} 
+                     className="flex-1 py-2.5 rounded-xl border border-gray-200 text-slate-600 font-bold hover:bg-gray-50 transition-colors"
+                  >
+                     Cancel
+                  </button>
+                  <button 
+                     id="btn-confirm-delete-status"
+                     onClick={confirmDelete} 
+                     className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-bold hover:bg-red-700 shadow-lg shadow-red-200 transition-colors"
+                  >
+                     Delete
+                  </button>
               </div>
 
            </div>

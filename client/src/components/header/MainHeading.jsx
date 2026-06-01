@@ -20,63 +20,26 @@ import {
 // --- CONTEXT ---
 import { userContext } from "../../context/Context";
 
+// --- SERVICES ---
+import NotificationApi from "../../services/NotificationApi";
+
 // --- ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
-
-// --- MOCK INITIAL DATA ---
-const INITIAL_NOTIFICATIONS = [
-  {
-    id: 1,
-    type: 'chat',
-    user: 'Sarah Miller',
-    avatar: 'https://i.pravatar.cc/150?u=sarah',
-    message: '"Hi there! I\'m interested in the premium API plan. Could you send over pricing?"',
-    time: '2m ago',
-    tag: 'Sales Inquiry',
-    isUnread: true
-  },
-  {
-    id: 2,
-    type: 'mention',
-    user: 'David Chen',
-    avatar: null, 
-    message: 'mentioned you in Ticket #4829: @Felix could you take a look at the logs?',
-    time: '15m ago',
-    isUnread: true 
-  },
-  {
-    id: 3,
-    type: 'lead',
-    user: 'New Inbound Lead',
-    avatar: null,
-    message: 'Marketing Source: Google Ads. Contacted via WhatsApp Widget.',
-    time: '1h ago',
-    isUnread: true
-  },
-  {
-    id: 4,
-    type: 'alert',
-    user: 'API Credit Low',
-    avatar: null,
-    message: 'Your account has less than 1,000 messages remaining. Please top up soon.',
-    time: '4h ago',
-    isUnread: true
-  }
-];
 
 const MainHeading = ({ onMenuClick }) => {
   const navigate = useNavigate(); 
   
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("All");
+  const [loadingNotif, setLoadingNotif] = useState(false);
 
   const profileRef = useRef(null);
   const notifRef = useRef(null);
 
-  const { user, logoutUser } = useContext(userContext);
+  const { user, logoutUser, socket } = useContext(userContext);
   
   const userProfile = {
     name: user?.name || "User",
@@ -94,6 +57,98 @@ const MainHeading = ({ onMenuClick }) => {
       return num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
    })();
 
+  // --- FETCH NOTIFICATIONS ON MOUNT ---
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  // --- LISTEN FOR REAL-TIME NOTIFICATIONS VIA SOCKET.IO ---
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('new_notification', (notification) => {
+      console.log('🔔 New notification in drawer:', notification);
+      // Transform API data to UI format
+      const transformed = transformNotification(notification);
+      // Add to top of list
+      setNotifications(prev => [transformed, ...prev]);
+    });
+
+    return () => {
+      socket.off('new_notification');
+    };
+  }, [socket]);
+
+  // --- FETCH NOTIFICATIONS FROM API ---
+  const fetchNotifications = async () => {
+    try {
+      setLoadingNotif(true);
+      const response = await NotificationApi.getNotifications(1, 8); // Fetch top 8 for drawer
+      if (response.success && response.data) {
+        const transformed = response.data.map(notif => transformNotification(notif));
+        setNotifications(transformed);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setLoadingNotif(false);
+    }
+  };
+
+  // --- TRANSFORM API NOTIFICATION TO UI FORMAT ---
+  const transformNotification = (apiNotif) => {
+    // Format relative time
+    const formatTime = (date) => {
+      const now = new Date();
+      const notifDate = new Date(date);
+      const diffMs = now - notifDate;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return 'Just now';
+      if (diffMins < 60) return `${diffMins}m ago`;
+      if (diffHours < 24) return `${diffHours}h ago`;
+      if (diffDays < 7) return `${diffDays}d ago`;
+      return notifDate.toLocaleDateString();
+    };
+
+    // Determine display name and tag based on type
+    let displayName = apiNotif.title || 'Notification';
+    let tag = '';
+    
+    if (apiNotif.type === 'chat') {
+      displayName = apiNotif.data?.senderName || 'New Message';
+      tag = 'Chat Message';
+    } else if (apiNotif.type === 'mention') {
+      displayName = apiNotif.data?.mentionedBy || 'Mention';
+      tag = 'Mention';
+    } else if (apiNotif.type === 'lead') {
+      displayName = apiNotif.data?.source || 'New Lead';
+      tag = 'New Lead';
+    } else if (apiNotif.type === 'campaign') {
+      displayName = apiNotif.data?.campaignName || 'Campaign Update';
+      tag = 'Campaign';
+    } else if (apiNotif.type === 'contact') {
+      displayName = `${apiNotif.data?.count || 0} Contacts Imported`;
+      tag = 'Contacts';
+    } else if (apiNotif.type === 'system' || apiNotif.type === 'alert') {
+      displayName = apiNotif.title || 'System Alert';
+      tag = 'System';
+    }
+
+    return {
+      id: apiNotif._id,
+      type: apiNotif.type,
+      user: displayName,
+      avatar: null, // API notifications don't have avatars by default
+      message: apiNotif.message,
+      time: formatTime(apiNotif.createdAt),
+      tag: tag,
+      isUnread: !apiNotif.isRead
+    };
+  };
+
   // --- LOGIC: DYNAMIC COUNTS ---
   
   // 1. Bell Badge: Counts ALL unread items regardless of type
@@ -101,7 +156,7 @@ const MainHeading = ({ onMenuClick }) => {
 
   // 2. Tab Specific Counts (Total items in that category, read or unread)
   const mentionCount = notifications.filter(n => n.type === 'mention').length;
-  const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead').length;
+  const systemCount = notifications.filter(n => n.type === 'alert' || n.type === 'lead' || n.type === 'system').length;
 
   // --- LOGIC: LOGOUT ---
   
@@ -115,21 +170,34 @@ const MainHeading = ({ onMenuClick }) => {
         case '@Mentions':
             return notifications.filter(n => n.type === 'mention');
         case 'System':
-            return notifications.filter(n => n.type === 'alert' || n.type === 'lead');
+            return notifications.filter(n => n.type === 'alert' || n.type === 'lead' || n.type === 'system');
         case 'All':
         default:
             return notifications;
     }
   }, [activeTab, notifications]);
 
-  const markAllAsRead = () => {
-    const updated = notifications.map(n => ({ ...n, isUnread: false }));
-    setNotifications(updated);
+  const markAllAsRead = async () => {
+    try {
+      await NotificationApi.markAllAsRead();
+      const updated = notifications.map(n => ({ ...n, isUnread: false }));
+      setNotifications(updated);
+    } catch (error) {
+      console.error('Error marking all as read:', error);
+    }
   };
 
-  const handleNotificationClick = (id) => {
-    const updated = notifications.map(n => n.id === id ? { ...n, isUnread: false } : n);
-    setNotifications(updated);
+  const handleNotificationClick = async (id) => {
+    const notif = notifications.find(n => n.id === id);
+    if (notif && notif.isUnread) {
+      try {
+        await NotificationApi.markAsRead(id);
+        const updated = notifications.map(n => n.id === id ? { ...n, isUnread: false } : n);
+        setNotifications(updated);
+      } catch (error) {
+        console.error('Error marking notification as read:', error);
+      }
+    }
   };
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
+const Template = require('../models/Template');
 
 // @desc    Get dashboard analytics
 // @route   GET /api/analytics/dashboard
@@ -95,47 +96,87 @@ exports.getDashboardAnalytics = async (req, res, next) => {
 // @access  Private
 exports.getMessageAnalytics = async (req, res, next) => {
   try {
-    const { period = '7d' } = req.query;
-    
-    let startDate = new Date();
-    if (period === '7d') startDate.setDate(startDate.getDate() - 7);
-    else if (period === '30d') startDate.setDate(startDate.getDate() - 30);
-    else if (period === '90d') startDate.setDate(startDate.getDate() - 90);
+    const { startDate, endDate, groupBy = 'daily' } = req.query;
 
-    const messageStats = await Message.aggregate([
+    // Build date range
+    const start = startDate
+      ? new Date(startDate)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; })();
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    // Campaign messages don't store `user` on the Message doc — they store
+    // metadata.campaignId.  So we scope by the user's campaign IDs.
+    const userCampaigns = await Campaign.find({ user: req.user._id }).select('_id');
+    const campaignIds = userCampaigns.map(c => c._id.toString());
+
+    const baseMatch = {
+      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { 'metadata.campaignId': { $in: campaignIds } },
+        { user: req.user._id }
+      ]
+    };
+
+    let dateFormat;
+    if (groupBy === 'monthly') dateFormat = '%Y-%m';
+    else if (groupBy === 'weekly') dateFormat = '%Y-%U';
+    else dateFormat = '%Y-%m-%d';
+
+    const sentByDate = await Message.aggregate([
+      { $match: baseMatch },
       {
-        $match: {
-          user: req.user._id,
-          createdAt: { $gte: startDate }
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          sent: { $sum: 1 }
         }
       },
-      {
-        $facet: {
-          byType: [
-            { $group: { _id: '$messageType', count: { $sum: 1 } } }
-          ],
-          bySender: [
-            { $group: { _id: '$sender', count: { $sum: 1 } } }
-          ],
-          byStatus: [
-            { $group: { _id: '$status', count: { $sum: 1 } } }
-          ],
-          hourlyDistribution: [
-            {
-              $group: {
-                _id: { $hour: '$createdAt' },
-                count: { $sum: 1 }
-              }
-            },
-            { $sort: { _id: 1 } }
-          ]
-        }
-      }
+      { $sort: { _id: 1 } }
     ]);
+
+    const deliveredByDate = await Message.aggregate([
+      { $match: { ...baseMatch, status: { $in: ['delivered', 'read'] } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          delivered: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Merge into date map
+    const dateMap = {};
+    let totalSent = 0;
+    let totalDelivered = 0;
+
+    sentByDate.forEach(({ _id, sent }) => {
+      if (!dateMap[_id]) dateMap[_id] = { date: _id, sent: 0, delivered: 0 };
+      dateMap[_id].sent = sent;
+      totalSent += sent;
+    });
+    deliveredByDate.forEach(({ _id, delivered }) => {
+      if (!dateMap[_id]) dateMap[_id] = { date: _id, sent: 0, delivered: 0 };
+      dateMap[_id].delivered = delivered;
+      totalDelivered += delivered;
+    });
+
+    const chartData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    const successRate = totalSent > 0
+      ? Math.round((totalDelivered / totalSent) * 100)
+      : 0;
 
     res.status(200).json({
       success: true,
-      data: messageStats[0]
+      data: {
+        chartData,
+        summary: {
+          totalSent,
+          totalDelivered,
+          successRate
+        }
+      }
     });
   } catch (error) {
     next(error);
@@ -197,3 +238,166 @@ exports.getCampaignAnalytics = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Get template analytics
+// @route   GET /api/analytics/templates
+// @access  Private
+exports.getTemplateAnalytics = async (req, res, next) => {
+  try {
+    const { startDate, endDate, groupBy = 'daily' } = req.query;
+
+    // Build date range
+    const start = startDate
+      ? new Date(startDate)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d; })();
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    // Campaign messages don't store `user` on the Message doc — they store
+    // metadata.campaignId.  So we scope by the user's campaign IDs.
+    const userCampaigns = await Campaign.find({ user: req.user._id }).select('_id');
+    const campaignIds = userCampaigns.map(c => c._id.toString());
+
+    // Match template messages that either:
+    //  (a) belong to one of the user's campaigns (via metadata.campaignId), OR
+    //  (b) have user field set directly (defensive — for any future code paths)
+    const baseMatch = {
+      messageType: 'template',
+      sender: 'me',
+      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { 'metadata.campaignId': { $in: campaignIds } },
+        { user: req.user._id }
+      ]
+    };
+
+    // --- 1. Template Engagement Table ---
+    const templateEngagement = await Message.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: {
+            templateName: '$templateName',
+            templateLanguage: '$templateLanguage'
+          },
+          sent: { $sum: 1 },
+          delivered: {
+            $sum: { $cond: [{ $in: ['$status', ['delivered', 'read']] }, 1, 0] }
+          },
+          read: {
+            $sum: { $cond: [{ $eq: ['$status', 'read'] }, 1, 0] }
+          },
+          failed: {
+            $sum: { $cond: [{ $eq: ['$status', 'failed'] }, 1, 0] }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          templateName: '$_id.templateName',
+          templateLanguage: '$_id.templateLanguage',
+          sent: 1,
+          delivered: 1,
+          read: 1,
+          failed: 1
+        }
+      },
+      { $sort: { sent: -1 } }
+    ]);
+
+    // --- 2. Performance Chart (time series) ---
+    let dateFormat;
+    if (groupBy === 'monthly') dateFormat = '%Y-%m';
+    else if (groupBy === 'weekly') dateFormat = '%Y-%U';
+    else dateFormat = '%Y-%m-%d';
+
+    const sentByDate = await Message.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          sent: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const deliveredByDate = await Message.aggregate([
+      { $match: { ...baseMatch, status: { $in: ['delivered', 'read'] } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          delivered: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const readByDate = await Message.aggregate([
+      { $match: { ...baseMatch, status: 'read' } },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: '$createdAt' } },
+          read: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
+    // Merge into date map
+    const dateMap = {};
+    sentByDate.forEach(({ _id, sent }) => {
+      if (!dateMap[_id]) dateMap[_id] = { date: _id, sent: 0, delivered: 0, read: 0 };
+      dateMap[_id].sent = sent;
+    });
+    deliveredByDate.forEach(({ _id, delivered }) => {
+      if (!dateMap[_id]) dateMap[_id] = { date: _id, sent: 0, delivered: 0, read: 0 };
+      dateMap[_id].delivered = delivered;
+    });
+    readByDate.forEach(({ _id, read }) => {
+      if (!dateMap[_id]) dateMap[_id] = { date: _id, sent: 0, delivered: 0, read: 0 };
+      dateMap[_id].read = read;
+    });
+
+    const chartData = Object.values(dateMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    // --- 3. Summary Stats ---
+    const totals = templateEngagement.reduce(
+      (acc, t) => {
+        acc.sent += t.sent;
+        acc.delivered += t.delivered;
+        acc.read += t.read;
+        acc.failed += t.failed;
+        return acc;
+      },
+      { sent: 0, delivered: 0, read: 0, failed: 0 }
+    );
+
+    const deliveryRate = totals.sent > 0
+      ? ((totals.delivered / totals.sent) * 100).toFixed(1)
+      : '0.0';
+    const readRate = totals.sent > 0
+      ? ((totals.read / totals.sent) * 100).toFixed(1)
+      : '0.0';
+
+    res.status(200).json({
+      success: true,
+      data: {
+        engagement: templateEngagement,
+        chartData,
+        summary: {
+          totalSent: totals.sent,
+          totalDelivered: totals.delivered,
+          totalRead: totals.read,
+          totalFailed: totals.failed,
+          deliveryRate,
+          readRate
+        }
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
