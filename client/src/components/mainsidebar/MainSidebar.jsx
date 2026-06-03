@@ -419,11 +419,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full bg-[#E2E8F0] flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                   {user?.avatar ? (
-                     <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
-                   ) : (
-                     <Icon icon="feather:user" className="w-6 h-6 text-slate-500" />
-                   )}
+                   <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
                 <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-[#10B981] border-2 border-white rounded-full"></span>
               </div>
