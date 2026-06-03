@@ -1,9 +1,11 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import { userContext } from "../../context/Context";
 
 const CampaignLaunchSuccess = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, rolePermissions } = useContext(userContext);
 
   const {
     campaignName = "Dev Demo Q3",
@@ -13,18 +15,46 @@ const CampaignLaunchSuccess = () => {
   } = location.state || {};
 
   const [isLive, setIsLive] = useState(true);
+  const [showAccessRestricted, setShowAccessRestricted] = useState(false);
+
+  // Check view_analytics permission
+  const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
+  const DEFAULT_ANALYTICS_PERMS = { Admin: true, Manager: true, Agent: false };
+  const hasAnalyticsAccess = rolePermissions?.[userRole]?.view_analytics
+    ?? DEFAULT_ANALYTICS_PERMS[userRole]
+    ?? false;
 
   useEffect(() => {
     const timer = setTimeout(() => setIsLive(true), 500);
     return () => clearTimeout(timer);
   }, []);
 
-  const toggleTheme = () => {
-    document.documentElement.classList.toggle("dark");
+  const handleViewAnalytics = () => {
+    if (!hasAnalyticsAccess) {
+      setShowAccessRestricted(true);
+    } else {
+      navigate("/admin/analytic");
+    }
   };
 
   return (
     <div className="bg-[#F8FAFC] text-slate-900 min-h-screen flex items-center justify-center p-6 font-['Inter']">
+
+      {/* Access Restricted Modal */}
+      {showAccessRestricted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowAccessRestricted(false)}>
+          <div className="bg-white rounded-3xl p-10 shadow-2xl w-full max-w-md mx-4 text-center space-y-6 border border-slate-100" onClick={e => e.stopPropagation()}>
+            <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto">
+              <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900">Access Restricted</h2>
+            <p className="text-gray-500 text-sm leading-relaxed">You don't have permission to view analytics. Please contact your administrator.</p>
+            <button onClick={() => setShowAccessRestricted(false)} className="w-full py-3.5 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-2xl transition-all">Close</button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-2xl w-full text-center space-y-8">
 
@@ -111,8 +141,10 @@ const CampaignLaunchSuccess = () => {
         <div className="max-w-md mx-auto flex gap-3 pt-4">
 
           <button
-            onClick={() => navigate("/admin/analytic")}
-            className="flex-1 px-6 py-2.5 bg-green-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-lg shadow-green-500/20 active:scale-95"
+            onClick={handleViewAnalytics}
+            className={`flex-1 px-6 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all active:scale-95 ${hasAnalyticsAccess ? "bg-green-500 hover:bg-emerald-600 text-white shadow-lg shadow-green-500/20" : "bg-gray-100 text-gray-300 cursor-not-allowed border border-gray-200"}`}
+            disabled={!hasAnalyticsAccess}
+            title={!hasAnalyticsAccess ? "View Analytics permission is disabled" : ""}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"

@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
+import { userContext } from "../../context/Context";
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -628,7 +629,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
 }
 
 /* ─── Contact Profile Side Panel ─────────────────────────────────────────────── */
-function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields = [], statuses = [], labels = [] }) {
+function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields = [], statuses = [], labels = [], canEdit = true, canDelete = true }) {
   if (!contact) return null;
 
   const infoRows = [
@@ -713,12 +714,16 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
         )}
       </div>
       <div className="px-4 py-4 border-t border-gray-100 flex gap-2">
-        <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>Edit
-        </button>
-        <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Delete
-        </button>
+        {canEdit && (
+          <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>Edit
+          </button>
+        )}
+        {canDelete && (
+          <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Delete
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1397,7 +1402,7 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [], labelConfig = [] }) {
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [], labelConfig = [], canDelete = true }) {
   const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | 'more' | null
   const [showOptions, setShowOptions] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState([]);
@@ -1608,9 +1613,11 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
           </button>
         </div>
         <div className="flex items-center gap-1.5 border-t border-slate-100 pt-2 md:border-l md:border-t-0 md:pl-2 md:pt-0">
-          <button onClick={onDelete} className="flex items-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-bold text-red-600 transition-all active:scale-[0.98] hover:bg-red-500 hover:text-white">
-            <TrashIcon className="h-4 w-4" />Delete
-          </button>
+          {canDelete && (
+            <button onClick={onDelete} className="flex items-center gap-1.5 rounded-xl border border-red-100 bg-red-50 px-3 py-2.5 text-[11px] font-bold text-red-600 transition-all active:scale-[0.98] hover:bg-red-500 hover:text-white">
+              <TrashIcon className="h-4 w-4" />Delete
+            </button>
+          )}
           <button onClick={onClear} className="rounded-full border border-slate-200 p-2.5 text-slate-400 transition-all active:rotate-90 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900" title="Clear Selection">
             <XMarkIcon className="h-4.5 w-4.5" />
           </button>
@@ -1624,6 +1631,15 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
 /* ─── Main Component ──────────────────────────────────────────────────────────── */
 export default function ContactsCRM() {
   const navigate = useNavigate();
+
+  // ── CRM permission flags from role context ──────────────────────────────────
+  const { user, rolePermissions } = useContext(userContext);
+  const _roleKey = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
+  const _perms = rolePermissions && _roleKey ? rolePermissions[_roleKey] : null;
+  const canImportContacts = !_perms || _perms.import_contacts !== false;
+  const canExportData     = !_perms || _perms.export_data     !== false;
+  const canEditContacts   = !_perms || _perms.edit_contacts   !== false;
+  const canDeleteContacts = !_perms || _perms.delete_contacts !== false;
 
   const [contacts, setContacts] = useState([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
@@ -1925,7 +1941,7 @@ export default function ContactsCRM() {
   return (
     <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border pb-28 sm:pb-32">
 
-      {editingContact && (
+      {editingContact && canEditContacts && (
         <EditContactModal
           contact={editingContact}
           onClose={() => setEditingContact(null)}
@@ -1949,18 +1965,22 @@ export default function ContactsCRM() {
           <p className="text-sm text-gray-500 mt-1">Manage people, labels, and custom fields from one place.</p>
         </div>
         <div className="flex gap-2.5 flex-wrap w-full lg:w-auto">
-          <button
-            onClick={() => navigate("/admin/contacts/import")}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-gray-700 text-[13px] font-bold hover:border-emerald-500 hover:text-emerald-700 transition-all shadow-sm active:translate-y-px flex-1 lg:flex-none"
-          >
-            <ArrowUpTrayIcon className="w-4 h-4" />Import Contacts
-          </button>
-          <button
-            onClick={() => setIsDrawerOpen(true)}
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-[13px] font-bold transition-all shadow-md active:translate-y-px flex-1 lg:flex-none"
-          >
-            <PlusIcon className="w-4 h-4 stroke-[3]" />Add Contact
-          </button>
+          {canImportContacts && (
+            <button
+              onClick={() => navigate("/admin/contacts/import")}
+              className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-200 rounded-xl bg-white text-gray-700 text-[13px] font-bold hover:border-emerald-500 hover:text-emerald-700 transition-all shadow-sm active:translate-y-px flex-1 lg:flex-none"
+            >
+              <ArrowUpTrayIcon className="w-4 h-4" />Import Contacts
+            </button>
+          )}
+          {canImportContacts && (
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-[#10B981] hover:bg-[#059669] text-white text-[13px] font-bold transition-all shadow-md active:translate-y-px flex-1 lg:flex-none"
+            >
+              <PlusIcon className="w-4 h-4 stroke-[3]" />Add Contact
+            </button>
+          )}
         </div>
       </div>
 
@@ -2171,20 +2191,24 @@ export default function ContactsCRM() {
                       ))}
                       <td className="px-4 py-3.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={e => { e.stopPropagation(); setEditingContact(contact); }}
-                            title="Edit"
-                            className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-                          </button>
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDeleteSingle(contact._id); }}
-                            title="Delete"
-                            className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
+                          {canEditContacts && (
+                            <button
+                              onClick={e => { e.stopPropagation(); setEditingContact(contact); }}
+                              title="Edit"
+                              className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                            </button>
+                          )}
+                          {canDeleteContacts && (
+                            <button
+                              onClick={e => { e.stopPropagation(); handleDeleteSingle(contact._id); }}
+                              title="Delete"
+                              className="action-btn p-1.5 rounded-md text-gray-300 group-hover:text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2203,6 +2227,8 @@ export default function ContactsCRM() {
               customFields={allCustomFields}
               statuses={allStatuses}
               labels={labelConfig}
+              canEdit={canEditContacts}
+              canDelete={canDeleteContacts}
             />
           )}
         </div>
@@ -2228,6 +2254,7 @@ export default function ContactsCRM() {
         labels={[...new Set([...allLabels, ...contacts.filter(c => selectedRows.includes(c._id)).flatMap(c => c.labels || [])])]}
         statuses={allStatuses}
         labelConfig={labelConfig}
+        canDelete={canDeleteContacts}
       />
 
       <AddContactDrawer

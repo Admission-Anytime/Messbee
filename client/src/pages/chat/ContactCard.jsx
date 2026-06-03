@@ -26,7 +26,7 @@ const LAST_SEEN_FILTERS = [
   { value: "30d", label: "Last 30 days" }
 ];
 
-const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat, onUpdateStatus, onTogglePin, onUpdateLabels, onLoadMore, hasMoreChats, isLoadingMore, statusOptions = [] }) => {
+const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat, onUpdateStatus, onTogglePin, onUpdateLabels, onLoadMore, hasMoreChats, isLoadingMore, statusOptions = [], canAssign = true, canDelete = true }) => {
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -1236,25 +1236,29 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                   >
                     Assign custom field
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openBulkActionModal("team-member");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    Assign team member
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleBulkAssignTeamMember("");
-                      setOpenMenuId(null);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                  >
-                    Un-assign team member
-                  </button>
+                  {canAssign && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("team-member");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Assign team member
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleBulkAssignTeamMember("");
+                          setOpenMenuId(null);
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      >
+                        Un-assign team member
+                      </button>
+                    </>
+                  )}
 
                   <div className="border-t border-slate-200 my-1"></div>
                   <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Campaign</p>
@@ -1351,26 +1355,30 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                     Mark as un-read
                   </button>
 
-                  <div className="border-t border-slate-200 my-1"></div>
-                  <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Danger Zone</p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openBulkActionModal("confirm-delete-chats");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    Delete chats
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openBulkActionModal("confirm-delete-contacts");
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    Delete contacts
-                  </button>
+                  {canDelete && (
+                    <>
+                      <div className="border-t border-slate-200 my-1"></div>
+                      <p className="px-4 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wide">Danger Zone</p>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("confirm-delete-chats");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Delete chats
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openBulkActionModal("confirm-delete-contacts");
+                        }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        Delete contacts
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

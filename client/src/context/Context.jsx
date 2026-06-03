@@ -1,25 +1,29 @@
-import { createContext, useState, useEffect } from "react";
+import { createContext, useState, useEffect, useRef } from "react";
 import { getCurrentUser, clearAuthData, logout } from "../services/authService";
+import axios from "./axios";
+import io from "socket.io-client";
 
 export const userContext = createContext();
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '')
+    : 'http://localhost:5000');
 
 const Context = (props) => {
   const [user, setUser] = useState(() => {
     const cachedUser = localStorage.getItem("user");
     if (cachedUser) {
-      try {
-        return JSON.parse(cachedUser);
-      } catch (e) {
-        return null;
-      }
+      try { return JSON.parse(cachedUser); } catch (e) { return null; }
     }
     return null;
   });
   const [loading, setLoading] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(() => {
-    return !!localStorage.getItem("user");
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState(() => !!localStorage.getItem("user"));
   const [authChecked, setAuthChecked] = useState(false);
+  const [rolePermissions, setRolePermissions] = useState(null);
+  const socketRef = useRef(null);
 
   // Load user data on mount - Non-blocking approach
   useEffect(() => {
@@ -44,6 +48,16 @@ const Context = (props) => {
           setUser(response.data);
           setIsLoggedIn(true);
           localStorage.setItem("user", JSON.stringify(response.data));
+          
+          // Fetch permissions
+          try {
+            const res = await axios.get("/settings/role_permissions");
+            if (res.data && res.data.value) {
+              setRolePermissions(res.data.value);
+            }
+          } catch(err) {
+             console.log("No custom permissions found.");
+          }
         } else {
           // Invalid auth - clear everything
           clearAuthData();
@@ -62,6 +76,20 @@ const Context = (props) => {
     };
 
     loadUser();
+  }, []);
+
+  // Socket: listen for real-time permissions_updated broadcast
+  useEffect(() => {
+    const socket = io(SOCKET_URL, { withCredentials: true });
+    socketRef.current = socket;
+
+    socket.on("permissions_updated", (data) => {
+      if (data?.value) {
+        setRolePermissions(data.value);
+      }
+    });
+
+    return () => { socket.disconnect(); };
   }, []);
 
   // Update user data
@@ -116,6 +144,8 @@ const Context = (props) => {
     isLoggedIn,
     loginUser,
     logoutUser,
+    rolePermissions,
+    setRolePermissions
   };
 
   return (

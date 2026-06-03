@@ -94,7 +94,13 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
 
 const CampaignDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useContext(userContext);
+  const { user, rolePermissions } = useContext(userContext);
+
+  // ── Permission gate for create_campaigns ──────────────────────────────────
+  const _roleKey = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
+  const _perms = rolePermissions && _roleKey ? rolePermissions[_roleKey] : null;
+  const canCreateCampaigns = !_perms || _perms.create_campaigns !== false;
+
   const socketRef = useRef(null);
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);

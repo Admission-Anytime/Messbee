@@ -90,7 +90,10 @@ const Conversion = ({
    onViewHistory,
    availableLabels = [],
    statusOptions = [],
-   quickReplies = []
+   quickReplies = [],
+   canReply = true,
+   canDelete = true,
+   canAssign = true
 }) => {
    const { user } = useContext(userContext);
    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
@@ -988,9 +991,11 @@ const selectedTemplate = useMemo(() => {
                               <button onClick={() => { onViewHistory && onViewHistory(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
                                  <ClockIcon className="w-4 h-4 shrink-0 text-slate-400" /> View Full History
                               </button>
-                              <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
-                                 <UserPlusIcon className="w-4 h-4 shrink-0 text-slate-400" /> Assign Agent
-                              </button>
+                              {canAssign && (
+                                 <button onClick={() => { setIsAssignAgentModalOpen(true); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                    <UserPlusIcon className="w-4 h-4 shrink-0 text-slate-400" /> Assign Agent
+                                 </button>
+                              )}
 
                               <div className="border-t border-slate-100 my-1.5"></div>
 
@@ -1006,12 +1011,16 @@ const selectedTemplate = useMemo(() => {
                               <div className="border-t border-slate-100 my-1.5"></div>
 
                               {/* Group 4: Destructive Actions */}
-                              <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
-                                 <TrashIcon className="w-4 h-4 shrink-0 text-red-400" /> Clear Chat History
-                              </button>
-                              <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
-                                 <UserMinusIcon className="w-4 h-4 shrink-0 text-red-400" /> Delete Contact
-                              </button>
+                              {canDelete && (
+                                 <>
+                                    <button onClick={() => { onClearChat && onClearChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                       <TrashIcon className="w-4 h-4 shrink-0 text-red-400" /> Clear Chat History
+                                    </button>
+                                    <button onClick={() => { onDeleteChat && onDeleteChat(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                       <UserMinusIcon className="w-4 h-4 shrink-0 text-red-400" /> Delete Contact
+                                    </button>
+                                 </>
+                              )}
                               <button onClick={() => { onUpdateStatus && onUpdateStatus(data._id || data.id, isCurrentlyBlocked ? 'active' : 'blocked'); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-red-500 hover:bg-red-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
                                  <NoSymbolIcon className="w-4 h-4 shrink-0 text-red-400" /> {isCurrentlyBlocked ? 'Unblock Contact' : 'Block Contact'}
                               </button>
@@ -1508,6 +1517,13 @@ const selectedTemplate = useMemo(() => {
                      <NoSymbolIcon className="w-5 h-5 text-emerald-500" />
                      Unblock
                   </button>
+               </div>
+            ) : !canReply ? (
+               <div className="flex items-center justify-center py-4 bg-slate-50 border-t border-slate-200">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border border-amber-200 rounded-full">
+                     <LockClosedIcon className="w-4 h-4 text-amber-500" />
+                     <span className="text-xs font-semibold text-amber-700">You don't have permission to reply to messages</span>
+                  </div>
                </div>
             ) : (
                <>

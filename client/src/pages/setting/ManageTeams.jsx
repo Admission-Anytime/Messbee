@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import axios from "../../context/axios";
-
+import { userContext } from "../../context/Context";
+import { useNavigate } from "react-router-dom";
 
 // ─── Data ──────────────────────────────────────────────────────────────────────
 const INITIAL_MEMBERS = [];
@@ -713,7 +714,7 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
   const [showStatusMenu,setShowStatusMenu]=useState(false);
   const statusRef=useRef(null);
   useEffect(()=>{const h=e=>{if(statusRef.current&&!statusRef.current.contains(e.target))setShowStatusMenu(false);};document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);},[]);
-  const members=(roleMembers&&roleMembers.length>0?roleMembers:allMembers).filter(m=>{const ms=m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase());const sf=statusFilter==="All"||m.status===statusFilter;return ms&&sf;});
+  const members=(roleMembers ? roleMembers : allMembers).filter(m=>{const ms=m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase());const sf=statusFilter==="All"||m.status===statusFilter;return ms&&sf;});
   const totalPages=Math.max(1,Math.ceil(members.length/PAGE_SIZE_ROLE));
   const paginated=members.slice((page-1)*PAGE_SIZE_ROLE,page*PAGE_SIZE_ROLE);
   const tip=ROLE_QUICK_TIPS[roleName]||ROLE_QUICK_TIPS["Admin"];
@@ -862,14 +863,69 @@ function RoleMembersView({roleName,roleMembers,allMembers,onChangeRole,onRemove,
 }
 
 function EditPermissionsView({initialRole,toast}){
+  const { rolePermissions, setRolePermissions } = React.useContext(userContext);
   const [selectedRole,setSelectedRole]=useState(initialRole);
-  const [allPerms,setAllPerms]=useState(()=>{const i={};ROLES_LIST.forEach(r=>{i[r.name]={...DEFAULT_ROLE_PERMISSIONS[r.name]};});return i;});
-  const [savedPerms,setSavedPerms]=useState(()=>{const i={};ROLES_LIST.forEach(r=>{i[r.name]={...DEFAULT_ROLE_PERMISSIONS[r.name]};});return i;});
+  
+  // Initialize state with context permissions or default
+  const getInitialPerms = () => {
+    const i={};
+    ROLES_LIST.forEach(r=>{
+      // Always start from DEFAULT so all permission keys exist, then overlay saved values
+      const base = { ...DEFAULT_ROLE_PERMISSIONS[r.name] };
+      const saved = rolePermissions && rolePermissions[r.name] ? rolePermissions[r.name] : {};
+      i[r.name] = { ...base, ...saved };
+    });
+    return i;
+  };
+  
+  const [allPerms,setAllPerms]=useState(getInitialPerms);
+
+  // Keep local state in sync if context changes externally
+  React.useEffect(() => {
+    if (rolePermissions) {
+      setAllPerms(prev => {
+        const merged = { ...prev };
+        ROLES_LIST.forEach(r => {
+          // Merge saved permissions on top of defaults so all keys are always present
+          const base = { ...DEFAULT_ROLE_PERMISSIONS[r.name] };
+          const saved = rolePermissions[r.name] ? rolePermissions[r.name] : {};
+          merged[r.name] = { ...base, ...saved };
+        });
+        return merged;
+      });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const perms=allPerms[selectedRole]||{};
-  const isDirty=JSON.stringify(allPerms[selectedRole])!==JSON.stringify(savedPerms[selectedRole]);
-  const setPerms=(updater)=>setAllPerms(prev=>({...prev,[selectedRole]:updater(prev[selectedRole])}));
-  const handleSave=()=>{setSavedPerms(prev=>({...prev,[selectedRole]:{...allPerms[selectedRole]}}));toast(`${selectedRole} permissions saved`);};
-  const handleDiscard=()=>setAllPerms(prev=>({...prev,[selectedRole]:{...savedPerms[selectedRole]}}));
+  
+  const handleToggle = async (permId, val) => {
+    const prevPerms = allPerms;
+    const updatedRolePerms = { ...allPerms[selectedRole], [permId]: val };
+    const newGlobalPerms = { ...allPerms, [selectedRole]: updatedRolePerms };
+    
+    // Optimistic update — update local state and global context immediately
+    setAllPerms(newGlobalPerms);
+    if (setRolePermissions) setRolePermissions(newGlobalPerms);
+    
+    try {
+      await axios.post("/settings", {
+        key: "role_permissions",
+        value: newGlobalPerms,
+        description: "Global Role Permissions"
+      });
+      // Show contextual success toast: "Access Restricted" only when turning OFF
+      if (!val) {
+        toast("Access Restricted");
+      }
+    } catch (err) {
+      // Rollback on failure
+      setAllPerms(prevPerms);
+      if (setRolePermissions) setRolePermissions(prevPerms);
+      toast("Failed to update permission. Please try again.");
+    }
+  };
+
   return(
     <div className="flex gap-5" style={{animation:"fadeUp 0.25s ease"}}>
       <div className="w-56 flex-shrink-0 flex flex-col gap-2">
@@ -877,9 +933,31 @@ function EditPermissionsView({initialRole,toast}){
         <button className="w-full text-left px-4 py-3.5 rounded-xl border border-dashed border-gray-300 bg-white hover:bg-gray-50 transition flex items-center gap-2 text-gray-400 hover:text-gray-600"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg><span className="text-sm font-medium">Create New Role</span></button>
       </div>
       <div className="flex-1 min-w-0">
-        <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 mb-4 flex items-center justify-between shadow-sm"><div><h3 className="text-base font-bold text-gray-900">Role Details: {selectedRole}</h3><p className="text-sm text-gray-400 mt-0.5">Configure granular platform access for this role</p></div><div className="flex items-center gap-2"><button onClick={handleDiscard} disabled={!isDirty} className="px-4 py-2 text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition disabled:opacity-40 disabled:cursor-not-allowed">Discard</button><button onClick={handleSave} disabled={!isDirty} className="px-5 py-2 text-sm font-semibold text-white bg-green-500 hover:bg-green-600 rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed">Save Changes</button></div></div>
+        <div className="bg-white border border-gray-200 rounded-2xl px-6 py-4 mb-4 flex items-center justify-between shadow-sm"><div><h3 className="text-base font-bold text-gray-900">Role Details: {selectedRole}</h3><p className="text-sm text-gray-400 mt-0.5">Configure granular platform access for this role</p></div></div>
         <div className="space-y-4">
-          {PERMISSION_CATEGORIES.map(cat=>(<div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm"><div className="flex items-center gap-2.5 px-6 py-4 border-b border-gray-100 bg-gray-50/50"><CategoryIcon id={cat.icon} className="w-5 h-5 text-gray-400"/><p className="text-xs font-bold text-gray-500 tracking-widest">{cat.label}</p></div>{cat.permissions.map((perm,idx)=>(<div key={perm.id} className={`flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition ${idx<cat.permissions.length-1?"border-b border-gray-100":""}`}><div><p className="text-sm font-semibold text-gray-800">{perm.label}</p><p className="text-xs text-gray-400 mt-0.5">{perm.desc}</p></div><div className="ml-6 flex-shrink-0"><Toggle checked={!!perms[perm.id]} onChange={val=>setPerms(p=>({...p,[perm.id]:val}))}/></div></div>))}</div>))}
+          {PERMISSION_CATEGORIES.map(cat=>(
+            <div key={cat.id} className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+              <div className="flex items-center gap-2.5 px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+                <CategoryIcon id={cat.icon} className="w-5 h-5 text-gray-400"/>
+                <p className="text-xs font-bold text-gray-500 tracking-widest">{cat.label}</p>
+              </div>
+              {cat.permissions.map((perm,idx)=>{
+                // manage_team for Admin is always ON and locked (lockout prevention)
+                const isLockedOn = perm.id === "manage_team" && selectedRole === "Admin";
+                return (
+                <div key={perm.id} className={`flex items-center justify-between px-6 py-4 hover:bg-gray-50/50 transition ${idx<cat.permissions.length-1?"border-b border-gray-100":""}`}>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">{perm.label}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{perm.desc}</p>
+                  </div>
+                  <div className="ml-6 flex-shrink-0" title={isLockedOn ? "Manage Team is always enabled for Admin" : ""}>
+                    <Toggle checked={isLockedOn ? true : !!perms[perm.id]} onChange={isLockedOn ? ()=>{} : val=>handleToggle(perm.id,val)}/>
+                  </div>
+                </div>
+                );
+              })}
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -981,6 +1059,17 @@ function CustomRoleCard({data,onDelete,onView}){
 
 // ─── Main ──────────────────────────────────────────────────────────────────────
 export default function ManageTeams(){
+  const navigate = useNavigate();
+  const { rolePermissions, user } = React.useContext(userContext);
+  const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
+  const isAdmin = userRole === "Admin";
+
+  // Admin always has team access — lockout prevention
+  const DEFAULT_TEAM_PERMS = { Admin: true, Manager: false, Agent: false };
+  const hasTeamAccess = isAdmin
+    ? true
+    : rolePermissions?.[userRole]?.manage_team ?? DEFAULT_TEAM_PERMS[userRole] ?? false;
+
   const [activeTab,setActiveTab]=useState("Members");
   const [members,setMembers]=useState([]);
   const [loading,setLoading]=useState(true);
@@ -1024,7 +1113,7 @@ export default function ManageTeams(){
   const [rolesView,setRolesView]=useState(null);
   const [customRoles,setCustomRoles]=useState([]);
   const {toasts,show:showToast}=useToast();
-  const CARD_TO_PERM={Admin:"Admin",Manager:"Manager",Agent:"Support Agent"};
+  const CARD_TO_PERM={Admin:"Admin",Manager:"Manager",Agent:"Agent"};
   const filtered=members.filter(m=>m.name.toLowerCase().includes(search.toLowerCase())||m.email.toLowerCase().includes(search.toLowerCase()));
   const totalPages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE));
   const paginated=filtered.slice((page-1)*PAGE_SIZE,page*PAGE_SIZE);
@@ -1057,19 +1146,34 @@ export default function ManageTeams(){
     setDeleteModal(prev => ({ ...prev, loading: true }));
     try {
       if (deleteModal.id !== null) {
-        await axios.delete(`/users/${deleteModal.id}`);
-        fetchMembers();
+        const res = await axios.delete(`/users/${deleteModal.id}`);
+        // Some backends return 200 with success:false — guard against that
+        if (res.data && res.data.success === false) {
+          throw new Error(res.data.message || "Delete failed on server");
+        }
+        await fetchMembers();
         showToast(`Member removed successfully`);
       } else {
-        await axios.post("/users/bulk-delete", { ids: selectedRows });
-        fetchMembers();
+        const res = await axios.post("/users/bulk-delete", { ids: selectedRows });
+        if (res.data && res.data.success === false) {
+          throw new Error(res.data.message || "Bulk delete failed on server");
+        }
+        await fetchMembers();
         setSelectedRows([]);
         showToast(`${deleteModal.count} members removed successfully`);
       }
       setDeleteModal({ isOpen: false, id: null, count: 1, loading: false });
     } catch (err) {
-      console.error(err);
-      showToast(`Failed to remove members`);
+      console.error("Delete error:", err);
+      const status = err?.response?.status;
+      const serverMsg = err?.response?.data?.message;
+      if (status === 401) {
+        showToast("Unauthorized — please log in again as Admin");
+      } else if (status === 403) {
+        showToast("Permission denied — only Admins can delete members");
+      } else {
+        showToast(serverMsg || `Failed to remove member. Please try again.`);
+      }
       setDeleteModal(prev => ({ ...prev, loading: false }));
     }
   };
@@ -1098,11 +1202,50 @@ export default function ManageTeams(){
     }
   };
 
+  const handleChangeRole = (id, newRole) => {
+    handleEditMember(id, { role: newRole });
+  };
+
+  // Check manage_billing permission — reads from rolePermissions for all roles including Admin
+  const DEFAULT_BILLING_PERMS = { Admin: true, Manager: false, Agent: false };
+  const hasBillingAccess = rolePermissions?.[userRole]?.manage_billing
+    ?? DEFAULT_BILLING_PERMS[userRole]
+    ?? false;
+
+  const handleUpgradePlanClick = () => {
+    if (hasBillingAccess) {
+      navigate('/admin/plan/upgrade');
+    }
+  };
+
   const getRoleMembers=(role)=>{const rm={Admin:"ADMIN",Manager:"MANAGER",Agent:"AGENT"};return members.filter(m=>m.role===(rm[role]||role.toUpperCase()));};
   const isViewMode=rolesView?.startsWith("view:");
   const isEditView=rolesView?.startsWith("edit:");
   const isCreateView=rolesView==="create";
   const viewRoleName=rolesView?.split(":")?.[1]||"";
+
+  // ── Access Restriction Check ──
+  if (!hasTeamAccess) {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center bg-[#F8FAFC] p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl p-10 shadow-[0_20px_50px_rgba(0,0,0,0.05)] text-center space-y-6 border border-slate-100">
+          <div className="w-20 h-20 bg-red-50 rounded-2xl flex items-center justify-center mx-auto mb-2">
+            <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900">Access Restricted</h2>
+          <p className="text-gray-500 text-sm leading-relaxed">
+            You don't have permission to manage team members. Please contact your administrator.
+          </p>
+          <button
+            onClick={() => navigate(-1)}
+            className="w-full py-4 bg-gray-900 hover:bg-gray-800 text-white font-bold rounded-2xl transition-all"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if(isCreateView){
     return(
@@ -1184,7 +1327,7 @@ export default function ManageTeams(){
                   <CircularCheckbox checked={selectedRows.includes(member.id)} onChange={() => toggleSelect(member.id)} />
                 </div>
                 <div className="flex items-center gap-3"><Avatar member={member}/><div><p className="text-sm font-semibold text-gray-800">{member.name}</p><p className="text-xs text-gray-400">{member.email}</p></div></div><div><RoleBadge role={member.role}/></div><div><StatusDot status={member.status}/></div><p className={`text-sm ${member.lastActive==="Never"?"text-gray-400 italic":"text-gray-600"}`}>{member.lastActive}</p><div className="flex items-center gap-2">{member.status==="Pending"?(<><button onClick={()=>showToast(`Invitation resent to ${member.email}`)} className="text-sm font-semibold text-green-600 hover:text-green-700 transition">Resend Invite</button><button onClick={()=>handleRemoveMember(member.id)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button></>):(<><button onClick={()=>setEditTarget(member)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></button><button onClick={()=>handleRemoveMember(member.id)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6"/></svg></button></>)}</div></div>)))}
-              <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:Math.max(totalPages,3)},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
+              <div className="flex items-center justify-between px-6 py-3.5 border-t border-gray-100 bg-gray-50/40"><p className="text-sm text-gray-500">Showing {paginated.length} of {filtered.length} members</p><div className="flex items-center gap-1"><button onClick={()=>setPage(p=>Math.max(1,p-1))} disabled={page===1} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Previous</button>{Array.from({length:totalPages},(_,i)=>i+1).map(p=>(<button key={p} onClick={()=>setPage(p)} className={`w-8 h-8 text-xs font-semibold rounded-lg transition ${page===p?"bg-green-500 text-white":"text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>{p}</button>))}<button onClick={()=>setPage(p=>Math.min(totalPages,p+1))} disabled={page>=totalPages} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed transition">Next</button></div></div>
             </div>
             <div className="grid grid-cols-3 gap-4">{[{label:"ADMINS",count:admins,sub:"Total active",icon:"🛡️",color:"text-green-600 bg-green-50"},{label:"MANAGERS",count:managers,sub:"Total active",icon:"👥",color:"text-blue-600 bg-blue-50"},{label:"AGENTS",count:agents,sub:"Across 3 teams",icon:"🎧",color:"text-purple-600 bg-purple-50"}].map(({label,count,sub,icon,color})=>(<div key={label} className="bg-white border border-gray-200 rounded-2xl px-5 py-4 shadow-sm flex items-center justify-between"><div><p className="text-xs font-bold text-gray-400 tracking-widest mb-1">{label}</p><div className="flex items-baseline gap-2"><span className="text-3xl font-black text-gray-900">{count}</span><span className="text-sm text-gray-400">{sub}</span></div></div><div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${color}`}>{icon}</div></div>))}</div>
           </>
@@ -1221,7 +1364,7 @@ export default function ManageTeams(){
                 />
               ))}
             </div>
-            <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm flex items-center justify-between"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg></div><div><p className="text-sm font-bold text-gray-900">Custom Role Capability</p><p className="text-sm text-gray-500 mt-0.5">Need more specific access control? Enterprise plans can create up to 25 unique custom roles with granular permission toggles.</p></div></div><button className="ml-6 flex-shrink-0 px-4 py-2 text-sm font-bold text-green-600 hover:text-green-700 transition whitespace-nowrap">Upgrade Plan</button></div>
+            <div className="bg-white border border-gray-200 rounded-2xl px-6 py-5 shadow-sm flex items-center justify-between"><div className="flex items-center gap-4"><div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center flex-shrink-0"><svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd"/></svg></div><div><p className="text-sm font-bold text-gray-900">Custom Role Capability</p><p className="text-sm text-gray-500 mt-0.5">Need more specific access control? Enterprise plans can create up to 25 unique custom roles with granular permission toggles.</p></div></div><button onClick={handleUpgradePlanClick} disabled={!hasBillingAccess} className={`ml-6 flex-shrink-0 px-4 py-2 text-sm font-bold rounded-xl transition whitespace-nowrap ${hasBillingAccess ? "text-green-600 hover:text-green-700 cursor-pointer" : "text-gray-300 cursor-not-allowed bg-gray-50 border border-gray-200"}`} title={!hasBillingAccess ? "Manage Billing permission is disabled" : ""}>Upgrade Plan</button></div>
           </div>
         )}
       </div>
