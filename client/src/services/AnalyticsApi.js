@@ -35,6 +35,14 @@ const AnalyticsApi = {
     const response = await axios.get('/analytics/campaigns');
     return response.data;
   },
+
+  getConversationAnalytics: async ({ startDate, endDate } = {}) => {
+    const params = {};
+    if (startDate) params.startDate = startDate;
+    if (endDate) params.endDate = endDate;
+    const response = await axios.get('/analytics/conversations', { params });
+    return response.data;
+  },
 };
 
 export default AnalyticsApi;

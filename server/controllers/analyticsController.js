@@ -401,3 +401,179 @@ exports.getTemplateAnalytics = async (req, res, next) => {
   }
 };
 
+// WhatsApp conversation pricing (INR per conversation)
+const CONV_PRICING = {
+  marketing: 1.50,
+  utility:   1.00,
+  auth:      0.30,
+  service:   0.00,
+};
+
+/**
+ * Derive WhatsApp conversation category from a message doc.
+ *
+ * Logic (mirrors WhatsApp's own billing categories):
+ *  1. sender='them'  (inbound / user-initiated)       → SERVICE  (free)
+ *  2. template name contains auth/otp/verif keywords  → AUTHENTICATION
+ *  3. has metadata.campaignId  (bulk outreach)        → MARKETING
+ *  4. outbound template with no campaignId            → UTILITY  (transactional)
+ *  5. outbound plain-text with no campaignId          → UTILITY
+ */
+function deriveCategory(msg) {
+  // 1. Inbound messages are always service conversations
+  if (msg.sender === 'them') return 'service';
+
+  // 2. Auth — check template name keywords regardless of campaign
+  if (msg.messageType === 'template') {
+    const name = (msg.templateName || '').toLowerCase();
+    if (
+      name.includes('auth') ||
+      name.includes('otp') ||
+      name.includes('verif') ||
+      name.includes('code') ||
+      name.includes('pin') ||
+      name.includes('password')
+    ) return 'auth';
+  }
+
+  // 3. Campaign messages (bulk) → marketing
+  const hasCampaignId =
+    msg.metadata &&
+    (msg.metadata.campaignId || msg.metadata.campaign_id);
+  if (hasCampaignId) return 'marketing';
+
+  // 4 & 5. Non-campaign outbound (template or plain-text) → utility
+  return 'utility';
+}
+
+// @desc    Get conversation analytics (by date, by category)
+// @route   GET /api/analytics/conversations
+// @access  Private
+exports.getConversationAnalytics = async (req, res, next) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    const start = startDate
+      ? new Date(startDate)
+      : (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d; })();
+    const end = endDate ? new Date(endDate) : new Date();
+    end.setHours(23, 59, 59, 999);
+
+    // ── 1. User's campaign IDs (campaign messages store metadata.campaignId, not user) ──
+    const userCampaigns = await Campaign.find({ user: req.user._id }).select('_id');
+    const campaignIds = userCampaigns.map(c => c._id.toString());
+
+    // ── 2. User's chat IDs ────────────────────────────────────────────────────────────
+    // IMPORTANT: 1:1 chat messages (utility/service) are saved with only `chatId` —
+    // the `user` field is NOT reliably set on the Message document for these messages.
+    // We must query by chatId to catch them.
+    const Chat = require('../models/Chat');
+    const userChats = await Chat.find({
+      $or: [
+        { user: req.user._id },
+        { source: 'whatsapp' }   // shared WhatsApp inbox
+      ]
+    }).select('_id');
+    const chatIds = userChats.map(c => c._id);
+
+    const baseMatch = {
+      createdAt: { $gte: start, $lte: end },
+      $or: [
+        { 'metadata.campaignId': { $in: campaignIds } }, // campaign messages
+        { user: req.user._id },                          // messages with user set
+        { chatId: { $in: chatIds } }                     // 1:1 chat messages (utility/service)
+      ]
+    };
+
+    // Fetch all messages in range (include metadata so we can check campaignId)
+    const messages = await Message.find(baseMatch)
+      .select('sender messageType templateName metadata chatId createdAt')
+      .lean();
+
+    // Group by date string (YYYY-MM-DD)
+    const dateMap = {};
+
+    const toDateKey = (d) => {
+      const dt = new Date(d);
+      return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+    };
+
+    const emptyDay = () => ({
+      marketing: { qty: 0, cost: 0 },
+      utility:   { qty: 0, cost: 0 },
+      auth:      { qty: 0, cost: 0 },
+      service:   { qty: 0, cost: 0 },
+    });
+
+    messages.forEach(msg => {
+      const key = toDateKey(msg.createdAt);
+      if (!dateMap[key]) dateMap[key] = emptyDay();
+      const cat = deriveCategory(msg);
+      dateMap[key][cat].qty += 1;
+      dateMap[key][cat].cost = parseFloat(
+        (dateMap[key][cat].qty * CONV_PRICING[cat]).toFixed(2)
+      );
+    });
+
+    // Build sorted table rows
+    const tableData = Object.entries(dateMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, cats]) => {
+        const totalConv = cats.marketing.qty + cats.utility.qty + cats.auth.qty + cats.service.qty;
+        const totalCharges = parseFloat(
+          (cats.marketing.cost + cats.utility.cost + cats.auth.cost + cats.service.cost).toFixed(2)
+        );
+        return { date, ...cats, totalConv, totalCharges };
+      });
+
+    // Aggregate totals per category
+    const totals = {
+      marketing: { qty: 0, cost: 0 },
+      utility:   { qty: 0, cost: 0 },
+      auth:      { qty: 0, cost: 0 },
+      service:   { qty: 0, cost: 0 },
+    };
+    tableData.forEach(row => {
+      ['marketing', 'utility', 'auth', 'service'].forEach(cat => {
+        totals[cat].qty  += row[cat].qty;
+        totals[cat].cost += row[cat].cost;
+      });
+    });
+    Object.keys(totals).forEach(k => {
+      totals[k].cost = parseFloat(totals[k].cost.toFixed(2));
+    });
+
+    const totalConversations = tableData.reduce((s, r) => s + r.totalConv, 0);
+    const totalCharges = parseFloat(
+      tableData.reduce((s, r) => s + r.totalCharges, 0).toFixed(2)
+    );
+
+    // Chart series data
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const chartCategories = tableData.map(r => {
+      const [, m, d] = r.date.split('-');
+      return `${parseInt(d)} ${monthNames[parseInt(m) - 1]}`;
+    });
+    const chartSeries = [
+      { name: 'MARKETING', data: tableData.map(r => r.marketing.qty) },
+      { name: 'UTILITY',   data: tableData.map(r => r.utility.qty) },
+      { name: 'AUTH',      data: tableData.map(r => r.auth.qty) },
+      { name: 'SERVICE',   data: tableData.map(r => r.service.qty) },
+    ];
+
+    res.status(200).json({
+      success: true,
+      data: {
+        tableData,
+        chartCategories,
+        chartSeries,
+        totals,
+        totalConversations,
+        totalCharges,
+        pricing: CONV_PRICING,
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
