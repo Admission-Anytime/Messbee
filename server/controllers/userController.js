@@ -1,4 +1,7 @@
 const User = require('../models/User');
+const CustomField = require('../models/CustomField');
+const QuickReply = require('../models/QuickReply');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const crypto = require('crypto');
 
 // @desc    Get user profile
@@ -11,6 +14,41 @@ exports.getProfile = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get account limits and usage
+// @route   GET /api/users/account-limits
+// @access  Private
+exports.getAccountLimits = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const userPlan = (user.subscriptionPlan || 'free').toLowerCase();
+    const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.free;
+
+    const customFieldsCount = await CustomField.countDocuments({ userId: req.user.id });
+    const quickRepliesCount = await QuickReply.countDocuments({ user: req.user.id });
+    
+    // Assuming single-tenant or global users for now based on existing getUsers logic
+    const teamMembersCount = await User.countDocuments(); 
+
+    res.status(200).json({
+      success: true,
+      data: {
+        whatsappApiNumber: { 
+          used: user.whatsappConnected !== false ? 1 : 0, 
+          limit: limits.features?.multipleWhatsAppNumbers ? 5 : 1 // arbitrary limit for multiple
+        },
+        customFields: { used: customFieldsCount, limit: limits.customFields },
+        quickReplies: { used: quickRepliesCount, limit: limits.quickReplies },
+        teamMembers: { used: teamMembersCount, limit: limits.agents },
+        storage: { used: 45, limit: 100, isPercent: true } // mock percent for now
+      }
     });
   } catch (error) {
     next(error);

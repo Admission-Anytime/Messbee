@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom"; // ✅ Import Navigation
 import {
    CurrencyRupeeIcon,
    PlusIcon,
    CheckCircleIcon,
 } from "@heroicons/react/24/outline";
+import { getAccountLimits } from "../../services/authService";
 
 // ✅ Import Toastify
 import { ToastContainer, toast } from 'react-toastify';
@@ -40,6 +41,21 @@ const ResourceCard = ({ title, used, limit, warning = false }) => {
 
 const ActivePlan = () => {
    const navigate = useNavigate(); // ✅ Hook
+   const [limits, setLimits] = useState(null);
+
+   useEffect(() => {
+      const fetchLimits = async () => {
+         try {
+            const data = await getAccountLimits();
+            if (data.success) {
+               setLimits(data.data);
+            }
+         } catch (error) {
+            console.error("Failed to fetch account limits:", error);
+         }
+      };
+      fetchLimits();
+   }, []);
 
    // --- HANDLERS ---
    const handleAddCredit = () => {
@@ -124,11 +140,11 @@ const ActivePlan = () => {
 
                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
                   {[
-                     { label: "WhatsApp API Number", used: 2, limit: 1, color: "#3B82F6" },
-                     { label: "Custom Fields", used: 1, limit: 5, color: "#3B82F6" },
-                     { label: "Quick Replies", used: 2, limit: 5, color: "#3B82F6" },
-                     { label: "Team Members", used: 4, limit: 5, color: "#1E293B" },
-                     { label: "Storage Used", used: 100, limit: 100, color: "#10B981", isPercent: true },
+                     { label: "WhatsApp API Number", used: limits?.whatsappApiNumber?.used || 0, limit: limits?.whatsappApiNumber?.limit || 1, color: "#3B82F6" },
+                     { label: "Custom Fields", used: limits?.customFields?.used || 0, limit: limits?.customFields?.limit || 5, color: "#3B82F6" },
+                     { label: "Quick Replies", used: limits?.quickReplies?.used || 0, limit: limits?.quickReplies?.limit || 5, color: "#3B82F6" },
+                     { label: "Team Members", used: limits?.teamMembers?.used || 0, limit: limits?.teamMembers?.limit || 5, color: "#1E293B" },
+                     { label: "Storage Used", used: limits?.storage?.used || 0, limit: limits?.storage?.limit || 100, color: "#10B981", isPercent: true },
                   ].map((item) => {
                      const pct = item.isPercent ? item.used : Math.min((item.used / item.limit) * 100, 100);
                      const isOver = !item.isPercent && item.used > item.limit;

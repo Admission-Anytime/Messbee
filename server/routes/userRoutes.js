@@ -21,6 +21,8 @@ router.route('/')
 
 router.post('/bulk-delete', protect, bulkDeleteUsers);
 
+router.get('/account-limits', protect, require('../controllers/userController').getAccountLimits);
+
 router.route('/profile')
   .get(protect, getProfile)
   .put(protect, updateProfile);
