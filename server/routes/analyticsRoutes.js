@@ -3,7 +3,8 @@ const {
   getDashboardAnalytics,
   getMessageAnalytics,
   getCampaignAnalytics,
-  getTemplateAnalytics
+  getTemplateAnalytics,
+  getConversationAnalytics
 } = require('../controllers/analyticsController');
 const { protect } = require('../middleware/auth');
 
@@ -126,5 +127,30 @@ router.get('/campaigns', getCampaignAnalytics);
  *         description: Template analytics data
  */
 router.get('/templates', getTemplateAnalytics);
+
+/**
+ * @swagger
+ * /api/analytics/conversations:
+ *   get:
+ *     summary: Get conversation analytics grouped by date and category
+ *     tags: [Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *     responses:
+ *       200:
+ *         description: Conversation analytics data
+ */
+router.get('/conversations', getConversationAnalytics);
 
 module.exports = router;
