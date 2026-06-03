@@ -141,6 +141,14 @@ export const getCurrentUser = async () => {
 };
 
 /**
+ * Get account limits
+ */
+export const getAccountLimits = async () => {
+  const { data } = await axios.get("/users/account-limits");
+  return data;
+};
+
+/**
  * Resend OTP
  */
 export const resendOTP = async (email, purpose = "login") => {
