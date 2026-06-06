@@ -127,6 +127,14 @@ const CreateTemplate = () => {
     syncEditorContent();
   };
 
+  const removeVariable = (variableId) => {
+    if (!editorRef.current) return;
+    // Remove the {{n}} placeholder from the editor text
+    const regex = new RegExp(`\\{\\{\\s*${variableId}\\s*\\}\\}`, 'g');
+    editorRef.current.innerText = editorRef.current.innerText.replace(regex, '').trim();
+    syncEditorContent();
+  };
+
   const [formData, setFormData] = useState({
     category: (location.state?.templateData?.category 
       ? location.state.templateData.category.charAt(0).toUpperCase() + location.state.templateData.category.slice(1).toLowerCase() 
@@ -439,10 +447,20 @@ const CreateTemplate = () => {
     }
 
     if (templateVariables.length > 0) {
-      const hasMissingSamples = templateVariables.some((id) => !String(bodySamples[id] || '').trim());
-      if (hasMissingSamples) {
-        toast.error("Please add sample text for all body variables");
-        return;
+      if (formData.category === 'Authentication') {
+        // Authentication templates hide the body editor UI, so auto-fill a default OTP sample
+        templateVariables.forEach((id) => {
+          if (!String(bodySamples[id] || '').trim()) {
+            setBodySamples((prev) => ({ ...prev, [id]: '123456' }));
+            bodySamples[id] = '123456'; // also update local ref for this submission
+          }
+        });
+      } else {
+        const hasMissingSamples = templateVariables.some((id) => !String(bodySamples[id] || '').trim());
+        if (hasMissingSamples) {
+          toast.error("Please add sample text for all body variables");
+          return;
+        }
       }
     }
 
@@ -574,7 +592,11 @@ const CreateTemplate = () => {
             return { type: 'URL', text: b.text, url: b.value };
           }
           if (b.type === 'Call phone number') {
-            return { type: 'PHONE_NUMBER', text: b.text, phone_number: b.value };
+            // Build E.164 phone number: strip non-digits from local number, prepend country code digits
+            const countryCode = (b.countryCode || '+91').replace(/\D/g, ''); // e.g. "91"
+            const localNumber = (b.value || '').replace(/\D/g, '');           // digits only
+            const e164Phone = `+${countryCode}${localNumber}`;
+            return { type: 'PHONE_NUMBER', text: b.text, phone_number: e164Phone };
           }
           return { type: 'QUICK_REPLY', text: b.text };
         }).filter(b => b.text && (b.url || b.phone_number || b.type === 'QUICK_REPLY'));
@@ -585,6 +607,27 @@ const CreateTemplate = () => {
       }
 
       // 1. Submit to WhatsApp API
+      if (formData.category === 'Authentication') {
+        // WhatsApp requires a very strict component structure for Authentication templates
+        components.length = 0;
+        components.push({
+          type: 'BODY',
+          add_security_recommendation: true
+        });
+        components.push({
+          type: 'FOOTER',
+          code_expiration_minutes: 5
+        });
+        components.push({
+          type: 'BUTTONS',
+          buttons: [{
+            type: 'OTP',
+            otp_type: 'COPY_CODE',
+            text: 'Copy code'
+          }]
+        });
+      }
+
       const templatePayload = {
         name: waName,
         category: formData.category.toUpperCase(),
@@ -1265,6 +1308,14 @@ const CreateTemplate = () => {
                                 placeholder={`Enter content for {{${variableId}}}`}
                                 className="flex-1 p-3 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all"
                               />
+                              <button
+                                type="button"
+                                onClick={() => removeVariable(variableId)}
+                                title={`Remove {{${variableId}}} from body`}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 transition-all"
+                              >
+                                <X size={15} />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -1317,10 +1368,21 @@ const CreateTemplate = () => {
                                           <>
                                             <div>
                                                 <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country</label>
-                                                <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
-                                                  <option>+91</option>
-                                                  <option>+1</option>
-                                                  <option>+44</option>
+                                                <select
+                                                  value={btn.countryCode || '+91'}
+                                                  onChange={(e) => updateButton(btn.id, 'countryCode', e.target.value)}
+                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
+                                                >
+                                                  <option value="+91">+91 (India)</option>
+                                                  <option value="+1">+1 (US/Canada)</option>
+                                                  <option value="+44">+44 (UK)</option>
+                                                  <option value="+971">+971 (UAE)</option>
+                                                  <option value="+966">+966 (Saudi Arabia)</option>
+                                                  <option value="+65">+65 (Singapore)</option>
+                                                  <option value="+60">+60 (Malaysia)</option>
+                                                  <option value="+61">+61 (Australia)</option>
+                                                  <option value="+49">+49 (Germany)</option>
+                                                  <option value="+33">+33 (France)</option>
                                                 </select>
                                             </div>
                                             <div>
@@ -1329,9 +1391,9 @@ const CreateTemplate = () => {
                                                   <input 
                                                     type="text" 
                                                     value={btn.value} 
-                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value.replace(/\D/g, ''))}
                                                     className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="Mobile Number"
+                                                    placeholder="Digits only (e.g. 9876543210)"
                                                   />
                                                 </div>
                                             </div>

@@ -1004,60 +1004,63 @@ class WhatsAppService {
         console.warn(`⚠️  Language code "${language}" not in common list, allowing it anyway (WhatsApp may reject)`);
       }
 
-      // Validate BODY component exists and has content
+      // Validate BODY component exists
       const bodyComponent = preparedComponents.find(c => c.type === 'BODY');
-      if (!bodyComponent || !bodyComponent.text || bodyComponent.text.trim().length < 20) {
-        return {
-          success: false,
-          error: {
-            message: 'Template body must exist and be at least 20 characters long for approval'
-          }
-        };
-      }
-
-      if (bodyComponent.text.length > 1024) {
-        return {
-          success: false,
-          error: {
-            message: "The Body (or Content) field can't have more than 1,024 characters.",
-            code: 100,
-            errorSubcode: 2388040,
-            title: 'Character limit exceeded'
-          }
-        };
-      }
-
-      const placeholderMatches = Array.from(bodyComponent.text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g));
-      const placeholderRawValues = placeholderMatches.map((match) => (match[1] || '').trim());
-      const hasInvalidPlaceholderFormat = placeholderRawValues.some((value) => !/^\d+$/.test(value));
-
-      if (hasInvalidPlaceholderFormat) {
-        return {
-          success: false,
-          error: {
-            message: 'Template placeholders must be numeric and wrapped as {{1}}, {{2}}, ... only.'
-          }
-        };
-      }
-
-      if (placeholderRawValues.length > 0) {
-        const placeholderNumbers = [...new Set(placeholderRawValues.map((value) => Number(value)))].sort((a, b) => a - b);
-        const expected = Array.from({ length: placeholderNumbers[placeholderNumbers.length - 1] }, (_, idx) => idx + 1);
-        const isSequential = expected.every((value) => placeholderNumbers.includes(value));
-
-        if (!isSequential || placeholderNumbers[0] !== 1) {
+      
+      if (category !== 'AUTHENTICATION') {
+        if (!bodyComponent || !bodyComponent.text || bodyComponent.text.trim().length < 20) {
           return {
             success: false,
             error: {
-              message: 'Template placeholders must be sequential starting from {{1}} without gaps.'
+              message: 'Template body must exist and be at least 20 characters long for approval'
             }
           };
         }
 
-        if (!bodyComponent.example?.body_text) {
-          bodyComponent.example = {
-            body_text: [placeholderNumbers.map((num) => `sample_${num}`)]
+        if (bodyComponent.text.length > 1024) {
+          return {
+            success: false,
+            error: {
+              message: "The Body (or Content) field can't have more than 1,024 characters.",
+              code: 100,
+              errorSubcode: 2388040,
+              title: 'Character limit exceeded'
+            }
           };
+        }
+
+        const placeholderMatches = Array.from(bodyComponent.text.matchAll(/\{\{\s*([^}]+?)\s*\}\}/g));
+        const placeholderRawValues = placeholderMatches.map((match) => (match[1] || '').trim());
+        const hasInvalidPlaceholderFormat = placeholderRawValues.some((value) => !/^\d+$/.test(value));
+
+        if (hasInvalidPlaceholderFormat) {
+          return {
+            success: false,
+            error: {
+              message: 'Template placeholders must be numeric and wrapped as {{1}}, {{2}}, ... only.'
+            }
+          };
+        }
+
+        if (placeholderRawValues.length > 0) {
+          const placeholderNumbers = [...new Set(placeholderRawValues.map((value) => Number(value)))].sort((a, b) => a - b);
+          const expected = Array.from({ length: placeholderNumbers[placeholderNumbers.length - 1] }, (_, idx) => idx + 1);
+          const isSequential = expected.every((value) => placeholderNumbers.includes(value));
+
+          if (!isSequential || placeholderNumbers[0] !== 1) {
+            return {
+              success: false,
+              error: {
+                message: 'Template placeholders must be sequential starting from {{1}} without gaps.'
+              }
+            };
+          }
+
+          if (!bodyComponent.example?.body_text) {
+            bodyComponent.example = {
+              body_text: [placeholderNumbers.map((num) => `sample_${num}`)]
+            };
+          }
         }
       }
 

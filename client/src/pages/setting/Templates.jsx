@@ -1,10 +1,71 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, Phone, Video, Smile, Paperclip, Send, CheckCheck } from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, ChevronRight, Phone, Video, Smile, Paperclip, Send, CheckCheck } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { fetchWhatsAppTemplates, mergeTemplates, deleteWhatsAppTemplate } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
+
+const ROWS_OPTIONS = [10, 25, 50, 100];
+
+function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageChange, onRowsChange }) {
+  const start = totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const end = Math.min(currentPage * rowsPerPage, totalCount);
+
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = [1];
+    if (currentPage > 3) pages.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
+
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans rounded-b-xl">
+      <span className="text-sm text-gray-500">Total templates: <strong className="text-gray-900">{totalCount}</strong></span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-gray-500">Rows per page:</span>
+        <select
+          value={rowsPerPage}
+          onChange={e => { onRowsChange(Number(e.target.value)); onPageChange(1); }}
+          className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-green-400"
+        >
+          {ROWS_OPTIONS.map(n => <option key={n}>{n}</option>)}
+        </select>
+        <span className="text-sm text-gray-500 min-w-[90px] text-center">{start}–{end} of {totalCount}</span>
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="flex gap-1">
+          {getPages().map((p, i) =>
+            p === "..."
+              ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+              : <button
+                key={p}
+                onClick={() => onPageChange(p)}
+                className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-[#10B981] text-white border-[#10B981] font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-[#10B981] hover:text-[#10B981]"}`}
+              >
+                {p}
+              </button>
+          )}
+        </div>
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 const Templates = ({ activeTab }) => {
   const navigate = useNavigate();
@@ -29,6 +90,10 @@ const Templates = ({ activeTab }) => {
   const [filteredTemplates, setFilteredTemplates] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
 
   // Fetch templates from WhatsApp API only
   // silent=true suppresses the success toast (used after delete to avoid double-toast)
@@ -77,7 +142,16 @@ const Templates = ({ activeTab }) => {
     }
     
     setFilteredTemplates(filtered);
+    setCurrentPage(1); // Reset to page 1 on filter/search change
   }, [templates, searchQuery, statusFilter]);
+
+  // Calculate Pagination Data
+  const totalCount = filteredTemplates.length;
+  const totalPages = Math.ceil(totalCount / rowsPerPage);
+  const currentTemplates = filteredTemplates.slice(
+    (currentPage - 1) * rowsPerPage,
+    currentPage * rowsPerPage
+  );
 
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, templateId: null, isDeleting: false });
 
@@ -257,7 +331,7 @@ const Templates = ({ activeTab }) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {filteredTemplates.map((temp) => (
+                  {currentTemplates.map((temp) => (
                     <tr key={temp.id} onClick={() => setSelectedTemplate(temp)} className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedTemplate?.id === temp.id ? 'bg-green-50/60' : ''}`}>
                       <td className="px-2 md:px-3 py-3 text-sm font-medium text-gray-900 truncate" title={temp.name}>{temp.name}</td>
                       <td className="px-2 md:px-3 py-3 text-gray-500 text-[13px] font-medium hidden sm:table-cell truncate" title={temp.updated}>{temp.updated}</td>
@@ -301,6 +375,17 @@ const Templates = ({ activeTab }) => {
                   ))}
                 </tbody>
               </table>
+            )}
+            
+            {!loading && filteredTemplates.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                rowsPerPage={rowsPerPage}
+                totalCount={totalCount}
+                onPageChange={setCurrentPage}
+                onRowsChange={setRowsPerPage}
+              />
             )}
           </div>
         </div>
