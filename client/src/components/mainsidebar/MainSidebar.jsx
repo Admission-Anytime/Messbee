@@ -427,8 +427,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
               </div>
 
               <div className="px-2 pt-2 border-t border-slate-50 flex flex-col">
-                <button className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg text-slate-600 text-sm font-bold"><Icon icon="feather:headphones" className="w-4 h-4" /> Contact us</button>
-                <button className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg text-slate-600 text-sm font-bold"><Icon icon="feather:external-link" className="w-4 h-4" /> Help doc</button>
+                <button onClick={() => { setIsProfilePopupOpen(false); navigate('/admin/help/support'); }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg text-slate-600 text-sm font-bold"><Icon icon="feather:headphones" className="w-4 h-4" /> Contact us</button>
+                <button onClick={() => { setIsProfilePopupOpen(false); navigate('/admin/help/introduction'); }} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg text-slate-600 text-sm font-bold"><Icon icon="feather:external-link" className="w-4 h-4" /> Help doc</button>
                 <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 hover:bg-red-50 rounded-lg text-red-500 text-sm font-bold mt-1"><Icon icon="feather:log-out" className="w-4 h-4" /> Logout</button>
               </div>
 
