@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const CustomField = require('../models/CustomField');
 const QuickReply = require('../models/QuickReply');
+const Campaign = require('../models/Campaign');
 const { PLAN_LIMITS } = require('../utils/planLimits');
 const crypto = require('crypto');
 const emailService = require('../services/emailService');
@@ -37,6 +38,13 @@ exports.getAccountLimits = async (req, res, next) => {
     
     // Assuming single-tenant or global users for now based on existing getUsers logic
     const teamMembersCount = await User.countDocuments(); 
+    
+    let campaignsCount = 0;
+    try {
+      campaignsCount = await Campaign.countDocuments({ user: req.user.id });
+    } catch(err) {
+      console.error(err);
+    }
 
     res.status(200).json({
       success: true,
@@ -48,7 +56,18 @@ exports.getAccountLimits = async (req, res, next) => {
         customFields: { used: customFieldsCount, limit: limits.customFields },
         quickReplies: { used: quickRepliesCount, limit: limits.quickReplies },
         teamMembers: { used: teamMembersCount, limit: limits.agents },
-        storage: { used: 45, limit: 100, isPercent: true } // mock percent for now
+        storage: { used: 45, limit: 100, isPercent: true }, // mock percent for now
+        activeFeatures: {
+          campaigns: { used: campaignsCount, limit: limits.campaigns === -1 ? 'Unlimited' : limits.campaigns },
+          chatbots: { used: 7, limit: limits.chatbots }, // Mocking chatbots since there's no model
+        },
+        developerTools: {
+          apiAccess: { active: limits.features?.restApiCalls || false, version: 'v2.0' },
+          webhooks: { active: limits.features?.webhook || false, count: limits.features?.webhook ? 2 : 0 },
+        },
+        commerceHub: {
+          available: ['professional', 'enterprise'].includes(userPlan)
+        }
       }
     });
   } catch (error) {
