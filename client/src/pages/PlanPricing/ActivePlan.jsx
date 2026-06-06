@@ -195,8 +195,8 @@ const ActivePlan = () => {
                            </div>
                         </div>
                         <div className="mb-4">
-                           <span className="text-2xl font-extrabold text-slate-800">49</span>
-                           <span className="text-lg font-bold text-emerald-500 ml-1">/ Unlimited</span>
+                           <span className="text-2xl font-extrabold text-slate-800">{limits?.activeFeatures?.campaigns?.used ?? 0}</span>
+                           <span className="text-lg font-bold text-emerald-500 ml-1">/ {limits?.activeFeatures?.campaigns?.limit ?? 'Unlimited'}</span>
                         </div>
                         <div className="flex flex-wrap gap-2">
                            <span className="bg-slate-50 border border-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-[10px] font-bold flex items-center gap-1">Retarget Campaign <span className="text-blue-400">ⓘ</span></span>
@@ -213,10 +213,10 @@ const ActivePlan = () => {
                            </div>
                         </div>
                         <div className="mb-1">
-                           <span className="text-2xl font-extrabold text-slate-800">7</span>
-                           <span className="text-lg font-bold text-orange-500 ml-1">/ 5</span>
+                           <span className="text-2xl font-extrabold text-slate-800">{limits?.activeFeatures?.chatbots?.used ?? 0}</span>
+                           <span className="text-lg font-bold text-orange-500 ml-1">/ {limits?.activeFeatures?.chatbots?.limit ?? 1}</span>
                         </div>
-                        <p className="text-[11px] text-orange-500 font-semibold italic mb-3">Quota Exceeded</p>
+                        {((limits?.activeFeatures?.chatbots?.used ?? 0) > (limits?.activeFeatures?.chatbots?.limit ?? 1)) && <p className="text-[11px] text-orange-500 font-semibold italic mb-3">Quota Exceeded</p>}
                         <div className="flex flex-wrap gap-2">
                            {["ChatGPT ⚡", "Ask Question ⓘ", "Garvik ⓘ"].map((tag) => (
                               <span key={tag} className="bg-slate-50 border border-slate-100 text-slate-600 px-3 py-1.5 rounded-full text-[10px] font-bold cursor-pointer hover:bg-slate-100">{tag}</span>
@@ -230,7 +230,7 @@ const ActivePlan = () => {
                      <div className="flex items-center justify-between mb-3">
                         <div>
                            <h4 className="text-sm font-bold text-slate-800">Commerce Hub</h4>
-                           <p className="text-[11px] text-slate-400">Status: <span className="italic">Not available on Silver</span></p>
+                           <p className="text-[11px] text-slate-400">Status: <span className="italic">{limits?.commerceHub?.available ? 'Available' : 'Not available on your plan'}</span></p>
                         </div>
                         <button className="px-4 py-1.5 rounded-lg border-2 border-slate-200 text-[11px] font-bold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer uppercase tracking-wider">
                            Upgrade to Gold
@@ -262,11 +262,11 @@ const ActivePlan = () => {
                            </div>
                            <div>
                               <p className="text-sm font-bold text-slate-700">API Access</p>
-                              <p className="text-[10px] text-slate-400">Active v2.0</p>
+                              <p className="text-[10px] text-slate-400">{limits?.developerTools?.apiAccess?.active ? `Active ${limits?.developerTools?.apiAccess?.version}` : 'Inactive'}</p>
                            </div>
                         </div>
-                        <div className="w-11 h-6 bg-emerald-400 rounded-full p-0.5 cursor-pointer">
-                           <div className="w-5 h-5 bg-white rounded-full shadow-sm translate-x-5"></div>
+                        <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition-colors duration-200 ${limits?.developerTools?.apiAccess?.active ? 'bg-emerald-400' : 'bg-slate-200'}`}>
+                           <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${limits?.developerTools?.apiAccess?.active ? 'translate-x-5' : 'translate-x-0'}`}></div>
                         </div>
                      </div>
 
@@ -278,11 +278,11 @@ const ActivePlan = () => {
                            </div>
                            <div>
                               <p className="text-sm font-bold text-slate-700">Webhooks</p>
-                              <p className="text-[10px] text-slate-400">2 Active</p>
+                              <p className="text-[10px] text-slate-400">{limits?.developerTools?.webhooks?.count ?? 0} Active</p>
                            </div>
                         </div>
-                        <div className="w-11 h-6 bg-emerald-400 rounded-full p-0.5 cursor-pointer">
-                           <div className="w-5 h-5 bg-white rounded-full shadow-sm translate-x-5"></div>
+                        <div className={`w-11 h-6 rounded-full p-0.5 cursor-pointer transition-colors duration-200 ${limits?.developerTools?.webhooks?.active ? 'bg-emerald-400' : 'bg-slate-200'}`}>
+                           <div className={`w-5 h-5 bg-white rounded-full shadow-sm transition-transform duration-200 ${limits?.developerTools?.webhooks?.active ? 'translate-x-5' : 'translate-x-0'}`}></div>
                         </div>
                      </div>
 
