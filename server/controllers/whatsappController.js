@@ -1305,7 +1305,16 @@ exports.deleteTemplate = async (req, res, next) => {
     console.log('🗑️ [Controller] Attempting to delete template:', { templateId, templateName });
     const result = await whatsappService.deleteTemplate(templateId, templateName);
 
-    if (!result.success) {
+    // Check if this is a Meta permission error (code 100 - BSP/WABA ownership restriction)
+    // In this case we soft-delete: remove from our local DB so it disappears from the UI
+    const isMetaPermissionError =
+      !result.success &&
+      (result.error?.code === 100 ||
+        (typeof result.error?.message === 'string' &&
+          result.error.message.includes('Need permission on either WhatsApp Business Account')));
+
+    if (!result.success && !isMetaPermissionError) {
+      // A genuine failure (network error, invalid name, etc.) — surface it to the user
       console.error('❌ [Controller] Delete failed:', result.error);
       return res.status(400).json({
         success: false,
@@ -1314,7 +1323,24 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
-    console.log('✅ [Controller] Template deleted successfully:', templateName);
+    // Remove from local DB regardless (hard delete from Meta or soft delete)
+    try {
+      await Template.findOneAndDelete({ name: templateName, user: req.user.id });
+      console.log('✅ [Controller] Template removed from local DB:', templateName);
+    } catch (dbError) {
+      console.warn('⚠️ [Controller] Could not remove template from local DB:', dbError.message);
+    }
+
+    if (isMetaPermissionError) {
+      console.warn('⚠️ [Controller] Meta API rejected delete (permission), but template removed from local view.');
+      return res.status(200).json({
+        success: true,
+        message: 'Template removed from your account. Note: It may still appear in WhatsApp Manager due to BSP permission restrictions — you can delete it directly from Meta Business Manager.',
+        softDeleted: true
+      });
+    }
+
+    console.log('✅ [Controller] Template deleted successfully from WhatsApp + local DB:', templateName);
     res.status(200).json({
       success: true,
       message: 'Template deleted successfully',
@@ -1325,6 +1351,7 @@ exports.deleteTemplate = async (req, res, next) => {
     next(error);
   }
 };
+
 
 // @desc    Update template
 // @route   PUT /api/whatsapp/templates/:templateId

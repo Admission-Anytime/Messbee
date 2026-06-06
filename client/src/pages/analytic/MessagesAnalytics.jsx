@@ -14,6 +14,8 @@ import Chart from "react-apexcharts";
 import { 
   FileText,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Calendar,
   Play,
   Star,
@@ -21,7 +23,37 @@ import {
   Loader2,
   AlertCircle
 } from "lucide-react";
+import { IconButton } from "@mui/material";
 import AnalyticsApi from "../../services/AnalyticsApi";
+
+// ─── Custom Calendar Header ───────────────────────────────────────────────────
+const CustomDatePickerHeader = ({ currentMonth, onMonthChange, view, onViewChange }) => {
+  const monthLabel = currentMonth.format("MMMM");
+  const yearLabel  = currentMonth.format("YYYY");
+  const btnStyle = (active) => ({
+    fontFamily: "Urbanist, sans-serif", fontWeight: 700, fontSize: "15px",
+    color: active ? "#10B981" : "#1e293b",
+    background: active ? "#f0fdf4" : "transparent",
+    border: "none", borderRadius: "8px", padding: "4px 8px",
+    cursor: "pointer", transition: "all 0.15s ease", lineHeight: 1.4,
+  });
+  return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"8px 12px" }}>
+      <IconButton size="small" onClick={() => onMonthChange(currentMonth.subtract(1,"month"),"right")}
+        sx={{ color:"#64748b", "&:hover":{ color:"#10B981", backgroundColor:"#f0fdf4" } }}>
+        <ChevronLeft size={18} />
+      </IconButton>
+      <div style={{ display:"flex", alignItems:"center", gap:"4px" }}>
+        <button onClick={() => onViewChange(view==="month" ? "day" : "month")} style={btnStyle(view==="month")} title="Select month">{monthLabel}</button>
+        <button onClick={() => onViewChange(view==="year"  ? "day" : "year")}  style={btnStyle(view==="year")}  title="Select year">{yearLabel}</button>
+      </div>
+      <IconButton size="small" onClick={() => onMonthChange(currentMonth.add(1,"month"),"left")}
+        sx={{ color:"#64748b", "&:hover":{ color:"#10B981", backgroundColor:"#f0fdf4" } }}>
+        <ChevronRight size={18} />
+      </IconButton>
+    </div>
+  );
+};
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) => {
@@ -291,6 +323,8 @@ const MessagesAnalytics = () => {
               <DatePicker
                 value={dateRange[0]}
                 onChange={(val) => setDateRange([val, dateRange[1]])}
+                views={['year', 'month', 'day']}
+                slots={{ calendarHeader: CustomDatePickerHeader }}
                 slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
               />
 
@@ -300,6 +334,8 @@ const MessagesAnalytics = () => {
               <DatePicker
                 value={dateRange[1]}
                 onChange={(val) => setDateRange([dateRange[0], val])}
+                views={['year', 'month', 'day']}
+                slots={{ calendarHeader: CustomDatePickerHeader }}
                 slotProps={{ textField: { sx: { width: 130, ...inputSx } } }}
               />
             </div>

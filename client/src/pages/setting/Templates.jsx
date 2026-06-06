@@ -31,7 +31,8 @@ const Templates = ({ activeTab }) => {
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Fetch templates from WhatsApp API only
-  const loadTemplates = useCallback(async () => {
+  // silent=true suppresses the success toast (used after delete to avoid double-toast)
+  const loadTemplates = useCallback(async (silent = false) => {
     setLoading(true);
     try {
       const whatsappTemplates = await fetchWhatsAppTemplates();
@@ -43,9 +44,11 @@ const Templates = ({ activeTab }) => {
         setSelectedTemplate((prev) => prev || formatted[0]);
       }
       
-      toast.success('Templates synced from WhatsApp', {
-        toastId: 'templates-sync-success',
-      });
+      if (!silent) {
+        toast.success('Templates synced from WhatsApp', {
+          toastId: 'templates-sync-success',
+        });
+      }
     } catch (error) {
       toast.error('Failed to load templates from WhatsApp', {
         toastId: 'templates-sync-error',
@@ -96,7 +99,7 @@ const Templates = ({ activeTab }) => {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
 
     try {
-      await deleteWhatsAppTemplate(id, templateToDelete.name);
+      const result = await deleteWhatsAppTemplate(id, templateToDelete.name);
       const updatedTemplates = templates.filter(t => t.id !== id);
       setTemplates(updatedTemplates);
       
@@ -105,10 +108,10 @@ const Templates = ({ activeTab }) => {
       }
       
       setDeleteModal({ isOpen: false, templateId: null, isDeleting: false });
-      toast.success("Template deleted successfully from WhatsApp");
+      toast.success("Template deleted successfully");
       
       setTimeout(() => {
-        loadTemplates();
+        loadTemplates(true); // silent — don't show sync toast after delete
       }, 1000);
     } catch (error) {
       console.error('❌ Error deleting template:', error);
@@ -116,6 +119,7 @@ const Templates = ({ activeTab }) => {
       setDeleteModal(prev => ({ ...prev, isDeleting: false }));
     }
   };
+
 
   const handleSync = async () => {
     setLoading(true);

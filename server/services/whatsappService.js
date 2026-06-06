@@ -1355,7 +1355,8 @@ class WhatsAppService {
         throw new Error('Template name is required to delete a template');
       }
 
-
+      // Sync the latest access token from DB before making the API call
+      await this.syncConfig();
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
       const response = await axios.delete(
