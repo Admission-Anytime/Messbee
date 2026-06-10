@@ -689,7 +689,7 @@ const CreateCampaign = () => {
                 {currentStep === 2 && (
                     <div className="flex h-[calc(100vh-200px)]">
                         {/* LEFT SIDE: Template Selection */}
-                        <div className="w-1/2 px-12 overflow-y-auto border-r border-gray-100">
+                        <div className="w-1/2 px-12 overflow-y-auto border-r border-gray-100 flex flex-col">
                             {/* Filters */}
                             <div className="flex gap-4 mb-6">
                                 <div className="relative flex-1">
@@ -707,9 +707,30 @@ const CreateCampaign = () => {
                                 </button>
                             </div>
 
+                            {/* Empty State — shown when no templates exist */}
+                            {templates.filter(t =>
+                                searchQuery.trim() === '' ||
+                                t.name.toLowerCase().includes(searchQuery.toLowerCase())
+                            ).length === 0 && (
+                                <div className="flex items-center justify-center h-[calc(100%-60px)]">
+                                    <div className="border border-dashed border-gray-200 rounded-2xl px-12 py-10 flex flex-col items-center gap-4 bg-gray-50/60">
+                                        <p className="text-sm text-gray-400 font-medium">No templates found.</p>
+                                        <button
+                                            onClick={() => navigate('/admin/templates/create')}
+                                            className="flex items-center gap-2 px-5 py-2 border border-emerald-500 text-emerald-600 font-semibold text-sm rounded-lg hover:bg-emerald-50 transition-colors"
+                                        >
+                                            <span className="text-lg leading-none">+</span> Create Template
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Template Grid */}
                             <div className="grid grid-cols-2 gap-4 pb-12">
-                                {templates.map((template) => (
+                                {templates.filter(t =>
+                                    searchQuery.trim() === '' ||
+                                    t.name.toLowerCase().includes(searchQuery.toLowerCase())
+                                ).map((template) => (
                                     <div
                                         key={template.id}
                                         onClick={() => setSelectedTemplate(template.id)}
