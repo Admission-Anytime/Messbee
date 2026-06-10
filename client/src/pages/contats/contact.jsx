@@ -2002,7 +2002,7 @@ export default function ContactsCRM() {
                 className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium bg-white cursor-pointer outline-none focus:border-green-400 transition-colors"
               >
                 <option>All Contacts</option>
-                {ALL_STATUSES.map(s => <option key={s}>{s}</option>)}
+                {(allStatuses.length > 0 ? allStatuses.map(s => s.name) : ALL_STATUSES).map(s => <option key={s}>{s}</option>)}
               </select>
               <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
             </div>
