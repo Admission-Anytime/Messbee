@@ -1545,26 +1545,20 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
 
       {/* Dropdown Menu - More Actions */}
       {activeMenu === 'more' && (
-        <div className="absolute bottom-[calc(100%+10px)] right-0 w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300 py-2">
+        <div className="absolute bottom-[calc(100%+10px)] right-0 w-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300 py-2">
           {[
-            { label: 'Closed chats', icon: CheckCircleIcon, color: 'text-slate-600' },
-            { label: 'Archived chats', icon: ArchiveBoxIcon, color: 'text-slate-600' },
-            { label: 'Unarchived chats', icon: ArrowUpTrayIcon, color: 'text-slate-600' },
+            { label: 'Export Selected', icon: ArrowUpTrayIcon, color: 'text-slate-600', action: () => { setActiveMenu(null); } },
+            { label: 'Send Campaign', icon: MegaphoneIcon, color: 'text-slate-600', action: () => { onCampaign(); setActiveMenu(null); } },
             { divider: true },
-            { label: 'Delete chat', icon: TrashIcon, color: 'text-red-500' },
-            { label: 'Delete contact', icon: UserMinusIcon, color: 'text-red-500' },
-            { divider: true },
-            { label: 'Pin chat', icon: MapPinIcon, color: 'text-slate-600' },
-            { label: 'Unpin chat', icon: MapPinIcon, color: 'text-slate-400' },
-            { label: 'Mark as un-read', icon: ChatBubbleLeftIcon, color: 'text-slate-600' },
+            { label: 'Delete Contacts', icon: UserMinusIcon, color: 'text-red-500', action: () => { onDelete(); setActiveMenu(null); } },
           ].map((item, i) => item.divider ? (
             <div key={`d-${i}`} className="mx-3.5 my-1.5 h-px bg-slate-100" />
           ) : (
             <button
               key={item.label}
-              onClick={() => { setActiveMenu(null); }}
+              onClick={item.action}
               style={{ animationDelay: `${i * 20}ms` }}
-              className="group flex w-full items-center gap-2.5 px-4 py-2 text-left transition-colors animate-in fade-in slide-in-from-bottom-1 fill-mode-both hover:bg-slate-50"
+              className="group flex w-full items-center gap-2.5 px-4 py-2.5 text-left transition-colors animate-in fade-in slide-in-from-bottom-1 fill-mode-both hover:bg-slate-50"
             >
               <item.icon className={`h-3.5 w-3.5 ${item.color} transition-transform group-hover:scale-110`} />
               <span className={`text-[12px] font-semibold ${item.color}`}>{item.label}</span>
