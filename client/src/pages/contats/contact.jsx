@@ -1139,9 +1139,11 @@ function ManageColumnsDropdown({ allColumns, visibleColumns, onToggle, onReset, 
 }
 
 /* ─── More Filters Panel ─────────────────────────────────────────────────────── */
-function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }) {
+function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS, statuses = [] }) {
+  const [local, setLocal] = useState(filters || { statuses: [], labels: [] });
   const [labelSearch, setLabelSearch] = useState("");
   const [showLabelOptions, setShowLabelOptions] = useState(false);
+  const ref = useRef(null);
   const labelDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -1181,15 +1183,19 @@ function MoreFiltersPanel({ filters, onApply, onClose, labels = DEFAULT_LABELS }
         <div>
           <p className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2">Status</p>
           <div className="flex flex-wrap gap-1.5">
-            {ALL_STATUSES.map(s => {
-              const sel = (local.statuses || []).includes(s);
+            {statuses.map(s => {
+              const name = s.name || s;
+              const sel = (local.statuses || []).includes(name);
+              const selStyle = sel
+                ? `bg-emerald-50 text-emerald-700 border-emerald-300`
+                : `bg-gray-100 text-gray-500 border-gray-200 hover:border-gray-300`;
               return (
                 <button
-                  key={s}
-                  onClick={() => toggleArr("statuses", s)}
-                  className={`px-3 py-1 rounded-full text-xs font-bold border tracking-wide transition-all ${sel ? STATUS_BTN_SEL[s] : "bg-gray-100 text-gray-500 border-gray-200 hover:border-gray-300"}`}
+                  key={name}
+                  onClick={() => toggleArr("statuses", name)}
+                  className={`px-3 py-1 rounded-full text-xs font-bold border tracking-wide transition-all ${selStyle}`}
                 >
-                  {s}
+                  {name}
                 </button>
               );
             })}
@@ -2017,7 +2023,7 @@ export default function ContactsCRM() {
                 )}
               </button>
               {showMoreFilters && (
-                <MoreFiltersPanel filters={advFilters} onApply={applyFilters} onClose={() => setShowMoreFilters(false)} labels={allLabels} />
+                <MoreFiltersPanel filters={advFilters} onApply={applyFilters} onClose={() => setShowMoreFilters(false)} labels={allLabels} statuses={allStatuses} />
               )}
             </div>
             <div className="relative">

@@ -43,12 +43,18 @@ function Dashboard() {
 
    // Message Limit Tier Logic
    const getMessageTier = () => {
+      const metaLimit = performanceData?.wabaConfig?.messagingLimit;
+      if (metaLimit) {
+         // Meta returns raw API strings like "TIER_50K" or "TIER_UNLIMITED"
+         // This cleans it up dynamically without any manual hardcoding
+         let displayLimit = metaLimit.replace('TIER_', '');
+         if (displayLimit === 'UNLIMITED') return 'Unlimited';
+         // Adds ",000" if it's a K value (e.g., "50K" -> "50,000")
+         return displayLimit.replace('K', ',000');
+      }
+
       if (user?.messageLimitTier) return user.messageLimitTier;
-      const plan = user?.subscriptionPlan?.toLowerCase() || "free";
-      if (plan === "free") return "1,000";
-      if (plan === "basic") return "10,000";
-      if (plan === "professional") return "50,000";
-      return "100,000";
+      return "Pending Meta";
    };
 
    // --- DATE STATE ---
@@ -62,7 +68,8 @@ function Dashboard() {
       open:    { value: 0, change: 0, trend: 'neutral' },
       failed:  { value: 0, change: 0, trend: 'neutral' },
       freeTier:{ value: 0, limit: 1000, trend: 'neutral' },
-      agents:  { value: 1, status: 'active' }
+      agents:  { value: 1, status: 'active' },
+      wabaConfig: null
    });
 
    // Fetch performance data from real API
@@ -79,6 +86,7 @@ function Dashboard() {
                failed:   m.failed,
                freeTier: m.freeTier,
                agents:   m.agents,
+               wabaConfig: res.data.wabaConfig,
             });
          }
       } catch (err) {
