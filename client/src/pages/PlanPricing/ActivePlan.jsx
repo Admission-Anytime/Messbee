@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom"; // ✅ Import Navigation
+import React, { useState, useEffect, useContext } from "react";
+import { useNavigate } from "react-router-dom";
 import {
    CurrencyRupeeIcon,
    PlusIcon,
    CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import { getAccountLimits } from "../../services/authService";
+import { userContext } from "../../context/Context";
+import { getDaysRemaining, getSubscriptionProgress } from "../../utils/subscription";
 
 // ✅ Import Toastify
 import { ToastContainer, toast } from 'react-toastify';
@@ -40,8 +42,30 @@ const ResourceCard = ({ title, used, limit, warning = false }) => {
 };
 
 const ActivePlan = () => {
-   const navigate = useNavigate(); // ✅ Hook
+   const navigate = useNavigate();
+   const { user } = useContext(userContext);
    const [limits, setLimits] = useState(null);
+
+   // ── Dynamic plan data from userContext ──────────────────────────────────────
+   const credits = user?.credits != null ? parseFloat(user.credits) : 0;
+   const planName = user?.subscriptionPlan
+      ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1)
+      : "Free";
+   const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
+
+   let daysRemaining = 0;
+   let expiryStr = "";
+   let progressPct = 0;
+
+   if (user?.subscriptionEndDate) {
+      const endDate = new Date(user.subscriptionEndDate);
+      daysRemaining = getDaysRemaining(endDate);
+      progressPct = getSubscriptionProgress(daysRemaining);
+      expiryStr = endDate.toLocaleString("en-IN", {
+         day: "numeric", month: "short", year: "numeric",
+         hour: "2-digit", minute: "2-digit"
+      });
+   }
 
    useEffect(() => {
       const fetchLimits = async () => {
@@ -93,19 +117,35 @@ const ActivePlan = () => {
                   <div>
                      <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Current Plan</p>
                      <div className="flex items-center gap-3 mb-2">
-                        <h2 className="text-3xl font-extrabold text-slate-900">Custom (Silver)</h2>
+                        <h2 className="text-3xl font-extrabold text-slate-900">{planName} Plan</h2>
                         <span className="bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Active</span>
                      </div>
-                     <p className="text-xs text-slate-400 font-medium">Expiry date: <span className="text-slate-600">28 Apr, 2026 5:29 am</span></p>
+                     <p className="text-xs text-slate-400 font-medium">
+                        {isFreePlan
+                           ? "Free plan — no expiry"
+                           : `Expiry date: ${expiryStr || "—"}`}
+                     </p>
                   </div>
 
                   {/* Days Remaining Box */}
                   <div className="bg-slate-50 rounded-xl p-4 w-full md:w-48 text-center border border-slate-100">
-                     <div className="text-4xl font-extrabold text-emerald-500 mb-1">74</div>
-                     <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Days Remaining</div>
-                     <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                        <div className="w-[40%] h-full bg-emerald-400 rounded-full"></div>
-                     </div>
+                     {isFreePlan ? (
+                        <>
+                           <div className="text-4xl font-extrabold text-slate-400 mb-1">∞</div>
+                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Unlimited</div>
+                        </>
+                     ) : (
+                        <>
+                           <div className="text-4xl font-extrabold text-emerald-500 mb-1">{daysRemaining}</div>
+                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Days Remaining</div>
+                           <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                 className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                                 style={{ width: `${progressPct}%` }}
+                              ></div>
+                           </div>
+                        </>
+                     )}
                   </div>
                </div>
 
@@ -116,7 +156,7 @@ const ActivePlan = () => {
                      <button onClick={handleAddCredit} className="text-[10px] font-bold text-emerald-500 hover:underline">WCC Pricing</button>
                   </div>
                   <div className="bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-center mb-4">
-                     <span className="text-2xl font-extrabold text-slate-900">₹618.51</span>
+                     <span className="text-2xl font-extrabold text-slate-900">₹{credits.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <button
                      onClick={handleAddCredit}

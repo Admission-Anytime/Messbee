@@ -979,6 +979,9 @@ const UpgradePlan = () => {
   const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
   const isAdmin = userRole === "Admin";
 
+  // Current plan from user data — used to highlight the active plan card
+  const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
+
   // Check manage_billing permission — reads from rolePermissions for all roles including Admin
   const DEFAULT_BILLING_PERMS = { Admin: true, Manager: false, Agent: false };
   const hasBillingAccess = rolePermissions?.[userRole]?.manage_billing
