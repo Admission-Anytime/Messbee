@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, ChevronRight, Phone, Video, Smile, Paperclip, Send, CheckCheck, Info } from 'lucide-react';
 
 const ROWS_OPTIONS = [10, 25, 50, 100];
@@ -69,6 +69,7 @@ import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 
 const Templates = ({ activeTab }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   
   // Syncing internal view with Sidebar activeTab
   const [view, setView] = useState('list');
@@ -124,6 +125,13 @@ const Templates = ({ activeTab }) => {
   useEffect(() => {
     loadTemplates();
   }, [loadTemplates]);
+
+  // Re-fetch templates every time the user navigates back to this page
+  // (the component stays mounted inside the layout, so we watch location.key)
+  useEffect(() => {
+    loadTemplates(true); // silent = no toast on revisit
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   // Filter templates based on search and status
   useEffect(() => {
