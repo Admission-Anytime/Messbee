@@ -127,6 +127,27 @@ const CreateTemplate = () => {
     syncEditorContent();
   };
 
+  const removeVariable = (variableId) => {
+    if (!editorRef.current) return;
+    // Remove the variable from innerHTML (preserves other formatting)
+    let html = editorRef.current.innerHTML;
+    html = html.replace(new RegExp(`\\{\\{\\s*${variableId}\\s*\\}\\}`, 'g'), '');
+
+    // Re-number remaining variables sequentially
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const remaining = extractBodyVariables(tempDiv.innerText);
+    remaining.forEach((oldId, idx) => {
+      const newId = idx + 1;
+      if (oldId !== newId) {
+        html = html.replace(new RegExp(`\\{\\{\\s*${oldId}\\s*\\}\\}`, 'g'), `{{${newId}}}`);
+      }
+    });
+
+    editorRef.current.innerHTML = html;
+    syncEditorContent();
+  };
+
   const [formData, setFormData] = useState({
     category: (location.state?.templateData?.category 
       ? location.state.templateData.category.charAt(0).toUpperCase() + location.state.templateData.category.slice(1).toLowerCase() 
@@ -161,8 +182,13 @@ const CreateTemplate = () => {
     }
     setFormData({ ...formData, category: cat, bodyText: newBody });
 
-    if (cat === 'Authentication') setTemplateType('OTP');
-    else setTemplateType('CUSTOM');
+    if (cat === 'Authentication') {
+      setTemplateType('OTP');
+      setBodySamples({ 1: '123456' }); // Auto-fill OTP sample so {{1}} passes validation
+    } else {
+      setTemplateType('CUSTOM');
+      setBodySamples({}); // Clear auth sample when switching away
+    }
   };
 
   const showToast = (message, type = 'success') => {
@@ -514,6 +540,45 @@ const CreateTemplate = () => {
     }
 
     try {
+      // ── AUTHENTICATION (OTP) templates require a special Meta-mandated structure ──
+      // They cannot use a freeform BODY with {{1}} like Marketing/Utility templates.
+      // Meta requires: BODY with add_security_recommendation + BUTTONS with OTP/COPY_CODE.
+      if (formData.category === 'Authentication') {
+        const authComponents = [
+          {
+            type: 'BODY',
+            add_security_recommendation: true
+          },
+          {
+            type: 'FOOTER',
+            code_expiration_minutes: 10
+          },
+          {
+            type: 'BUTTONS',
+            buttons: [
+              {
+                type: 'OTP',
+                otp_type: 'COPY_CODE',
+                text: 'Copy Code'
+              }
+            ]
+          }
+        ];
+
+        const authPayload = {
+          name: waName,
+          category: 'AUTHENTICATION',
+          language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
+          components: authComponents
+        };
+
+        const authResponse = await createWhatsAppTemplate(authPayload);
+        showToast('Authentication template submitted successfully to WhatsApp!');
+        setTimeout(() => { navigate('/admin/templates/list'); }, 1500);
+        return; // Done — skip the rest of the normal submit flow
+      }
+
+      // ── All other categories (Marketing, Utility) use the normal flow below ──
       const components = [];
 
       // Fallback public URLs (only used if no file was uploaded by the user)
@@ -1257,7 +1322,7 @@ const CreateTemplate = () => {
                         <div className="space-y-3">
                           {bodyVariables.map((variableId) => (
                             <div key={variableId} className="flex items-center gap-3">
-                              <label className="w-16 text-sm font-semibold text-gray-700">{`{{${variableId}}}`}</label>
+                              <label className="w-16 text-sm font-semibold text-gray-700 shrink-0">{`{{${variableId}}}`}</label>
                               <input
                                 type="text"
                                 value={bodySamples[variableId] || ''}
@@ -1265,6 +1330,14 @@ const CreateTemplate = () => {
                                 placeholder={`Enter content for {{${variableId}}}`}
                                 className="flex-1 p-3 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all"
                               />
+                              <button
+                                type="button"
+                                onClick={() => removeVariable(variableId)}
+                                title={`Remove {{${variableId}}} from body`}
+                                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
                           ))}
                         </div>

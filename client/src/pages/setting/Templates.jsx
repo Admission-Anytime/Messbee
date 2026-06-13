@@ -1,7 +1,68 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, Phone, Video, Smile, Paperclip, Send, CheckCheck } from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, ChevronRight, Phone, Video, Smile, Paperclip, Send, CheckCheck, Info } from 'lucide-react';
+
+const ROWS_OPTIONS = [10, 25, 50, 100];
+
+function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageChange, onRowsChange }) {
+  const start = totalCount === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const end = Math.min(currentPage * rowsPerPage, totalCount);
+
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = [1];
+    if (currentPage > 3) pages.push('...');
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+    return pages;
+  };
+
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans">
+      <span className="text-sm text-gray-500">Total templates: <strong className="text-gray-900">{totalCount}</strong></span>
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-sm text-gray-500">Rows per page:</span>
+        <select
+          value={rowsPerPage}
+          onChange={e => { onRowsChange(Number(e.target.value)); onPageChange(1); }}
+          className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-emerald-400"
+        >
+          {ROWS_OPTIONS.map(n => <option key={n}>{n}</option>)}
+        </select>
+        <span className="text-sm text-gray-500 min-w-[90px] text-center">{start}–{end} of {totalCount}</span>
+        <button
+          onClick={() => onPageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <div className="flex gap-1">
+          {getPages().map((p, i) =>
+            p === '...'
+              ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+              : <button
+                key={p}
+                onClick={() => onPageChange(p)}
+                className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? 'bg-emerald-500 text-white border-emerald-500 font-bold' : 'bg-white text-gray-500 border-gray-200 hover:border-emerald-400 hover:text-emerald-700'}`}
+              >
+                {p}
+              </button>
+          )}
+        </div>
+        <button
+          onClick={() => onPageChange(currentPage + 1)}
+          disabled={currentPage === totalPages || totalPages === 0}
+          className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-emerald-400 hover:text-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
 import { toast } from 'react-toastify';
 import { fetchWhatsAppTemplates, mergeTemplates, deleteWhatsAppTemplate } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -28,6 +89,8 @@ const Templates = ({ activeTab }) => {
   const [loading, setLoading] = useState(false);
   const [filteredTemplates, setFilteredTemplates] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState('All');
 
   // Fetch templates from WhatsApp API only
@@ -77,6 +140,7 @@ const Templates = ({ activeTab }) => {
     }
     
     setFilteredTemplates(filtered);
+    setCurrentPage(1); // reset to page 1 whenever filters change
   }, [templates, searchQuery, statusFilter]);
 
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, templateId: null, isDeleting: false });
@@ -175,9 +239,14 @@ const Templates = ({ activeTab }) => {
         )}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <div className="flex items-center justify-between mb-6 gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 relative group">
               <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-800">Templates</h1>
-              <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600" title="Templates from WhatsApp API">ⓘ</span>
+              <Info size={18} className="text-gray-400 cursor-pointer hover:text-blue-500 transition-colors" />
+              <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
+                <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-[5px] border-transparent border-r-gray-900"></div>
+                <p className="font-semibold mb-1">WhatsApp Templates</p>
+                <p className="text-gray-300 font-medium">Templates must be approved by Meta before they can be used to start conversations with customers.</p>
+              </div>
             </div>
             <div className="flex items-center gap-2 md:gap-3">
               <button 
@@ -245,62 +314,74 @@ const Templates = ({ activeTab }) => {
                 </div>
               </div>
             ) : (
-              <table className="w-full table-fixed text-left border-collapse">
-                <thead className="bg-white sticky top-0 z-10 border-b border-gray-200">
-                  <tr>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Update Date</th>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Source</th>
-                    <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredTemplates.map((temp) => (
-                    <tr key={temp.id} onClick={() => setSelectedTemplate(temp)} className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedTemplate?.id === temp.id ? 'bg-green-50/60' : ''}`}>
-                      <td className="px-2 md:px-3 py-3 text-sm font-medium text-gray-900 truncate" title={temp.name}>{temp.name}</td>
-                      <td className="px-2 md:px-3 py-3 text-gray-500 text-[13px] font-medium hidden sm:table-cell truncate" title={temp.updated}>{temp.updated}</td>
-                      <td className="px-2 md:px-3 py-3"><span className="inline-block max-w-full truncate px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-600" title={temp.category || 'General'}>{temp.category || 'General'}</span></td>
-                      <td className="px-2 md:px-3 py-3 text-center">
-                          <div className="flex items-center justify-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${temp.status === 'Approved' ? 'bg-green-500' : (temp.status === 'Rejected' || temp.status === 'Blocked') ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
-                              <span className="text-[13px] font-semibold text-gray-700">{temp.status || 'Pending'}</span>
-                          </div>
-                      </td>
-                      <td className="px-2 md:px-3 py-3 text-center">
-                          <span className={`inline-block max-w-full truncate text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${temp.source === 'whatsapp' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {temp.source || 'local'}
-                          </span>
-                      </td>
-                      <td className="px-2 md:px-3 py-3">
-                          <div className="flex items-center justify-center gap-3">
-                              <button 
-                                  onClick={(e) => { 
-                                    e.stopPropagation();
-                                    navigate('/admin/templates/create', { state: { isEditing: true, templateData: temp } });
-                                  }} 
-                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                                  title="Edit template"
-                              >
-                                  <Pencil size={18} />
-                              </button>
-                              <button 
-                                  onClick={(e) => { e.stopPropagation(); navigate('/admin/templates/create', { state: { isEditing: false, isDuplicate: true, templateData: temp } }); }} 
-                                  className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" 
-                                  title="Duplicate template"
-                              >
-                                  <Copy size={18} />
-                              </button>
-                              <button onClick={(e) => handleDeleteClick(e, temp.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete template">
-                                  <Trash2 size={18} />
-                              </button>
-                          </div>
-                      </td>
+              <>
+                <table className="w-full table-fixed text-left border-collapse">
+                  <thead className="bg-white sticky top-0 z-10 border-b border-gray-200">
+                    <tr>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Update Date</th>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Status</th>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Source</th>
+                      <th className="px-2 md:px-3 py-3 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-center">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filteredTemplates
+                      .slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage)
+                      .map((temp) => (
+                      <tr key={temp.id} onClick={() => setSelectedTemplate(temp)} className={`hover:bg-gray-50/50 cursor-pointer transition-colors ${selectedTemplate?.id === temp.id ? 'bg-green-50/60' : ''}`}>
+                        <td className="px-2 md:px-3 py-3 text-sm font-medium text-gray-900 truncate" title={temp.name}>{temp.name}</td>
+                        <td className="px-2 md:px-3 py-3 text-gray-500 text-[13px] font-medium hidden sm:table-cell truncate" title={temp.updated}>{temp.updated}</td>
+                        <td className="px-2 md:px-3 py-3"><span className="inline-block max-w-full truncate px-2 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-600" title={temp.category || 'General'}>{temp.category || 'General'}</span></td>
+                        <td className="px-2 md:px-3 py-3 text-center">
+                            <div className="flex items-center justify-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${temp.status === 'Approved' ? 'bg-green-500' : (temp.status === 'Rejected' || temp.status === 'Blocked') ? 'bg-red-500' : 'bg-yellow-500'}`}></div>
+                                <span className="text-[13px] font-semibold text-gray-700">{temp.status || 'Pending'}</span>
+                            </div>
+                        </td>
+                        <td className="px-2 md:px-3 py-3 text-center">
+                            <span className={`inline-block max-w-full truncate text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${temp.source === 'whatsapp' ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                              {temp.source || 'local'}
+                            </span>
+                        </td>
+                        <td className="px-2 md:px-3 py-3">
+                            <div className="flex items-center justify-center gap-3">
+                                <button 
+                                    onClick={(e) => { 
+                                      e.stopPropagation();
+                                      navigate('/admin/templates/create', { state: { isEditing: true, templateData: temp } });
+                                    }} 
+                                    className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                                    title="Edit template"
+                                >
+                                    <Pencil size={18} />
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); navigate('/admin/templates/create', { state: { isEditing: false, isDuplicate: true, templateData: temp } }); }} 
+                                    className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" 
+                                    title="Duplicate template"
+                                >
+                                    <Copy size={18} />
+                                </button>
+                                <button onClick={(e) => handleDeleteClick(e, temp.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete template">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.max(1, Math.ceil(filteredTemplates.length / rowsPerPage))}
+                  rowsPerPage={rowsPerPage}
+                  totalCount={filteredTemplates.length}
+                  onPageChange={setCurrentPage}
+                  onRowsChange={n => { setRowsPerPage(n); setCurrentPage(1); }}
+                />
+              </>
             )}
           </div>
         </div>

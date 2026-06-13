@@ -109,12 +109,14 @@ const CampaignDetail = ({ campaign, onBack }) => {
   }));
 
   // Derive per-status counts directly from computed contacts (so stat numbers always match filter results)
-  const countSent    = contactsWithStatus.filter(c => c.computedStatus === "Sent").length;
+  const countFailed  = contactsWithStatus.filter(c => c.computedStatus === "Failed").length;
   const countDel     = contactsWithStatus.filter(c => c.computedStatus === "Delivered").length;
   const countRead    = contactsWithStatus.filter(c => c.computedStatus === "Read").length;
   const countReply   = contactsWithStatus.filter(c => c.computedStatus === "Text reply").length;
   const countBtn     = contactsWithStatus.filter(c => c.computedStatus === "Button clicked").length;
-  const countFailed  = contactsWithStatus.filter(c => c.computedStatus === "Failed").length;
+  // "Send" = total contacts successfully dispatched = all contacts minus failed
+  // (Delivered, Read, Replied are all sub-states of "Sent" in WhatsApp terminology)
+  const countSent    = Math.max(0, total - countFailed);
 
   const filteredContacts = (filterStatus === "Overview" 
     ? contactsWithStatus 
