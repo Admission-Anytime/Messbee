@@ -72,6 +72,7 @@ const MENU_ITEMS = [
         icon: "feather:settings",
         isSubmenu: true,
         children: [
+          { title: "Onboarding", path: "/admin/settings/onboarding", icon: "feather:play-circle" },
           { title: "WhatsApp Config", path: "/admin/settings/whatsapp", icon: "feather:smartphone" },
           { title: "Media Settings", path: "/admin/settings/media", icon: "feather:image" },
           { title: "Manage Teams", path: "/admin/settings/teams", icon: "feather:users" },
@@ -197,8 +198,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
   // Auto-open submenu based on URL
   useEffect(() => {
-    const paths = ["templates", "contacts", "commerce", "plan", "help", "analytic"];
-    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support", "Analytics"];
+    const paths = ["templates", "contacts", "commerce", "plan", "help", "analytic", "settings"];
+    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support", "Analytics", "Settings"];
     paths.forEach((p, i) => { if (location.pathname.includes(`/admin/${p}`)) setOpenSubmenu(labels[i]); });
   }, [location.pathname]);
 

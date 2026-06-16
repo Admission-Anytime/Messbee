@@ -313,6 +313,7 @@ function App() {
             element={<AppIntegration />}
           />
           {/* 11. Settings */}
+          <Route path="/admin/settings/onboarding" element={<VerificationForm />} />
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
           <Route path="/admin/settings/media" element={<Media />} />
           <Route path="/admin/settings/teams" element={<ManageTeams />} />
