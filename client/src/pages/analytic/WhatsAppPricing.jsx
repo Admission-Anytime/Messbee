@@ -20,6 +20,9 @@ import {
   Shield,
   Activity,
   Target,
+  Calendar,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 
 // ─── Insight bar ──────────────────────────────────────────────────────────────
@@ -167,27 +170,79 @@ const WhatsAppPricing = ({ onBack }) => {
   // ── heatmap data ───────────────────────────────────────────────────────────
   const heatDays = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
   const heatHours = Array.from({ length: 24 }, (_, i) => i);
-  const opacities = [0.1, 0.2, 0.35, 0.5, 0.7, 1];
+  // opacities[0] = lowest (lightest), opacities[5] = highest (darkest)
+  const heatColors = ["#dcfce7", "#bbf7d0", "#86efac", "#4ade80", "#22c55e", "#16a34a"];
   const getHeatVal = (dIdx, h) => {
-    if (dIdx >= 5) return (h >= 17 && h <= 19) ? 5 : (h >= 14 ? 3 : 2);
-    if (h >= 18) return 5;
-    if (h === 13) return 4;
-    if (h >= 9 && h <= 11) return 3;
-    return Math.max(0, (dIdx + h) % 3);
+    const isWeekend = dIdx >= 5;
+    // Night: very low
+    if (h >= 0 && h <= 5) return 0;
+    // Early morning
+    if (h >= 6 && h <= 7) return isWeekend ? 0 : 1;
+    // Morning ramp
+    if (h >= 8 && h <= 9) return isWeekend ? 1 : 2;
+    // Mid-morning peak
+    if (h >= 10 && h <= 12) return isWeekend ? 2 : 3;
+    // Afternoon lull
+    if (h >= 13 && h <= 14) return isWeekend ? 1 : 2;
+    // Afternoon peak
+    if (h >= 15 && h <= 16) return isWeekend ? 2 : 3;
+    // Evening peak (highest activity)
+    if (h >= 17 && h <= 20) return isWeekend ? 3 : 5;
+    // Late evening
+    if (h === 21) return isWeekend ? 2 : 4;
+    // Late night wind-down
+    return isWeekend ? 1 : 1;
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#f8fafc] overflow-hidden font-['Urbanist']">
-      <div className="flex-1 overflow-y-auto p-6 lg:p-8">
-        <div className="max-w-[1600px] mx-auto">
-
-          {/* HEADER */}
-          <div className="mb-6 flex items-center gap-3">
+    <div
+      className="flex h-full overflow-hidden"
+      style={{ fontFamily: "Urbanist, sans-serif", background: "#f8fafc" }}
+    >
+      <div className="flex-1 overflow-y-auto">
+        {/* ── PAGE HEADER ── */}
+        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors mr-1"
+              >
+                <ArrowLeft className="w-4 h-4 text-slate-600" />
+              </button>
+            )}
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">WhatsApp Conversation Pricing</h1>
-              <p className="text-[12px] text-slate-500 font-medium mt-0.5">Monitor conversation costs, usage patterns, billing trends, and pricing performance across all WhatsApp categories.</p>
+              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
+                Analytics &rsaquo;
+              </p>
+              <h1 className="text-xl font-extrabold text-slate-900 leading-tight">
+                WhatsApp Conversation Pricing
+              </h1>
+              <p className="text-xs text-slate-400 font-normal mt-0.5">
+                Monitor conversation costs, usage patterns, billing trends, and pricing performance across all WhatsApp categories.
+              </p>
             </div>
           </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 border border-slate-200 rounded-full px-4 py-2 text-slate-600 text-sm bg-white cursor-pointer hover:bg-slate-50 transition-colors">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <span className="font-semibold text-sm">Jun 1 – Jun 15, 2026</span>
+              <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+            <button
+              className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white text-sm font-bold px-5 py-2 rounded-full transition-all shadow-md"
+            >
+              <RefreshCw className="w-4 h-4" />
+              Refresh Analysis
+            </button>
+          </div>
+        </div>
+
+        {/* ── BODY ── */}
+        <div className="p-6 lg:p-8">
+        <div className="max-w-[1600px] mx-auto">
 
           {/* MAIN 2-COL GRID */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 items-start">
@@ -234,20 +289,24 @@ const WhatsAppPricing = ({ onBack }) => {
                       <Chart options={donutOptions} series={donutSeries} type="donut" height={130} />
                     </div>
 
-                    <div className="flex-1 space-y-4">
+                    <div className="flex-1 mt-1">
                       {breakdown.map((row) => (
-                        <div key={row.label} className="flex items-center gap-2">
-                          <div className="flex items-center gap-1.5 w-36 shrink-0">
-                            <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
-                            <span className="text-[12px] font-semibold text-slate-700">{row.label}</span>
-                            <span className="text-[11px] text-slate-400 font-medium ml-auto">{row.pct}%</span>
+                        <div key={row.label} className="mb-4 last:mb-0">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                              <span className="text-[12px] font-semibold text-slate-700">{row.label}</span>
+                              <span className="text-[11px] font-bold text-slate-400">{row.pct}%</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-[12px] font-black text-slate-900">{row.cost}</span>
+                            </div>
                           </div>
-                          <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                            <div className="h-full rounded-full" style={{ width: `${row.pct * 1.6}%`, backgroundColor: row.color }} />
-                          </div>
-                          <div className="text-right ml-2 shrink-0">
-                            <p className="text-[12px] font-black text-slate-900">{row.cost}</p>
-                            <p className="text-[9px] text-slate-400 font-medium">{row.convs}</p>
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${row.pct}%`, backgroundColor: row.color }} />
+                            </div>
+                            <span className="text-[10px] text-slate-400 font-medium shrink-0">{row.convs}</span>
                           </div>
                         </div>
                       ))}
@@ -358,12 +417,12 @@ const WhatsAppPricing = ({ onBack }) => {
                       <div className="flex flex-1 gap-[3px]">
                         {heatHours.map((h) => {
                           const v = getHeatVal(dIdx, h);
-                          const op = opacities[Math.min(v, opacities.length - 1)];
+                          const color = heatColors[Math.min(v, heatColors.length - 1)];
                           return (
                             <div
                               key={h}
-                              className="flex-1 h-[22px] rounded-full cursor-pointer hover:opacity-80 transition-opacity"
-                              style={{ backgroundColor: "#22c55e", opacity: op }}
+                              className="flex-1 h-[22px] rounded-full cursor-pointer hover:brightness-90 transition-all"
+                              style={{ backgroundColor: color }}
                             />
                           );
                         })}
@@ -375,8 +434,8 @@ const WhatsAppPricing = ({ onBack }) => {
                 {/* Legend — bottom right */}
                 <div className="flex items-center justify-end gap-2 mt-4 text-[10px] text-slate-400 font-medium">
                   <span>Low</span>
-                  {[0.1, 0.25, 0.5, 0.75, 1].map((op, i) => (
-                    <div key={i} className="w-3 h-3 rounded-full bg-[#10B981]" style={{ opacity: op }} />
+                  {heatColors.map((color, i) => (
+                    <div key={i} className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
                   ))}
                   <span>High</span>
                 </div>
@@ -811,6 +870,7 @@ const WhatsAppPricing = ({ onBack }) => {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </div>
     </div>
