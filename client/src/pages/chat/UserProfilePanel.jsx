@@ -29,7 +29,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
     name: data?.name || "",
     phone: data?.phone ? data.phone.replace(/\D/g, '').slice(-10) : "",
     email: data?.email || "",
-    status: (data?.chatStatus === 'open' ? 'opened' : data?.chatStatus) || "opened",
+    status: (data?.chatStatus === 'opened' ? 'open' : data?.chatStatus) || "open",
     institute: data?.customFields?.institute || "",
     gstn: data?.customFields?.gstn || "",
     city: data?.customFields?.city || ""
@@ -42,7 +42,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
       name: data?.name || "",
       phone: data?.phone ? data.phone.replace(/\D/g, '').slice(-10) : "",
       email: data?.email || "",
-      status: (data?.chatStatus === 'open' ? 'opened' : data?.chatStatus) || "opened",
+      status: (data?.chatStatus === 'opened' ? 'open' : data?.chatStatus) || "open",
       institute: data?.customFields?.institute || "",
       gstn: data?.customFields?.gstn || "",
       city: data?.customFields?.city || ""
@@ -398,7 +398,7 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
                           {statusOptions.map(option => (
                              <option key={option.id} value={option.label.toLowerCase()}>{option.label}</option>
                           ))}
-                          <option value="opened">Opened</option>
+                          <option value="open">Open</option>
                           <option value="closed">Closed</option>
                        </select>
                     </div>
