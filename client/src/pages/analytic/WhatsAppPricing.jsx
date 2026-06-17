@@ -201,12 +201,12 @@ const WhatsAppPricing = ({ onBack }) => {
     >
       <div className="flex-1 overflow-y-auto">
         {/* ── PAGE HEADER ── */}
-        <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+        <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {onBack && (
               <button
                 onClick={onBack}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors mr-1"
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors mr-1 shrink-0"
               >
                 <ArrowLeft className="w-4 h-4 text-slate-600" />
               </button>
@@ -215,26 +215,26 @@ const WhatsAppPricing = ({ onBack }) => {
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
                 Analytics &rsaquo;
               </p>
-              <h1 className="text-xl font-extrabold text-slate-900 leading-tight">
+              <h1 className="text-[20px] font-extrabold text-slate-900 leading-tight">
                 WhatsApp Conversation Pricing
               </h1>
-              <p className="text-xs text-slate-400 font-normal mt-0.5">
+              <p className="text-[11px] text-slate-400 font-normal mt-0.5">
                 Monitor conversation costs, usage patterns, billing trends, and pricing performance across all WhatsApp categories.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 border border-slate-200 rounded-full px-4 py-2 text-slate-600 text-sm bg-white cursor-pointer hover:bg-slate-50 transition-colors">
-              <Calendar className="w-4 h-4 text-slate-400" />
-              <span className="font-semibold text-sm">Jun 1 – Jun 15, 2026</span>
+          <div className="flex items-center gap-3 shrink-0 ml-4">
+            <div className="flex items-center gap-2 border border-slate-200 rounded-full px-3 py-1.5 text-slate-600 bg-white cursor-pointer hover:bg-slate-50 transition-colors whitespace-nowrap">
+              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              <span className="font-semibold text-[12px]">Jun 1 – Jun 15, 2026</span>
               <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
             <button
-              className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white text-sm font-bold px-5 py-2 rounded-full transition-all shadow-md"
+              className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white text-[12px] font-bold px-4 py-1.5 rounded-full transition-all shadow-md whitespace-nowrap"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className="w-3.5 h-3.5 shrink-0" />
               Refresh Analysis
             </button>
           </div>
