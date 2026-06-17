@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import GrowthOpportunityAnalysis from "./GrowthOpportunityAnalysis";
+import WhatsAppPricing from "./WhatsAppPricing";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
@@ -94,6 +96,8 @@ const CATEGORY_CONFIG = {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 const ConversationAnalytics = () => {
+  const [showGrowth, setShowGrowth] = useState(false);
+  const [showPricing, setShowPricing] = useState(false);
   const [view, setView] = useState("table");
   const [dateRange, setDateRange] = useState([
     dayjs().subtract(30, "day"),
@@ -247,6 +251,14 @@ const ConversationAnalytics = () => {
     link.click();
     document.body.removeChild(link);
   };
+
+  if (showGrowth) {
+    return <GrowthOpportunityAnalysis onBack={() => setShowGrowth(false)} />;
+  }
+
+  if (showPricing) {
+    return <WhatsAppPricing onBack={() => setShowPricing(false)} />;
+  }
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -470,7 +482,7 @@ const ConversationAnalytics = () => {
                       )}
                     </div>
 
-                    {/* Growth Opportunity Detected banner — same as original */}
+                    {/* Growth Opportunity Detected banner */}
                     <div className="bg-[#ecfdf5] border border-emerald-100 rounded-2xl p-5 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
                         <div className="w-11 h-11 bg-[#10B981] rounded-full flex items-center justify-center text-white shrink-0">
@@ -484,7 +496,10 @@ const ConversationAnalytics = () => {
                           </p>
                         </div>
                       </div>
-                      <button className="shrink-0 px-5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-black rounded-xl hover:bg-slate-50 transition-all shadow-sm">
+                      <button
+                        onClick={() => setShowGrowth(true)}
+                        className="shrink-0 px-5 py-2 bg-white border border-slate-200 text-slate-700 text-xs font-black rounded-xl hover:bg-slate-50 transition-all shadow-sm"
+                      >
                         View Analysis
                       </button>
                     </div>
@@ -682,7 +697,10 @@ const ConversationAnalytics = () => {
                     </div>
 
                     {/* Pricing Details */}
-                    <div className="bg-[#064e3b] rounded-2xl p-5 text-white cursor-pointer group hover:bg-[#065f46] transition-all">
+                    <div
+                      className="bg-[#064e3b] rounded-2xl p-5 text-white cursor-pointer group hover:bg-[#065f46] transition-all"
+                      onClick={() => setShowPricing(true)}
+                    >
                       <div className="flex items-center justify-between">
                         <div>
                           <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">Pricing Details</p>
