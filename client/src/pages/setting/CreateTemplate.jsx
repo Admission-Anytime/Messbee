@@ -127,6 +127,27 @@ const CreateTemplate = () => {
     syncEditorContent();
   };
 
+  const removeVariable = (variableId) => {
+    if (!editorRef.current) return;
+    // Remove the variable from innerHTML (preserves other formatting)
+    let html = editorRef.current.innerHTML;
+    html = html.replace(new RegExp(`\\{\\{\\s*${variableId}\\s*\\}\\}`, 'g'), '');
+
+    // Re-number remaining variables sequentially
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = html;
+    const remaining = extractBodyVariables(tempDiv.innerText);
+    remaining.forEach((oldId, idx) => {
+      const newId = idx + 1;
+      if (oldId !== newId) {
+        html = html.replace(new RegExp(`\\{\\{\\s*${oldId}\\s*\\}\\}`, 'g'), `{{${newId}}}`);
+      }
+    });
+
+    editorRef.current.innerHTML = html;
+    syncEditorContent();
+  };
+
   const [formData, setFormData] = useState({
     category: (location.state?.templateData?.category 
       ? location.state.templateData.category.charAt(0).toUpperCase() + location.state.templateData.category.slice(1).toLowerCase() 
@@ -161,8 +182,13 @@ const CreateTemplate = () => {
     }
     setFormData({ ...formData, category: cat, bodyText: newBody });
 
-    if (cat === 'Authentication') setTemplateType('OTP');
-    else setTemplateType('CUSTOM');
+    if (cat === 'Authentication') {
+      setTemplateType('OTP');
+      setBodySamples({ 1: '123456' }); // Auto-fill OTP sample so {{1}} passes validation
+    } else {
+      setTemplateType('CUSTOM');
+      setBodySamples({}); // Clear auth sample when switching away
+    }
   };
 
   const showToast = (message, type = 'success') => {
@@ -172,7 +198,7 @@ const CreateTemplate = () => {
 
   const addButton = () => {
     if (buttons.length < 3) {
-      setButtons([...buttons, { id: Date.now(), type: 'Visit Website', text: 'New Button', value: '' }]);
+      setButtons([...buttons, { id: Date.now(), type: 'Visit Website', text: 'New Button', value: '', countryCode: '+91' }]);
     }
   };
 
@@ -514,6 +540,45 @@ const CreateTemplate = () => {
     }
 
     try {
+      // ── AUTHENTICATION (OTP) templates require a special Meta-mandated structure ──
+      // They cannot use a freeform BODY with {{1}} like Marketing/Utility templates.
+      // Meta requires: BODY with add_security_recommendation + BUTTONS with OTP/COPY_CODE.
+      if (formData.category === 'Authentication') {
+        const authComponents = [
+          {
+            type: 'BODY',
+            add_security_recommendation: true
+          },
+          {
+            type: 'FOOTER',
+            code_expiration_minutes: 10
+          },
+          {
+            type: 'BUTTONS',
+            buttons: [
+              {
+                type: 'OTP',
+                otp_type: 'COPY_CODE',
+                text: 'Copy Code'
+              }
+            ]
+          }
+        ];
+
+        const authPayload = {
+          name: waName,
+          category: 'AUTHENTICATION',
+          language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
+          components: authComponents
+        };
+
+        const authResponse = await createWhatsAppTemplate(authPayload);
+        showToast('Authentication template submitted successfully to WhatsApp!');
+        setTimeout(() => { navigate('/admin/templates/list'); }, 1500);
+        return; // Done — skip the rest of the normal submit flow
+      }
+
+      // ── All other categories (Marketing, Utility) use the normal flow below ──
       const components = [];
 
       // Fallback public URLs (only used if no file was uploaded by the user)
@@ -574,7 +639,8 @@ const CreateTemplate = () => {
             return { type: 'URL', text: b.text, url: b.value };
           }
           if (b.type === 'Call phone number') {
-            return { type: 'PHONE_NUMBER', text: b.text, phone_number: b.value };
+            const fullPhone = `${b.countryCode || '+91'}${b.value}`;
+            return { type: 'PHONE_NUMBER', text: b.text, phone_number: fullPhone };
           }
           return { type: 'QUICK_REPLY', text: b.text };
         }).filter(b => b.text && (b.url || b.phone_number || b.type === 'QUICK_REPLY'));
@@ -1257,7 +1323,7 @@ const CreateTemplate = () => {
                         <div className="space-y-3">
                           {bodyVariables.map((variableId) => (
                             <div key={variableId} className="flex items-center gap-3">
-                              <label className="w-16 text-sm font-semibold text-gray-700">{`{{${variableId}}}`}</label>
+                              <label className="w-16 text-sm font-semibold text-gray-700 shrink-0">{`{{${variableId}}}`}</label>
                               <input
                                 type="text"
                                 value={bodySamples[variableId] || ''}
@@ -1265,6 +1331,14 @@ const CreateTemplate = () => {
                                 placeholder={`Enter content for {{${variableId}}}`}
                                 className="flex-1 p-3 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all"
                               />
+                              <button
+                                type="button"
+                                onClick={() => removeVariable(variableId)}
+                                title={`Remove {{${variableId}}} from body`}
+                                className="shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all"
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
                           ))}
                         </div>
@@ -1316,22 +1390,36 @@ const CreateTemplate = () => {
                                         {btn.type === 'Call phone number' ? (
                                           <>
                                             <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country</label>
-                                                <select className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer">
-                                                  <option>+91</option>
-                                                  <option>+1</option>
-                                                  <option>+44</option>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country Code</label>
+                                                <select
+                                                  value={btn.countryCode || '+91'}
+                                                  onChange={(e) => updateButton(btn.id, 'countryCode', e.target.value)}
+                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
+                                                >
+                                                  <option value="+91">🇮🇳 +91 (India)</option>
+                                                  <option value="+1">🇺🇸 +1 (USA)</option>
+                                                  <option value="+44">🇬🇧 +44 (UK)</option>
+                                                  <option value="+971">🇦🇪 +971 (UAE)</option>
+                                                  <option value="+61">🇦🇺 +61 (Australia)</option>
+                                                  <option value="+49">🇩🇪 +49 (Germany)</option>
+                                                  <option value="+33">🇫🇷 +33 (France)</option>
+                                                  <option value="+81">🇯🇵 +81 (Japan)</option>
+                                                  <option value="+86">🇨🇳 +86 (China)</option>
+                                                  <option value="+55">🇧🇷 +55 (Brazil)</option>
                                                 </select>
                                             </div>
                                             <div>
                                                 <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Phone Number</label>
                                                 <div className="relative">
+                                                  <div className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                                                    <span className="text-sm font-bold text-gray-500">{btn.countryCode || '+91'}</span>
+                                                  </div>
                                                   <input 
                                                     type="text" 
                                                     value={btn.value} 
-                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="Mobile Number"
+                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value.replace(/\D/g, ''))}
+                                                    className="w-full pl-12 p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                    placeholder="9876543210"
                                                   />
                                                 </div>
                                             </div>
