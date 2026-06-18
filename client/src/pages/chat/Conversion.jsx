@@ -68,13 +68,7 @@ const MEDIA_TABS = [
    { id: 'document', label: 'Documents', icon: DocumentIcon },
 ];
 
-const AGENTS_LIST = [
-   { id: 'a1', name: 'Alex Rivera', workload: 12, avatar: 'AR' },
-   { id: 'a2', name: 'Sarah Chen', workload: 5, avatar: 'SC' },
-   { id: 'a3', name: 'Jordan Smith', workload: 18, avatar: 'JS' },
-   { id: 'a4', name: 'Taylor Wong', workload: 2, avatar: 'TW' },
-   { id: 'a5', name: 'Marcus Lee', workload: 8, avatar: 'ML' },
-];
+// Agents are now fetched dynamically
 
 const Conversion = ({
    data,
@@ -93,7 +87,8 @@ const Conversion = ({
    quickReplies = [],
    canReply = true,
    canDelete = true,
-   canAssign = true
+   canAssign = true,
+   onAssignAgent
 }) => {
    const { user } = useContext(userContext);
    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
@@ -137,8 +132,21 @@ const Conversion = ({
 
    const [isAssignAgentModalOpen, setIsAssignAgentModalOpen] = useState(false);
    const [agentSearch, setAgentSearch] = useState("");
-   const [selectedAgent, setSelectedAgent] = useState('a1');
+   const [selectedAgent, setSelectedAgent] = useState(null);
    const [isSmartRouting, setIsSmartRouting] = useState(false);
+   const [agentsList, setAgentsList] = useState([]);
+
+   useEffect(() => {
+      const fetchAgents = async () => {
+         const res = await chatService.getTeamMembers();
+         if (res.success) {
+            setAgentsList(res.data);
+         }
+      };
+      if (canAssign) {
+         fetchAgents();
+      }
+   }, [canAssign]);
 
    // File upload states
    const [uploadingFile, setUploadingFile] = useState(false);
@@ -441,7 +449,7 @@ const Conversion = ({
 
    const filteredMedia = mediaAssets.filter(item => item.name.toLowerCase().includes(mediaSearch.toLowerCase()) && (mediaTab === 'recent' ? true : item.type === mediaTab));
    const activeMedia = mediaAssets.find(m => m.id === selectedMediaId);
-   const filteredAgents = AGENTS_LIST.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
+   const filteredAgents = agentsList.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
 
    const canSendFreeText = useMemo(() => {
       if (data?.source !== 'whatsapp') return true;
@@ -1780,7 +1788,7 @@ const selectedTemplate = useMemo(() => {
                      </div>
                      <div className="max-h-64 overflow-y-auto custom-scrollbar -mx-2 px-2 space-y-1">
                         {filteredAgents.map(agent => (
-                           <div key={agent.id} onClick={() => setSelectedAgent(agent.id)} className="flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-slate-50">
+                           <div key={agent._id} onClick={() => setSelectedAgent(agent._id)} className="flex items-center justify-between p-3 rounded-xl cursor-pointer transition-colors hover:bg-slate-50">
                               <div className="flex items-center gap-3">
                                  <div className="relative">
                                     <img src={`https://ui-avatars.com/api/?name=${agent.name.replace(' ', '+')}&background=random`} alt="" className="w-10 h-10 rounded-full object-cover" />
@@ -1788,10 +1796,10 @@ const selectedTemplate = useMemo(() => {
                                  </div>
                                  <div>
                                     <p className="text-sm font-bold text-slate-900">{agent.name}</p>
-                                    <p className="text-[11px] font-medium text-slate-500">Workload: {agent.workload} active chats</p>
+                                    <p className="text-[11px] font-medium text-slate-500">{agent.role || 'Agent'}</p>
                                  </div>
                               </div>
-                              <div className="w-5 h-5 flex justify-center items-center shrink-0">{selectedAgent === agent.id ? <SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>}</div>
+                              <div className="w-5 h-5 flex justify-center items-center shrink-0">{selectedAgent === agent._id ? <SolidCheckCircle className="w-6 h-6 text-[#22C55E]" /> : <div className="w-5 h-5 rounded-full border-2 border-slate-200"></div>}</div>
                            </div>
                         ))}
                      </div>
@@ -1807,7 +1815,17 @@ const selectedTemplate = useMemo(() => {
                   </div>
                   <div className="px-6 py-4 bg-slate-50/50 border-t border-slate-100 flex items-center justify-end gap-4 shrink-0">
                      <button onClick={() => setIsAssignAgentModalOpen(false)} className="text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors">Cancel</button>
-                     <button onClick={() => setIsAssignAgentModalOpen(false)} className="px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm">Confirm Assignment</button>
+                     <button 
+                        onClick={() => {
+                           if (selectedAgent && onAssignAgent) {
+                              onAssignAgent(data._id || data.id, selectedAgent);
+                           }
+                           setIsAssignAgentModalOpen(false);
+                        }} 
+                        className="px-6 py-2.5 bg-[#22C55E] hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-colors shadow-sm"
+                     >
+                        Confirm Assignment
+                     </button>
                   </div>
                </div>
             </div>

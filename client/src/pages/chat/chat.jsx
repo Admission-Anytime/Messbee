@@ -611,6 +611,32 @@ const Chat = () => {
     }
   };
 
+  const handleAssignAgent = async (chatId, agentId) => {
+    if (!chatId || !agentId) return;
+
+    // Optimistic UI update
+    setChats(prev => prev.map(c => {
+      if ((c._id || c.id) === chatId) {
+        return {
+          ...c,
+          teamMember: agentId
+        };
+      }
+      return c;
+    }));
+
+    try {
+      const result = await chatService.assignChat(chatId, agentId);
+      if (result.success && result.data) {
+         setChats(prev => prev.map(c => ((c._id || c.id) === chatId ? result.data : c)));
+      } else if (!result.success) {
+        console.error("Failed to assign agent on server:", result.error);
+      }
+    } catch (err) {
+      console.error("Error assigning agent:", err);
+    }
+  };
+
   const handleUpdateLabels = async (labels, targetChatId = activeChatId) => {
     if (!targetChatId) return;
     try {
@@ -770,6 +796,7 @@ const Chat = () => {
                 canReply={canReply}
                 canDelete={canDelete}
                 canAssign={canAssign}
+                onAssignAgent={handleAssignAgent}
               />
             </div>
 
