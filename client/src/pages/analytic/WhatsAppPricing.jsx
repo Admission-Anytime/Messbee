@@ -201,8 +201,8 @@ const WhatsAppPricing = ({ onBack }) => {
     >
       <div className="flex-1 overflow-y-auto">
         {/* ── PAGE HEADER ── */}
-        <div className="bg-white border-b border-gray-100 px-6 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="bg-white border-b border-gray-100 px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {onBack && (
               <button
                 onClick={onBack}
@@ -211,19 +211,19 @@ const WhatsAppPricing = ({ onBack }) => {
                 <ArrowLeft className="w-4 h-4 text-slate-600" />
               </button>
             )}
-            <div>
+            <div className="min-w-0">
               <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
                 Analytics &rsaquo;
               </p>
               <h1 className="text-[20px] font-extrabold text-slate-900 leading-tight">
                 WhatsApp Conversation Pricing
               </h1>
-              <p className="text-[11px] text-slate-400 font-normal mt-0.5">
+              <p className="text-[11px] text-slate-400 font-normal mt-0.5 max-w-lg">
                 Monitor conversation costs, usage patterns, billing trends, and pricing performance across all WhatsApp categories.
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3 shrink-0 ml-4">
+          <div className="flex items-center gap-3 shrink-0">
             <div className="flex items-center gap-2 border border-slate-200 rounded-full px-3 py-1.5 text-slate-600 bg-white cursor-pointer hover:bg-slate-50 transition-colors whitespace-nowrap">
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="font-semibold text-[12px]">Jun 1 – Jun 15, 2026</span>
@@ -251,26 +251,26 @@ const WhatsAppPricing = ({ onBack }) => {
             <div className="xl:col-span-2 space-y-6">
 
               {/* STAT CARDS ROW */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 {[
-                  { badge: "+12.4%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "TOTAL CHARGES",       value: "₹24,800",  sub: "This month"            },
-                  { badge: "+8.2%",  badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "TOTAL CONVERSATIONS", value: "1,07,280", sub: "This month"            },
-                  { badge: "-0.9%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "AVG COST / CONV.",    value: "₹0.231",   sub: "Per conversation"      },
-                  { badge: "+15.2%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "MARKETING COST",      value: "₹12,840",  sub: "55,620 conversations"  },
-                  { badge: "-3.4%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "SERVICE COST",        value: "₹2,270",   sub: "12,800 conversations"  },
-                  { badge: "+₹2,700",badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "MONTHLY TREND",       value: "+12.4%",   sub: "vs last month"         },
+                  { badge: "+12.4%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "TOTAL CHARGES",       value: "₹24,800",  sub: "This month"        },
+                  { badge: "+8.2%",  badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "TOTAL CONVERSATIONS", value: "1,07,280", sub: "This month"        },
+                  { badge: "-0.9%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "AVG COST / CONV.",    value: "₹0.231",   sub: "Per conversation" },
+                  { badge: "+15.2%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "MARKETING COST",      value: "₹12,840",  sub: "55,620 convs"     },
+                  { badge: "-3.4%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "SERVICE COST",        value: "₹2,270",   sub: "12,800 convs"     },
+                  { badge: "+₹2,700",badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "MONTHLY TREND",       value: "+12.4%",   sub: "vs last month"    },
                 ].map((c) => (
-                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 flex flex-col gap-3">
-                    <div className={`inline-flex items-center gap-1 text-[10px] font-black px-2 py-0.5 rounded-md self-start ${c.badgeColor}`}>
+                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden">
+                    <div className={`inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md self-start shrink-0 ${c.badgeColor}`}>
                       {c.badgeUp
-                        ? <ArrowUpRight className="w-2.5 h-2.5" strokeWidth={3} />
-                        : <ArrowDownRight className="w-2.5 h-2.5" strokeWidth={3} />}
-                      {c.badge}
+                        ? <ArrowUpRight className="w-2 h-2 shrink-0" strokeWidth={3} />
+                        : <ArrowDownRight className="w-2 h-2 shrink-0" strokeWidth={3} />}
+                      <span className="whitespace-nowrap">{c.badge}</span>
                     </div>
-                    <div>
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5">{c.label}</p>
-                      <p className="text-xl font-black text-slate-900 leading-tight">{c.value}</p>
-                      {c.sub && <p className="text-[10px] text-slate-400 font-medium mt-1">{c.sub}</p>}
+                    <div className="min-w-0">
+                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5 truncate">{c.label}</p>
+                      <p className="text-[15px] font-black text-slate-900 leading-tight truncate">{c.value}</p>
+                      {c.sub && <p className="text-[9px] text-slate-400 font-medium mt-0.5 truncate">{c.sub}</p>}
                     </div>
                   </div>
                 ))}
@@ -284,25 +284,23 @@ const WhatsAppPricing = ({ onBack }) => {
                   <h2 className="text-[15px] font-black text-slate-900 mb-0.5">Conversation Category Breakdown</h2>
                   <p className="text-[11px] text-slate-400 font-medium mb-6">Cost distribution across conversation types</p>
 
-                  <div className="flex gap-5 items-start">
-                    <div className="shrink-0" style={{ width: 130, height: 130 }}>
-                      <Chart options={donutOptions} series={donutSeries} type="donut" height={130} />
+                  <div className="flex gap-4 items-start min-w-0">
+                    <div className="shrink-0" style={{ width: 120, height: 120 }}>
+                      <Chart options={donutOptions} series={donutSeries} type="donut" height={120} />
                     </div>
 
-                    <div className="flex-1 mt-1">
+                    <div className="flex-1 mt-1 min-w-0">
                       {breakdown.map((row) => (
-                        <div key={row.label} className="mb-4 last:mb-0">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
-                              <span className="text-[12px] font-semibold text-slate-700">{row.label}</span>
-                              <span className="text-[11px] font-bold text-slate-400">{row.pct}%</span>
+                        <div key={row.label} className="mb-3 last:mb-0">
+                          <div className="flex items-center justify-between mb-1 gap-2">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: row.color }} />
+                              <span className="text-[12px] font-semibold text-slate-700 truncate">{row.label}</span>
+                              <span className="text-[11px] font-bold text-slate-400 shrink-0">{row.pct}%</span>
                             </div>
-                            <div className="text-right">
-                              <span className="text-[12px] font-black text-slate-900">{row.cost}</span>
-                            </div>
+                            <span className="text-[12px] font-black text-slate-900 shrink-0">{row.cost}</span>
                           </div>
-                          <div className="flex items-center gap-2.5">
+                          <div className="flex items-center gap-2">
                             <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                               <div className="h-full rounded-full transition-all duration-500" style={{ width: `${row.pct}%`, backgroundColor: row.color }} />
                             </div>
@@ -369,25 +367,25 @@ const WhatsAppPricing = ({ onBack }) => {
               </div>
 
               {/* Category Stat Cards */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                 {catCards.map((c) => (
-                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 min-w-0 overflow-hidden">
+                    <div className="flex items-center gap-2 mb-3">
                       <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: c.color }} />
-                      <span className="text-[13px] font-black text-slate-900">{c.label}</span>
+                      <span className="text-[13px] font-black text-slate-900 truncate">{c.label}</span>
                     </div>
-                    <div className="space-y-2 mb-4">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] text-slate-400 font-medium">Count</span>
-                        <span className="text-[13px] font-black text-slate-900">{c.count}</span>
+                    <div className="space-y-2 mb-3">
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">Count</span>
+                        <span className="text-[12px] font-black text-slate-900 truncate text-right">{c.count}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] text-slate-400 font-medium">Per Conv.</span>
-                        <span className="text-[13px] font-black text-slate-900">{c.perConv}</span>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">Per Conv.</span>
+                        <span className="text-[12px] font-black text-slate-900 truncate text-right">{c.perConv}</span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-[11px] text-slate-400 font-medium">Total</span>
-                        <span className={`text-[13px] font-black ${c.totalColor}`}>{c.total}</span>
+                      <div className="flex justify-between items-center gap-2">
+                        <span className="text-[11px] text-slate-400 font-medium shrink-0">Total</span>
+                        <span className={`text-[12px] font-black truncate text-right ${c.totalColor}`}>{c.total}</span>
                       </div>
                     </div>
                     {/* colored dash bar at bottom — width proportional to share */}
