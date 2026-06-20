@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import AnalyticsApi from "../../services/AnalyticsApi";
 import dayjs from "dayjs";
 import Chart from "react-apexcharts";
@@ -141,6 +142,7 @@ const InsightBar = ({ label, value, color, icon: Icon }) => (
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 const WhatsAppPricing = ({ onBack }) => {
+  const navigate = useNavigate();
   const [chartType, setChartType] = useState("Area");
   const [data, setData] = useState(null);
   const [campaignData, setCampaignData] = useState([]);
@@ -1360,7 +1362,13 @@ const WhatsAppPricing = ({ onBack }) => {
                 <button onClick={() => setShowOptimizationsModal(false)} className="px-5 py-2 rounded-full text-[13px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
                   Close
                 </button>
-                <button onClick={() => setShowOptimizationsModal(false)} className="px-5 py-2 rounded-full text-[13px] font-bold text-white bg-[#10B981] hover:bg-emerald-600 transition-colors shadow-sm">
+                <button 
+                  onClick={() => {
+                    setShowOptimizationsModal(false);
+                    navigate('/admin/automation');
+                  }} 
+                  className="px-5 py-2 rounded-full text-[13px] font-bold text-white bg-[#10B981] hover:bg-emerald-600 transition-colors shadow-sm"
+                >
                   Apply Automations
                 </button>
               </div>
