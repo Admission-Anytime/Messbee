@@ -741,9 +741,9 @@ const WhatsAppPricing = ({ onBack }) => {
                 <h2 className="text-[15px] font-black text-slate-900 mb-0.5">Pricing Forecast Center</h2>
                 <p className="text-[11px] text-slate-400 font-medium mb-6">AI-powered spending predictions and trajectory</p>
 
-                <div className="flex gap-6 items-start">
+                <div className="flex flex-col lg:flex-row gap-6 items-start">
                   {/* Left: 2x2 Cards Grid */}
-                  <div className="grid grid-cols-2 gap-4 shrink-0" style={{ width: "42%" }}>
+                  <div className="grid grid-cols-2 gap-4 shrink-0 w-full lg:w-[42%]">
                     {[
                       { label: "Next 7 Days",  amount: fmtCost(totalCharges / 30 * 7),  convs: `${fmtNum((totalConversations / 30 * 7).toFixed(0))} convs`, save: `Save ${fmtCost(totalCharges / 30 * 7 * 0.05)}`   },
                       { label: "Next 30 Days", amount: fmtCost(totalCharges), convs: `${fmtNum(totalConversations)} convs`, save: `Save ${fmtCost(totalCharges * 0.05)}` },
@@ -771,8 +771,9 @@ const WhatsAppPricing = ({ onBack }) => {
                     <Chart
                       options={{
                         chart: { type: "area", toolbar: { show: false }, fontFamily: "Urbanist, sans-serif", animations: { enabled: true } },
+                        forecastDataPoints: { count: 4 },
                         colors: ["#10B981"],
-                        stroke: { curve: "straight", width: 2 },
+                        stroke: { curve: "straight", width: 2, dashArray: [0, 0, 5, 5, 5, 5] },
                         dataLabels: { enabled: false },
                         markers: { size: 0 },
                         xaxis: {
@@ -815,7 +816,7 @@ const WhatsAppPricing = ({ onBack }) => {
                           },
                         },
                       }}
-                      series={[{ name: "Forecast", data: [totalCharges * 0.9, totalCharges, null, null, null, null] }]}
+                      series={[{ name: "Forecast", data: [totalCharges * 0.9, totalCharges, totalCharges * 1.05, totalCharges * 1.12, totalCharges * 1.2, totalCharges * 1.28] }]}
                       type="area"
                       height={200}
                     />
