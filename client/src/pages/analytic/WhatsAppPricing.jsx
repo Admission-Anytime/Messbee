@@ -1251,10 +1251,9 @@ const WhatsAppPricing = ({ onBack }) => {
 
                 <div className="border-t border-slate-100"></div>
 
-                {/* QUICK STATS (Placeholder) */}
+                {/* QUICK STATS */}
                 <div>
-                  <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Quick Stats</p>
-                  <div className="h-10 bg-slate-50 rounded-xl border border-slate-100"></div>
+                  <p className="text-sm font-medium text-slate-900 mb-3">Quick Stats</p>
                 </div>
 
               </div>
