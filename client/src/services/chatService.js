@@ -39,6 +39,25 @@ const chatService = {
   },
 
   /**
+   * Get team members (users)
+   */
+  async getTeamMembers() {
+    try {
+      const response = await axios.get('/users');
+      return {
+        success: true,
+        data: response.data.data || response.data
+      };
+    } catch (error) {
+      console.error('Error fetching team members:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
    * Create a new chat/contact
    */
   async createChat(name, phone, source = 'whatsapp') {
@@ -361,6 +380,25 @@ const chatService = {
       };
     } catch (error) {
       console.error('Error updating chat status:', error);
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  },
+
+  /**
+   * Assign chat to a team member
+   */
+  async assignChat(chatId, teamMember) {
+    try {
+      const response = await axios.put(`/chats/${chatId}/assign`, { teamMember });
+      return {
+        success: true,
+        data: response.data
+      };
+    } catch (error) {
+      console.error('Error assigning chat:', error);
       return {
         success: false,
         error: error.response?.data?.message || error.message
