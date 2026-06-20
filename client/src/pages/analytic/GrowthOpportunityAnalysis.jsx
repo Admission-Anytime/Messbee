@@ -1166,13 +1166,52 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                 </div>
 
                 <div className="space-y-3">
-                  {[
-                    { icon: "🎒", title: "Back-to-School Campaign",   badge: "High Impact", badgeColor: "text-emerald-700 bg-[#dcfce7]", reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.35) : 12400), conversion: "18%", revenue: "₹45,000", difficulty: "Easy",   difficultyColor: "text-emerald-700 bg-[#dcfce7]" },
-                    { icon: "🔄", title: "Re-engagement Campaign",    badge: "Recommended", badgeColor: "text-amber-700 bg-[#fef3c7]",   reach: fmtNum(totalContacts > 10 ? Math.round((totalContacts - activeContacts) * 0.45) : 8200), conversion: "22%", revenue: "₹38,500", difficulty: "Medium", difficultyColor: "text-amber-700 bg-[#fef3c7]" },
-                    { icon: "⬆️", title: "Upsell Campaign",           badge: "High ROI",    badgeColor: "text-emerald-700 bg-[#dcfce7]", reach: fmtNum(totalContacts > 10 ? Math.round(activeContacts * 0.6) : 4800), conversion: "31%", revenue: "₹52,000", difficulty: "Easy",   difficultyColor: "text-emerald-700 bg-[#dcfce7]" },
-                    { icon: "🌱", title: "Lead Nurture Campaign",     badge: "Long-term",   badgeColor: "text-amber-700 bg-[#fef3c7]",   reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.18) : 6500), conversion: "15%", revenue: "₹28,000", difficulty: "Medium", difficultyColor: "text-amber-700 bg-[#fef3c7]" },
-                    { icon: "🎉", title: "Festive Promotion Campaign", badge: "Seasonal",   badgeColor: "text-red-700 bg-red-100",        reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.50) : 18000), conversion: "12%", revenue: "₹72,000", difficulty: "Hard",   difficultyColor: "text-red-700 bg-red-100" },
-                  ]
+                  {(() => {
+                    const defaultRecs = [
+                      { icon: "🎒", title: "Back-to-School Campaign",   badge: "High Impact", badgeColor: "text-emerald-700 bg-[#dcfce7]", reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.35) : 12400), conversion: "18%", revenue: "₹45,000", difficulty: "Easy",   difficultyColor: "text-emerald-700 bg-[#dcfce7]" },
+                      { icon: "🔄", title: "Re-engagement Campaign",    badge: "Recommended", badgeColor: "text-amber-700 bg-[#fef3c7]",   reach: fmtNum(totalContacts > 10 ? Math.round((totalContacts - activeContacts) * 0.45) : 8200), conversion: "22%", revenue: "₹38,500", difficulty: "Medium", difficultyColor: "text-amber-700 bg-[#fef3c7]" },
+                      { icon: "⬆️", title: "Upsell Campaign",           badge: "High ROI",    badgeColor: "text-emerald-700 bg-[#dcfce7]", reach: fmtNum(totalContacts > 10 ? Math.round(activeContacts * 0.6) : 4800), conversion: "31%", revenue: "₹52,000", difficulty: "Easy",   difficultyColor: "text-emerald-700 bg-[#dcfce7]" },
+                      { icon: "🌱", title: "Lead Nurture Campaign",     badge: "Long-term",   badgeColor: "text-amber-700 bg-[#fef3c7]",   reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.18) : 6500), conversion: "15%", revenue: "₹28,000", difficulty: "Medium", difficultyColor: "text-amber-700 bg-[#fef3c7]" },
+                      { icon: "🎉", title: "Festive Promotion Campaign", badge: "Seasonal",   badgeColor: "text-red-700 bg-red-100",        reach: fmtNum(totalContacts > 10 ? Math.round(totalContacts * 0.50) : 18000), conversion: "12%", revenue: "₹72,000", difficulty: "Hard",   difficultyColor: "text-red-700 bg-red-100" },
+                    ];
+
+                    const realCampaigns = campData?.campaigns || [];
+                    let recommendations = [];
+                    
+                    if (realCampaigns.length > 0) {
+                      // Sort by highest volume (sent)
+                      const topCampaigns = [...realCampaigns].sort((a, b) => (b.stats?.sent || 0) - (a.stats?.sent || 0)).slice(0, 5);
+                      
+                      recommendations = topCampaigns.map((c, idx) => {
+                        const sent = c.stats?.sent || 0;
+                        const replied = c.stats?.replied || 0;
+                        const convRate = sent > 0 ? (replied / sent * 100).toFixed(1) : "0.0";
+                        const isHighImpact = parseFloat(convRate) > 10;
+                        const icons = ["✨", "📈", "🎯", "🌟", "💡"];
+                        
+                        return {
+                          icon: icons[idx % icons.length],
+                          title: `Re-run: ${c.name}`,
+                          badge: isHighImpact ? "High Impact" : "Recommended",
+                          badgeColor: isHighImpact ? "text-emerald-700 bg-[#dcfce7]" : "text-amber-700 bg-[#fef3c7]",
+                          reach: fmtNum(sent),
+                          conversion: `${convRate}%`,
+                          revenue: `₹${(replied * 1200).toLocaleString('en-IN')}`, 
+                          difficulty: "Easy",
+                          difficultyColor: "text-emerald-700 bg-[#dcfce7]"
+                        };
+                      });
+                      
+                      // Fill missing slots with defaults
+                      if (recommendations.length < 5) {
+                        recommendations = [...recommendations, ...defaultRecs.slice(recommendations.length)];
+                      }
+                    } else {
+                      recommendations = defaultRecs;
+                    }
+                    
+                    return recommendations;
+                  })()
                   .filter(rec => activeCampaignFilter === "All" || rec.difficulty === activeCampaignFilter || rec.badge === activeCampaignFilter)
                   .map((rec, i) => (
                     <div key={i} className="bg-slate-50/50 rounded-2xl p-4 flex items-center justify-between border border-transparent hover:border-slate-100 transition-colors">
