@@ -232,11 +232,11 @@ const TemplateAnalytics = () => {
     dataLabels: { enabled: false },
     stroke: { width: 2.5, curve: "smooth", lineCap: "round" },
     markers: {
-      size: totalBuckets > 14 ? 0 : 4,
+      size: 0,
       colors: ["#fff"],
       strokeColors: ["#3b82f6", "#10b981", "#f43f5e"],
       strokeWidth: 2,
-      hover: { size: 6, sizeOffset: 2 },
+      hover: { size: 0, sizeOffset: 0 },
     },
 
     fill: {
