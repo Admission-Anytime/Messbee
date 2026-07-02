@@ -1084,9 +1084,8 @@ exports.getTemplates = async (req, res, next) => {
 
     // Merge Graph API templates with local metadata (to restore media URLs)
     const filteredTemplates = allTemplates
-      .filter(t => userTemplatesMap[String(t.name).trim()])
       .map(t => {
-        const localTemplate = userTemplatesMap[String(t.name).trim()];
+        const localTemplate = userTemplatesMap[String(t.name).trim()] || {};
         
         // Deep merge components to restore 'example' fields that Meta often strips after approval
         const mergedComponents = (t.components || []).map(apiComp => {

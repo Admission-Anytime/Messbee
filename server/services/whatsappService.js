@@ -27,31 +27,40 @@ class WhatsAppService {
   /**
    * Sync configuration from database
    */
-  async syncConfig() {
-    try {
-      // Don't attempt to sync if DB is not connected. 
-      // Mongoose buffers commands, but if connection takes >10s it times out.
-      if (mongoose.connection.readyState !== 1) {
-        return; 
-      }
-
-      const setting = await Setting.findOne({ key: 'whatsapp_config' });
-      if (setting && setting.value) {
-        const { apiVersion, phoneNumberId, accessToken, businessAccountId } = setting.value;
-        if (apiVersion) this.apiVersion = apiVersion;
-        if (phoneNumberId) this.phoneNumberId = phoneNumberId;
-        if (accessToken) this.accessToken = accessToken;
-        if (businessAccountId) this.businessAccountId = businessAccountId;
+    async syncConfig() {
+      try {
+        const mongoose = require('mongoose');
+        // Don't attempt to sync if DB is not connected. 
+        if (mongoose.connection.readyState !== 1) {
+          return; 
+        }
+  
+        const Setting = require('../models/Setting');
+        let setting = await Setting.findOne({ key: 'whatsapp_config' });
+        
+        if (!setting) {
+          setting = new Setting({ key: 'whatsapp_config', value: {} });
+        }
+        
+        // Force update DB with current .env (since user updated .env manually)
+        setting.value = {
+          apiVersion: process.env.WHATSAPP_API_VERSION,
+          phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+          accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+          businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+        };
+        await setting.save();
+        
+        this.apiVersion = process.env.WHATSAPP_API_VERSION;
+        this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+        this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+        this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
-
-      } else {
-
+      } catch (error) {
+        console.error('❌ Error syncing WhatsApp config from DB:', error.message);
       }
-    } catch (error) {
-      console.error('❌ Error syncing WhatsApp config from DB:', error.message);
     }
-  }
   
   /**
    * Validate configuration
@@ -564,6 +573,29 @@ class WhatsAppService {
             rejectedReason: template.rejected_reason || null
           }
         };
+      }
+
+      // AUTO-INJECT MISSING REQUIRED MEDIA HEADERS
+      const templateHeader = (template.components || []).find(c => String(c.type).toUpperCase() === 'HEADER');
+      if (templateHeader && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(String(templateHeader.format).toUpperCase())) {
+        const providedHeader = components.find(c => c.type === 'header');
+        if (!providedHeader) {
+          let exampleUrl = null;
+          if (templateHeader.example?.header_handle?.[0]) exampleUrl = templateHeader.example.header_handle[0];
+          else if (templateHeader.example?.header_url?.[0]) exampleUrl = templateHeader.example.header_url[0];
+          else if (templateHeader.example?.header_text?.[0]) exampleUrl = templateHeader.example.header_text[0]; // some docs show text array
+          
+          if (exampleUrl && exampleUrl.startsWith('http')) {
+            const mediaType = String(templateHeader.format).toLowerCase();
+            components.push({
+              type: 'header',
+              parameters: [{
+                type: mediaType,
+                [mediaType]: { link: exampleUrl }
+              }]
+            });
+          }
+        }
       }
 
       // INTERCEPT COMPONENTS TO FIX MEDIA LINKS FOR SENDING

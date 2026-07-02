@@ -1,108 +1,59 @@
+/**
+ * Automation Service - Thin wrapper around the flow engine.
+ * 
+ * The heavy lifting is done by engine/flowRunner.js.
+ * This service provides convenience methods for triggering automations
+ * from other parts of the Messbee2 codebase (contacts, webhooks, etc.).
+ */
+
+const { executeWorkflowStep, startFlowManually, triggerAutomationFromEvent } = require('../engine/flowRunner');
 const Automation = require('../models/Automation');
-const { sendMessageToContact } = require('./messageService');
-const Contact = require('../models/Contact');
 
 /**
- * Process automation trigger
+ * Process automation trigger from incoming message
+ * Called from webhook handler when a WhatsApp message is received.
  */
 exports.processAutomationTrigger = async (triggerType, triggerData, userId) => {
   try {
-    // Find all active automations with matching trigger
-    const automations = await Automation.find({
-      user: userId,
-      isActive: true,
-      'trigger.type': triggerType
-    });
-
-    for (const automation of automations) {
-      // Check if trigger conditions match
-      if (checkTriggerCondition(automation.trigger, triggerData)) {
-        await executeAutomation(automation, triggerData);
+    if (triggerType === 'message' && triggerData.message && triggerData.contactPhone) {
+      // Route to the flow engine
+      await executeWorkflowStep(
+        triggerData.contactPhone,
+        triggerData.message,
+        userId,
+        triggerData.referral || null,
+        triggerData.messageId || null
+      );
+    } else if (triggerType === 'event') {
+      // CRM event triggers (tag added, field updated, etc.)
+      if (triggerData.contact) {
+        await triggerAutomationFromEvent(
+          triggerData.contact,
+          triggerData.eventType,
+          triggerData.eventValue
+        );
       }
     }
   } catch (error) {
-    console.error('Automation processing error:', error);
+    console.error('[AutomationService] Processing error:', error);
   }
 };
 
 /**
- * Check if trigger condition is met
+ * Start a specific flow for a contact (manual trigger)
  */
-const checkTriggerCondition = (trigger, data) => {
-  switch (trigger.type) {
-    case 'keyword':
-      return data.message && data.message.toLowerCase().includes(trigger.value.toLowerCase());
-    case 'time':
-      // Implement time-based trigger logic
-      return true;
-    case 'event':
-      return data.eventType === trigger.value;
-    default:
-      return false;
-  }
-};
-
-/**
- * Execute automation actions
- */
-const executeAutomation = async (automation, triggerData) => {
+exports.startFlow = async (contactPhone, userId, flowId, eventData = {}) => {
   try {
-    automation.stats.triggered += 1;
-
-    for (const action of automation.actions) {
-      // Apply delay if specified
-      if (action.delay > 0) {
-        await new Promise(resolve => setTimeout(resolve, action.delay));
-      }
-
-      switch (action.type) {
-        case 'send_message':
-          await sendMessageToContact(
-            automation.user,
-            triggerData.contactId,
-            { content: action.value, messageType: 'text' }
-          );
-          break;
-
-        case 'add_tag':
-          await Contact.findByIdAndUpdate(
-            triggerData.contactId,
-            { $addToSet: { tags: action.value } }
-          );
-          break;
-
-        case 'remove_tag':
-          await Contact.findByIdAndUpdate(
-            triggerData.contactId,
-            { $pull: { tags: action.value } }
-          );
-          break;
-
-        case 'create_contact':
-          // Implement contact creation logic
-          break;
-
-        case 'webhook':
-          // Implement webhook call logic
-          break;
-
-        default:
-          console.log('Unknown action type:', action.type);
-      }
-
-      automation.stats.executed += 1;
-    }
-
-    await automation.save();
+    await startFlowManually(contactPhone, userId, flowId, eventData);
+    return { success: true, message: 'Flow started successfully' };
   } catch (error) {
-    automation.stats.failed += 1;
-    await automation.save();
-    console.error('Automation execution error:', error);
+    console.error('[AutomationService] Start flow error:', error);
+    return { success: false, message: error.message };
   }
 };
 
 /**
- * Test automation
+ * Test automation (legacy compatibility)
  */
 exports.testAutomation = async (automationId, testData) => {
   try {
@@ -112,12 +63,13 @@ exports.testAutomation = async (automationId, testData) => {
       throw new Error('Automation not found');
     }
 
-    // Execute automation with test data
-    await executeAutomation(automation, testData);
+    if (testData.phone) {
+      await startFlowManually(testData.phone, automation.user, automationId, testData);
+    }
 
     return {
       success: true,
-      message: 'Automation test completed'
+      message: 'Automation test started'
     };
   } catch (error) {
     throw error;
