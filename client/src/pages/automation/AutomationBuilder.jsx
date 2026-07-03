@@ -8,7 +8,7 @@ import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
-import CreateAutomationModal from '../../components/Modol/automation/CreateAutomationModal';
+import WhatsAppTemplateSelectionModal from '../../components/Modol/automation/WhatsAppTemplateSelectionModal';
 import 'reactflow/dist/style.css';
 
 export default function AutomationBuilder() {
@@ -24,7 +24,7 @@ export default function AutomationBuilder() {
   const [channelId, setChannelId] = useState('');
   const [nodesCount, setNodesCount] = useState(0);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
 
   useEffect(() => {
     const loadAutomation = async () => {
@@ -112,21 +112,54 @@ export default function AutomationBuilder() {
     }
   }, [isActive, id]);
 
-  const handleCreateTemplate = (data) => {
-    setFlowName(data.name);
-    setFlowData([
-      {
-        id: 'trigger_1',
-        type: 'triggerNode',
-        position: { x: 250, y: 50 },
-        data: {
-          label: 'Trigger',
-          triggerType: data.triggerType || 'exact_match',
-          keyword: '',
-        },
+  const handleSelectWhatsAppTemplate = (template) => {
+    // Generate placeholder values for variables (e.g. {{1}} -> '')
+    let variables = [];
+    if (template.components) {
+      template.components.forEach(comp => {
+        if (comp.example && comp.example.body_text) {
+          const numVars = comp.example.body_text[0].length;
+          for (let i = 0; i < numVars; i++) {
+            variables.push({ value: '' });
+          }
+        }
+      });
+    }
+
+    const templateNode = {
+      id: `template_node_${Date.now()}`,
+      type: 'templateNode',
+      position: { x: 350, y: 150 },
+      data: {
+        label: 'Template Message',
+        templateName: template.name,
+        templateLanguage: template.language || 'en',
+        variables: variables,
+        buttons: (template.components && template.components.find(c => c.type === 'BUTTONS')?.buttons) || []
+      }
+    };
+
+    const triggerNode = {
+      id: `trigger_${Date.now()}`,
+      type: 'triggerNode',
+      position: { x: 50, y: 150 },
+      data: {
+        label: 'Incoming Message',
+        triggerType: 'exact_match',
+        keyword: '',
       },
-    ], []);
-    setIsCreateModalOpen(false);
+    };
+
+    setFlowData([triggerNode, templateNode], [
+      {
+        id: `edge_${Date.now()}`,
+        source: triggerNode.id,
+        target: templateNode.id,
+        type: 'smoothstep'
+      }
+    ]);
+    
+    setIsTemplateModalOpen(false);
   };
 
   if (isLoading) {
@@ -232,7 +265,7 @@ export default function AutomationBuilder() {
         <div style={{ flex: 1, position: 'relative' }}>
           <FlowCanvas 
             onNodesChange={handleNodesChange} 
-            onStartWithTemplate={() => setIsCreateModalOpen(true)}
+            onStartWithTemplate={() => setIsTemplateModalOpen(true)}
           />
         </div>
 
@@ -248,10 +281,10 @@ export default function AutomationBuilder() {
         />
       )}
 
-      {isCreateModalOpen && (
-        <CreateAutomationModal 
-          onClose={() => setIsCreateModalOpen(false)}
-          onCreate={handleCreateTemplate}
+      {isTemplateModalOpen && (
+        <WhatsAppTemplateSelectionModal 
+          onClose={() => setIsTemplateModalOpen(false)}
+          onSelect={handleSelectWhatsAppTemplate}
         />
       )}
     </div>
