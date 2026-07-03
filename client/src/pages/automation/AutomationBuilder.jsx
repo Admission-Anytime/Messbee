@@ -9,6 +9,7 @@ import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
 import WhatsAppTemplateSelectionModal from '../../components/Modol/automation/WhatsAppTemplateSelectionModal';
+import AssignChannelsModal from '../../components/Modol/automation/AssignChannelsModal';
 import 'reactflow/dist/style.css';
 
 export default function AutomationBuilder() {
@@ -25,6 +26,7 @@ export default function AutomationBuilder() {
   const [nodesCount, setNodesCount] = useState(0);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
   useEffect(() => {
     const loadAutomation = async () => {
@@ -249,6 +251,20 @@ export default function AutomationBuilder() {
           <div style={{ width: '1px', height: '24px', background: '#E5E7EB' }} />
 
           <button
+            onClick={() => setIsAssignModalOpen(true)}
+            style={{
+              background: 'white', color: '#374151', border: '1px solid #E5E7EB',
+              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'background 0.2s'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21l1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
+            Assign Channel
+          </button>
+
+          <button
             onClick={() => setIsTestModalOpen(true)}
             style={{
               background: 'white', color: '#374151', border: '1px solid #E5E7EB',
@@ -276,7 +292,7 @@ export default function AutomationBuilder() {
             onMouseOut={(e) => { e.currentTarget.style.background = '#10B981'; }}
           >
             {isSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
-            {isSaving ? 'Saving...' : 'Save'}
+            {isSaving ? 'Saving...' : 'Save & Publish'}
           </button>
         </div>
       </div>
@@ -305,6 +321,14 @@ export default function AutomationBuilder() {
         <WhatsAppTemplateSelectionModal 
           onClose={() => setIsTemplateModalOpen(false)}
           onSelect={handleSelectWhatsAppTemplate}
+        />
+      )}
+
+      {isAssignModalOpen && (
+        <AssignChannelsModal 
+          currentChannelId={channelId}
+          onAssign={(newId) => setChannelId(newId)}
+          onClose={() => setIsAssignModalOpen(false)} 
         />
       )}
     </div>
