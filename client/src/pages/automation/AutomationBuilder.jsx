@@ -30,19 +30,30 @@ export default function AutomationBuilder() {
 
   useEffect(() => {
     const loadAutomation = async () => {
+      let defaultChannelId = '';
+      try {
+        const channelsRes = await api.get('/channels');
+        if (channelsRes.data && channelsRes.data.length > 0) {
+          defaultChannelId = channelsRes.data[0]._id;
+        }
+      } catch (err) {
+        console.error('Failed to fetch default channels:', err);
+      }
+
       if (id && id !== 'new') {
         try {
           const res = await api.get(`/automation/${id}`);
           const automation = res.data;
           setFlowName(automation.name || 'Untitled Automation');
           setIsActive(automation.isActive || false);
-          setChannelId(automation.channelId || '');
+          setChannelId(automation.channelId || defaultChannelId);
           setFlowData(automation.nodes || [], automation.edges || []);
         } catch (error) {
           console.error('Failed to load automation:', error);
           toast.error('Failed to load automation');
         }
       } else {
+        setChannelId(defaultChannelId);
         const triggerType = location.state?.triggerType || 'exact_match';
         setFlowData([
           {
