@@ -8,6 +8,7 @@ import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
+import 'reactflow/dist/style.css';
 
 export default function AutomationBuilder() {
   const { id } = useParams();
