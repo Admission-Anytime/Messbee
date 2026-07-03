@@ -13,7 +13,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const res = await api.get('/automations');
+        const res = await api.get('/automation');
         const activeAutomations = res.data.filter(a => a.isActive).length;
         setActiveCount(activeAutomations);
       } catch (err) {

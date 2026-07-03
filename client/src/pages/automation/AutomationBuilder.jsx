@@ -32,7 +32,7 @@ export default function AutomationBuilder() {
     const loadAutomation = async () => {
       if (id && id !== 'new') {
         try {
-          const res = await api.get(`/automations/${id}`);
+          const res = await api.get(`/automation/${id}`);
           const automation = res.data;
           setFlowName(automation.name || 'Untitled Automation');
           setIsActive(automation.isActive || false);
@@ -69,6 +69,12 @@ export default function AutomationBuilder() {
 
   const handleSave = useCallback(async () => {
     if (isSaving) return;
+
+    if (!channelId) {
+      toast.error('Please assign a WhatsApp Channel to this flow before publishing.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -80,16 +86,16 @@ export default function AutomationBuilder() {
       };
 
       if (id && id !== 'new') {
-        await api.put(`/automations/${id}`, payload);
+        await api.put(`/automation/${id}`, payload);
         toast.success('Automation saved successfully');
       } else {
-        const res = await api.post('/automations', payload);
+        const res = await api.post('/automation', payload);
         toast.success('Automation created successfully');
         navigate(`/admin/automation/${res.data._id}`, { replace: true });
       }
     } catch (error) {
       console.error('Failed to save automation:', error);
-      toast.error('Failed to save automation');
+      toast.error(error.response?.data?.message || 'Failed to save automation');
     } finally {
       setIsSaving(false);
     }
@@ -105,7 +111,7 @@ export default function AutomationBuilder() {
 
     if (id && id !== 'new') {
       try {
-        await api.put(`/automations/${id}`, { isActive: newActiveState });
+        await api.put(`/automation/${id}`, { isActive: newActiveState });
         toast.success(newActiveState ? 'Automation activated' : 'Automation deactivated');
       } catch (error) {
         setIsActive(!newActiveState);
