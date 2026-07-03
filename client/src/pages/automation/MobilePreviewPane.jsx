@@ -209,7 +209,7 @@ export default function MobilePreviewPane() {
               <div style={{ alignSelf: 'flex-start', background: 'white', borderRadius: '8px 8px 8px 0', maxWidth: '85%', marginBottom: '16px', boxShadow: '0 1px 2px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column' }}>
                 
                 <div style={{ padding: '8px 12px' }}>
-                  {data.messageType === 'interactive' && renderMediaHeader(data.headerType, data.mediaUrl)}
+                  {(data.messageType === 'interactive' || type === 'templateNode') && renderMediaHeader(data.headerType, data.mediaUrl)}
                   {type === 'mediaNode' && renderMediaHeader(data.messageType, data.mediaUrl)}
                   
                   {((type === 'mediaNode' && ['image', 'video', 'doc', 'document', 'gif'].includes(data.messageType) && data.text) || (type !== 'mediaNode')) && (
@@ -230,7 +230,7 @@ export default function MobilePreviewPane() {
                 </div>
 
                 {/* Interactive Buttons */}
-                {data.messageType === 'interactive' && renderButtons(data.buttons)}
+                {(data.messageType === 'interactive' || type === 'templateNode') && renderButtons(data.buttons)}
 
                 {/* Menu Buttons */}
                 {(type === 'menuNode' || data.messageType === 'menu') && (

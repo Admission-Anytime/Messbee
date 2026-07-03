@@ -115,12 +115,28 @@ export default function AutomationBuilder() {
   const handleSelectWhatsAppTemplate = (template) => {
     // Generate placeholder values for variables (e.g. {{1}} -> '')
     let variables = [];
+    let bodyText = '';
+    let headerType = 'none';
+    let mediaUrl = '';
+    let headerText = '';
+
     if (template.components) {
       template.components.forEach(comp => {
-        if (comp.example && comp.example.body_text) {
-          const numVars = comp.example.body_text[0].length;
-          for (let i = 0; i < numVars; i++) {
-            variables.push({ value: '' });
+        if (comp.type === 'BODY') {
+          bodyText = comp.text || '';
+          if (comp.example && comp.example.body_text) {
+            const numVars = comp.example.body_text[0].length;
+            for (let i = 0; i < numVars; i++) {
+              variables.push({ value: '' });
+            }
+          }
+        } else if (comp.type === 'HEADER') {
+          if (comp.format === 'TEXT') {
+            headerType = 'text';
+            headerText = comp.text || '';
+          } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(comp.format)) {
+            headerType = comp.format.toLowerCase();
+            mediaUrl = comp.example?.header_handle?.[0] || '';
           }
         }
       });
@@ -135,6 +151,10 @@ export default function AutomationBuilder() {
         templateName: template.name,
         templateLanguage: template.language || 'en',
         variables: variables,
+        text: bodyText,
+        headerType: headerType,
+        headline: headerText,
+        mediaUrl: mediaUrl,
         buttons: (template.components && template.components.find(c => c.type === 'BUTTONS')?.buttons) || []
       }
     };
