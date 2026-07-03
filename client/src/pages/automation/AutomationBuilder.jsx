@@ -7,6 +7,7 @@ import useCanvasStore from '../../store/useCanvasStore';
 import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
+import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
 
 export default function AutomationBuilder() {
   const { id } = useParams();
@@ -20,6 +21,7 @@ export default function AutomationBuilder() {
   const [isLoading, setIsLoading] = useState(true);
   const [channelId, setChannelId] = useState('');
   const [nodesCount, setNodesCount] = useState(0);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
   useEffect(() => {
     const loadAutomation = async () => {
@@ -174,6 +176,20 @@ export default function AutomationBuilder() {
           <div style={{ width: '1px', height: '24px', background: '#E5E7EB' }} />
 
           <button
+            onClick={() => setIsTestModalOpen(true)}
+            style={{
+              background: 'white', color: '#374151', border: '1px solid #E5E7EB',
+              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'background 0.2s'
+            }}
+          >
+            <Play size={14} />
+            Test Automation
+          </button>
+
+          <button
             onClick={handleSave}
             disabled={isSaving}
             style={{
@@ -194,13 +210,23 @@ export default function AutomationBuilder() {
 
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, position: 'relative' }}>
-          <FlowCanvas onNodesChange={handleNodesChange} />
+          <FlowCanvas 
+            onNodesChange={handleNodesChange} 
+            onStartWithTemplate={() => navigate('/admin/automation')}
+          />
         </div>
 
         <NodePropertiesPane currentChannelId={channelId} />
 
         <MobilePreviewPane />
       </div>
+
+      {isTestModalOpen && (
+        <TestAutomationModal 
+          onClose={() => setIsTestModalOpen(false)} 
+          automationId={id}
+        />
+      )}
     </div>
   );
 }
