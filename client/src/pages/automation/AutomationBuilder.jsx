@@ -32,7 +32,7 @@ export default function AutomationBuilder() {
     const loadAutomation = async () => {
       let defaultChannelId = '';
       try {
-        const channelsRes = await api.get('/channels');
+        const channelsRes = await api.get('/whatsapp/channels');
         if (channelsRes.data && channelsRes.data.length > 0) {
           defaultChannelId = channelsRes.data[0]._id;
         }

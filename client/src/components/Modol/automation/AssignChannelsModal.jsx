@@ -10,7 +10,7 @@ export default function AssignChannelsModal({ onClose, currentChannelId, onAssig
   useEffect(() => {
     const fetchChannels = async () => {
       try {
-        const res = await api.get('/channels');
+        const res = await api.get('/whatsapp/channels');
         setChannels(res.data);
       } catch (err) {
         console.error('Failed to fetch channels:', err);
