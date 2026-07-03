@@ -15,10 +15,10 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const automRes = await api.get('/automations');
+        const automRes = await api.get('/automation');
         setAutomations(automRes.data.reverse());
         
-        const actRes = await api.get('/automations/activity');
+        const actRes = await api.get('/automation/activity');
         setActivities(actRes.data || []);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -32,7 +32,7 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this automation?')) return;
     try {
-      await api.delete(`/automations/${id}`);
+      await api.delete(`/automation/${id}`);
       setAutomations(prev => prev.filter(a => a._id !== id));
     } catch (error) {
       console.error('Failed to delete:', error);
