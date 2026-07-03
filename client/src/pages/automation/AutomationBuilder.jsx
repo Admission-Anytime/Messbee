@@ -8,6 +8,7 @@ import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
+import CreateAutomationModal from '../../components/Modol/automation/CreateAutomationModal';
 import 'reactflow/dist/style.css';
 
 export default function AutomationBuilder() {
@@ -23,6 +24,7 @@ export default function AutomationBuilder() {
   const [channelId, setChannelId] = useState('');
   const [nodesCount, setNodesCount] = useState(0);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
   useEffect(() => {
     const loadAutomation = async () => {
@@ -109,6 +111,23 @@ export default function AutomationBuilder() {
       }
     }
   }, [isActive, id]);
+
+  const handleCreateTemplate = (data) => {
+    setFlowName(data.name);
+    setFlowData([
+      {
+        id: 'trigger_1',
+        type: 'triggerNode',
+        position: { x: 250, y: 50 },
+        data: {
+          label: 'Trigger',
+          triggerType: data.triggerType || 'exact_match',
+          keyword: '',
+        },
+      },
+    ], []);
+    setIsCreateModalOpen(false);
+  };
 
   if (isLoading) {
     return (
@@ -213,7 +232,7 @@ export default function AutomationBuilder() {
         <div style={{ flex: 1, position: 'relative' }}>
           <FlowCanvas 
             onNodesChange={handleNodesChange} 
-            onStartWithTemplate={() => navigate('/admin/automation')}
+            onStartWithTemplate={() => setIsCreateModalOpen(true)}
           />
         </div>
 
@@ -226,6 +245,13 @@ export default function AutomationBuilder() {
         <TestAutomationModal 
           onClose={() => setIsTestModalOpen(false)} 
           automationId={id}
+        />
+      )}
+
+      {isCreateModalOpen && (
+        <CreateAutomationModal 
+          onClose={() => setIsCreateModalOpen(false)}
+          onCreate={handleCreateTemplate}
         />
       )}
     </div>
