@@ -4,7 +4,8 @@ const whatsappService = require('../services/whatsappService');
 
 exports.getAutomations = async (req, res, next) => {
   try {
-    const automations = await Automation.find({ user: req.user.id });
+    const tenantId = req.user.tenantId || req.user._id;
+    const automations = await Automation.find({ tenantId });
     res.status(200).json(automations);
   } catch (error) {
     next(error);
@@ -13,7 +14,8 @@ exports.getAutomations = async (req, res, next) => {
 
 exports.getAutomationById = async (req, res, next) => {
   try {
-    const automation = await Automation.findOne({ _id: req.params.id, user: req.user.id });
+    const tenantId = req.user.tenantId || req.user._id;
+    const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
       return res.status(404).json({ message: 'Automation not found' });
     }
@@ -25,12 +27,13 @@ exports.getAutomationById = async (req, res, next) => {
 
 exports.createAutomation = async (req, res, next) => {
   try {
-    const existing = await Automation.findOne({ user: req.user.id, name: req.body.name });
+    const tenantId = req.user.tenantId || req.user._id;
+    const existing = await Automation.findOne({ tenantId, name: req.body.name });
     if (existing) {
       return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
     }
 
-    const automationData = { ...req.body, user: req.user.id };
+    const automationData = { ...req.body, tenantId };
     const newAutomation = new Automation(automationData);
     const savedAutomation = await newAutomation.save();
     res.status(201).json(savedAutomation);
@@ -41,15 +44,16 @@ exports.createAutomation = async (req, res, next) => {
 
 exports.updateAutomation = async (req, res, next) => {
   try {
+    const tenantId = req.user.tenantId || req.user._id;
     if (req.body.name) {
-      const existing = await Automation.findOne({ user: req.user.id, name: req.body.name, _id: { $ne: req.params.id } });
+      const existing = await Automation.findOne({ tenantId, name: req.body.name, _id: { $ne: req.params.id } });
       if (existing) {
         return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
       }
     }
 
     const updatedAutomation = await Automation.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
+      { _id: req.params.id, tenantId },
       req.body,
       { new: true, runValidators: true }
     );
@@ -64,7 +68,8 @@ exports.updateAutomation = async (req, res, next) => {
 
 exports.deleteAutomation = async (req, res, next) => {
   try {
-    const deletedAutomation = await Automation.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const tenantId = req.user.tenantId || req.user._id;
+    const deletedAutomation = await Automation.findOneAndDelete({ _id: req.params.id, tenantId });
     if (!deletedAutomation) {
       return res.status(404).json({ message: 'Automation not found' });
     }
@@ -76,8 +81,9 @@ exports.deleteAutomation = async (req, res, next) => {
 
 exports.testAutomation = async (req, res, next) => {
   try {
+    const tenantId = req.user.tenantId || req.user._id;
     const { phoneNumber } = req.body;
-    const automation = await Automation.findOne({ _id: req.params.id, user: req.user.id });
+    const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
       return res.status(404).json({ message: 'Automation not found' });
     }
@@ -136,9 +142,10 @@ exports.testAutomation = async (req, res, next) => {
 
 exports.getActivityLog = async (req, res, next) => {
   try {
+    const tenantId = req.user.tenantId || req.user._id;
     // We fetch sessions across all channels for this user, populated with Automation name
     // Since CustomerSession does not have user directly, we find Automations first or just rely on populate filtering
-    const automations = await Automation.find({ user: req.user.id }).select('_id');
+    const automations = await Automation.find({ tenantId }).select('_id');
     const flowIds = automations.map(a => a._id);
 
     const activities = await CustomerSession.find({ activeFlowId: { $in: flowIds } })
