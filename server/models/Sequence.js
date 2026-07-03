@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const sequenceSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
@@ -18,4 +18,5 @@ const sequenceSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Sequence = mongoose.model('Sequence', sequenceSchema);
-export default Sequence;
+module.exports = Sequence;
+

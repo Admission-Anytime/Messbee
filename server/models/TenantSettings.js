@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 /**
  * TenantSettings Schema
@@ -74,4 +74,5 @@ const tenantSettingsSchema = new mongoose.Schema({
 });
 
 const TenantSettings = mongoose.model('TenantSettings', tenantSettingsSchema);
-export default TenantSettings;
+module.exports = TenantSettings;
+

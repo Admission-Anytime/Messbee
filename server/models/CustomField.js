@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const customFieldSchema = new mongoose.Schema({
   tenantId: {
@@ -33,4 +33,5 @@ const customFieldSchema = new mongoose.Schema({
 customFieldSchema.index({ tenantId: 1, key: 1 }, { unique: true });
 
 const CustomField = mongoose.model('CustomField', customFieldSchema);
-export default CustomField;
+module.exports = CustomField;
+

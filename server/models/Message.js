@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const messageSchema = new mongoose.Schema({
   tenantId: {
@@ -55,4 +55,5 @@ const messageSchema = new mongoose.Schema({
 messageSchema.index({ contactId: 1, createdAt: 1 });
 
 const Message = mongoose.model('Message', messageSchema);
-export default Message;
+module.exports = Message;
+

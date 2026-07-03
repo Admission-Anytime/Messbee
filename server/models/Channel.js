@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 /**
  * Channel Schema
@@ -33,4 +33,5 @@ const channelSchema = new mongoose.Schema({
 });
 
 const Channel = mongoose.model('Channel', channelSchema);
-export default Channel;
+module.exports = Channel;
+

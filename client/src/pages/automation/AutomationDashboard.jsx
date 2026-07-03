@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import api from '../../api';
+import api from '../../context/axios';
 import { 
   Plus, Search, MoreVertical, LinkIcon, QrCode, Smartphone, ChevronLeft, Settings,
   MessageCircle, Trash2, Edit3, List, Minus, Activity, Shield, Workflow, Eye, Zap

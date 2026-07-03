@@ -23,7 +23,7 @@ import ActionNode from './nodes/ActionNode';
 import RandomizerNode from './nodes/RandomizerNode';
 import ShopifyNode from './nodes/ShopifyNode';
 import WaitForEventNode from './nodes/WaitForEventNode';
-import AddNextStepModal from '../../components/Modals/AddNextStepModal';
+import AddNextStepModal from '../../components/Modol/automation/AddNextStepModal';
 
 function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate }) {
   const nodeTypes = useMemo(() => ({

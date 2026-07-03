@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Plus, MessageSquare, Clock, AlertCircle, Play, Settings2, Grid
 } from 'lucide-react';
-import api from '../../api';
+import api from '../../context/axios';
 
 /**
  * AutomationLanding — The main "Automation" page matching Figma Section 1.

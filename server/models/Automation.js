@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 /**
  * Automation Schema
@@ -77,4 +77,5 @@ const automationSchema = new mongoose.Schema({
 automationSchema.index({ channelId: 1, 'triggers.type': 1, 'triggers.value': 1 });
 
 const Automation = mongoose.model('Automation', automationSchema, 'automations');
-export default Automation;
+module.exports = Automation;
+

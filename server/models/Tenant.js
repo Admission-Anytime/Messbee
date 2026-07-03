@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 import bcrypt from 'bcryptjs';
 
 const tenantSchema = new mongoose.Schema({
@@ -41,4 +41,5 @@ tenantSchema.methods.comparePassword = async function (candidatePassword) {
 };
 
 const Tenant = mongoose.model('Tenant', tenantSchema);
-export default Tenant;
+module.exports = Tenant;
+

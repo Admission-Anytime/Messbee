@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, MessageCircle } from 'lucide-react';
-import api from '../../api';
+import api from '../../../context/axios';
 
 export default function AssignChannelsModal({ onClose, currentChannelId, onAssign }) {
   const [selectedChannel, setSelectedChannel] = useState(currentChannelId || '');

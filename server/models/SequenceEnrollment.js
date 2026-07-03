@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const sequenceEnrollmentSchema = new mongoose.Schema({
   tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
@@ -15,4 +15,5 @@ sequenceEnrollmentSchema.index({ sequenceId: 1, contactId: 1 }, { unique: true }
 sequenceEnrollmentSchema.index({ status: 1, nextExecutionAt: 1 });
 
 const SequenceEnrollment = mongoose.model('SequenceEnrollment', sequenceEnrollmentSchema);
-export default SequenceEnrollment;
+module.exports = SequenceEnrollment;
+

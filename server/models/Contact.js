@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const contactSchema = new mongoose.Schema({
   tenantId: {
@@ -51,4 +51,5 @@ const contactSchema = new mongoose.Schema({
 contactSchema.index({ channelId: 1, phone: 1 }, { unique: true });
 
 const Contact = mongoose.model('Contact', contactSchema);
-export default Contact;
+module.exports = Contact;
+

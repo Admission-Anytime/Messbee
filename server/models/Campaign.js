@@ -1,5 +1,4 @@
-import mongoose from 'mongoose';
-
+const mongoose = require('mongoose');
 const campaignSchema = new mongoose.Schema({
   tenantId: {
     type: mongoose.Schema.Types.ObjectId,
@@ -53,4 +52,4 @@ const campaignSchema = new mongoose.Schema({
 });
 
 const Campaign = mongoose.model('Campaign', campaignSchema);
-export default Campaign;
+module.exports = Campaign;

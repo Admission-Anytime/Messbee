@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 /**
  * Customer Session Schema
@@ -73,4 +73,5 @@ const customerSessionSchema = new mongoose.Schema({
 customerSessionSchema.index({ phone: 1, channelId: 1, status: 1 });
 
 const CustomerSession = mongoose.model('CustomerSession', customerSessionSchema);
-export default CustomerSession;
+module.exports = CustomerSession;
+

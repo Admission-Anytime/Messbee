@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const delayedJobSchema = new mongoose.Schema({
   customerPhone: { type: String, required: true },
@@ -12,4 +12,5 @@ const delayedJobSchema = new mongoose.Schema({
 // Index to quickly find jobs that are due
 delayedJobSchema.index({ executeAt: 1, status: 1 });
 
-export default mongoose.model('DelayedJob', delayedJobSchema);
+module.exports = mongoose.model('DelayedJob', delayedJobSchema);
+

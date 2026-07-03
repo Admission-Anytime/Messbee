@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const routingRuleSchema = new mongoose.Schema({
   tenantId: {
@@ -62,4 +62,5 @@ const routingRuleSchema = new mongoose.Schema({
 });
 
 const RoutingRule = mongoose.model('RoutingRule', routingRuleSchema);
-export default RoutingRule;
+module.exports = RoutingRule;
+

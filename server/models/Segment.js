@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const segmentSchema = new mongoose.Schema({
   tenantId: {
@@ -33,4 +33,5 @@ const segmentSchema = new mongoose.Schema({
 });
 
 const Segment = mongoose.model('Segment', segmentSchema);
-export default Segment;
+module.exports = Segment;
+

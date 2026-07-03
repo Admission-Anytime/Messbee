@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Info } from 'lucide-react';
-import api from '../../api';
+import api from '../../context/axios';
 
 export default function FallbackMessageSettings({ onBack }) {
   const [isEnabled, setIsEnabled] = useState(false);

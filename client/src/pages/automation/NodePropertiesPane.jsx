@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
-import api from '../../api';
+import api from '../../context/axios';
 import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList } from 'lucide-react';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
