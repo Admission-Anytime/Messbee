@@ -177,7 +177,12 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
                       
                       {/* NAME */}
                       <td style={{ padding: '16px 12px 16px 0' }}>
-                        <div style={{ fontSize: '14px', fontWeight: '500', color: '#111827', marginBottom: '4px' }}>
+                        <div 
+                          onClick={() => onEditAutomation(automation)}
+                          onMouseOver={(e) => e.currentTarget.style.color = '#3B82F6'}
+                          onMouseOut={(e) => e.currentTarget.style.color = '#111827'}
+                          style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '4px', cursor: 'pointer', display: 'inline-block', transition: 'color 0.2s' }}
+                        >
                           {automation.name || 'Untitled Automation'}
                         </div>
                         <div style={{ fontSize: '11px', color: '#6B7280' }}>

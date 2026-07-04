@@ -299,13 +299,13 @@ const chatService = {
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadResponse = await axios.post('/upload', formData, {
+      const uploadResponse = await axios.post('/media', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
       });
 
-      const fileUrl = uploadResponse.data.url;
+      const fileUrl = uploadResponse.data.data.url;
       const mimeType = file.type;
 
       // Then, upload to WhatsApp

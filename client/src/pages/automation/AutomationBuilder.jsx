@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ChevronLeft, Save, Play, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../context/axios';
+import io from 'socket.io-client';
 import useCanvasStore from '../../store/useCanvasStore';
 import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
@@ -27,6 +28,44 @@ export default function AutomationBuilder() {
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const [activeDebugNodeId, setActiveDebugNodeId] = useState(null);
+  const [invalidNodeId, setInvalidNodeId] = useState(null);
+  const isInitialLoad = React.useRef(true);
+
+  // Setup Socket connection for Visual Debugger
+  useEffect(() => {
+    if (!id || id === 'new') return;
+    
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') : 'http://localhost:5000');
+    const socket = io(SOCKET_URL, { withCredentials: true });
+    
+    // Join the specific flow's room
+    socket.emit('join', `automation_${id}`);
+    
+    socket.on('node_executed', (data) => {
+      console.log('Debugger - Node Executed:', data);
+      setActiveDebugNodeId(data.nodeId);
+      // Remove highlight after 2.5 seconds
+      setTimeout(() => {
+        setActiveDebugNodeId(current => current === data.nodeId ? null : current);
+      }, 2500);
+    });
+
+    return () => socket.disconnect();
+  }, [id]);
+
+  // Track unsaved changes
+  useEffect(() => {
+    if (isLoading) return;
+    if (isInitialLoad.current) {
+      const timer = setTimeout(() => { isInitialLoad.current = false; }, 500);
+      return () => clearTimeout(timer);
+    }
+    setHasUnsavedChanges(true);
+  }, [nodes, edges, flowName, isActive, channelId, isLoading]);
 
   useEffect(() => {
     const loadAutomation = async () => {
@@ -86,6 +125,48 @@ export default function AutomationBuilder() {
       return;
     }
 
+    setInvalidNodeId(null);
+    // Pre-save validation
+    for (const node of nodes) {
+      if (node.type === 'triggerNode') {
+        const tType = node.data?.triggerType || '';
+        if (!node.data?.keyword && tType !== 'media_any' && !tType.includes('_received') && tType !== 'away_message' && tType !== 'fallback') {
+          toast.error(`Trigger node is missing a keyword`);
+          setInvalidNodeId(node.id);
+          return;
+        }
+      }
+      if (node.type === 'apiNode' && !node.data?.endpoint) {
+        toast.error(`API node is missing an endpoint URL`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+      if (node.type === 'templateNode' && !node.data?.templateName) {
+        toast.error(`Template node is missing a selected template`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+      if (node.type === 'messageNode' && !node.data?.text) {
+        toast.error(`Message node is missing text content`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+      if (node.type === 'menuNode') {
+        const sections = node.data?.sections || [];
+        const hasRows = sections.some(s => s.rows && s.rows.length > 0);
+        if (!hasRows) {
+          toast.error(`Menu node must have at least one option/row`);
+          setInvalidNodeId(node.id);
+          return;
+        }
+      }
+      if (node.type === 'interactiveNode' && (!node.data?.buttons || node.data.buttons.length === 0)) {
+        toast.error(`Interactive node must have at least one button`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
       const payload = {
@@ -98,10 +179,12 @@ export default function AutomationBuilder() {
 
       if (id && id !== 'new') {
         await api.put(`/automation/${id}`, payload);
-        toast.success('Automation saved successfully');
+        toast.success('Saved and published successfully');
+        setHasUnsavedChanges(false);
       } else {
         const res = await api.post('/automation', payload);
-        toast.success('Automation created successfully');
+        toast.success('Saved and published successfully');
+        setHasUnsavedChanges(false);
         navigate(`/admin/automation/${res.data._id}`, { replace: true });
       }
     } catch (error) {
@@ -226,7 +309,13 @@ export default function AutomationBuilder() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <button
-            onClick={() => navigate('/admin/automation')}
+            onClick={() => {
+              if (hasUnsavedChanges) {
+                setShowExitWarning(true);
+              } else {
+                navigate('/admin/automation');
+              }
+            }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', display: 'flex', padding: '4px' }}
           >
             <ChevronLeft size={20} />
@@ -317,8 +406,11 @@ export default function AutomationBuilder() {
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
         <div style={{ flex: 1, position: 'relative' }}>
           <FlowCanvas 
+            activeDebugNodeId={activeDebugNodeId}
+            invalidNodeId={invalidNodeId}
             onNodesChange={handleNodesChange} 
-            onStartWithTemplate={() => setIsTemplateModalOpen(true)}
+            onAddTrigger={() => {}} 
+            onStartWithTemplate={() => setIsTemplateModalOpen(true)} 
           />
         </div>
 
@@ -347,6 +439,45 @@ export default function AutomationBuilder() {
           onAssign={(newId) => setChannelId(newId)}
           onClose={() => setIsAssignModalOpen(false)} 
         />
+      )}
+
+      {showExitWarning && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'white', padding: '32px', borderRadius: '16px', width: '90%', maxWidth: '420px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '8px', fontSize: '20px', fontWeight: '700', color: '#111827' }}>Unsaved Changes</h3>
+            <p style={{ color: '#4B5563', fontSize: '14px', marginBottom: '32px', lineHeight: '1.5' }}>You have unsaved changes in this automation. Do you want to save them before leaving?</p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                onClick={() => setShowExitWarning(false)} 
+                style={{ padding: '10px 16px', background: 'transparent', border: '1px solid #D1D5DB', borderRadius: '8px', cursor: 'pointer', color: '#374151', fontSize: '13px', fontWeight: '600', transition: 'background 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#F9FAFB'}
+                onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => { setShowExitWarning(false); navigate('/admin/automation'); }} 
+                style={{ padding: '10px 16px', background: '#FEF2F2', border: 'none', borderRadius: '8px', cursor: 'pointer', color: '#DC2626', fontSize: '13px', fontWeight: '600', transition: 'background 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#FEE2E2'}
+                onMouseOut={(e) => e.currentTarget.style.background = '#FEF2F2'}
+              >
+                Don&apos;t Save
+              </button>
+              <button 
+                onClick={async () => { 
+                  setShowExitWarning(false); 
+                  await handleSave(); 
+                  navigate('/admin/automation'); 
+                }} 
+                style={{ padding: '10px 16px', background: '#10B981', border: 'none', borderRadius: '8px', cursor: 'pointer', color: 'white', fontSize: '13px', fontWeight: '600', transition: 'background 0.2s' }}
+                onMouseOver={(e) => e.currentTarget.style.background = '#059669'}
+                onMouseOut={(e) => e.currentTarget.style.background = '#10B981'}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
