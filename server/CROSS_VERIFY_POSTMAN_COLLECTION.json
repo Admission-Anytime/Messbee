@@ -1,0 +1,353 @@
+{
+  "info": {
+    "_postman_id": "cross-verify-payment-collection",
+    "name": "Cross-Verification Payment API",
+    "description": "Test collection for cross-verification payment endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{BASE_URL}}/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Create Payment Order",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"scenario\": \"credit_topup\",\n  \"amount\": 500,\n  \"topupAmount\": 500\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/create-order",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "create-order"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Cross-Verify Payment",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.verified) {",
+              "        pm.test('✅ Payment Verified Successfully', function() {",
+              "            pm.expect(jsonData.verified).to.be.true;",
+              "        });",
+              "    } else {",
+              "        pm.test('⚠️ Payment Status Mismatch', function() {",
+              "            pm.expect(jsonData.corrected || false).to.be.true;",
+              "        });",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{ORDER_ID}}\",\n  \"paymentId\": \"{{PAYMENT_ID}}\",\n  \"transactionId\": \"{{TRANSACTION_ID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/cross-verify",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "cross-verify"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Get Order Status",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.test('✅ Order Status Retrieved', function() {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData.data.orderId).to.exist;",
+              "        pm.expect(jsonData.data.amount).to.exist;",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{ORDER_ID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/order-status",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "order-status"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reconcile Payment (Valid)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    var jsonData = pm.response.json();",
+              "    if (jsonData.action === 'approve') {",
+              "        pm.test('✅ Payment Reconciliation Approved', function() {",
+              "            pm.expect(jsonData.reconciled).to.be.true;",
+              "            pm.expect(jsonData.mismatches.length).to.equal(0);",
+              "        });",
+              "    } else {",
+              "        pm.test('❌ Payment Reconciliation Rejected', function() {",
+              "            pm.expect(jsonData.reconciled).to.be.false;",
+              "        });",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{ORDER_ID}}\",\n  \"clientPaymentId\": \"{{PAYMENT_ID}}\",\n  \"clientSignature\": \"{{SIGNATURE}}\",\n  \"clientStatus\": \"success\",\n  \"transactionId\": \"{{TRANSACTION_ID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/reconcile",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "reconcile"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reconcile Payment (Fraud - Fake Payment ID)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    pm.test('✅ Fraud Detection - Fake Payment Rejected', function() {",
+              "        var jsonData = pm.response.json();",
+              "        pm.expect(jsonData.action).to.equal('reject');",
+              "        pm.expect(jsonData.reconciled).to.be.false;",
+              "    });",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{ORDER_ID}}\",\n  \"clientPaymentId\": \"pay_FAKE_123\",\n  \"clientSignature\": \"invalid_signature\",\n  \"clientStatus\": \"success\",\n  \"transactionId\": \"{{TRANSACTION_ID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/reconcile",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "reconcile"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reconcile Payment (Missing Params)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test('✅ Missing Parameters Validation', function() {",
+              "    pm.expect(pm.response.code).to.equal(400);",
+              "    var jsonData = pm.response.json();",
+              "    pm.expect(jsonData.success).to.be.false;",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{JWT_TOKEN}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"orderId\": \"{{ORDER_ID}}\"\n}"
+        },
+        "url": {
+          "raw": "{{BASE_URL}}/billing/razorpay/reconcile",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "billing",
+            "razorpay",
+            "reconcile"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://localhost:5000/api",
+      "type": "string"
+    },
+    {
+      "key": "JWT_TOKEN",
+      "value": "",
+      "type": "string",
+      "description": "Get from Login endpoint"
+    },
+    {
+      "key": "ORDER_ID",
+      "value": "",
+      "type": "string",
+      "description": "From Create Order response"
+    },
+    {
+      "key": "PAYMENT_ID",
+      "value": "",
+      "type": "string",
+      "description": "From Razorpay Checkout"
+    },
+    {
+      "key": "SIGNATURE",
+      "value": "",
+      "type": "string",
+      "description": "From Razorpay Checkout"
+    },
+    {
+      "key": "TRANSACTION_ID",
+      "value": "",
+      "type": "string",
+      "description": "From Create Order response"
+    }
+  ]
+}

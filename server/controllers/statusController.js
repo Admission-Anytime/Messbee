@@ -1,0 +1,137 @@
+const Status = require('../models/Status');
+const { PLAN_LIMITS } = require('../utils/planLimits');
+
+// 1. Get all statuses for a user
+exports.getStatuses = async (req, res) => {
+    try {
+        const user = req.user._id;
+        const statuses = await Status.find({ user }).sort({ createdAt: -1 });
+        res.status(200).json(statuses || []);
+    } catch (err) {
+        console.error('❌ Error fetching statuses:', err.message);
+        res.status(500).json({ message: 'Failed to fetch statuses' });
+    }
+};
+
+// 2. Create new status
+exports.createStatus = async (req, res) => {
+    try {
+        const { name, description, color, isActive } = req.body;
+        const user = req.user._id;
+        
+        // Validation
+        if (!name || name.trim() === '') {
+            return res.status(400).json({ message: 'Status name is required' });
+        }
+
+        if (name.length > 50) {
+            return res.status(400).json({ message: 'Status name cannot exceed 50 characters' });
+        }
+
+        // Check plan limit dynamically
+        const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+        const limit = PLAN_LIMITS[userPlan]?.status || PLAN_LIMITS.free.status;
+
+        const statusCount = await Status.countDocuments({ user });
+        if (statusCount >= limit) {
+            return res.status(403).json({ 
+                message: `Status limit reached. You can only create up to ${limit} statuses. Please upgrade your plan.`,
+                limitReached: true 
+            });
+        }
+
+        // Set creator from authenticated user
+        const createdBy = req.user.name || req.user.email || 'User';
+        const avatar = req.user.avatar || req.user.profilePicture || `https://ui-avatars.com/api/?name=${encodeURIComponent(req.user.name || req.user.email || 'User')}&background=10B981&color=fff`;
+
+        const newStatus = new Status({
+            name,
+            description: description || '',
+            color: color || '#3B82F6',
+            isActive: isActive !== undefined ? isActive : true,
+            createdBy,
+            avatar,
+            user
+        });
+        
+        const savedStatus = await newStatus.save();
+        
+        console.log(`✅ Created status: ${savedStatus.name} for user ${user}`);
+        res.status(201).json(savedStatus);
+    } catch (err) {
+        console.error('❌ Error creating status:', err.message);
+        res.status(400).json({ message: err.message || 'Failed to create status' });
+    }
+};
+
+// 3. Update status
+exports.updateStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { name, description, color, isActive } = req.body;
+        const user = req.user._id;
+
+        // Validation
+        if (name && name.length > 50) {
+            return res.status(400).json({ message: 'Status name cannot exceed 50 characters' });
+        }
+
+        const status = await Status.findOne({ _id: id, user });
+        if (!status) {
+            return res.status(404).json({ message: 'Status not found or you do not have permission to update it' });
+        }
+
+        // Update fields
+        if (name !== undefined) status.name = name;
+        if (description !== undefined) status.description = description;
+        if (color !== undefined) status.color = color;
+        if (isActive !== undefined) status.isActive = isActive;
+
+        const updatedStatus = await status.save();
+        
+        console.log(`✅ Updated status: ${updatedStatus.name} for user ${user}`);
+        res.status(200).json(updatedStatus);
+    } catch (err) {
+        console.error('❌ Error updating status:', err.message);
+        res.status(400).json({ message: err.message || 'Failed to update status' });
+    }
+};
+
+// 4. Delete status
+exports.deleteStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = req.user._id;
+
+        const status = await Status.findOne({ _id: id, user });
+        if (!status) {
+            return res.status(404).json({ message: 'Status not found or you do not have permission to delete it' });
+        }
+
+        await Status.findByIdAndDelete(id);
+        
+        console.log(`✅ Deleted status: ${status.name} for user ${user}`);
+        res.status(200).json({ message: 'Status deleted successfully', id });
+    } catch (err) {
+        console.error('❌ Error deleting status:', err.message);
+        res.status(400).json({ message: err.message || 'Failed to delete status' });
+    }
+};
+
+// 5. Get single status by ID
+exports.getStatusById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = req.user._id;
+
+        const status = await Status.findOne({ _id: id, user });
+        if (!status) {
+            return res.status(404).json({ message: 'Status not found' });
+        }
+
+        res.status(200).json(status);
+    } catch (err) {
+        console.error('❌ Error fetching status:', err.message);
+        res.status(400).json({ message: err.message || 'Failed to fetch status' });
+    }
+};

@@ -1,0 +1,295 @@
+/**
+ * Utility functions for executing specific node types in the flow.
+ * Isolates complex logic (like evaluating conditions or hitting external APIs) 
+ * from the main runner loop.
+ */
+
+/**
+ * Utility to replace {{variables}} with actual data from context
+ * Supports fallback syntax: {{contact.name|there}}
+ * Supports system variables: {{system.date}}, {{system.time}}
+ */
+export function parseDynamicVariables(text, contextData = {}) {
+  if (!text) return text;
+  
+  // Inject system variables automatically
+  const now = new Date();
+  contextData.system = {
+    date: now.toLocaleDateString(),
+    time: now.toLocaleTimeString(),
+    day: now.toLocaleDateString('en-US', { weekday: 'long' })
+  };
+
+  return text.replace(/\{\{([\w._]+)(?:\|([^}]+))?\}\}/g, (match, path, fallback) => {
+    const keys = path.split('.');
+    let value = contextData;
+    for (const key of keys) {
+      if (value && typeof value === 'object') {
+        value = value[key];
+      } else {
+        value = undefined;
+        break;
+      }
+    }
+    
+    if (value !== undefined && value !== null && value !== '') {
+      return value;
+    } else if (fallback !== undefined) {
+      return fallback;
+    }
+    
+    return ''; // if no fallback and missing value, render nothing
+  });
+}
+
+/**
+ * Handles condition branches (e.g., if user variable == X)
+ * @param {object} session - Current user session
+ * @param {object} node - The condition node config
+ * @returns {string|null} - The edge handle to follow (e.g., 'true_path' or 'false_path')
+ */
+export async function executeConditionNode(session, node) {
+  const { variable, operator, value } = node.data;
+  
+  const userValue = session.sessionVariables.get(variable);
+  
+  let result = false;
+  switch (operator) {
+    case 'equals': result = userValue == value; break;
+    case 'contains': result = userValue?.includes(value); break;
+    case 'greater_than': result = Number(userValue) > Number(value); break;
+    default: result = false;
+  }
+
+  return result ? 'true_path' : 'false_path';
+}
+
+/**
+ * Executes an external API call configured in the node
+ * @param {object} session - Current user session
+ * @param {object} node - The API node config
+ * @param {object} contextData - Context for parsing variables
+ */
+export async function executeApiCallNode(session, node, contextData) {
+  const { endpoint, method, headers, responseMapping, bodyParams } = node.data;
+  
+  const parsedEndpoint = parseDynamicVariables(endpoint, contextData);
+  let parsedHeaders = {};
+  if (headers) {
+    try {
+      const parsedH = JSON.parse(headers);
+      for (const [key, val] of Object.entries(parsedH)) {
+        parsedHeaders[key] = parseDynamicVariables(val, contextData);
+      }
+    } catch(e) {}
+  }
+
+  let requestBody = undefined;
+  if (bodyParams && (method === 'POST' || method === 'PUT')) {
+    try {
+      const parsedB = typeof bodyParams === 'string' ? JSON.parse(bodyParams) : bodyParams;
+      const finalBody = {};
+      for (const [key, val] of Object.entries(parsedB)) {
+        finalBody[key] = parseDynamicVariables(val, contextData);
+      }
+      requestBody = JSON.stringify(finalBody);
+      parsedHeaders['Content-Type'] = 'application/json';
+    } catch(e) {}
+  }
+  
+  try {
+    const response = await fetch(parsedEndpoint, {
+      method: method || 'GET',
+      headers: parsedHeaders,
+      body: requestBody
+    });
+    
+    const data = await response.json();
+
+    // Map response fields back to session variables if configured
+    if (responseMapping && responseMapping.length > 0) {
+      responseMapping.forEach(mapping => {
+        // Simple extraction
+        const extractedValue = data[mapping.responseField];
+        if (extractedValue) {
+          session.sessionVariables.set(mapping.sessionVariable, extractedValue);
+        }
+      });
+    }
+
+    return 'success';
+  } catch (error) {
+    console.error('API Node Execution Failed:', error);
+    return 'failure';
+  }
+}
+
+/**
+ * Executes an action node (e.g. Add Tag, Human Handoff)
+ */
+export async function executeActionNode(session, node, contextData) {
+  const { actionType, tagValue } = node.data;
+
+  if (actionType === 'add_tag' && tagValue) {
+    const parsedTag = parseDynamicVariables(tagValue, contextData);
+    if (parsedTag && !session.tags.includes(parsedTag)) {
+      session.tags.push(parsedTag);
+    }
+    return 'success';
+  }
+
+  if (actionType === 'remove_tag' && tagValue) {
+    const parsedTag = parseDynamicVariables(tagValue, contextData);
+    session.tags = session.tags.filter(t => t !== parsedTag);
+    return 'success';
+  }
+
+  if (actionType === 'human_handoff' || actionType === 'assign_team') {
+    session.status = 'HANDOFF';
+    session.assignedTo = 'Sales Team';
+    // Engine will halt automatically because status is no longer ACTIVE
+    return 'success';
+  }
+
+  if (actionType === 'round_robin_assign') {
+    const agents = ['Agent A (John)', 'Agent B (Sarah)', 'Agent C (Mike)'];
+    // Simple hash to round-robin based on session ID
+    const charSum = session._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const selectedAgent = agents[charSum % agents.length];
+    
+    session.status = 'HANDOFF';
+    session.assignedTo = selectedAgent;
+    return 'success';
+  }
+
+  if (actionType === 'update_field' && node.data.fieldKey && node.data.fieldValue !== undefined) {
+    const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
+    session.sessionVariables.set(node.data.fieldKey, parsedValue);
+    return 'success';
+  }
+
+  return 'success';
+}
+
+/**
+ * Executes a dedicated Google Sheets integration node
+ */
+export async function executeGoogleSheetsNode(session, node, contextData) {
+  const { webhookUrl, rowData } = node.data;
+  // rowData is expected to be an array of objects: [{ header: "Name", value: "{{contact.name}}" }]
+
+  if (!webhookUrl || !rowData) return 'failure';
+
+  const parsedWebhook = parseDynamicVariables(webhookUrl, contextData);
+  
+  const payload = {};
+  rowData.forEach(col => {
+    payload[col.header] = parseDynamicVariables(col.value, contextData);
+  });
+
+  try {
+    await fetch(parsedWebhook, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return 'success';
+  } catch (error) {
+    console.error('Google Sheets Node Execution Failed:', error);
+    return 'failure';
+  }
+}
+
+/**
+ * Executes an AI Node using OpenAI (ChatGPT)
+ */
+export async function executeAiNode(session, node, contextData) {
+  const { systemPrompt, userMessage, saveVariableAs } = node.data;
+  
+  if (!userMessage) return 'failure';
+
+  const parsedSystem = parseDynamicVariables(systemPrompt || 'You are a helpful assistant.', contextData);
+  const parsedUser = parseDynamicVariables(userMessage, contextData);
+
+  try {
+    const response = await axios.post('https://api.openai.com/v1/chat/completions', {
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: parsedSystem },
+        { role: 'user', content: parsedUser }
+      ]
+    }, {
+      headers: {
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const aiResponse = response.data.choices[0].message.content;
+
+    if (saveVariableAs) {
+      session.sessionVariables.set(saveVariableAs, aiResponse);
+    }
+    
+    // We can also store the direct AI response in contextData for immediate use in the next node
+    contextData.aiResponse = aiResponse;
+
+    return 'success';
+  } catch (error) {
+    console.error('AI Node Execution Failed:', error?.response?.data || error.message);
+    
+    if (saveVariableAs) {
+      session.sessionVariables.set(saveVariableAs, "I'm sorry, I cannot process your request right now.");
+    }
+    return 'failure'; // Note: In flowRunner, 'failure' doesn't necessarily break the flow, it just moves on
+  }
+}
+
+/**
+ * Executes a Randomizer (A/B Test) Node
+ * @returns {string} - The edge handle to follow ('path_a' or 'path_b')
+ */
+export async function executeRandomizerNode(session, node) {
+  const { splitPercentage } = node.data;
+  const targetSplit = Number(splitPercentage) || 50;
+  
+  // Math.random() is between 0 (inclusive) and 1 (exclusive). Multiply by 100 to get percentage scale.
+  const rand = Math.random() * 100;
+  
+  if (rand < targetSplit) {
+    return 'path_a';
+  } else {
+    return 'path_b';
+  }
+}
+
+/**
+ * Executes a Shopify App Node (Wrapper around API Node)
+ */
+export async function executeShopifyNode(session, node, contextData) {
+  const { shopifyAction, shopifyStoreUrl } = node.data;
+  
+  if (!shopifyStoreUrl) return 'failure';
+  
+  const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
+  const url = `https://${cleanUrl}/admin/api/2023-10`;
+  
+  // In a real application, you would store and retrieve the Shopify Access Token securely for the tenant.
+  // For demonstration, we just simulate the integration structure.
+  console.log(`[ShopifyNode] Simulating ${shopifyAction} for ${cleanUrl}`);
+  
+  // Simulate API delay
+  await new Promise(resolve => setTimeout(resolve, 500));
+  
+  if (shopifyAction === 'get_customer') {
+    // Mock mapping phone number to customer
+    session.sessionVariables.set('shopify.customerId', '123456789');
+    session.sessionVariables.set('shopify.customerName', contextData.contact?.name || 'Shopify User');
+  } else if (shopifyAction === 'create_order') {
+    session.sessionVariables.set('shopify.lastOrderId', '#100' + Math.floor(Math.random() * 1000));
+  } else if (shopifyAction === 'check_inventory') {
+    session.sessionVariables.set('shopify.inventoryStatus', 'In Stock');
+  }
+
+  return 'success';
+}

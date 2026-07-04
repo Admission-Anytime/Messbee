@@ -1,0 +1,296 @@
+/* Fonts are now loaded in index.html for better performance */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Payment success bounce animation */
+@keyframes bounceIn {
+  0%   { transform: scale(0.5); opacity: 0; }
+  60%  { transform: scale(1.15); opacity: 1; }
+  80%  { transform: scale(0.95); }
+  100% { transform: scale(1); }
+}
+
+/* ✅ Apply globally with performance optimizations */
+* {
+  /* Enable hardware acceleration for smooth animations */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: 'Urbanist', sans-serif;
+  @apply text-slate-700;
+  /* Optimize repaints */
+  contain: layout style paint;
+}
+/* --- GLOBAL SCROLLBAR STYLES --- */
+@layer utilities {
+  /* For Chrome, Safari, and Edge */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px; /* Height for horizontal scrollbars */
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: #e2e8f0; /* slate-200 */
+    border-radius: 10px;
+    border: 2px solid transparent; /* Creates padding effect */
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: #cbd5e1; /* slate-300 */
+  }
+
+  /* For Firefox */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar {
+  width: 8px;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-track {
+  background: #F8F9FA;
+  border-left: 1px solid #F1F5F9;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-thumb {
+  background-color: #CBD5E1;
+  border-radius: 4px;
+}
+
+.custom-scrollbar-labels::-webkit-scrollbar-thumb:hover {
+  background-color: #94A3B8;
+}
+
+/* ===========================
+   PROFESSIONAL TOAST STYLES
+   =========================== */
+
+/* Base toast card */
+.custom-toast {
+  border-radius: 12px !important;
+  padding: 14px 18px !important;
+  margin-bottom: 12px !important;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  font-weight: 500;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Text area */
+.custom-toast-body {
+  padding: 0;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* SUCCESS (Modern Green) */
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%) !important;
+  color: white !important;
+  border-left: 4px solid #065f46 !important;
+}
+
+/* ERROR (Modern Red) */
+.Toastify__toast--error {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  color: white !important;
+  border-left: 4px solid #991b1b !important;
+}
+
+/* INFO (Modern Blue) */
+.Toastify__toast--info {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%) !important;
+  color: white !important;
+  border-left: 4px solid #1e40af !important;
+}
+
+/* WARNING (Modern Amber) */
+.Toastify__toast--warning {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  color: white !important;
+  border-left: 4px solid #92400e !important;
+}
+
+/* DARK (Elegant Dark) */
+.Toastify__toast--default {
+  background: linear-gradient(135deg, #1f2937 0%, #111827 100%) !important;
+  color: white !important;
+  border-left: 4px solid #374151 !important;
+}
+
+/* LOADING (Modern Slate) */
+.Toastify__toast--loading {
+  background: linear-gradient(135deg, #64748b 0%, #475569 100%) !important;
+  color: white !important;
+  border-left: 4px solid #334155 !important;
+}
+
+/* Progress Bar Styles */
+.Toastify__progress-bar {
+  height: 3px !important;
+  border-radius: 0 0 12px 12px !important;
+}
+
+.Toastify__progress-bar--success {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--error {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--info {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--warning {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--default {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.Toastify__progress-bar--loading {
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Spinner/Loading Icon Color */
+.Toastify__spinner {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  border-right-color: white !important;
+}
+
+/* Toast Icons */
+.Toastify__toast-icon {
+  width: 20px !important;
+  margin-right: 12px !important;
+  flex-shrink: 0;
+}
+
+.Toastify__toast-icon svg {
+  fill: white !important;
+}
+
+/* Close button color */
+.Toastify__close-button {
+  color: white !important;
+  opacity: 0.8;
+  align-self: flex-start;
+  padding: 4px;
+}
+
+.Toastify__close-button:hover {
+  opacity: 1 !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 4px;
+}/* Beautiful Light Mode Node Containers */
+.glass-node {
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+}
+
+.glass-node:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.1);
+}
+
+.glass-node.selected {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.4), 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Custom React Flow Handles */
+.custom-handle {
+  width: 12px;
+  height: 12px;
+  border-radius: 50% !important;
+  background: white;
+  border: 2px solid #d1d5db;
+  transition: all 0.2s ease !important;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0) !important;
+}
+
+.custom-handle:hover {
+  transform: scale(1.3) !important;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.2) !important;
+}
+
+/* Node Specific Styles */
+.trigger-gradient {
+  background: white;
+  border: 1px solid #e5e7eb;
+}
+
+.trigger-gradient::before {
+  display: none;
+}
+
+.message-header {
+  background: #f8fafc;
+  padding: 12px 16px;
+  border-radius: 16px 16px 0 0;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  color: #1e293b;
+}
+
+.interactive-btn {
+  padding: 14px;
+  text-align: center;
+  color: #3b82f6;
+  font-weight: 500;
+  font-size: 13px;
+  border-top: 1px solid #f1f5f9;
+  transition: all 0.2s;
+  cursor: pointer;
+  position: relative;
+}
+
+.interactive-btn:hover {
+  background: #eff6ff;
+}
