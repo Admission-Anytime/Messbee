@@ -1,87 +1,55 @@
 const mongoose = require('mongoose');
-
-const CampaignSchema = new mongoose.Schema({
+const campaignSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true,
+    index: true
+  },
+  channelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
+    required: true
+  },
   name: {
     type: String,
-    required: [true, 'Please add a campaign name'],
-    trim: true
+    required: true
   },
-  description: {
-    type: String
-  },
-  messageTemplate: {
+  templateName: {
     type: String,
-    required: [true, 'Please add a message template']
-  },
-  headerMediaUrl: {
-    type: String,
-    default: null
-  },
-  headerType: {
-    type: String,
-    default: 'None'
+    required: true
   },
   templateLanguage: {
     type: String,
     default: 'en_US'
   },
-  status: {
-    type: String,
-    enum: ['draft', 'scheduled', 'active', 'paused', 'completed'],
-    default: 'draft'
-  },
-  scheduledDate: {
-    type: Date
-  },
-  targetAudience: [{
-    type: mongoose.Schema.ObjectId,
-    ref: 'Contact'
-  }],
-  audienceFilter: {
-    tags: [String],
-    createdAfter: Date,
-    createdBefore: Date
-  },
-  stats: {
-    sent: {
-      type: Number,
-      default: 0
-    },
-    delivered: {
-      type: Number,
-      default: 0
-    },
-    read: {
-      type: Number,
-      default: 0
-    },
-    replied: {
-      type: Number,
-      default: 0
-    },
-    failed: {
-      type: Number,
-      default: 0
-    }
-  },
-  user: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
+  targetSegment: {
+    type: mongoose.Schema.Types.Mixed, // e.g., { tag: "VIP" } or { all: true }
     required: true
   },
-  createdAt: {
-    type: Date,
-    default: Date.now
+  variablesMapping: {
+    type: [mongoose.Schema.Types.Mixed], // Maps template variables to Contact customFields
+    default: []
   },
-  updatedAt: {
+  status: {
+    type: String,
+    enum: ['DRAFT', 'SCHEDULED', 'RUNNING', 'COMPLETED', 'FAILED'],
+    default: 'DRAFT'
+  },
+  scheduledAt: {
     type: Date,
-    default: Date.now
+    default: null
+  },
+  stats: {
+    totalTargeted: { type: Number, default: 0 },
+    sent: { type: Number, default: 0 },
+    delivered: { type: Number, default: 0 },
+    read: { type: Number, default: 0 },
+    failed: { type: Number, default: 0 }
   }
+}, {
+  timestamps: true
 });
 
-CampaignSchema.pre('save', function(next) {
-  this.updatedAt = Date.now();
-  next();
-});
-
-module.exports = mongoose.model('Campaign', CampaignSchema);
+const Campaign = mongoose.model('Campaign', campaignSchema);
+module.exports = Campaign;

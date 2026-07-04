@@ -107,6 +107,13 @@ router.post('/debug-send', protect, async (req, res) => {
 router.post('/templates/upload-media', protect, upload.single('file'), whatsappController.uploadTemplateMedia);
 router.post('/templates/upload-media-by-url', protect, whatsappController.uploadTemplateMediaByUrl);
 
+// Get connected WhatsApp Channels (Mock)
+router.get('/channels', protect, (req, res) => {
+  res.status(200).json([
+    { _id: '609b55b6c00d4334b07e7821', name: 'Main WhatsApp Business', phoneNumber: '+1234567890' }
+  ]);
+});
+
 // Get WhatsApp message templates (Protected route)
 router.get('/templates', protect, whatsappController.getTemplates);
 

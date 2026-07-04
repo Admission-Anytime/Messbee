@@ -16,6 +16,10 @@ dotenv.config();
 // Connect to database
 connectDB();
 
+// Initialize automation delay queue worker
+const { startDelayQueueWorker } = require('./queues/delayQueue');
+startDelayQueueWorker();
+
 const app = express();
 
 // Only create HTTP server and Socket.IO in non-serverless environment
