@@ -1,3 +1,6 @@
 # Ignore all markdown files in server directory except README.md
 /*.md
 !/server/README.md
+
+node_modules
+.env

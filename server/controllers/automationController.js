@@ -1,166 +1,160 @@
 const Automation = require('../models/Automation');
+const CustomerSession = require('../models/CustomerSession');
+const whatsappService = require('../services/whatsappService');
 
-// @desc    Get all automations
-// @route   GET /api/automation
-// @access  Private
 exports.getAutomations = async (req, res, next) => {
   try {
-    const automations = await Automation.find({ user: req.user.id })
-      .sort('-createdAt');
-
-    res.status(200).json({
-      success: true,
-      count: automations.length,
-      data: automations
-    });
+    const tenantId = req.user.tenantId || req.user._id;
+    const automations = await Automation.find({ tenantId });
+    res.status(200).json(automations);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Get single automation
-// @route   GET /api/automation/:id
-// @access  Private
-exports.getAutomation = async (req, res, next) => {
+exports.getAutomationById = async (req, res, next) => {
   try {
-    const automation = await Automation.findById(req.params.id);
-
+    const tenantId = req.user.tenantId || req.user._id;
+    const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Automation not found'
-      });
+      return res.status(404).json({ message: 'Automation not found' });
     }
-
-    if (automation.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to access this automation'
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: automation
-    });
+    res.status(200).json(automation);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Create new automation
-// @route   POST /api/automation
-// @access  Private
 exports.createAutomation = async (req, res, next) => {
   try {
-    req.body.user = req.user.id;
+    const tenantId = req.user.tenantId || req.user._id;
+    const existing = await Automation.findOne({ tenantId, name: req.body.name });
+    if (existing) {
+      return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
+    }
 
-    const automation = await Automation.create(req.body);
-
-    res.status(201).json({
-      success: true,
-      data: automation
-    });
+    const automationData = { ...req.body, tenantId };
+    const newAutomation = new Automation(automationData);
+    const savedAutomation = await newAutomation.save();
+    res.status(201).json(savedAutomation);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Update automation
-// @route   PUT /api/automation/:id
-// @access  Private
 exports.updateAutomation = async (req, res, next) => {
   try {
-    let automation = await Automation.findById(req.params.id);
-
-    if (!automation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Automation not found'
-      });
+    const tenantId = req.user.tenantId || req.user._id;
+    if (req.body.name) {
+      const existing = await Automation.findOne({ tenantId, name: req.body.name, _id: { $ne: req.params.id } });
+      if (existing) {
+        return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
+      }
     }
 
-    if (automation.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to update this automation'
-      });
+    const updatedAutomation = await Automation.findOneAndUpdate(
+      { _id: req.params.id, tenantId },
+      req.body,
+      { new: true, runValidators: true }
+    );
+    if (!updatedAutomation) {
+      return res.status(404).json({ message: 'Automation not found' });
     }
-
-    automation = await Automation.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
-
-    res.status(200).json({
-      success: true,
-      data: automation
-    });
+    res.status(200).json(updatedAutomation);
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Delete automation
-// @route   DELETE /api/automation/:id
-// @access  Private
 exports.deleteAutomation = async (req, res, next) => {
   try {
-    const automation = await Automation.findById(req.params.id);
-
-    if (!automation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Automation not found'
-      });
+    const tenantId = req.user.tenantId || req.user._id;
+    const deletedAutomation = await Automation.findOneAndDelete({ _id: req.params.id, tenantId });
+    if (!deletedAutomation) {
+      return res.status(404).json({ message: 'Automation not found' });
     }
-
-    if (automation.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to delete this automation'
-      });
-    }
-
-    await automation.deleteOne();
-
-    res.status(200).json({
-      success: true,
-      data: {}
-    });
+    res.status(200).json({ message: 'Automation deleted successfully' });
   } catch (error) {
     next(error);
   }
 };
 
-// @desc    Toggle automation active status
-// @route   PUT /api/automation/:id/toggle
-// @access  Private
-exports.toggleAutomation = async (req, res, next) => {
+exports.testAutomation = async (req, res, next) => {
   try {
-    const automation = await Automation.findById(req.params.id);
-
+    const tenantId = req.user.tenantId || req.user._id;
+    const { phoneNumber } = req.body;
+    const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
-      return res.status(404).json({
-        success: false,
-        message: 'Automation not found'
-      });
+      return res.status(404).json({ message: 'Automation not found' });
+    }
+    
+    // Find trigger node (prefer unsaved canvas state if provided, otherwise DB state)
+    const nodes = req.body.nodes || automation.nodes || [];
+    const edges = req.body.edges || automation.edges || [];
+    
+    const triggerNode = nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+    if (!triggerNode) {
+      return res.status(400).json({ message: 'No trigger node found in this automation.' });
     }
 
-    if (automation.user.toString() !== req.user.id) {
-      return res.status(401).json({
-        success: false,
-        message: 'Not authorized to update this automation'
-      });
+    const firstEdge = edges.find(e => e.source === triggerNode.id);
+    if (!firstEdge) {
+      return res.status(400).json({ message: 'Trigger node is not connected to any step.' });
     }
 
-    automation.isActive = !automation.isActive;
-    await automation.save();
+    const firstNode = nodes.find(n => n.id === firstEdge.target);
+    if (!firstNode) {
+      return res.status(400).json({ message: 'Target node of the trigger was not found.' });
+    }
 
-    res.status(200).json({
-      success: true,
-      data: automation
-    });
+    // Try to send the message
+    let result;
+      
+    if (firstNode.type === 'templateNode') {
+      const { templateName, templateLanguage, variables } = firstNode.data;
+      const components = [];
+      if (variables && variables.length > 0) {
+        components.push({
+          type: 'body',
+          parameters: variables.map(v => ({ type: 'text', text: v.value || '' }))
+        });
+      }
+      result = await whatsappService.sendTemplateMessage(phoneNumber, templateName, templateLanguage || 'en_US', components);
+    } else {
+      let textToSend = "Test message from Automation Flow!";
+      // Extract text from standard message nodes
+      if (firstNode.data && firstNode.data.text) {
+        textToSend = firstNode.data.text;
+      }
+      result = await whatsappService.sendTextMessage(phoneNumber, textToSend);
+    }
+
+    if (result && !result.success) {
+       const errorMessage = result.error?.error?.message || result.error?.message || 'Failed to send WhatsApp message';
+       return res.status(400).json({ success: false, message: errorMessage });
+    }
+    
+    res.status(200).json({ success: true, message: `Test automation triggered for ${phoneNumber}` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getActivityLog = async (req, res, next) => {
+  try {
+    const tenantId = req.user.tenantId || req.user._id;
+    // We fetch sessions across all channels for this user, populated with Automation name
+    // Since CustomerSession does not have user directly, we find Automations first or just rely on populate filtering
+    const automations = await Automation.find({ tenantId }).select('_id');
+    const flowIds = automations.map(a => a._id);
+
+    const activities = await CustomerSession.find({ activeFlowId: { $in: flowIds } })
+      .populate({ path: 'activeFlowId', select: 'name' })
+      .populate({ path: 'channelId', select: 'name phoneNumber' })
+      .sort({ lastInteractionAt: -1 })
+      .limit(100);
+
+    res.status(200).json(activities);
   } catch (error) {
     next(error);
   }

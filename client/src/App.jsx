@@ -26,6 +26,7 @@ const Campaign = lazy(() => import("./pages/campaign/campaign"));
 const CreateCampaign = lazy(() => import("./pages/campaign/CreateCampaign"));
 const CampaignLaunchSuccess = lazy(() => import("./pages/campaign/CampaignLaunchSuccess"));
 const Automation = lazy(() => import("./pages/automation/automation"));
+const AutomationBuilder = lazy(() => import("./pages/automation/AutomationBuilder"));
 const Analytic = lazy(() => import("./pages/analytic/analytic"));
 const ConversationAnalytics = lazy(() => import("./pages/analytic/ConversationAnalytics"));
 const MessagesAnalytics = lazy(() => import("./pages/analytic/MessagesAnalytics"));
@@ -271,6 +272,7 @@ function App() {
           <Route path="/admin/commerce/inventory" element={<Inventory />} />
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
+          <Route path="/admin/automation/:id" element={<AutomationBuilder />} />
           {/* 9. Analytics */}
           <Route
             path="/admin/analytic/campaign"
