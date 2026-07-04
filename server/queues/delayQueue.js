@@ -1,4 +1,5 @@
 import DelayedJob from '../models/DelayedJob.js';
+import CustomerSession from '../models/CustomerSession.js';
 
 /**
  * MongoDB-backed Persistent Queue (Replaces BullMQ/Redis for Windows support).
@@ -57,6 +58,30 @@ export const startDelayQueueWorker = () => {
       }
     } catch (err) {
       console.error(`[DB Queue] Polling error:`, err);
+    }
+    
+    // --- Session Cleanup Cron ---
+    try {
+      const INACTIVITY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
+      const expiredTime = new Date(Date.now() - INACTIVITY_TIMEOUT_MS);
+      
+      const result = await CustomerSession.updateMany(
+        { 
+          status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] }, 
+          lastInteractionAt: { $lt: expiredTime } 
+        },
+        { 
+          status: 'CANCELLED',
+          // Optionally clear session variables to prevent lingering state on new interactions
+          sessionVariables: new Map()
+        }
+      );
+      
+      if (result.modifiedCount > 0) {
+        console.log(`[Session Cleanup] Cancelled ${result.modifiedCount} inactive sessions.`);
+      }
+    } catch (err) {
+      console.error(`[Session Cleanup] Error:`, err);
     }
   }, 10000); // Check every 10 seconds
 };

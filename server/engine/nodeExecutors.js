@@ -3,6 +3,17 @@
  * Isolates complex logic (like evaluating conditions or hitting external APIs) 
  * from the main runner loop.
  */
+import axios from 'axios';
+import { emitNotification } from '../config/socket.js';
+import Contact from '../models/Contact.js';
+
+/**
+ * Deeply extracts a value from a nested JSON object using a dot-notation path string.
+ */
+function deepGet(obj, path) {
+  if (!path || !obj) return undefined;
+  return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
+}
 
 /**
  * Utility to replace {{variables}} with actual data from context
@@ -48,10 +59,14 @@ export function parseDynamicVariables(text, contextData = {}) {
  * @param {object} node - The condition node config
  * @returns {string|null} - The edge handle to follow (e.g., 'true_path' or 'false_path')
  */
-export async function executeConditionNode(session, node) {
+export async function executeConditionNode(session, node, contextData) {
   const { variable, operator, value } = node.data;
   
-  const userValue = session.sessionVariables.get(variable);
+  // Upgrade: Fallback to session variables if not found in context (which now contains CRM data like contact.tags)
+  let userValue = deepGet(contextData, variable);
+  if (userValue === undefined) {
+    userValue = session.sessionVariables.get(variable);
+  }
   
   let result = false;
   switch (operator) {
@@ -109,9 +124,9 @@ export async function executeApiCallNode(session, node, contextData) {
     // Map response fields back to session variables if configured
     if (responseMapping && responseMapping.length > 0) {
       responseMapping.forEach(mapping => {
-        // Simple extraction
-        const extractedValue = data[mapping.responseField];
-        if (extractedValue) {
+        // Advanced Extraction: Supports nested JSON paths like 'user.profile.email'
+        const extractedValue = deepGet(data, mapping.responseField);
+        if (extractedValue !== undefined) {
           session.sessionVariables.set(mapping.sessionVariable, extractedValue);
         }
       });
@@ -147,6 +162,21 @@ export async function executeActionNode(session, node, contextData) {
   if (actionType === 'human_handoff' || actionType === 'assign_team') {
     session.status = 'HANDOFF';
     session.assignedTo = 'Sales Team';
+    
+    // Live Inbox Alert: Emit socket notification to the Tenant/Agent
+    if (contextData?.contact?.tenantId) {
+      try {
+        emitNotification(contextData.contact.tenantId, {
+          title: 'Human Handoff Requested',
+          message: `Customer ${contextData.contact.phone || session.phone} requested to speak with an agent.`,
+          type: 'agent_alert',
+          phone: contextData.contact.phone || session.phone
+        });
+      } catch (err) {
+        console.error('Failed to emit handoff notification:', err);
+      }
+    }
+    
     // Engine will halt automatically because status is no longer ACTIVE
     return 'success';
   }
@@ -162,9 +192,33 @@ export async function executeActionNode(session, node, contextData) {
     return 'success';
   }
 
-  if (actionType === 'update_field' && node.data.fieldKey && node.data.fieldValue !== undefined) {
-    const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
-    session.sessionVariables.set(node.data.fieldKey, parsedValue);
+  if (actionType === 'update_field' || actionType === 'update_contact') {
+    if (node.data.fieldKey && node.data.fieldValue !== undefined) {
+      const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
+      session.sessionVariables.set(node.data.fieldKey, parsedValue);
+    }
+    return 'success';
+  }
+
+  if (actionType === 'opt_in') {
+    session.sessionVariables.set('marketing_opt_in', 'true');
+    if (contextData?.contact?.phone) {
+      await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: false });
+    }
+    return 'success';
+  }
+
+  if (actionType === 'opt_out') {
+    session.sessionVariables.set('marketing_opt_in', 'false');
+    if (contextData?.contact?.phone) {
+      await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: true });
+    }
+    return 'success';
+  }
+
+  if (actionType === 'unassign_team') {
+    session.status = 'ACTIVE';
+    session.assignedTo = null;
     return 'success';
   }
 

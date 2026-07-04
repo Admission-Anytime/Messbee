@@ -1,19 +1,38 @@
 import React, { useState } from 'react';
 import { X, Play, Smartphone } from 'lucide-react';
+import { toast } from 'react-toastify';
+import api from '../../../context/axios';
 
-export default function TestAutomationModal({ onClose }) {
+export default function TestAutomationModal({ onClose, automationId }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  const handleTest = () => {
+  const handleTest = async () => {
     if (!phoneNumber) return;
+    if (!automationId || automationId === 'new') {
+      toast.error('Please save the automation first before testing.');
+      return;
+    }
+    
     setIsSending(true);
-    setTimeout(() => {
+    try {
+      const response = await api.post(`/automation/${automationId}/test`, {
+        phoneNumber: phoneNumber.replace(/\D/g, '') // strip non-digits
+      });
+      
+      if (response.data?.success) {
+        setSuccess(true);
+        setTimeout(onClose, 2500);
+      } else {
+        toast.error(response.data?.message || 'Failed to trigger test.');
+      }
+    } catch (error) {
+      console.error('Test automation error:', error);
+      toast.error(error.response?.data?.message || 'Error triggering test automation.');
+    } finally {
       setIsSending(false);
-      setSuccess(true);
-      setTimeout(onClose, 2000);
-    }, 1500);
+    }
   };
 
   return (
