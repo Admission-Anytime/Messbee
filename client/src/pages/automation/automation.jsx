@@ -20,21 +20,22 @@ const Automation = () => {
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [currentAutomationId, setCurrentAutomationId] = useState(null);
-    const [nodesCount, setNodesCount] = useState(0);
+    const [flowDataToCreate, setFlowDataToCreate] = useState(null);
 
     const handleCreateAutomation = () => {
+        setIsCreateModalOpen(true);
+    };
+
+    const handleCreateFlow = (data) => {
+        if (!data || !data.name.trim()) return;
+        setIsCreateModalOpen(false);
+        setFlowDataToCreate(data);
         setIsTriggerModalOpen(true);
     };
 
     const handleTriggerSelect = (trigger) => {
         setIsTriggerModalOpen(false);
-        setIsCreateModalOpen(true);
-    };
-
-    const handleCreateFlow = async (data) => {
-        if (!data || !data.name.trim()) return;
-        setIsCreateModalOpen(false);
-        navigate('/admin/automation/new', { state: { flowName: data.name, triggerType: data.triggerType } }); // Connect to existing AutomationBuilder route
+        navigate('/admin/automation/new', { state: { flowName: flowDataToCreate?.name || 'Untitled Automation', triggerType: trigger } });
     };
 
     const renderView = () => {
@@ -43,7 +44,7 @@ const Automation = () => {
                 return (
                     <AutomationLanding
                         onNavigateFlows={() => setCurrentView('flows')}
-                        onCreateAutomation={() => setIsTriggerModalOpen(true)}
+                        onCreateAutomation={handleCreateAutomation}
                         onCreatePreconfigured={() => setIsAssignModalOpen(true)}
                         onNavigateWelcomeMessage={() => setCurrentView('welcome-message')}
                         onNavigateAwayMessage={() => setCurrentView('away-message')}
@@ -53,7 +54,7 @@ const Automation = () => {
             case 'flows':
                 return (
                     <AutomationDashboard
-                        onCreateAutomation={() => setIsTriggerModalOpen(true)}
+                        onCreateAutomation={handleCreateAutomation}
                         onEditAutomation={(automation) => navigate(`/admin/automation/${automation._id}`)}
                         onTestFlow={(id) => {
                             setCurrentAutomationId(id);

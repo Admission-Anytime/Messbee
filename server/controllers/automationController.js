@@ -1,6 +1,7 @@
 const Automation = require('../models/Automation');
 const CustomerSession = require('../models/CustomerSession');
 const whatsappService = require('../services/whatsappService');
+const automationService = require('../services/automationService');
 
 exports.getAutomations = async (req, res, next) => {
   try {
@@ -82,56 +83,24 @@ exports.deleteAutomation = async (req, res, next) => {
 exports.testAutomation = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
-    const { phoneNumber } = req.body;
+    let { phoneNumber } = req.body;
+    if (phoneNumber && phoneNumber.length === 10) {
+      phoneNumber = `91${phoneNumber}`;
+    }
     const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
-      return res.status(404).json({ message: 'Automation not found' });
+      return res.status(404).json({ success: false, message: 'Automation not found' });
     }
     
-    // Find trigger node (prefer unsaved canvas state if provided, otherwise DB state)
-    const nodes = req.body.nodes || automation.nodes || [];
-    const edges = req.body.edges || automation.edges || [];
+    if (!automation.channelId) {
+      return res.status(400).json({ success: false, message: 'No WhatsApp channel assigned to this automation.' });
+    }
+
+    // Trigger the real engine for the test number
+    const result = await automationService.startFlow(phoneNumber, automation.channelId, automation._id, { isTest: true });
     
-    const triggerNode = nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
-    if (!triggerNode) {
-      return res.status(400).json({ message: 'No trigger node found in this automation.' });
-    }
-
-    const firstEdge = edges.find(e => e.source === triggerNode.id);
-    if (!firstEdge) {
-      return res.status(400).json({ message: 'Trigger node is not connected to any step.' });
-    }
-
-    const firstNode = nodes.find(n => n.id === firstEdge.target);
-    if (!firstNode) {
-      return res.status(400).json({ message: 'Target node of the trigger was not found.' });
-    }
-
-    // Try to send the message
-    let result;
-      
-    if (firstNode.type === 'templateNode') {
-      const { templateName, templateLanguage, variables } = firstNode.data;
-      const components = [];
-      if (variables && variables.length > 0) {
-        components.push({
-          type: 'body',
-          parameters: variables.map(v => ({ type: 'text', text: v.value || '' }))
-        });
-      }
-      result = await whatsappService.sendTemplateMessage(phoneNumber, templateName, templateLanguage || 'en_US', components);
-    } else {
-      let textToSend = "Test message from Automation Flow!";
-      // Extract text from standard message nodes
-      if (firstNode.data && firstNode.data.text) {
-        textToSend = firstNode.data.text;
-      }
-      result = await whatsappService.sendTextMessage(phoneNumber, textToSend);
-    }
-
-    if (result && !result.success) {
-       const errorMessage = result.error?.error?.message || result.error?.message || 'Failed to send WhatsApp message';
-       return res.status(400).json({ success: false, message: errorMessage });
+    if (!result.success) {
+       return res.status(400).json({ success: false, message: result.message });
     }
     
     res.status(200).json({ success: true, message: `Test automation triggered for ${phoneNumber}` });

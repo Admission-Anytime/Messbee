@@ -17,6 +17,7 @@ import { logMessageInternal } from '../controllers/inbox.controller.js';
 import Contact from '../models/Contact.js';
 import RoutingRule from '../models/RoutingRule.js';
 import TenantSettings from '../models/TenantSettings.js';
+import { getIO } from '../config/socket.js';
 
 async function markSessionCompleted(session, customerPhone, channelId) {
   session.status = 'COMPLETED';
@@ -27,6 +28,16 @@ async function markSessionCompleted(session, customerPhone, channelId) {
       for (let [key, value] of session.sessionVariables.entries()) {
         contact.customFields.set(key, value);
       }
+      
+      // Sync tags
+      if (session.tags && session.tags.length > 0) {
+        for (const tag of session.tags) {
+          if (!contact.tags.includes(tag)) {
+            contact.tags.push(tag);
+          }
+        }
+      }
+      
       await contact.save();
     }
   } catch(e) {
@@ -117,19 +128,22 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     return {
       ...basePayload,
       type: 'text',
-      text: { body: parsedText }
+      text: { body: parsedText || ' ' }
     };
   }
 
   if (messageType === 'interactive') {
+    if (btns.length === 0) {
+      return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure buttons.' } };
+    }
     const interactive = {
       type: 'button',
       body: { text: parsedText || 'Select an option' },
       action: {
-        buttons: btns.map(btn => ({
+        buttons: btns.slice(0, 3).map(btn => ({
           type: 'reply',
           reply: { 
-            id: parseDynamicVariables(btn.id, contextData) || btn.id, 
+            id: parseDynamicVariables(btn.id, contextData) || btn.id || 'btn', 
             title: parseDynamicVariables(btn.title, contextData) || 'Button'
           }
         }))
@@ -140,10 +154,12 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       interactive.header = { type: 'text', text: parseDynamicVariables(headerText, contextData) };
     } else if (headerType && mediaUrl) {
       const parsedMediaUrl = parseDynamicVariables(mediaUrl, contextData);
-      interactive.header = {
-        type: headerType,
-        [headerType]: { link: parsedMediaUrl }
-      };
+      if (parsedMediaUrl) {
+        interactive.header = {
+          type: headerType,
+          [headerType]: { link: parsedMediaUrl }
+        };
+      }
     }
 
     return {
@@ -154,6 +170,10 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (messageType === 'menu') {
+    const validSections = (nodeData.sections || []).filter(sec => sec.rows && sec.rows.length > 0);
+    if (validSections.length === 0) {
+      return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure menu options.' } };
+    }
     return {
       ...basePayload,
       type: 'interactive',
@@ -164,10 +184,10 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         footer: nodeData.footer ? { text: parseDynamicVariables(nodeData.footer, contextData) } : undefined,
         action: {
           button: parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Menu',
-          sections: (nodeData.sections || []).map(sec => ({
+          sections: validSections.map(sec => ({
             title: parseDynamicVariables(sec.title, contextData) || 'Options',
-            rows: (sec.rows || []).map(row => ({
-              id: parseDynamicVariables(row.postbackId, contextData) || row.id,
+            rows: (sec.rows || []).slice(0, 10).map(row => ({
+              id: parseDynamicVariables(row.postbackId, contextData) || row.id || `row_${Date.now()}`,
               title: parseDynamicVariables(row.title, contextData) || 'Option',
               description: parseDynamicVariables(row.description, contextData) || undefined
             }))
@@ -186,6 +206,11 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (nodeType === 'mediaNode') {
+    const parsedMediaUrl = parseDynamicVariables(nodeData.mediaUrl, contextData);
+    if (!parsedMediaUrl) {
+      return { ...basePayload, type: 'text', text: { body: 'Missing media URL.' } };
+    }
+    
     let metaType = nodeData.messageType || 'image';
     if (metaType === 'voice') metaType = 'audio';
     if (metaType === 'gif') metaType = 'video';
@@ -196,30 +221,54 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       ...basePayload,
       type: metaType,
       [metaType]: {
-        link: parseDynamicVariables(nodeData.mediaUrl, contextData),
+        link: parsedMediaUrl,
         ...(!isAudioOrSticker ? { caption: parseDynamicVariables(nodeData.text, contextData) } : {})
       }
     };
   }
 
   if (nodeType === 'templateNode') {
-    return {
+    if (!nodeData.templateName) {
+      return { ...basePayload, type: 'text', text: { body: 'Missing template configuration.' } };
+    }
+
+    const payload = {
       ...basePayload,
       type: 'template',
       template: {
         name: nodeData.templateName,
-        language: { code: nodeData.templateLanguage || 'en_US' },
-        components: [
-          {
-            type: 'body',
-            parameters: (nodeData.variables || []).map(v => ({
-              type: 'text',
-              text: parseDynamicVariables(v.value, contextData)
-            }))
-          }
-        ]
+        language: { code: nodeData.templateLanguage || 'en_US' }
       }
     };
+
+    if (nodeData.variables && nodeData.variables.length > 0) {
+      payload.template.components = [
+        {
+          type: 'body',
+          parameters: nodeData.variables.map(v => ({
+            type: 'text',
+            text: parseDynamicVariables(v.value, contextData) || ' '
+          }))
+        }
+      ];
+    }
+
+    // Fallback patch for 'ipu_2627' template which requires a header image in Meta API
+    // but the Messbee UI does not currently map header images for templates.
+    if (nodeData.templateName === 'ipu_2627') {
+      if (!payload.template.components) payload.template.components = [];
+      payload.template.components.push({
+        type: 'header',
+        parameters: [
+          {
+            type: 'image',
+            image: { link: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&h=400&fit=crop' }
+          }
+        ]
+      });
+    }
+
+    return payload;
   }
 
   if (nodeType === 'reactionNode') {
@@ -239,8 +288,8 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         ...basePayload,
         type: 'location',
         location: {
-          latitude: "37.422",
-          longitude: "-122.084",
+          latitude: nodeData.latitude ? nodeData.latitude.toString() : "37.422",
+          longitude: nodeData.longitude ? nodeData.longitude.toString() : "-122.084",
           name: parseDynamicVariables(nodeData.locationName, contextData) || 'Location',
           address: parseDynamicVariables(nodeData.locationAddress, contextData) || 'Address'
         }
@@ -254,11 +303,18 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
           phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) || '0000000000' }]
         }]
       };
+    } else if (nodeData.utilityType === 'calendar') {
+      const eventName = parseDynamicVariables(nodeData.eventName, contextData) || 'Event';
+      const eventTime = parseDynamicVariables(nodeData.eventTime, contextData) || 'TBA';
+      return { ...basePayload, type: 'text', text: { body: `📅 *Calendar Invite:*\n${eventName}\n⏰ ${eventTime}` }};
     }
-    return { ...basePayload, type: 'text', text: { body: `Calendar Invite: ${parseDynamicVariables(nodeData.title, contextData)}` }};
+    return { ...basePayload, type: 'text', text: { body: `Utility message` }};
   }
 
   if (nodeType === 'catalogNode') {
+    if (!nodeData.catalogId) {
+      return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration.' } };
+    }
     return {
       ...basePayload,
       type: 'interactive',
@@ -266,24 +322,28 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         type: nodeData.catalogType === 'single_product' ? 'product' : 'product_list',
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out our products!' },
         action: {
-          catalog_id: nodeData.catalogId || '123456789',
-          product_retailer_id: 'product_1'
+          catalog_id: nodeData.catalogId,
+          product_retailer_id: parseDynamicVariables(nodeData.productId, contextData) || 'product_1'
         }
       }
     };
   }
 
   if (nodeType === 'pollNode') {
+    const validOptions = (nodeData.options || []).filter(opt => parseDynamicVariables(opt.text, contextData));
+    if (validOptions.length < 2) {
+      return { ...basePayload, type: 'text', text: { body: 'Poll needs at least 2 options to display.' } };
+    }
     return {
       ...basePayload,
       type: 'interactive',
       interactive: {
         type: 'poll',
-        body: { text: parseDynamicVariables(nodeData.question, contextData) || 'Poll' },
+        body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Poll' },
         action: {
           name: 'poll',
-          options: (nodeData.options || []).map(opt => ({
-            option_name: parseDynamicVariables(opt.text, contextData) || 'Option'
+          options: validOptions.slice(0, 12).map(opt => ({
+            option_name: parseDynamicVariables(opt.text, contextData)
           }))
         }
       }
@@ -296,20 +356,59 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         ...basePayload,
         type: 'interactive',
         interactive: {
-          type: 'button',
-          body: { text: `Please pay ${nodeData.currency || '$'}${nodeData.amount || '0'} for your order.` },
-          action: { buttons: [{ type: 'reply', reply: { id: 'pay_now', title: 'Pay Now' } }] }
+          type: 'order_details',
+          body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Please pay for your order.' },
+          action: {
+            name: "review_and_pay",
+            parameters: {
+              reference_id: `order_${Date.now()}`,
+              type: "digital-goods",
+              payment_settings: [{
+                type: "payment_gateway",
+                payment_gateway: { desc: "WhatsApp Pay", type: "billdesk" }
+              }],
+              currency: nodeData.currency || "USD",
+              total_amount: { value: (Number(nodeData.amount) * 100) || 100, offset: 100 },
+              order: {
+                status: "pending",
+                items: [{
+                  name: "Order Item",
+                  amount: { value: (Number(nodeData.amount) * 100) || 100, offset: 100 },
+                  quantity: 1
+                }]
+              }
+            }
+          }
         }
       };
+    } else if (nodeData.commerceType === 'coupon') {
+      const code = parseDynamicVariables(nodeData.couponCode, contextData) || 'PROMO';
+      const msg = parseDynamicVariables(nodeData.text, contextData) || 'Here is your coupon!';
+      return { ...basePayload, type: 'text', text: { body: `🎟️ *${code}*\n\n${msg}` } };
     }
     return { ...basePayload, type: 'text', text: { body: parseDynamicVariables(nodeData.text, contextData) || 'Commerce message' } };
   }
 
   if (nodeType === 'carouselNode') {
+    const cards = (nodeData.cards || []).map(card => {
+      const parsedImage = parseDynamicVariables(card.mediaUrl, contextData);
+      const header = parsedImage ? { type: 'image', image: { link: parsedImage } } : undefined;
+      return {
+        header,
+        body: { text: parseDynamicVariables(card.title, contextData) || 'Card Title' },
+        action: { buttons: [{ type: 'reply', reply: { id: `btn_${card.id || Date.now()}`, title: 'Select' } }] }
+      };
+    });
+    if (cards.length === 0) return { ...basePayload, type: 'text', text: { body: 'Empty Carousel' } };
+    
     return {
       ...basePayload,
-      type: 'text',
-      text: { body: 'Carousel messages are supported natively only in specific regions. Please refer to Catalog for multi-product views.' }
+      type: 'interactive',
+      interactive: {
+        type: 'carousel',
+        body: { text: 'Swipe to see more' },
+        action: { cards }
+      }
     };
   }
 
@@ -335,6 +434,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     }
 
     const channel = await Channel.findById(channelId).select('+metaAccessToken');
+    const contact = await Contact.findOne({ phone: customerPhone, channelId });
 
     let currentNodeId = startNodeId;
     let keepRunning = true;
@@ -343,6 +443,20 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 
     while (keepRunning && currentNodeId && steps < MAX_STEPS) {
       steps++;
+      
+      // Build a rich contextData combining CRM Contact Data and Session Variables
+      const contextData = {
+        contact: contact ? {
+          id: contact._id.toString(),
+          tenantId: contact.tenantId ? contact.tenantId.toString() : null,
+          phone: contact.phone,
+          name: contact.name || '',
+          email: contact.email || '',
+          tags: contact.tags || [],
+          ...Object.fromEntries(contact.customFields || new Map())
+        } : { phone: customerPhone, id: session._id },
+        ...Object.fromEntries(session.sessionVariables)
+      };
       
       session.currentNodeId = currentNodeId;
       session.lastInteractionAt = Date.now();
@@ -361,21 +475,28 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
 
       console.log(`Executing node: ${currentNode.type} (${currentNode.id})`);
-
+      
+      // --- Visual Debugger / Real-time Socket Event ---
+      try {
+        const io = getIO();
+        if (io) {
+          // Broadcast to the specific flow's room
+          io.to(`automation_${activeFlow._id.toString()}`).emit('node_executed', { 
+            nodeId: currentNode.id, 
+            flowId: activeFlow._id.toString(),
+            timestamp: Date.now() 
+          });
+        }
+      } catch (e) {
+        console.error('Failed to emit debug event:', e);
+      }
+      
       // Determine the default next node by following an outgoing edge with no specific handle (e.g. text message output)
       const outgoingEdges = activeFlow.edges.filter(e => e.source === currentNodeId);
       let nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
 
       // Handle specific node types
       if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
-        // Construct the context data available to dynamic variables like {{contact.phone}}
-        const contextData = {
-          contact: { phone: customerPhone, id: session._id },
-          referral: session.referral || {},
-          incomingMessageId: session.lastIncomingMessageId || null,
-          ...Object.fromEntries(session.sessionVariables)
-        };
-
         const payload = buildMessagePayload(customerPhone, currentNode.type, currentNode.data, contextData);
         
         try {
@@ -402,25 +523,22 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         }
       } 
       else if (currentNode.type === 'conditionNode') {
-        const handle = await executeConditionNode(session, currentNode);
+        const handle = await executeConditionNode(session, currentNode, contextData);
         // Find the specific edge that matches the condition result (true_path or false_path)
         const conditionEdge = outgoingEdges.find(e => e.sourceHandle === handle);
         nextNodeId = conditionEdge ? conditionEdge.target : null;
       }
       else if (currentNode.type === 'apiNode') {
-        const contextData = { contact: { phone: customerPhone, id: session._id }, ...Object.fromEntries(session.sessionVariables) };
         const status = await executeApiCallNode(session, currentNode, contextData);
         const apiEdge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
         nextNodeId = apiEdge ? apiEdge.target : null;
       }
       else if (currentNode.type === 'actionNode') {
-        const contextData = { contact: { phone: customerPhone, id: session._id }, ...Object.fromEntries(session.sessionVariables) };
         const result = await executeActionNode(session, currentNode, contextData);
         const edge = outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'aiNode') {
-        const contextData = { contact: { phone: customerPhone, id: session._id }, ...Object.fromEntries(session.sessionVariables) };
         const result = await executeAiNode(session, currentNode, contextData);
         // Refresh context data with potentially new session variables
         for (const [k, v] of session.sessionVariables.entries()) {
@@ -431,7 +549,6 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'googleSheetsNode') {
-        const contextData = { contact: { phone: customerPhone, id: session._id }, ...Object.fromEntries(session.sessionVariables) };
         const status = await executeGoogleSheetsNode(session, currentNode, contextData);
         const edge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
@@ -462,7 +579,12 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         keepRunning = false;
       }
       else if (currentNode.type === 'delayNode') {
-        const delayMs = currentNode.data.delayTimeMs || 60000; // Default 1 minute
+        const amount = Number(currentNode.data.delayAmount) || 1;
+        const unit = currentNode.data.delayUnit || 'Minutes';
+        let delayMs = amount * 60000;
+        if (unit === 'Hours') delayMs = amount * 60 * 60000;
+        else if (unit === 'Days') delayMs = amount * 24 * 60 * 60000;
+
         if (nextNodeId) {
           await scheduleDelayedNode(customerPhone, channelId, nextNodeId, delayMs);
         }
@@ -731,7 +853,6 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
       if (!nextNodeId) return;
 
-      // Initialize a new session
       session = new CustomerSession({
         phone: customerPhone,
         channelId,
@@ -741,6 +862,9 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         lastIncomingMessageId: incomingMessageId
       });
       await session.save();
+      
+      // Start processing the nodes in the flow!
+      await processSpecificNode(customerPhone, channelId, nextNodeId);
 
     } else {
       // 2. Existing session
@@ -779,12 +903,24 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         
         if (validationType === 'email') {
           isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingPayload);
-        } else if (validationType === 'phone') {
+        } else if (validationType === 'phone' || validationType === 'mobile') {
           isValid = /^\+?[\d\s-]{8,15}$/.test(incomingPayload);
         } else if (validationType === 'number') {
           isValid = !isNaN(incomingPayload) && incomingPayload.trim() !== '';
         } else if (validationType === 'date') {
           isValid = !isNaN(Date.parse(incomingPayload));
+        } else if (validationType === 'url') {
+          isValid = /^(https?:\/\/)?([\w\-]+)+[\w\-\._~:\/?#[\]@!\$&'\(\)\*\+,;=.]+$/.test(incomingPayload);
+        } else if (validationType === 'location') {
+          isValid = incomingPayload.toLowerCase() === '[__media_location__]';
+        } else if (validationType === 'photo') {
+          isValid = incomingPayload.toLowerCase() === '[__media_image__]';
+        } else if (validationType === 'audio') {
+          isValid = incomingPayload.toLowerCase() === '[__media_audio__]';
+        } else if (validationType === 'pdf') {
+          isValid = incomingPayload.toLowerCase() === '[__media_document__]';
+        } else if (validationType === 'address') {
+          isValid = incomingPayload.trim().length > 5;
         }
 
         if (!isValid) {
@@ -847,14 +983,36 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         // Move to the next node based on user's input (edges).
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
-        // Try to match the incoming payload to a sourceHandle (for interactive buttons)
-        const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload) || outgoingEdges[0];
+        let nextNodeId = null;
 
-        if (!matchedEdge) {
+        if (['interactiveNode', 'menuNode', 'catalogNode', 'pollNode', 'commerceNode'].includes(currentNode?.type)) {
+          // For interactive nodes, the reply MUST match a specific button/list ID (sourceHandle)
+          const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload);
+          
+          if (matchedEdge) {
+            nextNodeId = matchedEdge.target;
+          } else {
+            // User typed text instead of clicking a button. Re-prompt them.
+            const channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+            await sendWhatsAppMessage(customerPhone, {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: customerPhone,
+              type: 'text',
+              text: { body: 'Please select an option from the menu above.' }
+            }, channelToUse);
+            return; // Halt execution and wait for valid input
+          }
+        } else {
+          // For other nodes waiting for events, fallback to the default edge
+          const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload) || outgoingEdges[0];
+          if (matchedEdge) nextNodeId = matchedEdge.target;
+        }
+
+        if (!nextNodeId) {
           await markSessionCompleted(session, customerPhone, channelId);
           return;
         }
-        nextNodeId = matchedEdge.target;
       }
     }
 

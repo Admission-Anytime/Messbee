@@ -241,18 +241,22 @@ export default function NodePropertiesPane({ currentChannelId }) {
     formData.append('file', file);
 
     try {
-      const response = await api.post('/upload', formData, {
+      const response = await api.post('/media', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      const data = response.data;
-      const updatePayload = { mediaUrl: data.url, mediaSize: fileSizeStr };
-      if (durationStr) updatePayload.mediaDuration = durationStr;
-      
-      setLocalData(prev => ({ ...prev, ...updatePayload }));
-      updateNodeData(id, updatePayload);
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || 'Upload failed. Is the backend running?');
+      const resData = response.data;
+      if (resData && resData.success) {
+        const updatePayload = { mediaUrl: resData.data.url, mediaSize: fileSizeStr };
+        if (durationStr) updatePayload.mediaDuration = durationStr;
+        
+        setLocalData(prev => ({ ...prev, ...updatePayload }));
+        updateNodeData(id, updatePayload);
+      } else {
+        throw new Error(resData.message || 'Upload failed');
+      }
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.message || 'Upload failed. Is the backend running?');
     } finally {
       setIsUploading(false);
     }

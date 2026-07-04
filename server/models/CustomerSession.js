@@ -33,7 +33,7 @@ const customerSessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['ACTIVE', 'PAUSED', 'COMPLETED', 'FAILED', 'HANDOFF', 'WAITING_FOR_INPUT'],
+    enum: ['ACTIVE', 'PAUSED', 'COMPLETED', 'FAILED', 'HANDOFF', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'CANCELLED'],
     default: 'ACTIVE',
     index: true
   },

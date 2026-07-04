@@ -25,7 +25,7 @@ import ShopifyNode from './nodes/ShopifyNode';
 import WaitForEventNode from './nodes/WaitForEventNode';
 import AddNextStepModal from '../../components/Modol/automation/AddNextStepModal';
 
-function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate }) {
+function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate, activeDebugNodeId, invalidNodeId }) {
   const nodeTypes = useMemo(() => ({
     messageNode: MessageNode,
     triggerNode: TriggerNode,
@@ -105,16 +105,17 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     let messageType = 'text';
     let dataPayload = {};
 
-    if (stepItem.id === 'interactive_msg' || stepItem.id === 'button_msg') {
+    if (stepItem.id === 'interactive_msg' || stepItem.id === 'button_msg' || stepItem.id === 'quick_reply') {
       messageType = 'interactive';
     } else if (stepItem.id === 'menu_msg' || stepItem.id === 'list_msg') {
       type = 'menuNode';
       messageType = 'menu';
       dataPayload = { menuButtonText: 'View Menu', sections: [{ id: `sec_${Date.now()}`, title: 'Options', rows: [] }] };
-    } else if (stepItem.id && stepItem.id.startsWith('ask_')) {
+    } else if ((stepItem.id && stepItem.id.startsWith('ask_')) || stepItem.id === 'wait_input') {
       type = 'inputNode';
       messageType = 'input';
-      dataPayload = { validationType: stepItem.id.replace('ask_', ''), variableName: `contact.${stepItem.id.replace('ask_', '')}` };
+      const validation = stepItem.id === 'wait_input' ? 'anything' : stepItem.id.replace('ask_', '');
+      dataPayload = { validationType: validation, variableName: `contact.${validation}` };
     } else if (['image_msg', 'video_msg', 'audio_msg', 'doc_msg', 'sticker_msg', 'gif_msg', 'voice_msg'].includes(stepItem.id)) {
       type = 'mediaNode';
       messageType = stepItem.id.replace('_msg', '');
@@ -214,7 +215,73 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         .react-flow__handle:hover { transform: scale(1.3) !important; background: #3b82f6 !important; border-color: #3b82f6 !important; }
         .ctrl-btn:hover { background: #f3f4f6 !important; color: #111827 !important; }
         .ctrl-btn { transition: all 0.15s !important; }
+        
+        /* Debugger Animation Base */
+        .react-flow__node { transition: transform 0.3s ease, box-shadow 0.3s ease; }
       `}</style>
+
+      {/* Dynamic Debugger Highlight CSS */}
+      {activeDebugNodeId && (
+        <style>{`
+          [data-id="${activeDebugNodeId}"] {
+            box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3), 0 0 25px rgba(16, 185, 129, 0.6) !important;
+            border-color: #10b981 !important;
+            transform: scale(1.03);
+            z-index: 1000 !important;
+          }
+          [data-id="${activeDebugNodeId}"]::after {
+            content: 'EXECUTING...';
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #10b981;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            animation: pulse 1.5s infinite;
+          }
+          @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+          }
+        `}</style>
+      )}
+
+      {/* Dynamic Error Highlight CSS */}
+      {invalidNodeId && (
+        <style>{`
+          [data-id="${invalidNodeId}"] {
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.3), 0 0 25px rgba(239, 68, 68, 0.6) !important;
+            border-color: #ef4444 !important;
+            transform: scale(1.03);
+            z-index: 1000 !important;
+            animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+          }
+          [data-id="${invalidNodeId}"]::after {
+            content: 'MISSING CONFIGURATION';
+            position: absolute;
+            top: -24px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ef4444;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+          }
+          @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0) scale(1.03); }
+            20%, 80% { transform: translate3d(2px, 0, 0) scale(1.03); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0) scale(1.03); }
+            40%, 60% { transform: translate3d(4px, 0, 0) scale(1.03); }
+          }
+        `}</style>
+      )}
 
       {/* Dotted Background */}
       <div style={{ position: 'absolute', inset: 0, opacity: 0.4, backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
