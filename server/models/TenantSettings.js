@@ -68,6 +68,13 @@ const tenantSettingsSchema = new mongoose.Schema({
   fallbackMessage: {
     enabled: { type: Boolean, default: false },
     automationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Automation', default: null }
+  },
+  // Spam Protection
+  spamProtection: {
+    enabled: { type: Boolean, default: false },
+    rateLimitWindowMs: { type: Number, default: 60000 },
+    maxMessagesPerWindow: { type: Number, default: 10 },
+    blocklist: [{ type: String }] // Array of phone numbers
   }
 }, {
   timestamps: true

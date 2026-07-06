@@ -113,6 +113,16 @@ export const handleIncomingMessage = async (req, res) => {
                 }
               } catch(e) {}
 
+              // 🛡️ Spam Protection Blocklist Check
+              const { default: TenantSettings } = await import('../models/TenantSettings.js');
+              const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
+              if (settings && settings.spamProtection && settings.spamProtection.enabled) {
+                if (settings.spamProtection.blocklist && settings.spamProtection.blocklist.includes(customerPhone)) {
+                  console.log(`[Spam Protection] Blocked incoming message from ${customerPhone}`);
+                  continue; // Drop the message
+                }
+              }
+
               const contact = await upsertContactInternal(channel.tenantId, channel._id, customerPhone, profileName);
 
               if (contact) {

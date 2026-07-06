@@ -6,8 +6,38 @@ const automationService = require('../services/automationService');
 exports.getAutomations = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
-    const automations = await Automation.find({ tenantId });
-    res.status(200).json(automations);
+    const automations = await Automation.find({ tenantId }).lean();
+    
+    const flowIds = automations.map(a => a._id);
+    const sessionStats = await CustomerSession.aggregate([
+      { $match: { activeFlowId: { $in: flowIds } } },
+      { $group: {
+          _id: "$activeFlowId",
+          total: { $sum: 1 },
+          completed: { $sum: { $cond: [{ $eq: ["$status", "COMPLETED"] }, 1, 0] } }
+        }
+      }
+    ]);
+
+    const statsMap = {};
+    sessionStats.forEach(stat => {
+      statsMap[stat._id.toString()] = {
+        total: stat.total,
+        completed: stat.completed,
+        rate: stat.total > 0 ? Math.round((stat.completed / stat.total) * 100) : 0
+      };
+    });
+
+    const automationsWithStats = automations.map(a => {
+      const stats = statsMap[a._id.toString()] || { total: 0, completed: 0, rate: 0 };
+      return {
+        ...a,
+        successRate: stats.rate,
+        sessionStats: stats
+      };
+    });
+
+    res.status(200).json(automationsWithStats);
   } catch (error) {
     next(error);
   }
