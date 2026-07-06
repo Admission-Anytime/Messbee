@@ -60,6 +60,7 @@ const Automation = () => {
                             setCurrentAutomationId(id);
                             setIsTestModalOpen(true);
                         }}
+                        onBack={() => setCurrentView('landing')}
                     />
                 );
             case 'welcome-message':

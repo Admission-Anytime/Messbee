@@ -1,14 +1,15 @@
-import TenantSettings from '../models/TenantSettings.js';
+const TenantSettings = require('../models/TenantSettings');
 
 /**
  * GET /api/settings
  * Returns the tenant's global settings. Creates defaults if none exist.
  */
-export const getSettings = async (req, res) => {
+exports.getSettings = async (req, res) => {
   try {
-    let settings = await TenantSettings.findOne({ tenantId: req.user.tenantId });
+    const tenantId = req.user.tenantId || req.user._id;
+    let settings = await TenantSettings.findOne({ tenantId });
     if (!settings) {
-      settings = await TenantSettings.create({ tenantId: req.user.tenantId });
+      settings = await TenantSettings.create({ tenantId });
     }
     res.json(settings);
   } catch (error) {
@@ -21,35 +22,43 @@ export const getSettings = async (req, res) => {
  * PUT /api/settings
  * Updates the tenant's global settings (partial update supported).
  */
-export const updateSettings = async (req, res) => {
+exports.updateSettings = async (req, res) => {
   try {
-    let settings = await TenantSettings.findOne({ tenantId: req.user.tenantId });
+    const tenantId = req.user.tenantId || req.user._id;
+    let settings = await TenantSettings.findOne({ tenantId });
     if (!settings) {
-      settings = await TenantSettings.create({ tenantId: req.user.tenantId });
+      settings = await TenantSettings.create({ tenantId });
     }
 
-    const { deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage } = req.body;
+    const { deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage, spamProtection } = req.body;
     
-    if (deliveryRules) {
-      settings.deliveryRules = { ...settings.deliveryRules.toObject(), ...deliveryRules };
+    if (deliveryRules !== undefined) {
+      settings.deliveryRules = deliveryRules;
+      settings.markModified('deliveryRules');
     }
-    if (executionSpeed) {
-      settings.executionSpeed = { ...settings.executionSpeed.toObject(), ...executionSpeed };
+    if (executionSpeed !== undefined) {
+      settings.executionSpeed = executionSpeed;
+      settings.markModified('executionSpeed');
     }
-    if (crmSync) {
-      settings.crmSync = { ...settings.crmSync.toObject(), ...crmSync };
+    if (crmSync !== undefined) {
+      settings.crmSync = crmSync;
+      settings.markModified('crmSync');
     }
     if (welcomeMessage !== undefined) {
-      const existingWelcomeMessage = settings.welcomeMessage ? settings.welcomeMessage.toObject?.() || settings.welcomeMessage : {};
-      settings.welcomeMessage = { ...existingWelcomeMessage, ...welcomeMessage };
+      settings.welcomeMessage = welcomeMessage;
+      settings.markModified('welcomeMessage');
     }
     if (awayMessage !== undefined) {
-      const existingAwayMessage = settings.awayMessage ? settings.awayMessage.toObject?.() || settings.awayMessage : {};
-      settings.awayMessage = { ...existingAwayMessage, ...awayMessage };
+      settings.awayMessage = awayMessage;
+      settings.markModified('awayMessage');
     }
     if (fallbackMessage !== undefined) {
-      const existingFallbackMessage = settings.fallbackMessage ? settings.fallbackMessage.toObject?.() || settings.fallbackMessage : {};
-      settings.fallbackMessage = { ...existingFallbackMessage, ...fallbackMessage };
+      settings.fallbackMessage = fallbackMessage;
+      settings.markModified('fallbackMessage');
+    }
+    if (spamProtection !== undefined) {
+      settings.spamProtection = spamProtection;
+      settings.markModified('spamProtection');
     }
 
     await settings.save();
