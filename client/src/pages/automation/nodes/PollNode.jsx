@@ -12,10 +12,10 @@ export default function PollNode({ id, data, selected }) {
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -26,8 +26,8 @@ export default function PollNode({ id, data, selected }) {
         flexDirection: 'column'
       }}>
 
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <ListChecks size={16} color="#6b7280" />
             {data.label || 'Poll Message'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -38,16 +38,16 @@ export default function PollNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa' }}>
+        <div style={{ padding: '12px', background: '#2E3440' }}>
           
           <div style={{ 
-            background: 'white', 
+            background: '#3B4252', 
             borderRadius: '6px', 
             padding: '12px', 
-            border: '1px solid #e5e7eb',
+            border: '1px solid #4C566A',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
-            <div style={{ fontSize: '13px', fontWeight: '500', color: '#111827', whiteSpace: 'pre-wrap', lineHeight: '1.4', marginBottom: '12px' }}>
+            <div style={{ fontSize: '13px', fontWeight: '500', color: '#ECEFF4', whiteSpace: 'pre-wrap', lineHeight: '1.4', marginBottom: '12px' }}>
               {data.text || 'Ask a question...'}
             </div>
 
@@ -56,12 +56,12 @@ export default function PollNode({ id, data, selected }) {
                 data.options.map((opt, idx) => (
                   <div key={idx} style={{ position: 'relative' }}>
                     <div style={{ 
-                      background: '#f9fafb', 
+                      background: '#2E3440', 
                       padding: '8px 10px', 
                       borderRadius: '6px', 
                       fontSize: '12px', 
-                      color: '#374151', 
-                      border: '1px solid #e5e7eb', 
+                      color: '#D8DEE9', 
+                      border: '1px solid #4C566A', 
                       display: 'flex', 
                       alignItems: 'center', 
                       gap: '10px' 
@@ -74,12 +74,12 @@ export default function PollNode({ id, data, selected }) {
                       position={Position.Right} 
                       id={`opt-${idx}`}
                       className="custom-handle" 
-                      style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+                      style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
                     />
                   </div>
                 ))
               ) : (
-                <div style={{ background: '#f9fafb', padding: '10px', borderRadius: '6px', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', border: '1px dashed #d1d5db', textAlign: 'center' }}>
+                <div style={{ background: '#2E3440', padding: '10px', borderRadius: '6px', fontSize: '11px', color: '#9ca3af', fontStyle: 'italic', border: '1px dashed #d1d5db', textAlign: 'center' }}>
                   Add options in the properties pane
                 </div>
               )}
@@ -94,8 +94,8 @@ export default function PollNode({ id, data, selected }) {
         </div>
 
         {(!data.options || data.options.length === 0) && (
-          <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-            <div style={{ fontSize: '11px', color: '#6b7280' }}>
+          <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+            <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
               Next step
             </div>
             <Handle 
@@ -103,7 +103,7 @@ export default function PollNode({ id, data, selected }) {
               position={Position.Right} 
               id="main-handle"
               className="custom-handle" 
-              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
             />
           </div>
         )}

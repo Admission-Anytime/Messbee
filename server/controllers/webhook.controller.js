@@ -113,6 +113,16 @@ export const handleIncomingMessage = async (req, res) => {
                 }
               } catch(e) {}
 
+              // 🛡️ Spam Protection Blocklist Check
+              const { default: TenantSettings } = await import('../models/TenantSettings.js');
+              const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
+              if (settings && settings.spamProtection && settings.spamProtection.enabled) {
+                if (settings.spamProtection.blocklist && settings.spamProtection.blocklist.includes(customerPhone)) {
+                  console.log(`[Spam Protection] Blocked incoming message from ${customerPhone}`);
+                  continue; // Drop the message
+                }
+              }
+
               const contact = await upsertContactInternal(channel.tenantId, channel._id, customerPhone, profileName);
 
               if (contact) {
@@ -162,6 +172,17 @@ export const handleIncomingMessage = async (req, res) => {
 
               // Pass the message along to our Background Webhook Queue for asynchronous execution
               // This guarantees the HTTP response completes within 1500ms
+              
+              // Clear any pending timeout jobs since the user replied
+              try {
+                const { default: DelayedJob } = await import('../models/DelayedJob.js');
+                if (DelayedJob) {
+                  await DelayedJob.deleteMany({ customerPhone, channelId: channel._id, status: 'PENDING' });
+                }
+              } catch (e) {
+                console.error('Error clearing pending delayed jobs:', e);
+              }
+
               enqueueWebhookPayload(customerPhone, incomingPayload, channel._id, referral, message.id);
             } else {
               console.warn(`No registered channel found for Phone Number ID: ${phoneNumberId}`);

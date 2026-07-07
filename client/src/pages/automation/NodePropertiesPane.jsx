@@ -136,7 +136,7 @@ const inputStyle = {
 };
 
 export default function NodePropertiesPane({ currentChannelId }) {
-  const { nodes, updateNodeData } = useCanvasStore();
+  const { nodes, updateNodeData, setEdges } = useCanvasStore();
   const [localData, setLocalData] = useState(null);
   const [uploadMode, setUploadMode] = useState('url');
   const [isUploading, setIsUploading] = useState(false);
@@ -144,7 +144,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
   useEffect(() => {
     if (currentChannelId) {
-      api.get('/channels').then(res => {
+      api.get('/whatsapp/channels').then(res => {
         const channel = res.data.find(c => c._id === currentChannelId);
         if (channel && channel.phoneNumber) {
           // Remove '+' for wa.me link
@@ -280,9 +280,16 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
   const removeButton = (index) => {
     const newButtons = [...(localData.buttons || [])];
+    const removedBtn = newButtons[index];
     newButtons.splice(index, 1);
     setLocalData(prev => ({ ...prev, buttons: newButtons }));
     updateNodeData(id, { buttons: newButtons });
+    
+    // Clean up connected edges
+    if (setEdges) {
+      const handleId = `btn-${removedBtn.id || index}`;
+      setEdges(eds => eds.filter(e => !(e.source === id && e.sourceHandle === handleId)));
+    }
   };
 
   const addSection = () => {
@@ -293,9 +300,15 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
   const removeSection = (secIdx) => {
     const newSections = [...(localData.sections || [])];
+    const removedSection = newSections[secIdx];
     newSections.splice(secIdx, 1);
     setLocalData(prev => ({ ...prev, sections: newSections }));
     updateNodeData(id, { sections: newSections });
+
+    if (setEdges && removedSection && removedSection.rows) {
+      const handleIdsToRemove = removedSection.rows.map((row, rowIdx) => `row-${row.id || rowIdx}`);
+      setEdges(eds => eds.filter(e => !(e.source === id && handleIdsToRemove.includes(e.sourceHandle))));
+    }
   };
 
   const handleSectionChange = (secIdx, field, value) => {
@@ -317,11 +330,18 @@ export default function NodePropertiesPane({ currentChannelId }) {
     const newSections = [...(localData.sections || [])];
     const sectionToUpdate = { ...newSections[secIdx] };
     const newRows = [...(sectionToUpdate.rows || [])];
+    const removedRow = newRows[rowIdx];
     newRows.splice(rowIdx, 1);
     sectionToUpdate.rows = newRows;
     newSections[secIdx] = sectionToUpdate;
     setLocalData(prev => ({ ...prev, sections: newSections }));
     updateNodeData(id, { sections: newSections });
+
+    // Clean up connected edges
+    if (setEdges && removedRow) {
+      const handleId = `row-${removedRow.id || rowIdx}`;
+      setEdges(eds => eds.filter(e => !(e.source === id && e.sourceHandle === handleId)));
+    }
   };
 
   const handleRowChange = (secIdx, rowIdx, field, value) => {
@@ -1249,6 +1269,48 @@ export default function NodePropertiesPane({ currentChannelId }) {
               </div>
             )}
           </>
+        )}
+
+        {(type === 'inputNode' || type === 'menuNode' || (type === 'messageNode' && localData.messageType === 'interactive')) && (
+          <div style={{ background: '#FFFBEB', padding: '16px', borderRadius: '12px', border: '1px solid #FDE68A', marginTop: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={16} color="#D97706" />
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#92400E' }}>Timeout Path</span>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  name="timeoutEnabled" 
+                  checked={!!localData.timeoutEnabled} 
+                  onChange={(e) => { 
+                    setLocalData(prev => ({ ...prev, timeoutEnabled: e.target.checked }));
+                    updateNodeData(id, { timeoutEnabled: e.target.checked });
+                  }} 
+                  style={{ marginRight: '8px' }} 
+                />
+                <span style={{ fontSize: '12px', color: '#92400E' }}>Enable</span>
+              </label>
+            </div>
+            
+            {localData.timeoutEnabled && (
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400E', marginBottom: '8px' }}>Trigger timeout after (Minutes)</label>
+                <input 
+                  type="number" 
+                  name="timeoutMinutes" 
+                  value={localData.timeoutMinutes || 15} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  style={{ ...inputStyle, background: 'white', borderColor: '#FCD34D' }} 
+                  min="1" 
+                />
+                <p style={{ fontSize: '11px', color: '#B45309', margin: '8px 0 0 0', lineHeight: '1.4' }}>
+                  If the customer does not reply within this time, the flow will proceed through the orange Timeout handle.
+                </p>
+              </div>
+            )}
+          </div>
         )}
 
       </div>

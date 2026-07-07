@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Save, Play, ToggleLeft, ToggleRight, Loader2 } from 'lucide-react';
+import { ChevronLeft, Save, Play, ToggleLeft, ToggleRight, Loader2, Smartphone } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../context/axios';
 import io from 'socket.io-client';
@@ -8,6 +8,7 @@ import useCanvasStore from '../../store/useCanvasStore';
 import FlowCanvas from './FlowCanvas';
 import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
+import SimulatorPanel from './SimulatorPanel';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
 import WhatsAppTemplateSelectionModal from '../../components/Modol/automation/WhatsAppTemplateSelectionModal';
 import AssignChannelsModal from '../../components/Modol/automation/AssignChannelsModal';
@@ -25,9 +26,11 @@ export default function AutomationBuilder() {
   const [isLoading, setIsLoading] = useState(true);
   const [channelId, setChannelId] = useState('');
   const [nodesCount, setNodesCount] = useState(0);
+  const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [showMobilePreview, setShowMobilePreview] = useState(true);
   
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
@@ -371,6 +374,20 @@ export default function AutomationBuilder() {
           </button>
 
           <button
+            onClick={() => setIsSimulatorOpen(true)}
+            style={{
+              background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE',
+              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'background 0.2s'
+            }}
+          >
+            <Play size={14} />
+            Simulator
+          </button>
+
+          <button
             onClick={() => setIsTestModalOpen(true)}
             style={{
               background: 'white', color: '#374151', border: '1px solid #E5E7EB',
@@ -380,8 +397,25 @@ export default function AutomationBuilder() {
               transition: 'background 0.2s'
             }}
           >
-            <Play size={14} />
-            Test Automation
+            <Smartphone size={14} />
+            Test on Phone
+          </button>
+
+          <button
+            onClick={() => setShowMobilePreview(!showMobilePreview)}
+            style={{
+              background: showMobilePreview ? '#EEF2FF' : 'white', 
+              color: showMobilePreview ? '#4F46E5' : '#374151', 
+              border: `1px solid ${showMobilePreview ? '#C7D2FE' : '#E5E7EB'}`,
+              padding: '8px 16px', borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'all 0.2s'
+            }}
+            title={showMobilePreview ? "Hide Preview" : "See Preview"}
+          >
+            <Smartphone size={14} />
+            {showMobilePreview ? "Hide Preview" : "See Preview"}
           </button>
 
           <button
@@ -416,7 +450,7 @@ export default function AutomationBuilder() {
 
         <NodePropertiesPane currentChannelId={channelId} />
 
-        <MobilePreviewPane />
+        {showMobilePreview && <MobilePreviewPane />}
       </div>
 
       {isTestModalOpen && (
@@ -425,6 +459,13 @@ export default function AutomationBuilder() {
           automationId={id}
         />
       )}
+
+      <SimulatorPanel 
+        isOpen={isSimulatorOpen} 
+        onClose={() => setIsSimulatorOpen(false)} 
+        automationId={id} 
+        channelId={channelId} 
+      />
 
       {isTemplateModalOpen && (
         <WhatsAppTemplateSelectionModal 
