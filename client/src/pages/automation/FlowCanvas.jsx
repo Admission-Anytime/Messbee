@@ -166,10 +166,19 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
       dataPayload = { eventType: 'any_message', waitHours: 24 };
     }
 
+    const selectedNode = nodes.find(n => n.selected) || (nodes.length > 0 ? nodes[nodes.length - 1] : null);
+    let spawnX = 250;
+    let spawnY = 150;
+
+    if (selectedNode) {
+      spawnX = selectedNode.position.x + 320;
+      spawnY = selectedNode.position.y;
+    }
+
     const newNode = {
       id: newNodeId,
       type: type,
-      position: { x: 250, y: nodes.length * 150 + 100 },
+      position: { x: spawnX, y: spawnY },
       data: {
         label: stepItem.label,
         messageType: messageType,
@@ -283,8 +292,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         `}</style>
       )}
 
-      {/* Dotted Background */}
-      <div style={{ position: 'absolute', inset: 0, opacity: 0.4, backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
+      {/* Removed custom gradient, relying on ReactFlow Background below */}
 
       {/* Floating Tag */}
       <div style={{ position: 'absolute', top: '24px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, background: 'white', padding: '6px 16px', borderRadius: '100px', fontSize: '10px', fontWeight: '800', letterSpacing: '0.05em', color: '#94a3b8', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', border: '1px solid #f1f5f9' }}>
@@ -369,10 +377,10 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         defaultEdgeOptions={{
           type: 'smoothstep',
           animated: true,
-          style: { strokeWidth: 2, stroke: '#3b82f6' },
+          style: { strokeWidth: 2, stroke: '#3B4252' },
         }}
       >
-        <Background color="transparent" />
+        <Background variant="dots" gap={12} size={1.5} color="#cbd5e1" />
       </ReactFlow>
 
       {/* Dynamic React Flow MiniMap */}

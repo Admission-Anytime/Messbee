@@ -64,8 +64,24 @@ async function markSessionCompleted(session, customerPhone, channelId) {
 }
 
 export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypassOptOut = false) {
-  const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
   try {
+    // ---- SIMULATOR INTERCEPTION ----
+    if (toPhone.startsWith('SIMULATOR_')) {
+      console.log(`[SIMULATOR] Intercepted outbound message to ${toPhone}`);
+      const io = getIO();
+      if (io) {
+        io.to(channel._id.toString()).emit('simulator_message', { 
+          direction: 'OUTBOUND', 
+          payload,
+          timestamp: new Date()
+        });
+      }
+      return null;
+    }
+    // --------------------------------
+
+    const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
+
     // 1. Meta Opt-Out Compliance Check
     const contact = await Contact.findOne({ phone: toPhone, tenantId: channel.tenantId });
     if (!forceBypassOptOut) {
@@ -128,11 +144,22 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
 
     let metaMessageId = null;
 
-    // If we are testing locally with the dummy channel, just log the payload and succeed!
-    if (channel.metaAccessToken === 'DUMMY_TOKEN') {
-      console.log(`\n[SIMULATION MODE] Would have sent WhatsApp message to ${toPhone}:`);
+    if (toPhone.startsWith('SIMULATOR_')) {
+      console.log(`\n[SIMULATION MODE] Intercepted message to ${toPhone}:`);
       console.log(JSON.stringify(payload, null, 2));
-      console.log(`[SIMULATION MODE] Message successfully simulated!\n`);
+      
+      const io = getIO();
+      if (io) {
+        io.to(channel._id.toString()).emit('simulator_message', {
+          direction: 'OUTBOUND',
+          payload: payload,
+          timestamp: new Date()
+        });
+        console.log(`[SIMULATOR] Emitted simulator_message to room ${channel._id.toString()}`);
+      } else {
+        console.warn('[SIMULATOR] Socket.io not initialized, cannot send simulator message to frontend');
+      }
+      
       metaMessageId = `sim_${Date.now()}`;
     } else {
       let response;
@@ -598,19 +625,32 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           break;
         }
 
+        let isBlockingNode = false;
+
         if (currentNode.type === 'inputNode') {
           session.status = 'WAITING_FOR_INPUT';
           session.expectedValidation = currentNode.data.validationType || 'text';
           session.saveVariableAs = currentNode.data.variableName || 'contact.custom_field';
           await session.save();
+          isBlockingNode = true;
           keepRunning = false;
         } else if (currentNode.data.messageType === 'interactive' || currentNode.data.messageType === 'menu' || currentNode.type === 'catalogNode' || currentNode.type === 'pollNode' || (currentNode.type === 'commerceNode' && currentNode.data.commerceType === 'payment')) {
           // Interactive nodes block execution and wait for user reply
+          isBlockingNode = true;
           keepRunning = false;
         } else {
           // Non-interactive text messages: implement a 500ms delay to respect rate limits
           // and prevent messages from arriving out of order.
           await sleep(500);
+        }
+
+        if (isBlockingNode && currentNode.data.timeoutEnabled) {
+          const timeoutEdge = outgoingEdges.find(e => e.sourceHandle === 'timeout');
+          if (timeoutEdge) {
+            const timeoutMinutes = Number(currentNode.data.timeoutMinutes) || 15;
+            const delayMs = timeoutMinutes * 60000;
+            await scheduleDelayedNode(customerPhone, channelId, timeoutEdge.target, delayMs);
+          }
         }
       } 
       else if (currentNode.type === 'conditionNode') {
@@ -731,7 +771,21 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
  */
 export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null) {
   try {
-    const channel = await Channel.findById(channelId);
+    let channel = await Channel.findById(channelId);
+    
+    // Support for local development mock channel
+    if (!channel && channelId.toString() === '609b55b6c00d4334b07e7821') {
+      channel = {
+        _id: channelId,
+        tenantId: '609b55b6c00d4334b07e7821'
+      };
+    }
+
+    if (!channel) {
+      console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
+      return;
+    }
+
     let session = await CustomerSession.findOne({ phone: customerPhone, channelId, status: 'ACTIVE' });
     
     // 1. Check Global Routing Rules first (This allows escape words to interrupt active flows)
@@ -879,10 +933,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             let isMatch = false;
 
             // Text Triggers
-            if (matchType === 'exact_match' && payloadText === kw) isMatch = true;
-            else if (matchType === 'contains' && payloadText.includes(kw) && kw !== '') isMatch = true;
-            else if (matchType === 'starts_with' && payloadText.startsWith(kw) && kw !== '') isMatch = true;
-            else if (matchType === 'ends_with' && payloadText.endsWith(kw) && kw !== '') isMatch = true;
+            if (matchType === 'exact_match' && kw !== '') {
+              const keywords = kw.split(',').map(k => k.trim());
+              if (keywords.includes(payloadText)) isMatch = true;
+            } else if (matchType === 'contains' && kw !== '') {
+              const keywords = kw.split(',').map(k => k.trim());
+              if (keywords.some(k => payloadText.includes(k))) isMatch = true;
+            } else if (matchType === 'starts_with' && kw !== '') {
+              const keywords = kw.split(',').map(k => k.trim());
+              if (keywords.some(k => payloadText.startsWith(k))) isMatch = true;
+            } else if (matchType === 'ends_with' && kw !== '') {
+              const keywords = kw.split(',').map(k => k.trim());
+              if (keywords.some(k => payloadText.endsWith(k))) isMatch = true;
+            }
           
           // Media & Action Triggers
           else if (matchType === 'image_received' && payloadText === '[__media_image__]') isMatch = true;

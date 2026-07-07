@@ -36,7 +36,7 @@ export default function EventTriggerNode({ id, data, selected }) {
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -47,8 +47,8 @@ export default function EventTriggerNode({ id, data, selected }) {
         flexDirection: 'column'
       }}>
 
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {getIcon()}
             {data.label || getLabel()}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -59,15 +59,15 @@ export default function EventTriggerNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa' }}>
+        <div style={{ padding: '12px', background: '#2E3440' }}>
           <div style={{ 
-            background: 'white', 
+            background: '#3B4252', 
             borderRadius: '6px', 
             padding: '12px', 
-            border: '1px solid #e5e7eb',
+            border: '1px solid #4C566A',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
-            <div style={{ fontSize: '12px', color: '#374151', lineHeight: '1.4', marginBottom: '12px' }}>
+            <div style={{ fontSize: '12px', color: '#D8DEE9', lineHeight: '1.4', marginBottom: '12px' }}>
               {data.triggerType === 'webhook' && 'Listens for incoming POST requests to your secure webhook URL to trigger this flow.'}
               {data.triggerType === 'schedule' && 'Triggers the automation once at a specific scheduled date and time.'}
               {data.triggerType === 'recurring' && 'Triggers the automation repeatedly based on your recurring schedule rule.'}
@@ -88,8 +88,8 @@ export default function EventTriggerNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -97,7 +97,7 @@ export default function EventTriggerNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
       </div>
