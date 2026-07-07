@@ -17,11 +17,11 @@ export default function InputNode({ id, data, selected }) {
         position={Position.Left} 
         id="target-handle"
         className="custom-handle" 
-        style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+        style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
       />
 
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -32,8 +32,8 @@ export default function InputNode({ id, data, selected }) {
         flexDirection: 'column'
       }}>
 
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HelpCircle size={16} color="#6b7280" />
             {data.label || 'Ask Question'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -44,13 +44,13 @@ export default function InputNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa' }}>
+        <div style={{ padding: '12px', background: '#2E3440' }}>
           
           <div style={{ 
-            background: 'white', 
+            background: '#3B4252', 
             borderRadius: '6px', 
             padding: '12px', 
-            border: '1px solid #e5e7eb',
+            border: '1px solid #4C566A',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             marginBottom: '12px'
           }}>
@@ -64,15 +64,15 @@ export default function InputNode({ id, data, selected }) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             
-            <div style={{ background: 'white', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expects</div>
+            <div style={{ background: '#3B4252', padding: '8px 12px', borderRadius: '6px', border: '1px solid #4C566A', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expects</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#3b82f6', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <ShieldCheck size={14} /> {data.validationType ? data.validationType.charAt(0).toUpperCase() + data.validationType.slice(1) : 'Text'}
               </div>
             </div>
 
-            <div style={{ background: 'white', padding: '8px 12px', borderRadius: '6px', border: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ fontSize: '11px', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saves to</div>
+            <div style={{ background: '#3B4252', padding: '8px 12px', borderRadius: '6px', border: '1px solid #4C566A', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Saves to</div>
               <div style={{ fontSize: '12px', fontWeight: '600', color: '#f59e0b', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Variable size={14} /> {data.variableName || 'contact.custom_field'}
               </div>
@@ -82,8 +82,8 @@ export default function InputNode({ id, data, selected }) {
           
         </div>
 
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -91,9 +91,24 @@ export default function InputNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
+
+        {data.timeoutEnabled && (
+          <div style={{ padding: '8px 12px', borderTop: '1px dashed #4C566A', background: '#2E3440', position: 'relative' }}>
+            <div style={{ fontSize: '11px', color: '#F59E0B', fontStyle: 'italic' }}>
+              Timeout ({data.timeoutMinutes}m)
+            </div>
+            <Handle 
+              type="source" 
+              position={Position.Right} 
+              id="timeout"
+              className="custom-handle" 
+              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #F59E0B', width: '12px', height: '12px' }} 
+            />
+          </div>
+        )}
       </div>
     </div>
   );

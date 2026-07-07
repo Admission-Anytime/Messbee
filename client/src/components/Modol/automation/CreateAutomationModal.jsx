@@ -1,28 +1,38 @@
 import React, { useState } from 'react';
-import { X, MessageSquare, Link, ClipboardList, Sparkles, Zap, Lightbulb } from 'lucide-react';
+import { X, Zap, ArrowRight, Bot, Briefcase, CheckCircle2 } from 'lucide-react';
 
-const TEMPLATES = [
-  { id: 'message', label: 'Message', icon: MessageSquare, triggerType: 'specific_message' },
-  { id: 'qr_link', label: 'QR / Link', icon: Link, triggerType: 'qr_link' },
-  { id: 'template', label: 'Template', icon: ClipboardList, triggerType: 'interactive_template' },
-  { id: 'blank', label: 'Blank', icon: Sparkles, triggerType: 'blank' }
+const TRIGGER_OPTIONS = [
+  { value: 'KEYWORD_MATCH', label: 'Keyword Match' },
+  { value: 'TAG_ADDED', label: 'Tag Added' },
+  { value: 'FIELD_UPDATED', label: 'Field Updated' },
+  { value: 'NEW_CONTACT', label: 'New Contact' },
+  { value: 'API_EVENT', label: 'API Event' }
+];
+
+const ACTION_OPTIONS = [
+  { value: 'add_tag', label: 'Add Tag' },
+  { value: 'remove_tag', label: 'Remove Tag' },
+  { value: 'update_field', label: 'Update Field' },
+  { value: 'human_handoff', label: 'Human Handoff' },
+  { value: 'send_message', label: 'Send Message' }
 ];
 
 export default function CreateAutomationModal({ onClose, onCreate }) {
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('blank');
+  const [trigger, setTrigger] = useState('');
+  const [action, setAction] = useState('');
+  const [aiProfile, setAiProfile] = useState('support');
 
   const handleCreate = () => {
     if (!name.trim()) {
-      alert('Please enter a flow title.');
+      alert('Please enter an automation name.');
       return;
     }
-    const template = TEMPLATES.find(t => t.id === selectedTemplate);
     onCreate({
       name: name.trim(),
-      triggerType: template.triggerType,
-      profile: 'custom' // Maintained for compatibility
+      triggerType: trigger || 'NEW_CONTACT',
+      action: action,
+      profile: aiProfile
     });
   };
 
@@ -31,141 +41,205 @@ export default function CreateAutomationModal({ onClose, onCreate }) {
       position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
       background: 'rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(4px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
-      zIndex: 100, fontFamily: 'Outfit, sans-serif'
+      zIndex: 100, fontFamily: 'Inter, Outfit, sans-serif'
     }}>
       <div style={{
-        background: 'white', width: '90%', maxWidth: '480px',
-        borderRadius: '16px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
-        overflow: 'hidden'
+        background: 'white', width: '90%', maxWidth: '460px',
+        borderRadius: '12px', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.2)',
+        padding: '24px', position: 'relative'
       }}>
-        {/* Top Dark Section */}
-        <div style={{ background: '#0F172A', padding: '24px', position: 'relative' }}>
-          {/* Header Row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.1)', padding: '4px 10px', borderRadius: '100px' }}>
-              <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981' }}></div>
-              <span style={{ fontSize: '11px', fontWeight: '500', color: 'rgba(255,255,255,0.9)' }}>New automation</span>
-            </div>
-            <button onClick={onClose} style={{ 
-              background: 'rgba(255,255,255,0.1)', border: 'none', color: '#9CA3AF', 
-              cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex',
-              transition: 'background 0.2s'
-            }}
-              onMouseOver={e => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
-              onMouseOut={e => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
-            >
-              <X size={16} />
-            </button>
-          </div>
-          
-          <h2 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: '600', color: 'white' }}>Create flow</h2>
-          <p style={{ margin: '0 0 24px 0', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Set up your automation in seconds</p>
+        {/* Close Button */}
+        <button onClick={onClose} style={{
+          position: 'absolute', top: '20px', right: '20px',
+          background: 'transparent', border: 'none', color: '#9CA3AF',
+          cursor: 'pointer', display: 'flex', padding: '4px',
+          transition: 'color 0.2s'
+        }}
+        onMouseOver={e => e.currentTarget.style.color = '#4B5563'}
+        onMouseOut={e => e.currentTarget.style.color = '#9CA3AF'}
+        >
+          <X size={18} />
+        </button>
 
-          {/* Template Cards */}
-          <div style={{ display: 'flex', gap: '12px' }}>
-            {TEMPLATES.map(tpl => {
-              const isSelected = selectedTemplate === tpl.id;
-              const Icon = tpl.icon;
-              return (
-                <div 
-                  key={tpl.id}
-                  onClick={() => setSelectedTemplate(tpl.id)}
-                  style={{
-                    flex: 1, height: '72px', borderRadius: '12px', cursor: 'pointer',
-                    background: isSelected ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255,255,255,0.03)',
-                    border: isSelected ? '1px solid #10B981' : '1px solid rgba(255,255,255,0.08)',
-                    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px',
-                    transition: 'all 0.2s'
-                  }}
-                  onMouseOver={e => { if (!isSelected) { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; } }}
-                  onMouseOut={e => { if (!isSelected) { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; } }}
-                >
-                  <Icon size={20} color={isSelected && tpl.id === 'blank' ? '#FBBF24' : isSelected ? '#10B981' : 'rgba(255,255,255,0.6)'} />
-                  <span style={{ fontSize: '11px', fontWeight: '500', color: isSelected ? 'white' : 'rgba(255,255,255,0.6)' }}>{tpl.label}</span>
-                </div>
-              );
-            })}
-          </div>
+        {/* Header */}
+        <div style={{ marginBottom: '20px' }}>
+          <h2 style={{ margin: '0 0 6px 0', fontSize: '20px', fontWeight: '700', color: '#111827' }}>
+            Create New Automation
+          </h2>
+          <p style={{ margin: 0, color: '#6B7280', fontSize: '13px' }}>
+            Set up automated workflows to engage your customers.
+          </p>
         </div>
 
-        {/* Bottom White Section */}
-        <div style={{ padding: '24px' }}>
-          {/* Flow Title */}
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              FLOW TITLE
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Zap size={16} color="#9CA3AF" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="e.g. Welcome flow, Support triage..."
-                style={{
-                  width: '100%', padding: '10px 12px 10px 36px', border: '1px solid #E5E7EB', borderRadius: '8px',
-                  fontSize: '14px', color: '#111827', outline: 'none', boxSizing: 'border-box',
-                  transition: 'border-color 0.2s'
-                }}
-                onFocus={e => e.target.style.borderColor = '#10B981'}
-                onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-              />
-            </div>
-          </div>
+        {/* Automation Name */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+            Automation Name
+          </label>
+          <input
+            type="text"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="e.g., Welcome Message Sequence"
+            style={{
+              width: '100%', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: '8px',
+              fontSize: '13px', color: '#111827', outline: 'none', boxSizing: 'border-box',
+              transition: 'border-color 0.2s, box-shadow 0.2s'
+            }}
+            onFocus={e => { e.target.style.borderColor = '#10B981'; e.target.style.boxShadow = '0 0 0 2px rgba(16, 185, 129, 0.1)'; }}
+            onBlur={e => { e.target.style.borderColor = '#E5E7EB'; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
 
-          {/* Description */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>
-              DESCRIPTION <span style={{ textTransform: 'none', fontWeight: '400', color: '#9CA3AF' }}>(optional)</span>
+        {/* Trigger and Action */}
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+              <Zap size={14} color="#10B981" /> Trigger
             </label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Describe what this flow does..."
-              rows={3}
+            <select
+              value={trigger}
+              onChange={e => setTrigger(e.target.value)}
               style={{
-                width: '100%', padding: '12px', border: '1px solid #E5E7EB', borderRadius: '8px',
-                fontSize: '14px', color: '#111827', outline: 'none', boxSizing: 'border-box', resize: 'none',
+                width: '100%', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: '8px',
+                fontSize: '13px', color: '#111827', outline: 'none', boxSizing: 'border-box',
+                backgroundColor: 'white', appearance: 'none', cursor: 'pointer',
                 transition: 'border-color 0.2s'
               }}
               onFocus={e => e.target.style.borderColor = '#10B981'}
               onBlur={e => e.target.style.borderColor = '#E5E7EB'}
-            />
-          </div>
-
-          {/* Quick Tip */}
-          <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '24px' }}>
-            <div style={{ background: 'white', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Lightbulb size={16} color="#10B981" />
-            </div>
-            <div>
-              <div style={{ fontSize: '12px', fontWeight: '600', color: '#065F46', marginBottom: '4px' }}>Quick tip</div>
-              <div style={{ fontSize: '12px', color: '#047857' }}>You can set triggers, add nodes and test on canvas after creating.</div>
+            >
+              <option value="" disabled hidden></option>
+              {TRIGGER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div style={{ position: 'absolute', right: '12px', top: '38px', pointerEvents: 'none' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
             </div>
           </div>
-
-          {/* Footer Buttons */}
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button onClick={onClose} style={{
-              flex: 1, padding: '10px', borderRadius: '8px', fontSize: '14px', fontWeight: '600',
-              background: 'white', color: '#6B7280', border: '1px solid #E5E7EB', cursor: 'pointer',
-              transition: 'background 0.2s'
-            }}
-              onMouseOver={e => e.currentTarget.style.background = '#F9FAFB'}
-              onMouseOut={e => e.currentTarget.style.background = 'white'}
-            >Cancel</button>
-            <button onClick={handleCreate} style={{
-              flex: 2, padding: '10px', borderRadius: '8px', fontSize: '14px', fontWeight: '600',
-              background: '#0F172A', color: 'white', border: 'none', cursor: 'pointer',
-              transition: 'background 0.2s'
-            }}
-              onMouseOver={e => e.currentTarget.style.background = '#1E293B'}
-              onMouseOut={e => e.currentTarget.style.background = '#0F172A'}
-            >Create flow →</button>
+          <div style={{ flex: 1, position: 'relative' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: '600', color: '#374151', marginBottom: '6px' }}>
+              <ArrowRight size={14} color="#10B981" /> Action
+            </label>
+            <select
+              value={action}
+              onChange={e => setAction(e.target.value)}
+              style={{
+                width: '100%', padding: '10px 14px', border: '1px solid #E5E7EB', borderRadius: '8px',
+                fontSize: '13px', color: '#111827', outline: 'none', boxSizing: 'border-box',
+                backgroundColor: 'white', appearance: 'none', cursor: 'pointer',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={e => e.target.style.borderColor = '#10B981'}
+              onBlur={e => e.target.style.borderColor = '#E5E7EB'}
+            >
+              <option value="" disabled hidden></option>
+              {ACTION_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
+            <div style={{ position: 'absolute', right: '12px', top: '38px', pointerEvents: 'none' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </div>
           </div>
+        </div>
+
+        {/* Configuration Box */}
+        <div style={{ background: '#F9FAFB', borderRadius: '12px', padding: '16px', marginBottom: '24px' }}>
+          <div style={{ fontSize: '10px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '12px' }}>
+            CONFIGURATION
+          </div>
+          <div style={{ fontSize: '13px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
+            Select AI Agent Profile
+          </div>
+
+          {/* Card 1: Support Pro */}
+          <div 
+            onClick={() => setAiProfile('support')}
+            style={{
+              display: 'flex', alignItems: 'center', padding: '12px 16px', borderRadius: '10px',
+              border: aiProfile === 'support' ? '2px solid #10B981' : '1px solid #E5E7EB',
+              background: aiProfile === 'support' ? '#F0FDF4' : 'white',
+              cursor: 'pointer', marginBottom: '10px', transition: 'all 0.2s',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '50%', background: '#10B981',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px'
+            }}>
+              <Bot size={18} color="white" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '2px' }}>
+                Customer Support Pro
+              </div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                Trained on knowledge base & FAQs
+              </div>
+            </div>
+            {aiProfile === 'support' && <div style={{ background: 'white', borderRadius: '50%', display: 'flex' }}><CheckCircle2 size={20} color="#10B981" /></div>}
+          </div>
+
+          {/* Card 2: Sales Assistant */}
+          <div 
+            onClick={() => setAiProfile('sales')}
+            style={{
+              display: 'flex', alignItems: 'center', padding: '12px 16px', borderRadius: '10px',
+              border: aiProfile === 'sales' ? '2px solid #10B981' : '1px solid #E5E7EB',
+              background: aiProfile === 'sales' ? '#F0FDF4' : 'white',
+              cursor: 'pointer', marginBottom: '16px', transition: 'all 0.2s',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '50%', background: '#F3F4F6',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '12px'
+            }}>
+              <Briefcase size={18} color="#374151" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginBottom: '2px' }}>
+                Sales Assistant
+              </div>
+              <div style={{ fontSize: '12px', color: '#6B7280' }}>
+                Optimized for lead conversion
+              </div>
+            </div>
+            {aiProfile === 'sales' && <div style={{ background: 'white', borderRadius: '50%', display: 'flex' }}><CheckCircle2 size={20} color="#10B981" /></div>}
+          </div>
+
+          <div style={{ fontSize: '12px', color: '#4B5563', fontWeight: '500', display: 'flex', alignItems: 'center', paddingLeft: '4px' }}>
+            Notify agent if AI sentiment is negative
+          </div>
+        </div>
+
+        {/* Footer Buttons */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '16px', alignItems: 'center' }}>
+          <button onClick={onClose} style={{
+            background: 'transparent', border: 'none', color: '#4B5563', fontSize: '13px',
+            fontWeight: '600', cursor: 'pointer', padding: '10px 20px', transition: 'color 0.2s'
+          }}
+          onMouseOver={e => e.currentTarget.style.color = '#111827'}
+          onMouseOut={e => e.currentTarget.style.color = '#4B5563'}
+          >
+            Cancel
+          </button>
+          <button onClick={handleCreate} style={{
+            background: '#10B981', color: 'white', border: 'none', borderRadius: '8px',
+            fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: '10px 20px',
+            boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.2)', transition: 'background 0.2s'
+          }}
+          onMouseOver={e => e.currentTarget.style.background = '#059669'}
+          onMouseOut={e => e.currentTarget.style.background = '#10B981'}
+          >
+            Create Automation
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
 

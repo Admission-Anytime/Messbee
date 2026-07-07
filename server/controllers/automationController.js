@@ -158,3 +158,61 @@ exports.getActivityLog = async (req, res, next) => {
     next(error);
   }
 };
+
+exports.simulateStart = async (req, res, next) => {
+  try {
+    const tenantId = req.user.tenantId || req.user._id;
+    const automation = await Automation.findOne({ _id: req.params.id, tenantId });
+    if (!automation) {
+      return res.status(404).json({ success: false, message: 'Automation not found' });
+    }
+    
+    if (!automation.channelId) {
+      return res.status(400).json({ success: false, message: 'No WhatsApp channel assigned to this automation.' });
+    }
+
+    const simulatorPhone = req.body.simulatorPhone || `SIMULATOR_${req.user._id}`;
+
+    // Get the start trigger keyword if any
+    let triggerKeyword = 'hello';
+    if (automation.triggers && automation.triggers.length > 0) {
+      if (automation.triggers[0].value) triggerKeyword = automation.triggers[0].value;
+      if (automation.triggers[0].type === 'button_msg') triggerKeyword = automation.triggers[0].value || 'START';
+    }
+
+    // Upsert a dummy contact for the simulator
+    const Contact = require('../models/Contact');
+    await Contact.findOneAndUpdate(
+      { phone: simulatorPhone, tenantId, channelId: automation.channelId },
+      { name: 'Simulator User', isOptedOut: false },
+      { upsert: true, new: true }
+    );
+
+    // Call the webhook queue to start the flow
+    const { enqueueWebhookPayload } = require('../queues/webhookQueue');
+    enqueueWebhookPayload(simulatorPhone, triggerKeyword, automation.channelId, null, `sim_start_${Date.now()}`);
+    
+    res.status(200).json({ success: true, message: 'Simulation started' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.simulateMessage = async (req, res, next) => {
+  try {
+    const tenantId = req.user.tenantId || req.user._id;
+    const { channelId, simulatorPhone, message } = req.body;
+    
+    if (!channelId || !simulatorPhone || !message) {
+      return res.status(400).json({ success: false, message: 'Missing required parameters' });
+    }
+
+    // Enqueue the incoming message to webhookQueue
+    const { enqueueWebhookPayload } = require('../queues/webhookQueue');
+    enqueueWebhookPayload(simulatorPhone, message, channelId, null, `sim_msg_${Date.now()}`);
+    
+    res.status(200).json({ success: true, message: 'Simulated message sent' });
+  } catch (error) {
+    next(error);
+  }
+};

@@ -6,7 +6,9 @@ const {
   updateAutomation,
   deleteAutomation,
   getActivityLog,
-  testAutomation
+  testAutomation,
+  simulateStart,
+  simulateMessage
 } = require('../controllers/automationController');
 const { protect } = require('../middleware/auth');
 
@@ -23,6 +25,8 @@ router.route('/activity')
   .get(getActivityLog);
 
 router.post('/:id/test', testAutomation);
+router.post('/:id/simulate/start', simulateStart);
+router.post('/:id/simulate/message', simulateMessage);
 
 router.route('/:id')
   .get(getAutomationById)

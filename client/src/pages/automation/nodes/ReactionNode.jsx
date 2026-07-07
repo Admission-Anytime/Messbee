@@ -12,10 +12,10 @@ export default function ReactionNode({ id, data, selected }) {
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -26,8 +26,8 @@ export default function ReactionNode({ id, data, selected }) {
         flexDirection: 'column'
       }}>
 
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <SmilePlus size={16} color="#6b7280" />
             {data.label || 'React to Message'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -38,17 +38,17 @@ export default function ReactionNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa', display: 'flex', justifyContent: 'center', position: 'relative', paddingBottom: '32px' }}>
+        <div style={{ padding: '12px', background: '#2E3440', display: 'flex', justifyContent: 'center', position: 'relative', paddingBottom: '32px' }}>
           
           <div style={{ 
-            background: 'white', 
+            background: '#3B4252', 
             borderRadius: '50%', 
             width: '64px',
             height: '64px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            border: '1px solid #e5e7eb',
+            border: '1px solid #4C566A',
             boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
           }}>
             {data.emoji ? (
@@ -59,14 +59,14 @@ export default function ReactionNode({ id, data, selected }) {
           </div>
           
           <div style={{ position: 'absolute', bottom: '8px', left: '0', right: '0', textAlign: 'center', pointerEvents: 'none' }}>
-             <div style={{ display: 'inline-block', background: '#f3f4f6', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: '#6b7280', border: '1px solid #e5e7eb' }}>
+             <div style={{ display: 'inline-block', background: '#2E3440', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: '#9CA3AF', border: '1px solid #4C566A' }}>
                Reacts to user's last message
              </div>
           </div>
         </div>
 
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -74,7 +74,7 @@ export default function ReactionNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
       </div>

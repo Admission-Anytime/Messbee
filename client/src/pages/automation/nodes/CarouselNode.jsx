@@ -12,11 +12,11 @@ export default function CarouselNode({ id, data, selected }) {
   return (
     <div style={{ position: 'relative', width: '340px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       {/* Main Node Container */}
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -28,8 +28,8 @@ export default function CarouselNode({ id, data, selected }) {
       }}>
 
         {/* Header */}
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <GalleryHorizontalEnd size={16} color="#6b7280" />
             {data.label || 'Carousel Message'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -57,14 +57,14 @@ export default function CarouselNode({ id, data, selected }) {
         </div>
 
         {/* Body Section */}
-        <div style={{ padding: '12px', overflowX: 'auto', display: 'flex', gap: '8px', background: '#fafafa' }}>
+        <div style={{ padding: '12px', overflowX: 'auto', display: 'flex', gap: '8px', background: '#2E3440' }}>
           {data.cards && data.cards.length > 0 ? (
             data.cards.map((card, idx) => (
               <div key={idx} style={{ 
                 minWidth: '160px', 
                 maxWidth: '160px',
-                background: 'white', 
-                border: '1px solid #e5e7eb', 
+                background: '#3B4252', 
+                border: '1px solid #4C566A', 
                 borderRadius: '6px', 
                 overflow: 'hidden',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
@@ -75,15 +75,15 @@ export default function CarouselNode({ id, data, selected }) {
                   display: 'flex', 
                   alignItems: 'center', 
                   justifyContent: 'center',
-                  borderBottom: '1px solid #e5e7eb'
+                  borderBottom: '1px solid #4C566A'
                 }}>
                   {!card.mediaUrl && <span style={{ fontSize: '11px', color: '#9ca3af' }}>No Image</span>}
                 </div>
                 <div style={{ padding: '8px' }}>
-                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '600', color: '#ECEFF4', marginBottom: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {card.title || 'Card Title'}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '11px', color: '#9CA3AF', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {card.description || 'Description'}
                   </div>
                 </div>
@@ -97,8 +97,8 @@ export default function CarouselNode({ id, data, selected }) {
         </div>
 
         {/* Next Step bottom area */}
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -106,7 +106,7 @@ export default function CarouselNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
 

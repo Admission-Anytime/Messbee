@@ -37,10 +37,10 @@ export default function MediaNode({ id, data, selected }) {
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -50,8 +50,8 @@ export default function MediaNode({ id, data, selected }) {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {getIcon()}
             {data.label || getLabel()}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -62,12 +62,12 @@ export default function MediaNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa' }}>
+        <div style={{ padding: '12px', background: '#2E3440' }}>
           <div style={{ 
-            background: 'white', 
+            background: '#3B4252', 
             borderRadius: '8px', 
             padding: '4px', 
-            border: '1px solid #e5e7eb',
+            border: '1px solid #4C566A',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
             {/* Dynamic Rich Media Placeholder */}
@@ -76,8 +76,8 @@ export default function MediaNode({ id, data, selected }) {
                 return (
                   <div style={{
                     width: '100%', padding: '12px', borderRadius: '6px',
-                    background: '#f9fafb', border: '1px solid #f3f4f6',
-                    display: 'flex', alignItems: 'center', gap: '8px', color: '#111827'
+                    background: '#2E3440', border: '1px solid #f3f4f6',
+                    display: 'flex', alignItems: 'center', gap: '8px', color: '#ECEFF4'
                   }}>
                     <div style={{ background: '#3b82f6', padding: '6px', borderRadius: '50%' }}>
                       <Mic size={14} color="white" />
@@ -91,8 +91,8 @@ export default function MediaNode({ id, data, selected }) {
                 return (
                   <div style={{
                     width: '100%', padding: '12px', borderRadius: '6px',
-                    background: '#f9fafb', border: '1px solid #f3f4f6',
-                    display: 'flex', alignItems: 'center', gap: '10px', color: '#111827'
+                    background: '#2E3440', border: '1px solid #f3f4f6',
+                    display: 'flex', alignItems: 'center', gap: '10px', color: '#ECEFF4'
                   }}>
                     <div style={{ background: '#ef4444', padding: '8px', borderRadius: '6px' }}>
                       <FileText size={16} color="white" />
@@ -110,7 +110,7 @@ export default function MediaNode({ id, data, selected }) {
                     width: '100%', height: '120px', borderRadius: '6px',
                     background: (data.mediaUrl && ['image', 'sticker', 'gif'].includes(data.messageType)) ? `url(${data.mediaUrl}) center/cover` : '#f3f4f6',
                     border: data.mediaUrl ? 'none' : '1px dashed #d1d5db',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', color: '#6b7280', position: 'relative', overflow: 'hidden'
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '8px', color: '#9CA3AF', position: 'relative', overflow: 'hidden'
                   }}>
                     {data.mediaUrl && data.messageType === 'video' && (
                       <video src={data.mediaUrl} style={{ position: 'absolute', width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -135,7 +135,7 @@ export default function MediaNode({ id, data, selected }) {
             
             {data.text && ['image', 'video', 'doc', 'document', 'gif'].includes(data.messageType) && (
               <div style={{ padding: '8px' }}>
-                <div style={{ fontSize: '12px', color: '#374151', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+                <div style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
                   {data.text}
                 </div>
               </div>
@@ -143,8 +143,8 @@ export default function MediaNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -152,7 +152,7 @@ export default function MediaNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
       </div>

@@ -11,10 +11,10 @@ export default function AiNode({ id, data, selected }) {
   
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
-        background: 'white',
+        background: '#3B4252',
         borderRadius: '8px',
         border: selected ? `1.5px solid ${borderColor}` : '1px solid #e5e7eb',
         borderLeft: `4px solid ${borderColor}`,
@@ -25,8 +25,8 @@ export default function AiNode({ id, data, selected }) {
         flexDirection: 'column'
       }}>
 
-        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: '14px', fontWeight: '600', color: '#111827', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Bot size={16} color="#6b7280" />
             {data.label || 'AI Assistant'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
@@ -37,20 +37,20 @@ export default function AiNode({ id, data, selected }) {
           </div>
         </div>
 
-        <div style={{ padding: '12px', background: '#fafafa' }}>
-          <div style={{ background: 'white', borderRadius: '6px', padding: '12px', border: '1px solid #e5e7eb' }}>
-            <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '4px', fontWeight: '500' }}>System Prompt</div>
-            <div style={{ fontSize: '12px', color: '#111827', fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4' }}>
+        <div style={{ padding: '12px', background: '#2E3440' }}>
+          <div style={{ background: '#3B4252', borderRadius: '6px', padding: '12px', border: '1px solid #4C566A' }}>
+            <div style={{ fontSize: '12px', color: '#9CA3AF', marginBottom: '4px', fontWeight: '500' }}>System Prompt</div>
+            <div style={{ fontSize: '12px', color: '#ECEFF4', fontStyle: 'italic', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: '1.4' }}>
               "{data.systemPrompt || 'You are a helpful assistant...'}"
             </div>
-            <div style={{ marginTop: '8px', fontSize: '11px', color: '#6b7280', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-              Save response to: <strong style={{ color: '#111827' }}>{data.saveVariable || 'N/A'}</strong>
+            <div style={{ marginTop: '8px', fontSize: '11px', color: '#9CA3AF', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
+              Save response to: <strong style={{ color: '#ECEFF4' }}>{data.saveVariable || 'N/A'}</strong>
             </div>
           </div>
         </div>
         
-        <div style={{ padding: '12px', borderTop: '1px solid #e5e7eb', background: '#fafafa', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#6b7280' }}>
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
           <Handle 
@@ -58,7 +58,7 @@ export default function AiNode({ id, data, selected }) {
             position={Position.Right} 
             id="main-handle"
             className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: 'white', border: '2px solid #d1d5db', width: '12px', height: '12px' }} 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
           />
         </div>
       </div>
