@@ -3,9 +3,9 @@
  * Isolates complex logic (like evaluating conditions or hitting external APIs) 
  * from the main runner loop.
  */
-import axios from 'axios';
-import { emitNotification } from '../config/socket.js';
-import Contact from '../models/Contact.js';
+const axios = require('axios');
+const {  emitNotification  } = require('../config/socket.js');
+const Contact = require('../models/Contact.js');
 
 /**
  * Deeply extracts a value from a nested JSON object using a dot-notation path string.
@@ -20,7 +20,7 @@ function deepGet(obj, path) {
  * Supports fallback syntax: {{contact.name|there}}
  * Supports system variables: {{system.date}}, {{system.time}}
  */
-export function parseDynamicVariables(text, contextData = {}) {
+module.exports.parseDynamicVariables = function parseDynamicVariables(text, contextData = {}) {
   if (!text) return text;
   
   // Inject system variables automatically
@@ -59,7 +59,7 @@ export function parseDynamicVariables(text, contextData = {}) {
  * @param {object} node - The condition node config
  * @returns {string|null} - The edge handle to follow (e.g., 'true_path' or 'false_path')
  */
-export async function executeConditionNode(session, node, contextData) {
+module.exports.executeConditionNode = async function executeConditionNode(session, node, contextData) {
   const { variable, operator, value } = node.data;
   
   // Upgrade: Fallback to session variables if not found in context (which now contains CRM data like contact.tags)
@@ -85,7 +85,7 @@ export async function executeConditionNode(session, node, contextData) {
  * @param {object} node - The API node config
  * @param {object} contextData - Context for parsing variables
  */
-export async function executeApiCallNode(session, node, contextData) {
+module.exports.executeApiCallNode = async function executeApiCallNode(session, node, contextData) {
   const { endpoint, method, headers, responseMapping, bodyParams } = node.data;
   
   const parsedEndpoint = parseDynamicVariables(endpoint, contextData);
@@ -142,7 +142,7 @@ export async function executeApiCallNode(session, node, contextData) {
 /**
  * Executes an action node (e.g. Add Tag, Human Handoff)
  */
-export async function executeActionNode(session, node, contextData) {
+module.exports.executeActionNode = async function executeActionNode(session, node, contextData) {
   const { actionType, tagValue } = node.data;
 
   if (actionType === 'add_tag' && tagValue) {
@@ -228,7 +228,7 @@ export async function executeActionNode(session, node, contextData) {
 /**
  * Executes a dedicated Google Sheets integration node
  */
-export async function executeGoogleSheetsNode(session, node, contextData) {
+module.exports.executeGoogleSheetsNode = async function executeGoogleSheetsNode(session, node, contextData) {
   const { webhookUrl, rowData } = node.data;
   // rowData is expected to be an array of objects: [{ header: "Name", value: "{{contact.name}}" }]
 
@@ -257,7 +257,7 @@ export async function executeGoogleSheetsNode(session, node, contextData) {
 /**
  * Executes an AI Node using OpenAI (ChatGPT)
  */
-export async function executeAiNode(session, node, contextData) {
+module.exports.executeAiNode = async function executeAiNode(session, node, contextData) {
   const { systemPrompt, userMessage, saveVariableAs } = node.data;
   
   if (!userMessage) return 'failure';
@@ -303,7 +303,7 @@ export async function executeAiNode(session, node, contextData) {
  * Executes a Randomizer (A/B Test) Node
  * @returns {string} - The edge handle to follow ('path_a' or 'path_b')
  */
-export async function executeRandomizerNode(session, node) {
+module.exports.executeRandomizerNode = async function executeRandomizerNode(session, node) {
   const { splitPercentage } = node.data;
   const targetSplit = Number(splitPercentage) || 50;
   
@@ -320,7 +320,7 @@ export async function executeRandomizerNode(session, node) {
 /**
  * Executes a Shopify App Node (Wrapper around API Node)
  */
-export async function executeShopifyNode(session, node, contextData) {
+module.exports.executeShopifyNode = async function executeShopifyNode(session, node, contextData) {
   const { shopifyAction, shopifyStoreUrl } = node.data;
   
   if (!shopifyStoreUrl) return 'failure';

@@ -94,15 +94,13 @@ export default function MessageNode({ id, data, selected }) {
           <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
             Next step
           </div>
-          {!isInteractive && (
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id="main-handle"
-              className="custom-handle" 
-              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
-            />
-          )}
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="main-handle"
+            className="custom-handle" 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+          />
         </div>
 
         {isInteractive && data.timeoutEnabled && (

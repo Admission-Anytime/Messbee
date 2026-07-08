@@ -93,20 +93,18 @@ export default function PollNode({ id, data, selected }) {
           </div>
         </div>
 
-        {(!data.options || data.options.length === 0) && (
-          <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
-            <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-              Next step
-            </div>
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id="main-handle"
-              className="custom-handle" 
-              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
-            />
+        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
+            Next step
           </div>
-        )}
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="main-handle"
+            className="custom-handle" 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+          />
+        </div>
 
       </div>
     </div>

@@ -173,27 +173,38 @@ exports.simulateStart = async (req, res, next) => {
 
     const simulatorPhone = req.body.simulatorPhone || `SIMULATOR_${req.user._id}`;
 
-    // Get the start trigger keyword if any
-    let triggerKeyword = 'hello';
-    if (automation.triggers && automation.triggers.length > 0) {
-      if (automation.triggers[0].value) triggerKeyword = automation.triggers[0].value;
-      if (automation.triggers[0].type === 'button_msg') triggerKeyword = automation.triggers[0].value || 'START';
+    // Get the start trigger keyword from the triggerNode
+    let triggerKeyword = 'hello'; // Default fallback
+    if (automation.nodes && automation.nodes.length > 0) {
+      const triggerNode = automation.nodes.find(n => n.type === 'triggerNode');
+      if (triggerNode && triggerNode.data) {
+        if (triggerNode.data.keyword) {
+           // If multiple keywords are separated by commas, pick the first one
+           triggerKeyword = triggerNode.data.keyword.split(',')[0].trim() || 'hello';
+        }
+      }
     }
 
     // Upsert a dummy contact for the simulator
     const Contact = require('../models/Contact');
     await Contact.findOneAndUpdate(
       { phone: simulatorPhone, tenantId, channelId: automation.channelId },
-      { name: 'Simulator User', isOptedOut: false },
+      { name: 'Simulator User', isOptedOut: false, lastInteractionAt: new Date() },
       { upsert: true, new: true }
     );
 
-    // Call the webhook queue to start the flow
-    const { enqueueWebhookPayload } = require('../queues/webhookQueue');
-    enqueueWebhookPayload(simulatorPhone, triggerKeyword, automation.channelId, null, `sim_start_${Date.now()}`);
+    // Cancel any stale simulator sessions before starting a new one
+    await CustomerSession.updateMany(
+      { phone: simulatorPhone, channelId: automation.channelId, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
+      { $set: { status: 'COMPLETED' } }
+    );
+
+    // Removed startFlowManually so the flow doesn't auto-start. 
+    // The simulator will wait for the user to type a trigger keyword (e.g. 'hello').
     
     res.status(200).json({ success: true, message: 'Simulation started' });
   } catch (error) {
+    console.error('[SIMULATOR] simulateStart error:', error);
     next(error);
   }
 };
@@ -202,6 +213,7 @@ exports.simulateMessage = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
     const { channelId, simulatorPhone, message } = req.body;
+    const automationId = req.params.id; // Get the specific flow ID being tested
     
     if (!channelId || !simulatorPhone || !message) {
       return res.status(400).json({ success: false, message: 'Missing required parameters' });
@@ -209,7 +221,7 @@ exports.simulateMessage = async (req, res, next) => {
 
     // Enqueue the incoming message to webhookQueue
     const { enqueueWebhookPayload } = require('../queues/webhookQueue');
-    enqueueWebhookPayload(simulatorPhone, message, channelId, null, `sim_msg_${Date.now()}`);
+    enqueueWebhookPayload(simulatorPhone, message, channelId, null, `sim_msg_${Date.now()}`, automationId);
     
     res.status(200).json({ success: true, message: 'Simulated message sent' });
   } catch (error) {

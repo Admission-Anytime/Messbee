@@ -617,6 +617,34 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
         const payload = buildMessagePayload(customerPhone, currentNode.type, currentNode.data, contextData);
         
+        // Inject full template text for Simulator UI if it's a template node
+        if (customerPhone.startsWith('SIMULATOR_') && currentNode.type === 'templateNode') {
+          try {
+            const { default: Template } = await import('../models/Template.js');
+            const tmpl = await Template.findOne({ name: currentNode.data.templateName });
+            if (tmpl) {
+              const bodyComponent = tmpl.components.find(c => c.type === 'BODY');
+              if (bodyComponent && bodyComponent.text) {
+                payload._sim_template_text = bodyComponent.text;
+              }
+              
+              const headerComponent = tmpl.components.find(c => c.type === 'HEADER');
+              if (headerComponent && headerComponent.format === 'IMAGE') {
+                let imgUrl = headerComponent.example?.header_url?.[0] || headerComponent.example?.header_handle?.[0];
+                // If it's a Meta handle (not starting with http), provide a nice placeholder image for the simulator
+                if (imgUrl && !imgUrl.startsWith('http')) {
+                  imgUrl = 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&h=400&fit=crop'; // University / Generic aesthetic image
+                }
+                if (imgUrl) {
+                  payload._sim_template_image = imgUrl;
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Failed to inject simulator template data:', e);
+          }
+        }
+        
         try {
           await sendWhatsAppMessage(customerPhone, payload, channel);
         } catch (err) {
@@ -769,7 +797,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 /**
  * Evaluates the incoming message against the current active flow or initiates a new one.
  */
-export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null) {
+export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null) {
   try {
     let channel = await Channel.findById(channelId);
     
@@ -862,7 +890,13 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     let nextNodeId;
 
     if (!session) {
-      const allActiveFlows = await Automation.find({ channelId, isActive: true });
+      let allActiveFlows = [];
+      if (simulatorTargetFlowId) {
+        const simFlow = await Automation.findById(simulatorTargetFlowId);
+        if (simFlow) allActiveFlows = [simFlow];
+      } else {
+        allActiveFlows = await Automation.find({ channelId, isActive: true });
+      }
       let matchedFlow = null;
       let matchedTriggerNode = null;
 
@@ -1019,6 +1053,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       
       // Start processing the nodes in the flow!
       await processSpecificNode(customerPhone, channelId, nextNodeId);
+      return; // Prevent double execution
 
     } else {
       // 2. Existing session
@@ -1079,7 +1114,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         if (!isValid) {
           session.validationRetries = (session.validationRetries || 0) + 1;
-          const channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
           
           if (session.validationRetries >= 3) {
             session.status = 'HANDOFF';
@@ -1143,14 +1179,35 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           // For interactive nodes, the reply MUST match a specific button/list ID (sourceHandle)
           console.log(`[DEBUG Engine] Trying to match incomingPayload '${incomingPayload}' on node ${currentNode?.type}`);
           console.log(`[DEBUG Engine] Available edges for ${session.currentNodeId}:`, JSON.stringify(outgoingEdges));
-          const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload);
+          let matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload);
+          
+          if (!matchedEdge && customerPhone.startsWith('SIMULATOR_')) {
+             if (currentNode.type === 'interactiveNode' && currentNode.data?.buttons) {
+                 const btnIdx = currentNode.data.buttons.findIndex(b => b.title && b.title.toLowerCase() === incomingPayload.toLowerCase());
+                 if (btnIdx !== -1) {
+                    const btnId = currentNode.data.buttons[btnIdx].id || btnIdx;
+                    matchedEdge = outgoingEdges.find(e => e.sourceHandle === `btn-${btnId}`);
+                 }
+             } else if (currentNode.type === 'menuNode' && currentNode.data?.sections) {
+                for (const sec of currentNode.data.sections) {
+                   const rowIdx = (sec.rows || []).findIndex(r => r.title && r.title.toLowerCase() === incomingPayload.toLowerCase());
+                   if (rowIdx !== -1) {
+                      const rowId = sec.rows[rowIdx].id || rowIdx;
+                      matchedEdge = outgoingEdges.find(e => e.sourceHandle === `row-${rowId}`);
+                      break;
+                   }
+                }
+             }
+          }
+          
           
           if (matchedEdge) {
             console.log(`[DEBUG Engine] Matched edge to target: ${matchedEdge.target}`);
             nextNodeId = matchedEdge.target;
           } else {
             // User typed text instead of clicking a button. Re-prompt them.
-            const channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+            let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+            if (!channelToUse) channelToUse = channel;
             await sendWhatsAppMessage(customerPhone, {
               messaging_product: 'whatsapp',
               recipient_type: 'individual',
@@ -1276,3 +1333,4 @@ export async function triggerAutomationFromEvent(contact, triggerType, triggerVa
     console.error('Error triggering automation from event:', error);
   }
 }
+

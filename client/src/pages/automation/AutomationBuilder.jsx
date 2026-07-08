@@ -280,6 +280,7 @@ export default function AutomationBuilder() {
         id: `edge_${Date.now()}`,
         source: triggerNode.id,
         target: templateNode.id,
+        sourceHandle: 'main-handle',
         type: 'smoothstep'
       }
     ]);
