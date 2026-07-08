@@ -7,7 +7,7 @@
 
 const axios = require('axios');
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}/api`;
 let authToken = '';
 
 // Test data (update with your actual test data)

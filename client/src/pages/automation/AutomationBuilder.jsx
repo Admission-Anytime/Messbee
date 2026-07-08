@@ -42,7 +42,7 @@ export default function AutomationBuilder() {
   useEffect(() => {
     if (!id || id === 'new') return;
     
-    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') : 'http://localhost:5000');
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || (import.meta.env.VITE_API_URL ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') : '');
     const socket = io(SOCKET_URL, { withCredentials: true });
     
     // Join the specific flow's room
