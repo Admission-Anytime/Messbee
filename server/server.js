@@ -46,7 +46,6 @@ const corsOptions = {
     if (!origin) return callback(null, true);
 
     const allowedOrigins = [
-      'http://localhost:5173',
       process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : null
     ].filter(Boolean);
 

@@ -683,7 +683,7 @@ const selectedTemplate = useMemo(() => {
       // If it's a relative path, prefix with API base URL
       const API_BASE = import.meta.env.VITE_API_URL 
          ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') 
-         : 'http://localhost:5000';
+         : '';
       return `${API_BASE}${url.startsWith('/') ? '' : '/'}${url}`;
    };
 

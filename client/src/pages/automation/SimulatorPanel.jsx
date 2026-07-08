@@ -14,7 +14,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   useEffect(() => {
     if (isOpen && channelId) {
       // Connect to Socket.IO — strip /api suffix since Socket.IO runs at the root
-      const socketUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
+      const socketUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
       const newSocket = io(socketUrl, {
         withCredentials: true
       });

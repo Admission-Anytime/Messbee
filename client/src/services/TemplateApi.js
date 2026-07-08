@@ -61,7 +61,7 @@ export const resolveMediaUrlForDev = (url) => {
     const filename = url.split('/').pop();
     const backendBase = import.meta.env.VITE_API_URL 
       ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") 
-      : "http://localhost:5000";
+      : "";
     return `${backendBase}/uploads/${filename}`;
   }
   
