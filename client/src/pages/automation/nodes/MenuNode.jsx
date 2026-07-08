@@ -114,15 +114,13 @@ export default function MenuNode({ id, data, selected }) {
             Next step
           </div>
           {/* Main Default Output Handle */}
-          {(!data.sections || data.sections.length === 0 || data.sections.every(s => !s.rows || s.rows.length === 0)) && (
-            <Handle 
-              type="source" 
-              position={Position.Right} 
-              id="main-handle"
-              className="custom-handle" 
-              style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
-            />
-          )}
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="main-handle"
+            className="custom-handle" 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+          />
         </div>
 
         {data.timeoutEnabled && (

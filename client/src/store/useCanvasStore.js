@@ -102,8 +102,8 @@ const useCanvasStore = create((set, get) => ({
     const duplicate = JSON.parse(JSON.stringify(nodeToCopy));
     duplicate.id = newNodeId;
     duplicate.position = {
-      x: duplicate.position.x + 50,
-      y: duplicate.position.y + 50
+      x: (Number(duplicate.position?.x) || 0) + 50,
+      y: (Number(duplicate.position?.y) || 0) + 50
     };
     duplicate.selected = true; // Select the newly duplicated node
 
@@ -153,12 +153,127 @@ const useCanvasStore = create((set, get) => ({
 
   // Set initial data (e.g., when loading an automation from the database)
   setFlowData: (nodes, edges) => {
-    const animatedEdges = edges ? edges.map(edge => ({ 
-      ...edge, 
-      animated: true,
-      style: { ...edge.style, strokeWidth: 2, stroke: '#10b981' }
-    })) : [];
-    set({ nodes, edges: animatedEdges });
+    // Sanitize node positions to prevent ReactFlow NaN crash
+    const sanitizedNodes = nodes ? nodes.map(node => {
+      const sanitized = {
+        ...node,
+        position: {
+          x: Number(node.position?.x) || 0,
+          y: Number(node.position?.y) || 0
+        }
+      };
+      
+      // CRITICAL FIX: React Flow exports positionAbsolute, which might contain NaN from previous crashes.
+      // If we don't delete it, React Flow prioritizes it over the sanitized position.
+      delete sanitized.positionAbsolute;
+
+      // If width or height are invalid, remove them so ReactFlow recalculates them via ResizeObserver
+      if (node.width === null || isNaN(Number(node.width))) delete sanitized.width;
+      if (node.height === null || isNaN(Number(node.height))) delete sanitized.height;
+      if (node.measured) {
+        if (node.measured.width === null || isNaN(Number(node.measured.width))) delete sanitized.measured;
+        else if (node.measured.height === null || isNaN(Number(node.measured.height))) delete sanitized.measured;
+      }
+      return sanitized;
+    }) : [];
+
+    const animatedEdges = edges ? edges.filter(edge => {
+      // Filter out edges where source or target nodes are missing
+      const sourceNode = sanitizedNodes.find(n => n.id === edge.source);
+      const targetNode = sanitizedNodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) return false;
+      // Filter out edges pointing to a TriggerNode (since they have no target handles)
+      if (targetNode.type === 'triggerNode' || targetNode.type === 'eventTriggerNode') return false;
+      return true;
+    }).map(edge => {
+      const sourceNode = sanitizedNodes.find(n => n.id === edge.source);
+      const targetNode = sanitizedNodes.find(n => n.id === edge.target);
+
+      // 1. Safe Source Handle
+      let safeSourceHandle = edge.sourceHandle;
+      if (safeSourceHandle === 'null' || safeSourceHandle === 'undefined' || safeSourceHandle === null) {
+        safeSourceHandle = undefined;
+      }
+      if (!safeSourceHandle) {
+        if (sourceNode?.type === 'conditionNode') safeSourceHandle = 'true';
+        else if (sourceNode?.type === 'randomizerNode') safeSourceHandle = 'path_a';
+        else if (sourceNode?.type === 'shopifyNode') safeSourceHandle = 'success';
+        else if (sourceNode?.type === 'waitForEventNode') safeSourceHandle = 'event_happened';
+        else safeSourceHandle = 'main-handle';
+      }
+
+      // Aggressively fallback orphaned custom handles to main-handle
+      if (safeSourceHandle === 'timeout' && !sourceNode.data?.timeoutEnabled) {
+        safeSourceHandle = 'main-handle';
+      }
+
+      if (safeSourceHandle.startsWith('btn-')) {
+        let btnExists = false;
+        if (sourceNode.data?.buttons) {
+          btnExists = sourceNode.data.buttons.some((btn, idx) => `btn-${btn.id || idx}` === safeSourceHandle);
+        }
+        if (!btnExists) {
+          safeSourceHandle = 'main-handle';
+        }
+      }
+
+      if (safeSourceHandle.startsWith('row-')) {
+        let rowExists = false;
+        if (sourceNode.data?.sections) {
+          sourceNode.data.sections.forEach(sec => {
+            if (sec.rows) {
+              if (sec.rows.some((row, idx) => `row-${row.id || idx}` === safeSourceHandle)) rowExists = true;
+            }
+          });
+        }
+        if (!rowExists) safeSourceHandle = 'main-handle';
+      }
+
+      if (safeSourceHandle.startsWith('opt-')) {
+        let optExists = false;
+        if (sourceNode.data?.options) {
+          optExists = sourceNode.data.options.some((opt, idx) => `opt-${opt.id || idx}` === safeSourceHandle);
+        }
+        if (!optExists) safeSourceHandle = 'main-handle';
+      }
+
+      // STRICT VALIDATION: Ensure the resolved handle actually belongs to the node type
+      if (sourceNode?.type === 'conditionNode' && !['true', 'false'].includes(safeSourceHandle)) {
+        safeSourceHandle = 'true';
+      } else if (sourceNode?.type === 'randomizerNode' && !['path_a', 'path_b'].includes(safeSourceHandle)) {
+        safeSourceHandle = 'path_a';
+      } else if (sourceNode?.type === 'shopifyNode' && !['success', 'error'].includes(safeSourceHandle)) {
+        safeSourceHandle = 'success';
+      } else if (sourceNode?.type === 'waitForEventNode' && !['event_happened', 'timeout'].includes(safeSourceHandle)) {
+        safeSourceHandle = 'event_happened';
+      } else if (!['conditionNode', 'randomizerNode', 'shopifyNode', 'waitForEventNode'].includes(sourceNode?.type)) {
+        // For all other nodes, if it's not a valid dynamic handle (btn-, row-, opt-), force it to main-handle
+        if (!safeSourceHandle.startsWith('btn-') && !safeSourceHandle.startsWith('row-') && !safeSourceHandle.startsWith('opt-')) {
+          safeSourceHandle = 'main-handle';
+        }
+      }
+
+      // 2. Safe Target Handle
+      let safeTargetHandle = edge.targetHandle;
+      if (safeTargetHandle === 'null' || safeTargetHandle === 'undefined' || safeTargetHandle === null) {
+        safeTargetHandle = undefined;
+      }
+      if (targetNode?.type === 'inputNode') {
+        safeTargetHandle = 'target-handle';
+      } else {
+        safeTargetHandle = undefined; // MUST be undefined, not null. React Flow strictly compares undefined !== null.
+      }
+
+      return { 
+        ...edge,
+        sourceHandle: safeSourceHandle, 
+        targetHandle: safeTargetHandle,
+        animated: true,
+        style: { ...edge.style, strokeWidth: 2, stroke: '#10b981' }
+      };
+    }) : [];
+    
+    set({ nodes: sanitizedNodes, edges: animatedEdges });
   }
 }));
 
