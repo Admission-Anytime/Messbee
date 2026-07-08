@@ -1040,7 +1040,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
               <div style={{ background: '#1E293B', padding: '16px', borderRadius: '8px', border: '1px solid #334155', position: 'relative' }}>
                 <label style={{ display: 'block', fontSize: '11px', fontWeight: '700', color: '#94A3B8', marginBottom: '8px', textTransform: 'uppercase' }}>Integration Code (cURL)</label>
                 <button 
-                  onClick={() => navigator.clipboard.writeText(`curl -X POST http://localhost:5001/api/webhooks/trigger-event \\
+                  onClick={() => navigator.clipboard.writeText(`curl -X POST ${import.meta.env.VITE_API_URL}/webhooks/trigger-event \\
 -H "Content-Type: application/json" \\
 -d '{"channelId": "${currentChannelId}", "phone": "1234567890", "eventName": "${localData.eventName}", "eventData": {"order_id": "123"}}'`)} 
                   style={{ position: 'absolute', top: '12px', right: '12px', background: 'transparent', border: 'none', color: '#38BDF8', cursor: 'pointer', fontSize: '12px', fontWeight: '600' }}
@@ -1048,7 +1048,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   Copy
                 </button>
                 <pre style={{ margin: 0, color: '#E2E8F0', fontSize: '11px', fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
-                  curl -X POST http://localhost:5001/api/webhooks/trigger-event \<br/>
+                  curl -X POST &#123;import.meta.env.VITE_API_URL&#125;/webhooks/trigger-event \<br/>
                   -H "Content-Type: application/json" \<br/>
                   -d '&#123;<br/>
                   &nbsp;&nbsp;"channelId": "{currentChannelId}",<br/>

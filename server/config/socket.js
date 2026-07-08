@@ -11,7 +11,7 @@ const initializeSocket = (httpServer) => {
 
   io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : 'http://localhost:5173',
+      origin: process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : '*',
       credentials: true
     }
   });

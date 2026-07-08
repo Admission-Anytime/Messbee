@@ -6,7 +6,7 @@ import Automation from './src/models/Automation.js';
 
 dotenv.config();
 
-const API_URL = 'http://127.0.0.1:5001/api';
+const API_URL = process.env.API_URL || `http://127.0.0.1:${process.env.SOCKET_PORT || process.env.PORT || 5001}/api`;
 
 async function runTest() {
   console.log('--- STARTING INBOUND WEBHOOK TEST ---');
