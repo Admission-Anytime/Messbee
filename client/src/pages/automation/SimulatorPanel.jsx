@@ -13,28 +13,25 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
 
   useEffect(() => {
     if (isOpen && channelId) {
-      // Connect to Socket.IO
-      const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+      // Connect to Socket.IO — strip /api suffix since Socket.IO runs at the root
+      const socketUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
+      const newSocket = io(socketUrl, {
         withCredentials: true
       });
       
       newSocket.on('connect', () => {
         console.log('Simulator connected to socket');
+        newSocket.emit('join_chat', channelId);
       });
-
-      // We listen to the channel's room to receive outbound messages aimed at SIMULATOR
-      // But wait, the backend emits to channel._id.toString(). So we need to join that room if possible.
-      // Alternatively, the backend already emits to it, and if our user is in that room or if we just listen globally.
-      // Let's ensure the frontend receives it.
-      newSocket.emit('join_chat', channelId);
 
       newSocket.on('simulator_message', (data) => {
         // data: { direction: 'OUTBOUND', payload: {...}, timestamp }
+        console.log('Received simulator message:', data.payload?.type, data);
         setMessages(prev => [...prev, {
           id: `msg_${Date.now()}_${Math.random()}`,
           sender: 'bot',
-          text: renderPayload(data.payload),
-          time: new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: '',
+          time: new Date(data.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           raw: data.payload
         }]);
       });
@@ -56,36 +53,110 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   }, [messages]);
 
   const renderPayload = (payload) => {
-    if (payload.type === 'text') return payload.text.body;
+    if (payload.type === 'text') return payload.text?.body || '';
+    
     if (payload.type === 'interactive') {
       if (payload.interactive.type === 'button') {
-        const title = payload.interactive.body.text;
-        const buttons = payload.interactive.action.buttons.map(b => b.reply.title).join(' | ');
-        return `${title}\n\n[Buttons: ${buttons}]`;
+        const title = payload.interactive.body?.text || '';
+        const buttons = payload.interactive.action?.buttons || [];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span>{title}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+              {buttons.map((b, i) => (
+                <div 
+                  key={i} 
+                  onClick={() => sendSimulatedReply(b.reply.title)}
+                  style={{ padding: '6px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '4px', textAlign: 'center', fontSize: '13px', fontWeight: '500', cursor: 'pointer', transition: 'background 0.2s' }}
+                  onMouseOver={(e) => e.target.style.background = '#bae6fd'}
+                  onMouseOut={(e) => e.target.style.background = '#e0f2fe'}
+                >
+                  {b.reply.title}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       }
       if (payload.interactive.type === 'list') {
-        const title = payload.interactive.body.text;
-        return `${title}\n\n[Menu List Options Provided]`;
+        const title = payload.interactive.body?.text || '';
+        const sections = payload.interactive.action?.sections || [];
+        const buttonText = payload.interactive.action?.button || 'Menu';
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span>{title}</span>
+            <div style={{ padding: '8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0', marginTop: '4px' }}>
+              <div style={{ color: '#64748b', fontSize: '12px', marginBottom: '8px', textAlign: 'center', fontWeight: '500', textTransform: 'uppercase' }}>
+                🔘 {buttonText}
+              </div>
+              {sections.map((sec, i) => (
+                <div key={i} style={{ marginBottom: '8px' }}>
+                  <strong style={{ fontSize: '13px', color: '#334155' }}>{sec.title}</strong>
+                  <ul style={{ paddingLeft: '16px', margin: '4px 0 0 0', fontSize: '13px', color: '#475569', listStyleType: 'none' }}>
+                    {(sec.rows || []).map((r, j) => (
+                      <li 
+                        key={j} 
+                        onClick={() => sendSimulatedReply(r.title)}
+                        style={{ padding: '4px 0', cursor: 'pointer' }}
+                        onMouseOver={(e) => e.currentTarget.style.opacity = '0.7'}
+                        onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+                      >
+                        <b style={{ color: '#0369a1' }}>{r.title}</b>
+                        {r.description && <span style={{ display: 'block', fontSize: '11px', color: '#94a3b8' }}>{r.description}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
       }
     }
     if (payload.type === 'template') {
-      return `[Template Message: ${payload.template.name}]`;
+      const templateText = payload._sim_template_text || '';
+      const templateImage = payload._sim_template_image;
+      return (
+        <div style={{ padding: '8px', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', color: '#92400e', fontSize: '13px' }}>
+          <strong>📋 Template Message: {payload.template.name}</strong>
+          {templateImage && (
+            <div style={{ marginTop: '8px', width: '100%', borderRadius: '4px', overflow: 'hidden' }}>
+              {templateImage.startsWith('http') ? (
+                <img src={templateImage} alt="Template Image" style={{ width: '100%', height: 'auto', display: 'block' }} />
+              ) : (
+                <div style={{ padding: '12px', background: 'rgba(0,0,0,0.05)', textAlign: 'center', color: '#92400e', fontWeight: '500', fontSize: '12px' }}>
+                  🖼️ [Media attached in template]
+                </div>
+              )}
+            </div>
+          )}
+          {templateText && (
+            <div style={{ marginTop: '8px', padding: '6px', background: 'rgba(255,255,255,0.5)', borderRadius: '4px', color: '#451a03', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {templateText}
+            </div>
+          )}
+        </div>
+      );
     }
     return `[Media/Unsupported format: ${payload.type}]`;
   };
 
   const handleStartSimulation = async () => {
-    if (!automationId || !channelId) return;
+    if (!automationId) return;
+    if (!channelId) {
+      alert("Please assign a WhatsApp Channel to this flow before starting the simulation.");
+      return;
+    }
     setIsSimulating(true);
-    setMessages([]);
+    setMessages([{
+      id: 'sys_1',
+      sender: 'system',
+      text: 'Simulation started. Waiting for bot...',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    }]);
+
     try {
       await api.post(`/automation/${automationId}/simulate/start`, { simulatorPhone });
-      setMessages([{
-        id: 'sys_1',
-        sender: 'system',
-        text: 'Simulation started. Waiting for bot...',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }]);
     } catch (error) {
       console.error('Failed to start simulation', error);
       alert('Failed to start simulation. Please save the flow first.');
@@ -93,30 +164,35 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
     }
   };
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputText.trim() || !isSimulating) return;
+  const sendSimulatedReply = async (text) => {
+    if (!text.trim() || !isSimulating) return;
 
     const newMsg = {
       id: `msg_${Date.now()}`,
       sender: 'user',
-      text: inputText,
+      text: text,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     };
     
     setMessages(prev => [...prev, newMsg]);
-    const messageToSend = inputText;
-    setInputText('');
 
     try {
       await api.post(`/automation/${automationId}/simulate/message`, {
         channelId,
         simulatorPhone,
-        message: messageToSend
+        message: text
       });
     } catch (error) {
       console.error('Failed to send simulated message', error);
     }
+  };
+
+  const handleSendMessage = async (e) => {
+    e.preventDefault();
+    if (!inputText.trim() || !isSimulating) return;
+    const messageToSend = inputText;
+    setInputText('');
+    await sendSimulatedReply(messageToSend);
   };
 
   if (!isOpen) return null;
@@ -192,7 +268,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                     lineHeight: '1.4',
                     position: 'relative'
                   }}>
-                    {msg.text}
+                    {msg.sender === 'bot' && msg.raw ? renderPayload(msg.raw) : msg.text}
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px', marginTop: '4px' }}>
                       <span style={{ fontSize: '10px', color: '#6B7280' }}>{msg.time}</span>
                       {msg.sender === 'user' && <CheckCircle2 size={12} color="#3B82F6" />}

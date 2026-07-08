@@ -170,9 +170,9 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     let spawnX = 250;
     let spawnY = 150;
 
-    if (selectedNode) {
-      spawnX = selectedNode.position.x + 320;
-      spawnY = selectedNode.position.y;
+    if (selectedNode && selectedNode.position) {
+      spawnX = (Number(selectedNode.position.x) || 250) + 320;
+      spawnY = Number(selectedNode.position.y) || 150;
     }
 
     const newNode = {

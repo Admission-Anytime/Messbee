@@ -4,7 +4,7 @@
  * so that we can acknowledge the Meta API within 1500ms to avoid timeout retries.
  */
 
-export const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null) => {
+const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null) => {
   console.log(`[Webhook Queue] Enqueueing webhook payload for ${customerPhone}...`);
   
   // Asynchronously process the workflow step in the background
@@ -13,9 +13,9 @@ export const enqueueWebhookPayload = async (customerPhone, incomingPayload, chan
       console.log(`[Webhook Queue] Processing background webhook for ${customerPhone}`);
       
       // Lazy import to avoid circular dependencies
-      const { executeWorkflowStep } = await import('../engine/flowRunner.js');
+      const { executeWorkflowStep } = require('../engine/flowRunner.js');
       
-      await executeWorkflowStep(customerPhone, incomingPayload, channelId, referral, incomingMessageId);
+      await executeWorkflowStep(customerPhone, incomingPayload, channelId, referral, incomingMessageId, simulatorTargetFlowId);
       
     } catch (err) {
       console.error(`[Webhook Queue] Error processing webhook for ${customerPhone}:`, err);
@@ -24,8 +24,8 @@ export const enqueueWebhookPayload = async (customerPhone, incomingPayload, chan
 };
 
 // Export dummy queue object for consistency
-export const webhookQueue = {
+const webhookQueue = {
   add: () => console.log('Mock webhookQueue.add called')
 };
 
-export default webhookQueue;
+module.exports = { enqueueWebhookPayload, webhookQueue };
