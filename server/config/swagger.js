@@ -22,7 +22,7 @@ const options = {
         description: 'Development server'
       },
       {
-        url: 'https://api.messbee.com',
+        url: 'https://webservices.messbee.com',
         description: 'Production server'
       }
     ],
