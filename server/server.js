@@ -42,18 +42,22 @@ if (!isServerless) {
 // CORS configuration for production and development
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = [
-      process.env.CLIENT_URL ? process.env.CLIENT_URL.trim() : null
-    ].filter(Boolean);
+    const isLocalhost =
+      origin.startsWith('http://localhost:') ||
+      origin.startsWith('http://127.0.0.1:');
 
-    // Allow any subdomain or explicitly allowed origins
-    if (allowedOrigins.includes(origin) || origin.startsWith('http://localhost:') || origin.endsWith('.vercel.app')) {
+    const isMessbee =
+      origin === 'https://messbee.com' ||
+      origin.endsWith('.messbee.com');
+
+    const isVercel = origin.endsWith('.vercel.app');
+
+    if (isLocalhost || isMessbee || isVercel) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(new Error(`Not allowed by CORS: ${origin}`));
     }
   },
   credentials: true,
