@@ -110,7 +110,11 @@ router.post('/templates/upload-media-by-url', protect, whatsappController.upload
 // Get connected WhatsApp Channels (Mock)
 router.get('/channels', protect, (req, res) => {
   res.status(200).json([
-    { _id: '609b55b6c00d4334b07e7821', name: 'Main WhatsApp Business', phoneNumber: '+1234567890' }
+    { 
+      _id: '609b55b6c00d4334b07e7821', 
+      name: 'Main WhatsApp Business', 
+      phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || '+1234567890' 
+    }
   ]);
 });
 

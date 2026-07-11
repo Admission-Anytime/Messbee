@@ -495,7 +495,7 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
 // ══════════════════════════════════════════════════════════════
 // STEP 3 — OTP Verification (existing logic preserved)
 // ══════════════════════════════════════════════════════════════
-const Step3OTP = ({ allData, onBack }) => {
+const Step3OTP = ({ allData, onBack, onPendingApproval }) => {
   const navigate = useNavigate();
   const { loginUser } = useContext(userContext);
   const [otp, setOtp] = useState("");
@@ -548,10 +548,17 @@ const Step3OTP = ({ allData, onBack }) => {
     try {
       const res = await verifySignupOTP(allData.email, otp);
       if (res.success) {
-        toast.success("Account created successfully!");
-        saveAuthData(res.data);
-        loginUser(res.data.user);
-        navigate("/onboarding");
+        if (res.pendingApproval) {
+          // Account created but needs admin approval
+          toast.success("Account created! Awaiting admin approval.");
+          onPendingApproval();
+        } else {
+          // Normal flow (shouldn't happen with new logic, but kept for safety)
+          toast.success("Account created successfully!");
+          saveAuthData(res.data);
+          loginUser(res.data.user);
+          navigate("/onboarding");
+        }
       } else {
         toast.error(res.message || "Invalid OTP");
         setErrorMessage(res.message || "Invalid OTP. Please try again.");
@@ -635,6 +642,94 @@ const Step3OTP = ({ allData, onBack }) => {
 };
 
 // ══════════════════════════════════════════════════════════════
+// STEP 4 — Pending Admin Approval
+// ══════════════════════════════════════════════════════════════
+const Step4PendingApproval = () => {
+  const navigate = useNavigate();
+
+  return (
+    <div className="min-h-screen bg-[#f8fafc] font-['Inter',sans-serif] flex flex-col items-center justify-center p-4">
+      
+      {/* Brand Header Floating Outside the Card */}
+      <div className="flex items-center gap-2 mb-8">
+        <img src={logoIcon} alt="MessBee" className="w-8 h-8 object-contain drop-shadow-sm" />
+        <img src={logoName} alt="MessBee" className="h-6 object-contain" />
+      </div>
+
+      {/* Main Card */}
+      <div className="w-full max-w-[420px] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.05)] border border-slate-100 p-8 flex flex-col items-center text-center">
+        
+        {/* Animated Clock Icon */}
+        <div className="relative mb-6">
+          <div className="w-20 h-20 rounded-full bg-amber-50 border-2 border-amber-200 flex items-center justify-center" style={{ animation: 'pulse 2.5s ease-in-out infinite' }}>
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
+          <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-400 flex items-center justify-center shadow-md">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+          </div>
+        </div>
+
+        <h1 className="text-[1.4rem] font-bold text-slate-900 mb-2 leading-tight">
+          Account Under Review
+        </h1>
+
+        <p className="text-[13.5px] text-slate-500 mb-6 leading-relaxed px-2">
+          Your account has been created successfully. Kindly wait for our admin team to review and approve your registration.
+        </p>
+
+        {/* Progress Tracker */}
+        <div className="w-full bg-slate-50 rounded-2xl p-4 mb-8 text-left border border-slate-100 space-y-3">
+          {[
+            { icon: "✓", text: "Email Verified", done: true },
+            { icon: "✓", text: "Business Details Submitted", done: true },
+            { icon: "⏳", text: "Pending Admin Approval", done: false },
+          ].map((item, i) => (
+            <div key={i} className="flex items-center gap-3">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 shadow-sm ${
+                item.done
+                  ? 'bg-green-100 text-green-600 border border-green-200/50'
+                  : 'bg-amber-100 text-amber-600 border border-amber-200/50'
+              }`}>
+                {item.icon}
+              </span>
+              <span className={`text-[12.5px] font-medium ${
+                item.done ? 'text-slate-700' : 'text-amber-700'
+              }`}>
+                {item.text}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button
+          onClick={() => navigate('/login')}
+          className="w-full py-[14px] bg-[#22c55e] hover:bg-[#16a34a] text-white font-semibold text-[14px] rounded-xl transition-all shadow-sm hover:shadow-[0_4px_16px_rgba(34,197,94,0.3)] active:scale-[0.98]"
+        >
+          Go to Login
+        </button>
+      </div>
+
+      <p className="text-[11.5px] text-slate-400 mt-8 font-medium">
+        We will notify you via email once approved.
+      </p>
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.85; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// ══════════════════════════════════════════════════════════════
 // ROOT — Registration Page (orchestrates all steps)
 // ══════════════════════════════════════════════════════════════
 const Registration = () => {
@@ -661,8 +756,9 @@ const Registration = () => {
 
   if (step === 1) return <Step1 onNext={handleStep1Next} />;
   if (step === 2) return <Step2 step1Data={step1Data} onBack={() => setStep(1)} onSubmit={handleStep2Submit} isLoading={isLoading} />;
-  if (step === 3) return <Step3OTP allData={allData} onBack={() => setStep(2)} />;
+  if (step === 3) return <Step3OTP allData={allData} onBack={() => setStep(2)} onPendingApproval={() => setStep(4)} />;
+  if (step === 4) return <Step4PendingApproval />;
   return null;
 };
 
-export default Registration;
+export default Registration;

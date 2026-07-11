@@ -93,9 +93,10 @@ exports.requestSignupOTP = async (req, res, next) => {
       existingUser.otp = otp;
       existingUser.otpExpiry = otpExpiry;
       existingUser.otpAttempts = 0;
+      existingUser.isApproved = false; // Force approval requirement even if it was an old unverified record
       await existingUser.save();
     } else {
-      // Create new user (unverified)
+      // Create new user (unverified, not approved)
       await User.create({
         email,
         name,
@@ -104,6 +105,7 @@ exports.requestSignupOTP = async (req, res, next) => {
         otp,
         otpExpiry,
         isEmailVerified: false,
+        isApproved: false,
         otpAttempts: 0
       });
     }
@@ -206,40 +208,23 @@ exports.verifySignupOTP = async (req, res, next) => {
     user.otpExpiry = undefined;
     user.otpAttempts = 0;
     user.otpBlockedUntil = undefined;
-    user.lastLogin = Date.now();
-    
-    // Generate tokens
-    const accessToken = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
-    
-    // Save refresh token and save once
-    user.refreshToken = refreshToken;
     await user.save();
-
-    // Set tokens as HTTP-only cookies
-    setTokenCookies(res, accessToken, refreshToken);
 
     // Send welcome email (async, don't wait)
     sendWelcomeEmail({ email: user.email, name: user.name }).catch(err => 
       console.error('Welcome email failed:', err)
     );
 
+    // Do NOT auto-login — account needs admin approval first
     res.status(201).json({
       success: true,
-      message: 'Signup successful! Welcome to Messbee.',
-      tokens: {
-        accessToken,
-        refreshToken
-      },
+      message: 'Signup successful! Your account is pending admin approval.',
+      pendingApproval: true,
       data: {
         user: {
           id: user._id,
           name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-          phone: user.phone,
-          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate
+          email: user.email
         }
       }
     });
@@ -288,6 +273,15 @@ exports.requestLoginOTP = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Account is deactivated. Please contact support.'
+      });
+    }
+
+    // Check if admin has approved the account
+    if (user.isApproved === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+        pendingApproval: true
       });
     }
 
@@ -392,11 +386,22 @@ exports.verifyLoginOTP = async (req, res, next) => {
       });
     }
 
-    // OTP verified - login successful
+    // OTP verified - check approval status before login
     user.otp = undefined;
     user.otpExpiry = undefined;
     user.otpAttempts = 0;
     user.otpBlockedUntil = undefined;
+    await user.save();
+
+    // Check if admin has approved the account
+    if (user.isApproved === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+        pendingApproval: true
+      });
+    }
+
     user.lastLogin = Date.now();
     
     // Generate tokens
@@ -476,6 +481,15 @@ exports.login = async (req, res, next) => {
       return res.status(403).json({
         success: false,
         message: 'Account is deactivated'
+      });
+    }
+
+    // Check if admin has approved the account
+    if (user.isApproved === false) {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+        pendingApproval: true
       });
     }
 
@@ -565,6 +579,16 @@ exports.refreshToken = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid refresh token'
+      });
+    }
+
+    // Block unapproved users from refreshing tokens
+    if (user.isApproved === false) {
+      clearTokenCookies(res);
+      return res.status(403).json({
+        success: false,
+        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+        pendingApproval: true
       });
     }
 

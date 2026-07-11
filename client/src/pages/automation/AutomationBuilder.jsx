@@ -305,13 +305,50 @@ export default function AutomationBuilder() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', fontFamily: 'Outfit, sans-serif' }}>
+      <style>{`
+        /* Responsive Top Bar */
+        .auto-topbar { padding: 0 20px; }
+        .auto-title-input { width: 300px; }
+        .auto-btn-text { display: inline; }
+        .auto-toolbar-gap { gap: 12px; }
+        .auto-btn-padding { padding: 8px 20px; }
+
+        /* Sidebar Responsiveness */
+        .properties-pane { width: 320px; flex-shrink: 0; }
+        .preview-pane { width: 360px; flex-shrink: 0; }
+
+        @media (max-width: 1536px) {
+          .preview-pane { width: 320px; }
+        }
+
+        /* Laptops <= 1400px (13.3", 14", etc.) */
+        @media (max-width: 1400px) {
+          .auto-title-input { width: 200px !important; }
+          .auto-btn-padding { padding: 6px 12px !important; font-size: 12px !important; }
+          .auto-toolbar-gap { gap: 8px !important; }
+          .auto-topbar { padding: 0 12px !important; }
+          
+          .properties-pane { width: 300px; }
+          .preview-pane { width: 300px; }
+        }
+
+        /* Laptops <= 1200px (11.6", extreme split-screen) */
+        @media (max-width: 1200px) {
+          .auto-title-input { width: 140px !important; }
+          .auto-btn-text.optional { display: none !important; }
+          .auto-btn-padding { padding: 8px !important; } /* Icon only */
+          
+          .properties-pane { width: 280px; }
+          .preview-pane { width: 280px; }
+        }
+      `}</style>
       
-      <div style={{
+      <div className="auto-topbar" style={{
         height: '56px', background: 'white', borderBottom: '1px solid #E5E7EB',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '0 20px', flexShrink: 0, zIndex: 20
+        flexShrink: 0, zIndex: 20
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="auto-toolbar-gap" style={{ display: 'flex', alignItems: 'center' }}>
           <button
             onClick={() => {
               if (hasUnsavedChanges) {
@@ -325,90 +362,100 @@ export default function AutomationBuilder() {
             <ChevronLeft size={20} />
           </button>
           <input
+            className="auto-title-input"
             type="text"
             value={flowName}
             onChange={(e) => setFlowName(e.target.value)}
             style={{
-              fontSize: '16px', fontWeight: '600', color: '#111827', border: 'none',
-              outline: 'none', background: 'transparent', width: '300px',
-              padding: '4px 8px', borderRadius: '6px', transition: 'background 0.2s'
+              fontSize: '15px', fontWeight: '600', color: '#111827', border: 'none',
+              outline: 'none', background: 'transparent',
+              padding: '4px 8px', borderRadius: '6px', transition: 'background 0.2s',
+              textOverflow: 'ellipsis'
             }}
             onFocus={(e) => { e.currentTarget.style.background = '#F3F4F6'; }}
             onBlur={(e) => { e.currentTarget.style.background = 'transparent'; }}
           />
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '12px', color: '#6B7280', fontWeight: '500' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px' }}>
+          <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: '600', whiteSpace: 'nowrap' }}>
             {nodesCount} node{nodesCount !== 1 ? 's' : ''}
           </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="auto-toolbar-gap" style={{ display: 'flex', alignItems: 'center' }}>
           <button
+            className="auto-btn-padding"
             onClick={toggleActive}
             style={{
               background: 'none', border: 'none', cursor: 'pointer', display: 'flex',
-              alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '6px',
+              alignItems: 'center', gap: '6px', borderRadius: '6px',
               color: isActive ? '#059669' : '#6B7280', fontSize: '13px', fontWeight: '600',
               transition: 'all 0.2s'
             }}
           >
-            {isActive ? <ToggleRight size={20} color="#10B981" /> : <ToggleLeft size={20} />}
-            {isActive ? 'Active' : 'Draft'}
+            {isActive ? <ToggleRight size={18} color="#10B981" /> : <ToggleLeft size={18} />}
+            <span className="auto-btn-text optional">{isActive ? 'Active' : 'Draft'}</span>
           </button>
 
           <div style={{ width: '1px', height: '24px', background: '#E5E7EB' }} />
 
           <button
+            className="auto-btn-padding"
             onClick={() => setIsAssignModalOpen(true)}
             style={{
               background: 'white', color: '#374151', border: '1px solid #E5E7EB',
-              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              borderRadius: '8px', fontSize: '13px',
               fontWeight: '600', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
               transition: 'background 0.2s'
             }}
+            title="Assign Channel"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 21l1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/></svg>
-            Assign Channel
+            <span className="auto-btn-text optional">Channel</span>
           </button>
 
           <button
+            className="auto-btn-padding"
             onClick={() => setIsSimulatorOpen(true)}
             style={{
               background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE',
-              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              borderRadius: '8px', fontSize: '13px',
               fontWeight: '600', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
               transition: 'background 0.2s'
             }}
+            title="Simulator"
           >
             <Play size={14} />
-            Simulator
+            <span className="auto-btn-text optional">Simulator</span>
           </button>
 
           <button
+            className="auto-btn-padding"
             onClick={() => setIsTestModalOpen(true)}
             style={{
               background: 'white', color: '#374151', border: '1px solid #E5E7EB',
-              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              borderRadius: '8px', fontSize: '13px',
               fontWeight: '600', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
               transition: 'background 0.2s'
             }}
+            title="Test on Phone"
           >
             <Smartphone size={14} />
-            Test on Phone
+            <span className="auto-btn-text optional">Test</span>
           </button>
 
           <button
+            className="auto-btn-padding"
             onClick={() => setShowMobilePreview(!showMobilePreview)}
             style={{
               background: showMobilePreview ? '#EEF2FF' : 'white', 
               color: showMobilePreview ? '#4F46E5' : '#374151', 
               border: `1px solid ${showMobilePreview ? '#C7D2FE' : '#E5E7EB'}`,
-              padding: '8px 16px', borderRadius: '8px', fontSize: '13px',
+              borderRadius: '8px', fontSize: '13px',
               fontWeight: '600', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
               transition: 'all 0.2s'
@@ -416,24 +463,26 @@ export default function AutomationBuilder() {
             title={showMobilePreview ? "Hide Preview" : "See Preview"}
           >
             <Smartphone size={14} />
-            {showMobilePreview ? "Hide Preview" : "See Preview"}
+            <span className="auto-btn-text optional">{showMobilePreview ? "Hide" : "Preview"}</span>
           </button>
 
           <button
+            className="auto-btn-padding"
             onClick={handleSave}
             disabled={isSaving}
             style={{
               background: '#10B981', color: 'white', border: 'none',
-              padding: '8px 20px', borderRadius: '8px', fontSize: '13px',
+              borderRadius: '8px', fontSize: '13px',
               fontWeight: '600', cursor: isSaving ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: '6px',
               transition: 'background 0.2s', opacity: isSaving ? 0.7 : 1
             }}
             onMouseOver={(e) => { if (!isSaving) e.currentTarget.style.background = '#059669'; }}
             onMouseOut={(e) => { e.currentTarget.style.background = '#10B981'; }}
+            title="Save & Publish"
           >
             {isSaving ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={14} />}
-            {isSaving ? 'Saving...' : 'Save & Publish'}
+            <span className="auto-btn-text">{isSaving ? 'Saving...' : 'Publish'}</span>
           </button>
         </div>
       </div>
