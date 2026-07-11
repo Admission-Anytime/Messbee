@@ -14,8 +14,12 @@ const {
   updatePassword
 } = require('../controllers/authController');
 const { protect, optionalProtect } = require('../middleware/auth');
+const { createRateLimiter } = require('../middleware/rateLimit');
 
 const router = express.Router();
+
+// Strict rate limiting for auth routes (15 requests per 60 seconds)
+const authRateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 15 });
 
 // ==================== SWAGGER SCHEMAS ====================
 
@@ -170,7 +174,7 @@ router.post('/signup/verify-otp', verifySignupOTP);
  *       404:
  *         description: User not found
  */
-router.post('/login/request-otp', requestLoginOTP);
+router.post('/login/request-otp', authRateLimiter, requestLoginOTP);
 
 /**
  * @swagger
@@ -205,7 +209,7 @@ router.post('/login/request-otp', requestLoginOTP);
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/login/verify-otp', verifyLoginOTP);
+router.post('/login/verify-otp', authRateLimiter, verifyLoginOTP);
 
 /**
  * @swagger
@@ -238,7 +242,7 @@ router.post('/login/verify-otp', verifyLoginOTP);
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', login);
+router.post('/login', authRateLimiter, login);
 
 // ==================== TOKEN & SESSION ROUTES ====================
 

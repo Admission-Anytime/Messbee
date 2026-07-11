@@ -14,6 +14,7 @@ import {
   UserPlusIcon,
   ExclamationTriangleIcon,
   ArrowTopRightOnSquareIcon,
+  PlusCircleIcon,
   XMarkIcon // ✅ Imported Close Icon
 } from "@heroicons/react/24/outline"; 
 
@@ -27,6 +28,9 @@ import NotificationApi from "../../services/NotificationApi";
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
+// --- MODALS ---
+import ConnectWhatsAppModal from "../Modol/ConnectWhatsAppModal";
+
 const MainHeading = ({ onMenuClick }) => {
   const navigate = useNavigate(); 
   
@@ -35,6 +39,7 @@ const MainHeading = ({ onMenuClick }) => {
   const [notifications, setNotifications] = useState([]);
   const [activeTab, setActiveTab] = useState("All");
   const [loadingNotif, setLoadingNotif] = useState(false);
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const profileRef = useRef(null);
   const notifRef = useRef(null);
@@ -399,6 +404,7 @@ const MainHeading = ({ onMenuClick }) => {
                    <button onClick={() => { setIsProfileOpen(false); navigate('/admin/account/profile'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><UserIcon className="w-4 h-4" /> My Profile</button>
                    <button onClick={() => { setIsProfileOpen(false); navigate('/admin/profile/business'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><BuildingOfficeIcon className="w-4 h-4" /> Organization Settings</button>
                    <button onClick={() => { setIsProfileOpen(false); navigate('/admin/help/docs'); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 rounded-lg transition-colors text-left"><DocumentTextIcon className="w-4 h-4" /> API Documentation</button>
+                   <button onClick={() => { setIsProfileOpen(false); setIsWhatsAppModalOpen(true); }} className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-lg transition-colors text-left"><PlusCircleIcon className="w-4 h-4" /> Add WhatsApp API Number</button>
                 </div>
                 <div className="h-px bg-gray-100 my-2 mx-2"></div>
                 
@@ -417,6 +423,11 @@ const MainHeading = ({ onMenuClick }) => {
 
       </div>
 
+      {/* WhatsApp Connect Modal */}
+      <ConnectWhatsAppModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+      />
     </div>
   );
 };

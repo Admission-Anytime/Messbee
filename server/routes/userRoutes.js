@@ -8,7 +8,9 @@ const {
   createUser,
   updateUser,
   deleteUser,
-  bulkDeleteUsers
+  bulkDeleteUsers,
+  getPendingUsers,
+  approveUser
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -22,6 +24,10 @@ router.route('/')
 router.post('/bulk-delete', protect, bulkDeleteUsers);
 
 router.get('/account-limits', protect, require('../controllers/userController').getAccountLimits);
+
+// Admin approval routes (must be before /:id to avoid route conflicts)
+router.get('/pending-approval', protect, getPendingUsers);
+router.put('/:id/approve', protect, approveUser);
 
 router.route('/profile')
   .get(protect, getProfile)

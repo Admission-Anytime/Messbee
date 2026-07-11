@@ -4,30 +4,30 @@ const messageSchema = new mongoose.Schema({
   tenantId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Tenant',
-    required: true,
+    required: false,
     index: true
   },
   channelId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Channel',
-    required: true,
+    required: false,
     index: true
   },
   contactId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Contact',
-    required: true,
+    required: false,
     index: true
   },
   direction: {
     type: String,
     enum: ['INBOUND', 'OUTBOUND'],
-    required: true
+    required: false
   },
   senderType: {
     type: String,
     enum: ['CUSTOMER', 'BOT', 'HUMAN_AGENT'],
-    required: true
+    required: false
   },
   messageType: {
     type: String,
@@ -36,12 +36,26 @@ const messageSchema = new mongoose.Schema({
   },
   content: {
     type: mongoose.Schema.Types.Mixed,
-    required: true // can be string for text, or object for media URLs/interactive payloads
+    required: false // can be string for text, or object for media URLs/interactive payloads
   },
   metaMessageId: {
     type: String,
     index: true // The WhatsApp specific message ID
   },
+  whatsappMessageId: { type: String, index: true },
+  text: { type: String },
+  sender: { type: String },
+  time: { type: String },
+  chatId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chat', index: true },
+  templateName: { type: String },
+  templateLanguage: { type: String },
+  mediaUrl: { type: String },
+  mediaType: { type: String },
+  fileName: { type: String },
+  metadata: { type: mongoose.Schema.Types.Mixed },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  isDeleted: { type: Boolean, default: false },
+  deletedAt: { type: Date },
   status: {
     type: String,
     enum: ['sent', 'delivered', 'read', 'failed', 'received'],

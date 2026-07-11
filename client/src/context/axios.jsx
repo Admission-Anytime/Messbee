@@ -20,6 +20,16 @@ instance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
+    // If account is pending admin approval (403), force logout immediately
+    if (error.response?.status === 403 && error.response?.data?.pendingApproval) {
+      localStorage.removeItem("user");
+      const currentPath = window.location.pathname;
+      if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup')) {
+        window.location.href = "/login";
+      }
+      return Promise.reject(error);
+    }
+
     // If error is 401 and we haven't retried yet, try to refresh token
     // BUT skip refresh for login/signup endpoints (they should return 401 normally)
     const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||

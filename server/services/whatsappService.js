@@ -820,6 +820,7 @@ class WhatsAppService {
               from: message.from,
               timestamp: message.timestamp,
               messageType: message.type,
+              phoneNumberId: value.metadata?.phone_number_id,
               contact: {
                 name: contact?.profile?.name || 'Unknown',
                 phone: message.from

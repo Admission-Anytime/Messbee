@@ -25,6 +25,7 @@ const LoginForm = () => {
     otp: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
 
   // Redirect if already logged in (checked via context state)
   useEffect(() => {
@@ -67,8 +68,14 @@ const LoginForm = () => {
       }
     } catch (error) {
       const message = error?.response?.data?.message || error.message || "Login failed";
-      toast.error(message);
-      setErrorMessage("Oops! It seems like your email or password is incorrect.");
+      const isPending = error?.response?.data?.pendingApproval || false;
+      if (isPending) {
+        setPendingApproval(true);
+        setErrorMessage(message);
+      } else {
+        toast.error(message);
+        setErrorMessage("Oops! It seems like your email or password is incorrect.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -93,8 +100,14 @@ const LoginForm = () => {
       }
     } catch (error) {
       const message = error?.response?.data?.message || error.message || "Failed to send OTP";
-      toast.error(message);
-      setErrorMessage(message);
+      const isPending = error?.response?.data?.pendingApproval || false;
+      if (isPending) {
+        setPendingApproval(true);
+        setErrorMessage(message);
+      } else {
+        toast.error(message);
+        setErrorMessage(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -120,8 +133,14 @@ const LoginForm = () => {
       }
     } catch (error) {
       const message = error?.response?.data?.message || error.message || "Invalid OTP";
-      toast.error(message);
-      setErrorMessage(message);
+      const isPending = error?.response?.data?.pendingApproval || false;
+      if (isPending) {
+        setPendingApproval(true);
+        setErrorMessage(message);
+      } else {
+        toast.error(message);
+        setErrorMessage(message);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -147,6 +166,25 @@ const LoginForm = () => {
 
   return (
     <div className="w-full">
+      {/* Pending Approval Banner */}
+      {pendingApproval && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0 mt-0.5">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-[13px] font-bold text-amber-800 mb-0.5">Account Under Review</p>
+              <p className="text-[12px] text-amber-700 leading-relaxed">
+                Admin is reviewing your account. Kindly wait for admin approval.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Login Method Toggle */}
       <div className="flex gap-2 mb-6 p-1 bg-slate-100 rounded-xl">
         <button
