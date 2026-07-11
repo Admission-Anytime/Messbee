@@ -313,7 +313,7 @@ router.get("/messages/:chatId", async (req, res) => {
     // Step 2: Fetch messages
     const messages = await Message.find({
       chatId: req.params.chatId,
-      isDeleted: false
+      isDeleted: { $ne: true }
     }).sort({ createdAt: 1 });
     res.json(messages);
   } catch (error) {
@@ -1154,7 +1154,7 @@ router.get("/activity/:chatId", async (req, res) => {
     }
 
     // 2. Fetch all messages for stats and timeline
-    const messages = await Message.find({ chatId, isDeleted: false }).sort({ createdAt: -1 });
+    const messages = await Message.find({ chatId, isDeleted: { $ne: true } }).sort({ createdAt: -1 });
 
     // 3. Calculate Stats
     const totalInteractions = messages.length;

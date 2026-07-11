@@ -227,6 +227,25 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         
         /* Debugger Animation Base */
         .react-flow__node { transition: transform 0.3s ease, box-shadow 0.3s ease; }
+
+        /* Responsive Bottom Toolbar */
+        .auto-bottom-pill {
+          position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+          z-index: 10; background: white; border: 1px solid #e5e7eb; border-radius: 100px;
+          padding: 6px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+        .auto-add-node-btn {
+          padding: 6px 16px;
+        }
+
+        @media (max-width: 1400px) {
+          .auto-bottom-pill { bottom: 16px; gap: 4px; padding: 4px; }
+          .auto-add-node-btn { padding: 6px 10px; font-size: 12px !important; }
+        }
+        @media (max-width: 1200px) {
+          .auto-add-node-text { display: none !important; }
+          .auto-add-node-btn { padding: 6px !important; border-radius: 50% !important; }
+        }
       `}</style>
 
       {/* Dynamic Debugger Highlight CSS */}
@@ -404,15 +423,18 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
 
       {/* Bottom Toolbar Pill */}
       {/* Custom Bottom Pill Toolbar */}
-      <div style={{ position: 'absolute', bottom: '24px', left: '50%', transform: 'translateX(-50%)', zIndex: 10, background: 'white', border: '1px solid #e5e7eb', borderRadius: '100px', padding: '6px', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+      <div className="auto-bottom-pill">
         
         <button 
+          className="auto-add-node-btn"
           onClick={() => setIsAddNodeModalOpen(true)}
-          style={{ background: 'white', color: '#111827', border: '1px solid #e5e7eb', padding: '6px 16px', borderRadius: '100px', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
+          style={{ background: 'white', color: '#111827', border: '1px solid #e5e7eb', borderRadius: '100px', fontSize: '13px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', transition: 'all 0.2s' }}
           onMouseOver={(e) => e.currentTarget.style.borderColor = '#d1d5db'}
           onMouseOut={(e) => e.currentTarget.style.borderColor = '#e5e7eb'}
+          title="Add new node"
         >
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '1.5px solid currentColor', opacity: 0.5 }} /> Add new node
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', border: '1.5px solid currentColor', opacity: 0.5 }} />
+          <span className="auto-add-node-text">Add new node</span>
         </button>
 
         <div style={{ width: '1px', height: '24px', background: '#e5e7eb', margin: '0 4px' }} />

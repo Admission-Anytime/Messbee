@@ -103,10 +103,16 @@ export const SignupForm = () => {
       const response = await verifySignupOTP(formData.email, formData.otp);
 
       if (response.success) {
-        toast.success("Account created successfully!");
-        saveAuthData(response.data);
-        loginUser(response.data.user);
-        navigate("/admin/dashboard");
+        if (response.pendingApproval) {
+          toast.success("Account created! Awaiting admin approval.");
+          setErrorMessage("Your account is under review. Kindly wait for admin approval before logging in.");
+          // Do NOT login the user
+        } else {
+          toast.success("Account created successfully!");
+          saveAuthData(response.data);
+          loginUser(response.data.user);
+          navigate("/admin/dashboard");
+        }
       } else {
         toast.error(response.message || "Invalid OTP");
         setErrorMessage(response.message || "Invalid OTP. Please try again.");

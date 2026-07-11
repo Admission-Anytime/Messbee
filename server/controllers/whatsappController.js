@@ -10,6 +10,7 @@ const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const Template = require('../models/Template');
 const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
+const automationService = require('../services/automationService');
 
 /**
  * WhatsApp Webhook Controller
@@ -209,6 +210,9 @@ exports.handleWebhook = async (req, res) => {
 
     const webhookData = req.body;
     
+    // Log incoming webhook for debugging
+    console.log("📥 Received Webhook from Meta:", JSON.stringify(webhookData, null, 2));
+    
     // Acknowledge immediately so WhatsApp does not retry while we process.
     res.sendStatus(200);
 
@@ -260,7 +264,17 @@ exports.handleWebhook = async (req, res) => {
  */
 async function handleIncomingMessage(data) {
   try {
-    const { from, contact, message, messageId, messageType, timestamp } = data;
+    const { from, contact, message, messageId, messageType, timestamp, phoneNumberId } = data;
+
+    // Resolve Channel ID
+    let resolvedChannelId = '609b55b6c00d4334b07e7821'; // Default mock channel
+    if (phoneNumberId) {
+      const Channel = require('../models/Channel');
+      const channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
+      if (channelRecord) {
+        resolvedChannelId = channelRecord._id.toString();
+      }
+    }
 
     // Normalize the phone number
     const normalizedFrom = normalizePhoneNumber(from);
@@ -522,6 +536,18 @@ async function handleIncomingMessage(data) {
     // Mark message as read on WhatsApp (optional - you may want to do this manually)
     // await whatsappService.markMessageAsRead(messageId);
 
+    // 🚀 Trigger Automation Engine for all types of messages
+    await automationService.processAutomationTrigger(
+      'message',
+      {
+        message: messageText || lastMsgText, // Send text or media caption/fallback
+        contactPhone: normalizedFrom,
+        messageId: newMessage._id,
+        messageType: messageType,
+        mediaUrl: mediaUrl
+      },
+      resolvedChannelId // MUST pass channelId, not userId!
+    );
 
   } catch (error) {
     console.error('❌ Error handling incoming message:', error);

@@ -13,14 +13,14 @@ const Automation = require('../models/Automation');
  * Process automation trigger from incoming message
  * Called from webhook handler when a WhatsApp message is received.
  */
-exports.processAutomationTrigger = async (triggerType, triggerData, userId) => {
+exports.processAutomationTrigger = async (triggerType, triggerData, channelId) => {
   try {
     if (triggerType === 'message' && triggerData.message && triggerData.contactPhone) {
       // Route to the flow engine
       await executeWorkflowStep(
         triggerData.contactPhone,
         triggerData.message,
-        userId,
+        channelId,
         triggerData.referral || null,
         triggerData.messageId || null
       );
@@ -42,9 +42,9 @@ exports.processAutomationTrigger = async (triggerType, triggerData, userId) => {
 /**
  * Start a specific flow for a contact (manual trigger)
  */
-exports.startFlow = async (contactPhone, userId, flowId, eventData = {}) => {
+exports.startFlow = async (contactPhone, channelId, flowId, eventData = {}) => {
   try {
-    await startFlowManually(contactPhone, userId, flowId, eventData);
+    await startFlowManually(contactPhone, channelId, flowId, eventData);
     return { success: true, message: 'Flow started successfully' };
   } catch (error) {
     console.error('[AutomationService] Start flow error:', error);

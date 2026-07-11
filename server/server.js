@@ -14,7 +14,22 @@ const { initializeSocket } = require('./config/socket');
 dotenv.config();
 
 // Connect to database
-connectDB();
+connectDB().then(async () => {
+  // One-time migration: ensure existing users have isApproved=true
+  // (New users created after this will default to false and need admin approval)
+  try {
+    const mongoose = require('mongoose');
+    const result = await mongoose.connection.db.collection('users').updateMany(
+      { isApproved: { $exists: false } },
+      { $set: { isApproved: true } }
+    );
+    if (result.modifiedCount > 0) {
+      console.log(`✅ Migration: Set isApproved=true for ${result.modifiedCount} existing users`);
+    }
+  } catch (err) {
+    console.error('Migration warning (non-fatal):', err.message);
+  }
+});
 
 // Initialize automation delay queue worker
 const { startDelayQueueWorker } = require('./queues/delayQueue');
@@ -77,6 +92,8 @@ app.use(express.urlencoded({ extended: true }));
 
 // Handle OPTIONS method for all routes (CORS preflight)
 app.options('*', cors(corsOptions));
+
+// No global rate limit as per user request
 
 // Middleware to handle trailing slashes - strip them from URLs
 app.use((req, res, next) => {

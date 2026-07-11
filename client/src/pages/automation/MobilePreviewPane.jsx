@@ -8,8 +8,7 @@ export default function MobilePreviewPane() {
 
   if (!selectedNode) {
     return (
-      <div style={{
-        width: '320px',
+      <div className="preview-pane" style={{
         borderLeft: '1px solid #E5E7EB',
         background: '#F9FAFB',
         padding: '24px',
@@ -109,8 +108,7 @@ export default function MobilePreviewPane() {
   };
 
   return (
-    <div style={{
-      width: '360px',
+    <div className="preview-pane" style={{
       borderLeft: '1px solid #E5E7EB',
       background: '#F9FAFB',
       display: 'flex',

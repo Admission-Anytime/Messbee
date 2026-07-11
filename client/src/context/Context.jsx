@@ -66,7 +66,12 @@ const Context = (props) => {
         }
       } catch (error) {
         // API call failed (401/network error) - user not authenticated
-        console.log("No active session");
+        // Check if account is pending approval (403 with pendingApproval)
+        if (error?.response?.status === 403 && error?.response?.data?.pendingApproval) {
+          console.log("Account pending admin approval — logging out");
+        } else {
+          console.log("No active session");
+        }
         clearAuthData();
         setUser(null);
         setIsLoggedIn(false);

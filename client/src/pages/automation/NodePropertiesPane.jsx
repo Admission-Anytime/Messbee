@@ -140,7 +140,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [localData, setLocalData] = useState(null);
   const [uploadMode, setUploadMode] = useState('url');
   const [isUploading, setIsUploading] = useState(false);
-  const [channelPhone, setChannelPhone] = useState('1234567890');
+  const [channelPhone, setChannelPhone] = useState('');
 
   useEffect(() => {
     if (currentChannelId) {
@@ -166,8 +166,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
   if (!selectedNode || !localData) {
     return (
-      <div style={{
-        width: '320px',
+      <div className="properties-pane" style={{
         borderLeft: '1px solid #E5E7EB',
         background: '#F9FAFB',
         padding: '24px',
@@ -361,8 +360,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const totalRowsCount = (localData.sections || []).reduce((acc, sec) => acc + (sec.rows?.length || 0), 0);
 
   return (
-    <div style={{
-      width: '320px',
+    <div className="properties-pane" style={{
       borderLeft: '1px solid #E5E7EB',
       background: 'white',
       display: 'flex',

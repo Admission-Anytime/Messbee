@@ -47,6 +47,10 @@ const UserSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
+  isApproved: {
+    type: Boolean,
+    default: false // New users need admin approval; existing users are handled via strict === false checks
+  },
   isEmailVerified: {
     type: Boolean,
     default: false

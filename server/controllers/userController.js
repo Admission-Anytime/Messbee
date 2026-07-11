@@ -117,6 +117,7 @@ exports.createUser = async (req, res, next) => {
       role: finalRole,
       password,
       isActive: true,
+      isApproved: true, // Admin-created users are pre-approved
       isEmailVerified: true // verify immediately so they can just login
     });
 
@@ -318,6 +319,54 @@ exports.updateSubscription = async (req, res, next) => {
 
     res.status(200).json({
       success: true,
+      data: user
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get users pending admin approval
+// @route   GET /api/users/pending-approval
+// @access  Private (Admin)
+exports.getPendingUsers = async (req, res, next) => {
+  try {
+    const pendingUsers = await User.find({ 
+      isApproved: false, 
+      isEmailVerified: true 
+    }).select('name email phone company role createdAt');
+
+    res.status(200).json({
+      success: true,
+      count: pendingUsers.length,
+      data: pendingUsers
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Approve a user's account
+// @route   PUT /api/users/:id/approve
+// @access  Private (Admin)
+exports.approveUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    if (user.isApproved) {
+      return res.status(400).json({ success: false, message: 'User is already approved' });
+    }
+
+    user.isApproved = true;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `User ${user.name} has been approved successfully.`,
       data: user
     });
   } catch (error) {
