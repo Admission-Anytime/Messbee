@@ -162,22 +162,15 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       
       metaMessageId = `sim_${Date.now()}`;
     } else {
-      let response;
-    // MOCK FOR TESTING
-    if (channel.metaAccessToken === 'test_token' || process.env.NODE_ENV === 'test' || channel.activeWhatsappPhoneNumberId === '999999999' || !channel.metaAccessToken) {
-      console.log(`[MOCK WA API] Sending message to ${toPhone}:`, JSON.stringify(payload));
-      response = { data: { messages: [{ id: 'mock_wamid_' + Date.now() }] } };
-    } else {
-      response = await axios.post(url, payload, {
+      const response = await axios.post(url, payload, {
         headers: {
           'Authorization': `Bearer ${channel.metaAccessToken}`,
           'Content-Type': 'application/json'
         }
       });
-    }
 
-    // Log the outbound message inside Inbox/Contact
-    metaMessageId = response.data?.messages?.[0]?.id || null;
+      // Log the outbound message inside Inbox/Contact
+      metaMessageId = response.data?.messages?.[0]?.id || null;
     }
 
     const logContact = await Contact.findOne({ phone: toPhone, channelId: channel._id });
@@ -347,21 +340,6 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       ];
     }
 
-    // Fallback patch for 'ipu_2627' template which requires a header image in Meta API
-    // but the Messbee UI does not currently map header images for templates.
-    if (nodeData.templateName === 'ipu_2627') {
-      if (!payload.template.components) payload.template.components = [];
-      payload.template.components.push({
-        type: 'header',
-        parameters: [
-          {
-            type: 'image',
-            image: { link: 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&h=400&fit=crop' }
-          }
-        ]
-      });
-    }
-
     return payload;
   }
 
@@ -382,10 +360,10 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         ...basePayload,
         type: 'location',
         location: {
-          latitude: nodeData.latitude ? nodeData.latitude.toString() : "37.422",
-          longitude: nodeData.longitude ? nodeData.longitude.toString() : "-122.084",
-          name: parseDynamicVariables(nodeData.locationName, contextData) || 'Location',
-          address: parseDynamicVariables(nodeData.locationAddress, contextData) || 'Address'
+          latitude: nodeData.latitude ? nodeData.latitude.toString() : "0.0",
+          longitude: nodeData.longitude ? nodeData.longitude.toString() : "0.0",
+          name: parseDynamicVariables(nodeData.locationName, contextData) || undefined,
+          address: parseDynamicVariables(nodeData.locationAddress, contextData) || undefined
         }
       };
     } else if (nodeData.utilityType === 'contact') {
@@ -455,18 +433,21 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
           action: {
             name: "review_and_pay",
             parameters: {
-              reference_id: `order_${Date.now()}`,
-              type: "digital-goods",
+              reference_id: parseDynamicVariables(nodeData.referenceId, contextData) || `order_${Date.now()}`,
+              type: nodeData.goodsType || "digital-goods",
               payment_settings: [{
                 type: "payment_gateway",
-                payment_gateway: { desc: "WhatsApp Pay", type: "billdesk" }
+                payment_gateway: { 
+                  desc: parseDynamicVariables(nodeData.paymentDescription, contextData) || "Payment", 
+                  type: nodeData.paymentGateway || "razorpay" 
+                }
               }],
-              currency: nodeData.currency || "USD",
+              currency: nodeData.currency || "INR",
               total_amount: { value: (Number(nodeData.amount) * 100) || 100, offset: 100 },
               order: {
                 status: "pending",
                 items: [{
-                  name: "Order Item",
+                  name: parseDynamicVariables(nodeData.itemName, contextData) || "Order Item",
                   amount: { value: (Number(nodeData.amount) * 100) || 100, offset: 100 },
                   quantity: 1
                 }]
@@ -535,16 +516,6 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     }
 
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
-    
-    // Support for local development mock channel
-    if (!channel && channelId.toString() === '609b55b6c00d4334b07e7821') {
-      channel = {
-        _id: channelId,
-        tenantId: activeFlow.tenantId,
-        activeWhatsappPhoneNumberId: 'dummy_phone_id',
-        metaAccessToken: 'DUMMY_TOKEN'
-      };
-    }
 
     if (!channel) {
       console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
@@ -800,14 +771,6 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null) {
   try {
     let channel = await Channel.findById(channelId);
-    
-    // Support for local development mock channel
-    if (!channel && channelId.toString() === '609b55b6c00d4334b07e7821') {
-      channel = {
-        _id: channelId,
-        tenantId: '609b55b6c00d4334b07e7821'
-      };
-    }
 
     if (!channel) {
       console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
