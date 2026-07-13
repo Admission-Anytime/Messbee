@@ -161,7 +161,7 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
 
   if (actionType === 'human_handoff' || actionType === 'assign_team') {
     session.status = 'HANDOFF';
-    session.assignedTo = 'Sales Team';
+    session.assignedTo = parseDynamicVariables(node.data.assignTo, contextData) || 'Unassigned Inbox';
     
     // Live Inbox Alert: Emit socket notification to the Tenant/Agent
     if (contextData?.contact?.tenantId) {
@@ -182,7 +182,10 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   }
 
   if (actionType === 'round_robin_assign') {
-    const agents = ['Agent A (John)', 'Agent B (Sarah)', 'Agent C (Mike)'];
+    const agents = node.data.agents && Array.isArray(node.data.agents) && node.data.agents.length > 0 
+      ? node.data.agents 
+      : ['Unassigned'];
+      
     // Simple hash to round-robin based on session ID
     const charSum = session._id.toString().split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
     const selectedAgent = agents[charSum % agents.length];
@@ -328,22 +331,20 @@ module.exports.executeShopifyNode = async function executeShopifyNode(session, n
   const cleanUrl = shopifyStoreUrl.replace(/^https?:\/\//, '').replace(/\/$/, '');
   const url = `https://${cleanUrl}/admin/api/2023-10`;
   
-  // In a real application, you would store and retrieve the Shopify Access Token securely for the tenant.
-  // For demonstration, we just simulate the integration structure.
-  console.log(`[ShopifyNode] Simulating ${shopifyAction} for ${cleanUrl}`);
-  
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 500));
-  
-  if (shopifyAction === 'get_customer') {
-    // Mock mapping phone number to customer
-    session.sessionVariables.set('shopify.customerId', '123456789');
-    session.sessionVariables.set('shopify.customerName', contextData.contact?.name || 'Shopify User');
-  } else if (shopifyAction === 'create_order') {
-    session.sessionVariables.set('shopify.lastOrderId', '#100' + Math.floor(Math.random() * 1000));
-  } else if (shopifyAction === 'check_inventory') {
-    session.sessionVariables.set('shopify.inventoryStatus', 'In Stock');
-  }
+  try {
+    const response = await axios.get(`${url}/shop.json`, {
+      headers: {
+        // 'X-Shopify-Access-Token': tenantSettings.shopifyAccessToken 
+        'X-Shopify-Access-Token': 'NO_TOKEN_CONFIGURED' // Will fail naturally
+      }
+    });
 
-  return 'success';
+    if (shopifyAction === 'get_customer') {
+      session.sessionVariables.set('shopify.customerName', response.data?.shop?.name || contextData.contact?.name);
+    }
+    return 'success';
+  } catch (error) {
+    console.error('Shopify Node Execution Failed:', error.response?.data || error.message);
+    return 'failure';
+  }
 }

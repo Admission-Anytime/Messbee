@@ -61,6 +61,7 @@ const corsOptions = {
 
     const isLocalhost =
       origin.startsWith('http://localhost:') ||
+      origin.startsWith('https://localhost:') ||
       origin.startsWith('http://127.0.0.1:');
 
     const isMessbee =

@@ -1,5 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import api from "../../context/axios";
+import { toast } from "react-toastify";
 
 const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
   const overlayRef = useRef();
@@ -7,9 +9,16 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
   const [accessToken, setAccessToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
+  const [isFbInitialized, setIsFbInitialized] = useState(false);
 
   // Load Facebook SDK on mount (must be before any early returns)
   useEffect(() => {
+    // If it's already loaded and initialized from a previous modal open
+    if (window.FB && window.FB.login) {
+      setIsFbInitialized(true);
+      return;
+    }
+
     window.fbAsyncInit = function () {
       window.FB.init({
         appId: import.meta.env.VITE_META_APP_ID || "YOUR_META_APP_ID", // Add this to your .env
@@ -17,6 +26,7 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         xfbml: true,
         version: "v20.0", // Use the latest stable version
       });
+      setIsFbInitialized(true);
     };
 
     (function (d, s, id) {
@@ -40,8 +50,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
   // One-click Meta integration (opens Meta popup)
   const handleConnectWhatsApp = (withCatalog) => {
-    if (!window.FB) {
-      alert("Facebook SDK is still loading. Please wait a moment.");
+    if (!isFbInitialized) {
+      alert("Facebook SDK is still loading and initializing. Please wait 2 seconds and click again.");
       return;
     }
 
@@ -54,17 +64,33 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
       scopes.push("catalog_management");
     }
 
+    const configId = import.meta.env.VITE_META_CONFIG_ID || "3478777475636588";
+
     window.FB.login(
       (response) => {
         if (response.authResponse) {
-          // You receive an accessToken / signedRequest here.
-          // In WhatsApp Embedded Signup (response_type=code), you get a 'code' to exchange on your backend.
           const code = response.authResponse.code;
           console.log("Meta Auth Response:", response);
           if (code) {
-             // TODO: Send 'code' to your backend to get WABA details
-             alert("Success! Check console for auth code.");
-             onClose();
+            setIsConnecting(true);
+            
+            // Run async API call inside normal function
+            api.post('/whatsapp/connect-oauth', { code })
+              .then((res) => {
+                if (res.data?.success) {
+                  toast.success("WhatsApp Business Account connected successfully!");
+                  onClose();
+                } else {
+                  toast.error(res.data?.message || "Failed to connect WhatsApp account");
+                }
+              })
+              .catch((err) => {
+                console.error("Error connecting OAuth:", err);
+                toast.error(err.response?.data?.message || "Error connecting WhatsApp account");
+              })
+              .finally(() => {
+                setIsConnecting(false);
+              });
           } else {
              alert("Authenticated, but no code received.");
           }
@@ -73,13 +99,13 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         }
       },
       {
-        config_id: import.meta.env.VITE_META_CONFIG_ID || "3478777475636588",
+        config_id: configId,
         response_type: "code",
         override_default_response_type: true,
         extras: {
           feature: "whatsapp_embedded_signup",
-          version: "v4",
-          sessionInfoVersion: "3"
+          version: 2,
+          sessionInfoVersion: 2
         },
         scope: scopes.join(",")
       }
@@ -159,12 +185,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
               </p>
 
               {/* Connect Buttons */}
-              <div className="mt-6 flex gap-3">
+              <div className="mt-6 flex flex-col gap-3">
                 <button
                   onClick={() => handleConnectWhatsApp(true)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-200 hover:shadow-emerald-300 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  {/* WhatsApp Icon */}
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                   </svg>
@@ -172,9 +197,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
                 </button>
                 <button
                   onClick={() => handleConnectWhatsApp(false)}
-                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-400 to-indigo-400 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-violet-400 to-indigo-400 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-bold rounded-xl shadow-lg shadow-violet-200 hover:shadow-violet-300 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
                 >
-                  {/* WhatsApp Icon */}
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                   </svg>

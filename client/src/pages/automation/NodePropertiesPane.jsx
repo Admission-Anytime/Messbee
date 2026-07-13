@@ -1245,6 +1245,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 <option value="opt_out">Marketing Opt-out</option>
                 <option value="update_contact">Update Field</option>
                 <option value="assign_team">Assign to Team Member</option>
+                <option value="human_handoff">General Human Handoff</option>
+                <option value="round_robin_assign">Round-Robin Agent Handoff</option>
                 <option value="unassign_team">Unassign Team Member</option>
               </select>
             </div>
@@ -1260,10 +1262,36 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 </div>
               </>
             )}
-            {['assign_team', 'unassign_team'].includes(localData.actionType) && (
+            {['assign_team', 'unassign_team', 'human_handoff'].includes(localData.actionType) && (
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Agent / Team ID</label>
-                <input type="text" name="agentId" value={localData.agentId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="Leave blank to round-robin" />
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Assign To (Team or Agent)</label>
+                <input type="text" name="assignTo" value={localData.assignTo || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Sales Team or Agent Name" />
+              </div>
+            )}
+            {localData.actionType === 'round_robin_assign' && (
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Agents List (Round-Robin)</label>
+                {(localData.agents || []).map((agent, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input type="text" value={agent || ''} onChange={(e) => {
+                      const newAgents = [...(localData.agents || [])];
+                      newAgents[idx] = e.target.value;
+                      setLocalData(prev => ({ ...prev, agents: newAgents }));
+                    }} onBlur={() => updateNodeData(id, { agents: localData.agents })} style={inputStyle} placeholder={`Agent ${idx + 1}`} />
+                    <button onClick={() => {
+                      const newAgents = localData.agents.filter((_, i) => i !== idx);
+                      setLocalData(prev => ({ ...prev, agents: newAgents }));
+                      updateNodeData(id, { agents: newAgents });
+                    }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer' }}>×</button>
+                  </div>
+                ))}
+                <button onClick={() => {
+                  const newAgents = [...(localData.agents || []), ''];
+                  setLocalData(prev => ({ ...prev, agents: newAgents }));
+                  updateNodeData(id, { agents: newAgents });
+                }} style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
+                  + Add Agent
+                </button>
               </div>
             )}
           </>
