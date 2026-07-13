@@ -20,6 +20,9 @@ router.get('/test-connection', protect, whatsappController.testConnection);
 // Register WhatsApp number (Protected route)
 router.post('/register', protect, whatsappController.registerNumber);
 
+// Connect via OAuth Token (Protected route)
+router.post('/connect-oauth', protect, whatsappController.connectOAuthToken);
+
 // Deregister WhatsApp number (Protected route)
 router.post('/deregister', protect, whatsappController.deregisterNumber);
 

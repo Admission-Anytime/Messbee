@@ -95,16 +95,11 @@ class CampaignQueueMock {
       };
 
       let metaMessageId = null;
-      if (channel.metaAccessToken !== 'DUMMY_TOKEN') {
-        const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
-        const response = await axios.post(url, payload, {
-          headers: { 'Authorization': `Bearer ${channel.metaAccessToken}`, 'Content-Type': 'application/json' }
-        });
-        metaMessageId = response.data.messages[0].id;
-      } else {
-        // DUMMY_TOKEN simulation
-        metaMessageId = `sim_camp_${Date.now()}_${contact.phone}`;
-      }
+      const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
+      const response = await axios.post(url, payload, {
+        headers: { 'Authorization': `Bearer ${channel.metaAccessToken}`, 'Content-Type': 'application/json' }
+      });
+      metaMessageId = response.data.messages[0].id;
 
       await logMessageInternal({
         tenantId: campaign.tenantId,
