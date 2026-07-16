@@ -44,14 +44,7 @@ const ChatSkeletonLoader = () => (
    </div>
 );
 
-// --- MOCK DATA ---
-const QUICK_REPLIES_MOCK = [
-   "Yes, please!",
-   "Can you share more details?",
-   "I'll check and revert shortly.",
-   "Thanks, I received it.",
-   "Not right now, thanks."
-];
+
 
 const MOCK_MEDIA = [
    { id: 1, name: "Marketing_Banner_01.jpg", size: "1.2 MB", date: "Oct 24", fullDate: "Oct 24, 2023 at 10:45 AM", type: "image", url: "https://images.unsplash.com/photo-1600880292203-757bb62b4baf?auto=format&fit=crop&w=400&q=80", res: "1920×1080" },
@@ -485,6 +478,27 @@ const Conversion = ({
       return false;
    }, [data?.source, data?.canSendFreeText, data?.lastInboundAt, data?.messages]);
 
+   const dynamicSuggestions = useMemo(() => {
+      const lastThemMsg = [...(data?.messages || [])].reverse().find(m => m.sender === 'them');
+      if (!lastThemMsg || !lastThemMsg.text) {
+         return ["Hello, how can I help you?", "Can you share more details?", "I'll check and revert shortly.", "Thanks, I received it.", "Not right now, thanks."];
+      }
+      const txt = lastThemMsg.text.toLowerCase();
+      if (txt.includes("price") || txt.includes("cost") || txt.includes("fee") || txt.includes("plan")) {
+         return ["Here is our pricing plan.", "Could you specify your needs?", "We have custom plans available.", "Pricing depends on your requirements."];
+      }
+      if (txt.includes("help") || txt.includes("support") || txt.includes("issue") || txt.includes("problem")) {
+         return ["How can I assist you today?", "What seems to be the issue?", "I can help with that.", "Please provide more details."];
+      }
+      if (txt.includes("hello") || txt.includes("hi ") || txt.includes("hey")) {
+         return ["Hello! How can I help you?", "Hi there!", "Greetings! What can I do for you today?"];
+      }
+      if (txt.includes("thank")) {
+         return ["You're welcome!", "Anytime!", "Glad I could help.", "Let me know if you need anything else."];
+      }
+      return ["I see. Tell me more.", "Could you clarify that?", "I'll look into this right away.", "Please give me a moment.", "Yes, I understand."];
+   }, [data?.messages]);
+
    const isTemplateOnlyMode = data?.source === 'whatsapp' && !canSendFreeText;
 
    const sessionExpiryMs = useMemo(() => {
@@ -603,10 +617,23 @@ const Conversion = ({
       return availableLabels.filter(l => data.labels.includes(l.name));
    }, [data.labels, availableLabels]);
 
-   // Limit Quick Replies to top 3 as requested
+   // Limit Quick Replies to top 5 contextually relevant
    const displayQuickReplies = useMemo(() => {
-      return quickReplies.slice(0, 3);
-   }, [quickReplies]);
+      if (!quickReplies || quickReplies.length === 0) return [];
+      const lastThemMsg = [...(data?.messages || [])].reverse().find(m => m.sender === 'them');
+      let sorted = [...quickReplies];
+      if (lastThemMsg && lastThemMsg.text) {
+         const txt = lastThemMsg.text.toLowerCase();
+         sorted.sort((a, b) => {
+            const aTxt = a.content.toLowerCase() + a.shortcut.toLowerCase();
+            const bTxt = b.content.toLowerCase() + b.shortcut.toLowerCase();
+            const aRel = (aTxt.includes("price") && txt.includes("price")) || (aTxt.includes("help") && txt.includes("help")) ? 1 : 0;
+            const bRel = (bTxt.includes("price") && txt.includes("price")) || (bTxt.includes("help") && txt.includes("help")) ? 1 : 0;
+            return bRel - aRel;
+         });
+      }
+      return sorted.slice(0, 5);
+   }, [quickReplies, data?.messages]);
 
    // Only approved templates can be used in chat send flow.
    const approvedTemplates = useMemo(() => {
@@ -1163,7 +1190,7 @@ const selectedTemplate = useMemo(() => {
 
             {!isTemplateOnlyMode && (
             <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-2 px-1 mb-1">
-               {QUICK_REPLIES_MOCK.map((reply, idx) => (
+               {dynamicSuggestions.map((reply, idx) => (
                   <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-3 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[11px] font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
                      {reply}
                   </button>

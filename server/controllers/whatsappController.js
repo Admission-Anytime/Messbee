@@ -1220,10 +1220,11 @@ exports.getTemplates = async (req, res, next) => {
         return {
           ...t,
           components: mergedComponents,
-          // Persist our local status if API status is missing
-          status: t.status || localTemplate.status 
+          // Persist our local status if API status is missing, but force DELETED if soft-deleted locally
+          status: localTemplate.status === 'DELETED' ? 'DELETED' : (t.status || localTemplate.status)
         };
-      });
+      })
+      .filter(t => t.status !== 'DELETED');
 
     const approvedTemplates = filteredTemplates.filter((template) => template.status === 'APPROVED');
     const nonApprovedTemplates = filteredTemplates.filter((template) => template.status !== 'APPROVED');
@@ -1442,12 +1443,16 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
-    // Remove from local DB regardless (hard delete from Meta or soft delete)
+    // Soft delete from local DB so it doesn't show up in getTemplates
     try {
-      await Template.findOneAndDelete({ name: templateName, user: req.user.id });
-      console.log('✅ [Controller] Template removed from local DB:', templateName);
+      await Template.findOneAndUpdate(
+        { name: templateName, user: req.user.id },
+        { status: 'DELETED', name: templateName, user: req.user.id },
+        { new: true, upsert: true }
+      );
+      console.log('✅ [Controller] Template soft-deleted from local DB:', templateName);
     } catch (dbError) {
-      console.warn('⚠️ [Controller] Could not remove template from local DB:', dbError.message);
+      console.warn('⚠️ [Controller] Could not soft-delete template from local DB:', dbError.message);
     }
 
     if (isMetaPermissionError) {
