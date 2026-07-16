@@ -66,6 +66,46 @@ exports.requestSignupOTP = async (req, res, next) => {
       });
     }
 
+    // Name must contain at least one alphabetic character
+    if (!/[a-zA-Z]/.test(name)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name must contain at least one alphabetic character'
+      });
+    }
+
+    // Password complexity validation
+    if (password.length < 8) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must be at least 8 characters'
+      });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter'
+      });
+    }
+    if (!/[a-z]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one lowercase letter'
+      });
+    }
+    if (!/[0-9]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one numeric digit'
+      });
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one special character'
+      });
+    }
+
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.isEmailVerified) {
@@ -792,10 +832,35 @@ exports.resetPassword = async (req, res, next) => {
       });
     }
 
-    if (newPassword.length < 6) {
+    // Password complexity validation
+    if (newPassword.length < 8) {
       return res.status(400).json({
         success: false,
-        message: 'Password must be at least 6 characters'
+        message: 'Password must be at least 8 characters'
+      });
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one uppercase letter'
+      });
+    }
+    if (!/[a-z]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one lowercase letter'
+      });
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one numeric digit'
+      });
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password must contain at least one special character'
       });
     }
 

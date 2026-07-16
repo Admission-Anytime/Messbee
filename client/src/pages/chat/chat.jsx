@@ -303,7 +303,7 @@ const Chat = () => {
 
   const filteredChats = useMemo(() => {
     switch (activeTab) {
-      case "Mine": return chats.filter((c) => c.teamMember !== "Unassigned");
+      case "Mine": return chats.filter((c) => c.teamMember === user?.id || c.teamMember === user?._id);
       case "Open": return chats.filter((c) => c.chatStatus === "open");
       case "Closed": return chats.filter((c) => c.chatStatus === "closed");
       case "WhatsApp": return chats.filter((c) => c.source === "whatsapp");

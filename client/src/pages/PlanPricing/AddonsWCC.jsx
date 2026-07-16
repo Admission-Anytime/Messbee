@@ -30,6 +30,14 @@ const AddonsWCC = () => {
    const [customAmount, setCustomAmount] = useState("");
    const [paymentMethod, setPaymentMethod] = useState("card"); // 'card' or 'netbanking'
 
+   // --- ADD NEW PAYMENT METHOD MODAL ---
+   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
+   const [newCard, setNewCard] = useState({ number: "", expiry: "", cvv: "", name: "" });
+
+   // --- REQUEST SERVICE MODAL ---
+   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+   const [serviceData, setServiceData] = useState({ type: "full_integration", description: "", priority: "normal" });
+
    const finalAmount = customAmount ? Number(customAmount) : selectedAmount;
    const taxes = finalAmount * 0.18; // 18% GST
    const totalPayable = finalAmount + taxes;
@@ -82,7 +90,23 @@ const AddonsWCC = () => {
    };
 
    const handleRequestService = () => {
-      toast.info("Service request sent! Our team will contact you shortly.");
+      if (!serviceData.description.trim()) {
+         toast.error("Please describe your service requirements.", { autoClose: 3000 });
+         return;
+      }
+      toast.success("Service request submitted! Our team will contact you within 24 hours.", { autoClose: 4000 });
+      setServiceData({ type: "full_integration", description: "", priority: "normal" });
+      setIsServiceModalOpen(false);
+   };
+
+   const handleAddPaymentMethod = () => {
+      if (!newCard.number || !newCard.expiry || !newCard.cvv || !newCard.name) {
+         toast.error("Please fill in all card details.", { autoClose: 3000 });
+         return;
+      }
+      toast.success("Payment method added successfully!", { autoClose: 3000 });
+      setNewCard({ number: "", expiry: "", cvv: "", name: "" });
+      setIsAddPaymentOpen(false);
    };
 
    const handleContactSupport = () => {
@@ -156,9 +180,8 @@ const AddonsWCC = () => {
                      </p>
                   </div>
                </div>
-               {/* ✅ Added Interaction */}
                <button
-                  onClick={handleRequestService}
+                  onClick={() => setIsServiceModalOpen(true)}
                   className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-100 transition-all"
                >
                   Request Service
@@ -266,7 +289,7 @@ const AddonsWCC = () => {
                      <div>
                         <div className="flex justify-between items-center mb-3">
                            <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
-                           <button className="text-[10px] font-bold text-emerald-600 hover:underline">+ Add New</button>
+                           <button onClick={() => setIsAddPaymentOpen(true)} className="text-[10px] font-bold text-emerald-600 hover:underline">+ Add New</button>
                         </div>
                         <div className="space-y-3">
                            <div onClick={() => setPaymentMethod('card')} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-emerald-500 bg-emerald-50/30 ring-1 ring-emerald-500' : 'border-gray-200'}`}>
@@ -319,6 +342,169 @@ const AddonsWCC = () => {
                         Confirm & Pay
                      </button>
 
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* --- ADD NEW PAYMENT METHOD MODAL --- */}
+         {isAddPaymentOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+               <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl">
+                  <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                     <div>
+                        <h3 className="text-lg font-bold text-slate-900">Add Payment Method</h3>
+                        <p className="text-xs text-slate-500">Add a new card for future payments</p>
+                     </div>
+                     <button onClick={() => setIsAddPaymentOpen(false)}><XMarkIcon className="w-5 h-5 text-slate-400 hover:text-slate-600" /></button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Cardholder Name</label>
+                        <input
+                           type="text"
+                           placeholder="John Doe"
+                           value={newCard.name}
+                           onChange={(e) => setNewCard({ ...newCard, name: e.target.value })}
+                           className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Card Number</label>
+                        <input
+                           type="text"
+                           placeholder="1234 5678 9012 3456"
+                           maxLength={19}
+                           value={newCard.number}
+                           onChange={(e) => {
+                              const val = e.target.value.replace(/\D/g, '').replace(/(\d{4})(?=\d)/g, '$1 ').slice(0, 19);
+                              setNewCard({ ...newCard, number: val });
+                           }}
+                           className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm text-slate-900 tracking-wider focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                        />
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                        <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Expiry Date</label>
+                           <input
+                              type="text"
+                              placeholder="MM/YY"
+                              maxLength={5}
+                              value={newCard.expiry}
+                              onChange={(e) => {
+                                 let val = e.target.value.replace(/\D/g, '');
+                                 if (val.length >= 2) val = val.slice(0, 2) + '/' + val.slice(2, 4);
+                                 setNewCard({ ...newCard, expiry: val });
+                              }}
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                           />
+                        </div>
+                        <div>
+                           <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">CVV</label>
+                           <input
+                              type="password"
+                              placeholder="•••"
+                              maxLength={4}
+                              value={newCard.cvv}
+                              onChange={(e) => setNewCard({ ...newCard, cvv: e.target.value.replace(/\D/g, '') })}
+                              className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                           />
+                        </div>
+                     </div>
+                     <button
+                        onClick={handleAddPaymentMethod}
+                        className="w-full py-3 bg-[#00B050] hover:bg-[#009b45] text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all mt-2"
+                     >
+                        Add Payment Method
+                     </button>
+                  </div>
+               </div>
+            </div>
+         )}
+
+         {/* --- REQUEST SERVICE MODAL --- */}
+         {isServiceModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+               <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl">
+                  <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                     <div className="flex gap-3">
+                        <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                           <RocketLaunchIcon className="w-6 h-6" />
+                        </div>
+                        <div>
+                           <h3 className="text-lg font-bold text-slate-900">Request Service</h3>
+                           <p className="text-xs text-slate-500">Our experts will set everything up for you</p>
+                        </div>
+                     </div>
+                     <button onClick={() => setIsServiceModalOpen(false)}><XMarkIcon className="w-5 h-5 text-slate-400 hover:text-slate-600" /></button>
+                  </div>
+                  <div className="p-6 space-y-5">
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Service Type</label>
+                        <div className="space-y-2">
+                           {[
+                              { value: "full_integration", label: "Full API Integration", desc: "Complete WhatsApp API setup end-to-end" },
+                              { value: "template_setup", label: "Template Configuration", desc: "Message template creation & approval" },
+                              { value: "chatbot_setup", label: "Chatbot & Automation", desc: "Automated workflows and bot setup" },
+                              { value: "custom", label: "Custom Requirement", desc: "Describe your specific needs below" }
+                           ].map((svc) => (
+                              <div
+                                 key={svc.value}
+                                 onClick={() => setServiceData({ ...serviceData, type: svc.value })}
+                                 className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-all ${
+                                    serviceData.type === svc.value
+                                       ? 'border-indigo-500 bg-indigo-50/30 ring-1 ring-indigo-500'
+                                       : 'border-gray-200 hover:border-indigo-200'
+                                 }`}
+                              >
+                                 <div>
+                                    <p className="text-sm font-bold text-slate-700">{svc.label}</p>
+                                    <p className="text-[10px] text-slate-400">{svc.desc}</p>
+                                 </div>
+                                 <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                    serviceData.type === svc.value ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'
+                                 }`}>
+                                    {serviceData.type === svc.value && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                                 </div>
+                              </div>
+                           ))}
+                        </div>
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-1.5 block">Describe Your Requirements</label>
+                        <textarea
+                           rows={3}
+                           placeholder="Tell us what you need help with..."
+                           value={serviceData.description}
+                           onChange={(e) => setServiceData({ ...serviceData, description: e.target.value })}
+                           className="w-full px-4 py-2.5 bg-slate-50 border border-gray-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none resize-none"
+                        />
+                     </div>
+                     <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Priority</label>
+                        <div className="grid grid-cols-3 border border-gray-200 rounded-xl overflow-hidden">
+                           {["normal", "high", "urgent"].map((p) => (
+                              <button
+                                 key={p}
+                                 type="button"
+                                 onClick={() => setServiceData({ ...serviceData, priority: p })}
+                                 className={`py-2.5 text-xs font-bold capitalize transition-colors ${
+                                    serviceData.priority === p
+                                       ? 'bg-indigo-500 text-white'
+                                       : 'bg-white text-slate-500 hover:bg-slate-50'
+                                 }`}
+                              >
+                                 {p}
+                              </button>
+                           ))}
+                        </div>
+                     </div>
+                     <button
+                        onClick={handleRequestService}
+                        className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition-all flex items-center justify-center gap-2"
+                     >
+                        <RocketLaunchIcon className="w-4 h-4" /> Submit Request
+                     </button>
                   </div>
                </div>
             </div>

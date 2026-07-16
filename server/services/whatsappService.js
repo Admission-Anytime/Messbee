@@ -1183,10 +1183,6 @@ class WhatsAppService {
       });
 
       const payload = createTemplatePayload(name, preparedComponents);
-      
-      console.log(`\n📤 [WhatsApp API] Creating template: "${name}"`);
-      console.log(`   Category: ${category} | Language: ${language}`);
-      console.log(`   Payload: ${JSON.stringify(payload, null, 2)}`);
 
       try {
         response = await axios.post(
