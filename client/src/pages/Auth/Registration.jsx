@@ -163,14 +163,46 @@ const Step1 = ({ onNext }) => {
 
   const submit = (e) => {
     e.preventDefault();
+
+    // Name must contain at least one alphabetic character
+    if (!/[a-zA-Z]/.test(formData.fullName)) {
+      toast.error("Full Name must contain at least one alphabetic character.");
+      return;
+    }
+
+    // Business Name must contain at least one alphabetic character
+    if (!/[a-zA-Z]/.test(formData.businessName)) {
+      toast.error("Business Name must contain at least one alphabetic character.");
+      return;
+    }
+
     if (formData.password !== formData.confirmPassword) {
       toast.error("Passwords do not match.");
       return;
     }
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters.");
+
+    // Password complexity: min 8 chars, uppercase, lowercase, digit, special char
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
       return;
     }
+    if (!/[A-Z]/.test(formData.password)) {
+      toast.error("Password must contain at least one uppercase letter.");
+      return;
+    }
+    if (!/[a-z]/.test(formData.password)) {
+      toast.error("Password must contain at least one lowercase letter.");
+      return;
+    }
+    if (!/[0-9]/.test(formData.password)) {
+      toast.error("Password must contain at least one numeric digit.");
+      return;
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.password)) {
+      toast.error("Password must contain at least one special character.");
+      return;
+    }
+
     onNext({ ...formData, clientId, trialId });
   };
 

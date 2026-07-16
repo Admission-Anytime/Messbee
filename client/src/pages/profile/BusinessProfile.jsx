@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
 
 const BusinessProfile = () => {
+  const navigate = useNavigate();
   const [activeEdit, setActiveEdit] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
@@ -164,6 +166,17 @@ const BusinessProfile = () => {
       <ToastContainer />
 
       <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => navigate('/admin/dashboard')}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors group"
+          >
+            <svg className="w-5 h-5 text-slate-400 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Dashboard
+          </button>
+        </div>
         <h1 className="text-3xl font-bold text-gray-900">Organization Settings</h1>
         <p className="text-gray-500 text-sm mt-1">Manage your business identity, official API profile, billing, and regional compliance details.</p>
       </div>

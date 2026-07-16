@@ -558,8 +558,7 @@ const CreateTemplate = () => {
             buttons: [
               {
                 type: 'OTP',
-                otp_type: 'COPY_CODE',
-                text: 'Copy Code'
+                otp_type: 'COPY_CODE'
               }
             ]
           }
@@ -573,8 +572,12 @@ const CreateTemplate = () => {
         };
 
         const authResponse = await createWhatsAppTemplate(authPayload);
-        showToast('Authentication template submitted successfully to WhatsApp!');
-        setTimeout(() => { navigate('/admin/templates/list'); }, 1500);
+        navigate('/admin/templates/list', { 
+          state: { 
+            showSuccessToast: true, 
+            toastMessage: 'Authentication template submitted successfully to WhatsApp!' 
+          } 
+        });
         return; // Done — skip the rest of the normal submit flow
       }
 
@@ -655,7 +658,8 @@ const CreateTemplate = () => {
         name: waName,
         category: formData.category.toUpperCase(),
         language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
-        components: components
+        components: components,
+        allow_category_change: true
       };
 
 
@@ -770,10 +774,13 @@ const CreateTemplate = () => {
       }
       
       // Template saved/updated successfully
-      showToast(isEditing ? "Template updated successfully!" : "Template submitted successfully to WhatsApp!");
-      setTimeout(() => {
-        navigate('/admin/templates/list');
-      }, 1500);
+      const successMessage = isEditing ? "Template updated successfully!" : "Template submitted successfully to WhatsApp!";
+      navigate('/admin/templates/list', { 
+        state: { 
+          showSuccessToast: true, 
+          toastMessage: successMessage 
+        } 
+      });
 
     } catch (error) {
       console.error("Template Creation Error:", error?.response?.data || error);

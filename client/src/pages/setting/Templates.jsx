@@ -84,6 +84,14 @@ const Templates = ({ activeTab }) => {
     }
   }, [activeTab]);
 
+  useEffect(() => {
+    if (location.state?.showSuccessToast) {
+      toast.success(location.state.toastMessage || 'Operation successful!');
+      // Clear the state so it doesn't show again on refresh
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
+
   // --- TEMPLATE DATA ---
   const [templates, setTemplates] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState(null);

@@ -1,37 +1,77 @@
 /* eslint-disable react/no-unescaped-entities */
-import { useState } from 'react';
-import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 
 const TemplatesGallery = () => {
   const navigate = useNavigate();
   const [showCategories, setShowCategories] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All Templates');
+  const [loading, setLoading] = useState(true);
   
-  const [selectedTemplate, setSelectedTemplate] = useState({
-    id: 2,
-    title: 'food_order_on_th...',
-    content: "Hey [Customer Name]! Your pizza adventure is officially on its way! 🍕🚀 \n\nExpect the mouthwatering goodness to arrive at your doorstep by [Time]! Thank you for choosing..."
-  });
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [categories, setCategories] = useState([{ name: 'All Templates', count: 0 }]);
+  const [templates, setTemplates] = useState([]);
 
-  const categories = [
-    { name: 'All Templates', count: 142 },
-    { name: 'Special Occasion', count: 24 },
-    { name: 'Festival Season', count: 18 },
-    { name: 'Food delivery', count: 12 },
-    { name: 'Travel', count: 9 },
-    { name: 'Commerce', count: 31 },
-    { name: 'Services', count: 15 },
-    { name: 'Education', count: 8 },
-  ];
+  useEffect(() => {
+    const loadTemplates = async () => {
+      setLoading(true);
+      try {
+        const whatsappTemplates = await fetchWhatsAppTemplates();
+        const templatesArray = whatsappTemplates.data?.data || [];
+        const formatted = mergeTemplates(templatesArray, []);
+        
+        // Filter approved templates
+        const approvedTemplates = formatted.filter(t => t.status === 'Approved');
+        
+        const galleryTemplates = approvedTemplates.map(t => {
+          let category = 'General';
+          if (t.category) {
+            category = t.category.charAt(0).toUpperCase() + t.category.slice(1).toLowerCase();
+          }
+          return {
+            id: t.id,
+            title: t.name,
+            tag: category,
+            content: t.bodyText || '',
+            originalData: t,
+            headerType: t.headerType,
+            headerMediaUrl: t.headerMediaUrl || t.headerMediaUrlPreview,
+            buttons: t.buttons,
+            footerText: t.footerText
+          };
+        });
+        
+        setTemplates(galleryTemplates);
+        if (galleryTemplates.length > 0) {
+          setSelectedTemplate(galleryTemplates[0]);
+        }
+        
+        // Compute categories
+        const catCounts = { 'All Templates': galleryTemplates.length };
+        galleryTemplates.forEach(t => {
+          catCounts[t.tag] = (catCounts[t.tag] || 0) + 1;
+        });
+        
+        const catArray = Object.keys(catCounts).map(name => ({
+          name, count: catCounts[name]
+        }));
+        setCategories(catArray);
+        
+      } catch (error) {
+        console.error('Failed to load templates:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadTemplates();
+  }, []);
 
-  const templates = [
-    { id: 1, title: 'new_food_menu', tag: 'MARKETING', success: '98.2%', content: "Hey {{1}}! We've just rolled out a brand new menu that's bursting with Italian flavors. 🍕 To celebrate this, we are offering a 20% discount!" },
-    { id: 2, title: 'food_order_on_th...', tag: 'UTILITY', success: '99.5%', content: "Hey {{1}}! Your pizza adventure is officially on its way! 🍕🚀 \n\nExpect the mouthwatering goodness to arrive at your doorstep by {{2}}! Thank you for choosing...", active: true },
-    { id: 3, title: 'food_order_deliv...', tag: 'UTILITY', success: '4.2k Uses', content: "Hey {{1}}! Your order from {{2}} has been successfully delivered to your doorstep. 🍔🍟 \n\nWe hope you're as hungry as we are..." },
-    { id: 4, title: 'food_order_confi...', tag: 'UTILITY', success: '99.1%', content: "Your Food Order is confirmed. Hey {{1}}! Thank you for placing an order with {{2}}. Our talented chefs are busy cooking..." },
-    { id: 5, title: 'holiday_package_v1', tag: 'MARKETING', success: '1.8k Uses', content: "Ready for your next adventure? 🏖️ Book our exclusive Bali package today and get a complimentary spa voucher! Limited slots..." },
-  ];
+  const filteredTemplates = selectedCategory === 'All Templates' 
+    ? templates 
+    : templates.filter(t => t.tag === selectedCategory);
 
   return (
     <div className="flex flex-col h-screen bg-[#F8FAFC] font-sans antialiased text-[#334155]">
@@ -84,8 +124,18 @@ const TemplatesGallery = () => {
 
           {/* Grid */}
           <main className="flex-1 px-4 md:px-10 pb-10 overflow-y-auto">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                <Loader2 className="w-8 h-8 animate-spin mb-4" />
+                <p>Loading templates...</p>
+              </div>
+            ) : filteredTemplates.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                <p>No templates found for this category.</p>
+              </div>
+            ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
-              {templates.map((tpl) => (
+              {filteredTemplates.map((tpl) => (
                 <div 
                   key={tpl.id} 
                   onClick={() => setSelectedTemplate(tpl)}
@@ -106,6 +156,7 @@ const TemplatesGallery = () => {
                 </div>
               ))}
             </div>
+            )}
           </main>
         </div>
 
@@ -123,7 +174,13 @@ const TemplatesGallery = () => {
             
             <div className="mt-8">
               <button 
-                onClick={() => navigate('/admin/templates/create', { state: { fromGallery: true } })}
+                onClick={() => {
+                  if (selectedTemplate) {
+                    navigate('/admin/templates/create', { state: { fromGallery: true, isDuplicate: true, templateData: selectedTemplate.originalData } });
+                  } else {
+                    navigate('/admin/templates/create', { state: { fromGallery: true } });
+                  }
+                }}
                 className="w-full bg-[#0F172A] text-white py-3.5 rounded-2xl flex items-center justify-center gap-3 text-[13px] font-extrabold hover:bg-black transition-all shadow-xl shadow-slate-200"
               >
                 Use this template <Check className="w-3.5 h-3.5 bg-[#10B981] text-white rounded-full p-0.5" />

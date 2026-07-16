@@ -168,7 +168,7 @@ exports.createContact = async (req, res, next) => {
     const {
       name, whatsapp, phone, email,
       company, institute, address, city, country,
-      status, labels, initials, color,
+      status, labels, initials, color, customFields,
     } = req.body;
 
     if (!name || !name.trim())         return sendError(res, 400, 'Name is required');
@@ -217,6 +217,7 @@ exports.createContact = async (req, res, next) => {
       labels:    labels     || [],
       initials:  initials   || name.trim().substring(0, 2).toUpperCase(),
       color:     color      || AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+      customFields: customFields || [],
     });
 
     // Create notification for new contact
