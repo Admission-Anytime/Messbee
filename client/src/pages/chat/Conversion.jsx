@@ -481,22 +481,41 @@ const Conversion = ({
    const dynamicSuggestions = useMemo(() => {
       const lastThemMsg = [...(data?.messages || [])].reverse().find(m => m.sender === 'them');
       if (!lastThemMsg || !lastThemMsg.text) {
-         return ["Hello, how can I help you?", "Can you share more details?", "I'll check and revert shortly.", "Thanks, I received it.", "Not right now, thanks."];
+         return [
+            "Hello, how can I help you?",
+            "Can you share more details?",
+            "I'll check and revert shortly.",
+            "Thanks, I received it."
+         ];
       }
       const txt = lastThemMsg.text.toLowerCase();
-      if (txt.includes("price") || txt.includes("cost") || txt.includes("fee") || txt.includes("plan")) {
-         return ["Here is our pricing plan.", "Could you specify your needs?", "We have custom plans available.", "Pricing depends on your requirements."];
+      
+      const intents = [];
+      if (txt.includes("price") || txt.includes("cost") || txt.includes("fee") || txt.includes("plan") || txt.includes("how much")) {
+         intents.push("Here is our pricing plan.", "Could you specify your needs?", "We have custom plans available.");
       }
-      if (txt.includes("help") || txt.includes("support") || txt.includes("issue") || txt.includes("problem")) {
-         return ["How can I assist you today?", "What seems to be the issue?", "I can help with that.", "Please provide more details."];
+      if (txt.includes("help") || txt.includes("support") || txt.includes("issue") || txt.includes("problem") || txt.includes("error") || txt.includes("not working")) {
+         intents.push("How can I assist you today?", "I can help with that.", "Please provide a screenshot or more details.");
       }
-      if (txt.includes("hello") || txt.includes("hi ") || txt.includes("hey")) {
-         return ["Hello! How can I help you?", "Hi there!", "Greetings! What can I do for you today?"];
+      if (txt.includes("hello") || txt.includes("hi ") || txt.includes("hey") || txt.includes("good morning")) {
+         intents.push("Hello! How can I help you?", "Hi there!", "Greetings! What can I do for you today?");
       }
-      if (txt.includes("thank")) {
-         return ["You're welcome!", "Anytime!", "Glad I could help.", "Let me know if you need anything else."];
+      if (txt.includes("thank") || txt.includes("thx") || txt.includes("appreciate")) {
+         intents.push("You're welcome!", "Anytime!", "Glad I could help.", "Let me know if you need anything else.");
       }
-      return ["I see. Tell me more.", "Could you clarify that?", "I'll look into this right away.", "Please give me a moment.", "Yes, I understand."];
+      if (txt.includes("appointment") || txt.includes("schedule") || txt.includes("book") || txt.includes("time") || txt.includes("meet")) {
+         intents.push("When would you like to schedule?", "Let me check our availability.", "What time works best for you?");
+      }
+      if (txt.includes("refund") || txt.includes("cancel") || txt.includes("return")) {
+         intents.push("I can help you with the cancellation.", "Could you provide your order number?", "Let me look into this refund for you.");
+      }
+      
+      if (intents.length === 0) {
+         return ["I see. Tell me more.", "Could you clarify that?", "I'll look into this right away.", "Please give me a moment.", "Yes, I understand."];
+      }
+      
+      // Return up to 5 unique suggestions based on the matched intents
+      return Array.from(new Set(intents)).slice(0, 5);
    }, [data?.messages]);
 
    const isTemplateOnlyMode = data?.source === 'whatsapp' && !canSendFreeText;
@@ -621,17 +640,34 @@ const Conversion = ({
    const displayQuickReplies = useMemo(() => {
       if (!quickReplies || quickReplies.length === 0) return [];
       const lastThemMsg = [...(data?.messages || [])].reverse().find(m => m.sender === 'them');
-      let sorted = [...quickReplies];
-      if (lastThemMsg && lastThemMsg.text) {
-         const txt = lastThemMsg.text.toLowerCase();
-         sorted.sort((a, b) => {
-            const aTxt = a.content.toLowerCase() + a.shortcut.toLowerCase();
-            const bTxt = b.content.toLowerCase() + b.shortcut.toLowerCase();
-            const aRel = (aTxt.includes("price") && txt.includes("price")) || (aTxt.includes("help") && txt.includes("help")) ? 1 : 0;
-            const bRel = (bTxt.includes("price") && txt.includes("price")) || (bTxt.includes("help") && txt.includes("help")) ? 1 : 0;
-            return bRel - aRel;
+      
+      if (!lastThemMsg || !lastThemMsg.text) return quickReplies.slice(0, 5);
+      
+      const txt = lastThemMsg.text.toLowerCase();
+      // Basic word tokenization (minimum 3 characters)
+      const words = txt.split(/[\s,.-]+/).filter(w => w.length > 2);
+      
+      let sorted = [...quickReplies].map(reply => {
+         const replyTxt = (reply.content + " " + reply.shortcut).toLowerCase();
+         let score = 0;
+         
+         // Increase score for each word match
+         words.forEach(word => {
+            if (replyTxt.includes(word)) score += 1;
          });
-      }
+         
+         // Boost score for specific strong intents
+         if ((txt.includes("price") || txt.includes("cost") || txt.includes("plan")) && replyTxt.includes("price")) score += 3;
+         if ((txt.includes("help") || txt.includes("support") || txt.includes("issue")) && (replyTxt.includes("help") || replyTxt.includes("support"))) score += 3;
+         if ((txt.includes("hi") || txt.includes("hello")) && (replyTxt.includes("hi") || replyTxt.includes("hello"))) score += 2;
+         if ((txt.includes("thank")) && (replyTxt.includes("welcome") || replyTxt.includes("glad"))) score += 3;
+         
+         return { ...reply, _score: score };
+      });
+      
+      // Sort by score descending
+      sorted.sort((a, b) => b._score - a._score);
+      
       return sorted.slice(0, 5);
    }, [quickReplies, data?.messages]);
 

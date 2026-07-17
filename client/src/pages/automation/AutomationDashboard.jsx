@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../context/axios';
 import { 
-  Plus, Search, ChevronLeft, Trash2, Edit3, Shield, Zap, Settings, Clock, RefreshCw, BarChart2
+  Plus, Search, ChevronLeft, Trash2, Edit3, Shield, Zap, Settings, Clock, RefreshCw, BarChart2, MessageSquare
 } from 'lucide-react';
-import { DeliveryRulesModal, SpamProtectionModal, CrmSyncModal } from './GlobalSettingsModals';
+import { DeliveryRulesModal, SpamProtectionModal, CrmSyncModal, ChannelAssignmentModal } from './GlobalSettingsModals';
 
 export default function AutomationDashboard({ onCreateAutomation, onEditAutomation, onBack }) {
   const [automations, setAutomations] = useState([]);
@@ -157,6 +157,7 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
                   <tr style={{ background: '#F9FAFB', borderBottom: '1px solid #F3F4F6' }}>
                     <th style={thStyle}>AUTOMATION NAME</th>
                     <th style={thStyle}>TRIGGER</th>
+                    <th style={thStyle}>CHANNEL</th>
                     <th style={thStyle}>SUCCESS RATE</th>
                     <th style={thStyle}>MONTHLY USAGE</th>
                     <th style={thStyle}>STATUS</th>
@@ -205,6 +206,13 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
                           <td style={{ padding: '20px 24px' }}>
                             <span style={{ background: '#F3F4F6', color: '#4B5563', padding: '6px 12px', borderRadius: '100px', fontSize: '13px', fontWeight: '500' }}>
                               {getTriggerText(automation)}
+                            </span>
+                          </td>
+                          
+                          {/* CHANNEL */}
+                          <td style={{ padding: '20px 24px' }}>
+                            <span style={{ fontSize: '13px', color: '#6B7280', fontWeight: '500' }}>
+                              {automation.channelId ? automation.channelId.name : 'Unassigned'}
                             </span>
                           </td>
                           
@@ -335,6 +343,25 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
               <button onClick={() => setActiveModal('crm')} style={{ color: '#10B981', fontSize: '14px', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Manage Sync →</button>
             </div>
 
+            {/* Setting Card 4 */}
+            <div style={{ background: '#FFFFFF', border: '1px solid #F3F4F6', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                <div style={{ width: '48px', height: '48px', background: '#ECFDF5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <MessageSquare size={24} color="#10B981" />
+                </div>
+                {globalSettings?.defaultChannelId ? (
+                  <span style={{ background: '#ECFDF5', color: '#059669', fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '100px' }}>Configured</span>
+                ) : (
+                  <span style={{ background: '#FEF2F2', color: '#DC2626', fontSize: '12px', fontWeight: '600', padding: '4px 10px', borderRadius: '100px' }}>Not Set</span>
+                )}
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', margin: '0 0 12px 0' }}>Default Channel</h3>
+              <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 24px 0', lineHeight: '1.5' }}>
+                Assign a default WhatsApp channel for new automations and fallback messages.
+              </p>
+              <button onClick={() => setActiveModal('channel')} style={{ color: '#10B981', fontSize: '14px', fontWeight: '600', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>Assign Channel →</button>
+            </div>
+
           </div>
         </>
       ) : (
@@ -403,6 +430,7 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
       {activeModal === 'delivery' && <DeliveryRulesModal onClose={() => { setActiveModal(null); fetchGlobalSettings(); }} />}
       {activeModal === 'spam' && <SpamProtectionModal onClose={() => { setActiveModal(null); fetchGlobalSettings(); }} />}
       {activeModal === 'crm' && <CrmSyncModal onClose={() => { setActiveModal(null); fetchGlobalSettings(); }} />}
+      {activeModal === 'channel' && <ChannelAssignmentModal onClose={() => { setActiveModal(null); fetchGlobalSettings(); }} />}
     </div>
   );
 }

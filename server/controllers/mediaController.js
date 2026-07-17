@@ -41,14 +41,20 @@ exports.uploadMedia = async (req, res, next) => {
 
     const { filename, originalname, size, mimetype } = req.file;
 
+    const ext = path.extname(originalname).replace('.', '').toUpperCase() || 'BIN';
+
     // Map mimetype to asset type
     let type = 'ARCHIVE';
     if (mimetype.startsWith('image/')) type = 'IMAGE';
     else if (mimetype.startsWith('video/')) type = 'VIDEO';
     else if (mimetype.startsWith('audio/')) type = 'AUDIO';
     else if (mimetype === 'application/pdf') type = 'PDF';
-
-    const ext = path.extname(originalname).replace('.', '').toUpperCase() || 'BIN';
+    else if (mimetype === 'application/octet-stream' || !mimetype) {
+      if (['JPG', 'JPEG', 'PNG', 'GIF', 'WEBP'].includes(ext)) type = 'IMAGE';
+      else if (['MP4', 'MOV', 'AVI', '3GP', 'MKV'].includes(ext)) type = 'VIDEO';
+      else if (['MP3', 'OGG', 'WAV', 'AAC'].includes(ext)) type = 'AUDIO';
+      else if (ext === 'PDF') type = 'PDF';
+    }
 
     // Build the public URL for this file
     const { getPublicUrl } = require('../middleware/upload');

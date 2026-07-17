@@ -196,7 +196,7 @@ function Dashboard() {
                   <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
                </div>
                <div className="flex flex-col sm:flex-row gap-3 mt-8">
-                  <button onClick={() => navigate('/admin/plan/addons')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add Credit</button>
+                  <button onClick={() => navigate('/admin/plan/addons')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add New Payment</button>
                   <button onClick={() => navigate('/admin/plan/statement')} className="w-full sm:w-auto px-5 py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors text-center">Statement</button>
                </div>
             </div>
@@ -332,7 +332,7 @@ function Dashboard() {
 
          {/* 4. HELP & RESOURCES: Stack on mobile */}
          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            <div onClick={() => navigate('/admin/help/docs')} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-blue-200 transition-colors cursor-pointer group h-full">
+            <div onClick={() => navigate('/admin/help/api-docs')} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-blue-200 transition-colors cursor-pointer group h-full">
                <div>
                   <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><BookOpenIcon className="w-6 h-6" /></div>
                   <h4 className="font-bold text-slate-800 mb-2">Technical Documentation</h4>
@@ -355,7 +355,7 @@ function Dashboard() {
                </div>
                <div className="space-y-3 mt-auto">
                   <button onClick={() => navigate('/admin/help/support')} className="w-full py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm flex items-center justify-center gap-2"><TicketIcon className="w-4 h-4" /> Open Support Ticket</button>
-                  <button className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"><LightBulbIcon className="w-4 h-4" /> Request Feature</button>
+                  <button onClick={() => navigate('/admin/help/support')} className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"><LightBulbIcon className="w-4 h-4" /> Request Feature</button>
                </div>
             </div>
          </div>

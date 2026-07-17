@@ -15,8 +15,8 @@ export default function FallbackMessageSettings({ onBack }) {
     const fetchData = async () => {
       try {
         const [settingsRes, automationsRes] = await Promise.all([
-          api.get('/settings'),
-          api.get('/automations')
+          api.get('/tenant-settings'),
+          api.get('/automation')
         ]);
         
         const settings = settingsRes.data;
@@ -45,7 +45,7 @@ export default function FallbackMessageSettings({ onBack }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await api.put('/settings', {
+      await api.put('/tenant-settings', {
         fallbackMessage: {
           enabled: isEnabled,
           automationId: selectedFlow ? selectedFlow._id : null

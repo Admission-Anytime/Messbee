@@ -80,7 +80,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
     }
     // --------------------------------
 
-    const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
+    const url = `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${channel.activeWhatsappPhoneNumberId}/messages`;
 
     // 1. Meta Opt-Out Compliance Check
     const contact = await Contact.findOne({ phone: toPhone, tenantId: channel.tenantId });

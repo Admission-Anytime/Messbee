@@ -18,6 +18,21 @@ const ProductList = () => {
   });
   const [dataSource, setDataSource] = useState([]);
 
+  // Filters State
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterStock, setFilterStock] = useState("");
+
+  const filteredDataSource = dataSource.filter(product => {
+    const matchSearch = filterSearch ? (product.name?.toLowerCase().includes(filterSearch.toLowerCase()) || product.sku?.toLowerCase().includes(filterSearch.toLowerCase())) : true;
+    const matchCategory = filterCategory ? product.category?.toLowerCase() === filterCategory.toLowerCase() : true;
+    let matchStock = true;
+    if (filterStock === "in") matchStock = product.stock > 0;
+    if (filterStock === "low") matchStock = product.stock > 0 && product.stock < 10;
+    if (filterStock === "out") matchStock = product.stock === 0;
+    return matchSearch && matchCategory && matchStock;
+  });
+
   // Fetch products from API
   const fetchProducts = async () => {
     setLoading(true);
@@ -169,14 +184,16 @@ const ProductList = () => {
           <input
             type="text"
             placeholder="Search by name, SKU..."
+            value={filterSearch}
+            onChange={(e) => setFilterSearch(e.target.value)}
             className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
           />
-          <select className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
+          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
             <option value="">All Categories</option>
             <option value="apparel">Apparel</option>
             <option value="accessories">Accessories</option>
           </select>
-          <select className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
+          <select value={filterStock} onChange={(e) => setFilterStock(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
             <option value="">All Stock Status</option>
             <option value="in">In Stock</option>
             <option value="low">Low Stock</option>
@@ -191,7 +208,7 @@ const ProductList = () => {
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
           </div>
-        ) : dataSource.length === 0 ? (
+        ) : filteredDataSource.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -212,7 +229,7 @@ const ProductList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {dataSource.map((product) => {
+              {filteredDataSource.map((product) => {
                 const stockStatus = getStockStatus(product.stock);
                 return (
                   <tr key={product.key} className="hover:bg-gray-50/50 transition-colors">

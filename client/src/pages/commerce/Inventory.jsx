@@ -331,17 +331,106 @@ const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Filters State
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterCategory, setFilterCategory] = useState("Category");
+  const [filterStock, setFilterStock] = useState("Stock Levels");
+  const [filteredProducts, setFilteredProducts] = useState([]);
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
   const fetchProducts = async () => {
     setLoading(true);
     try {
       const response = await getProducts();
       if (response.success) {
-        setProducts(response.data.map(p => ({ ...p, key: p._id, product: { name: p.name, desc: p.description, img: p.img } })));
+        const mappedProducts = response.data.map(p => ({ ...p, key: p._id, product: { name: p.name, desc: p.description, img: p.img } }));
+        setProducts(mappedProducts);
+        setFilteredProducts(mappedProducts);
       }
     } catch (error) {
       toast.error("Failed to fetch inventory");
     } finally {
       setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let result = [...products];
+    if (filterSearch) {
+      result = result.filter(item => 
+        item.product?.name?.toLowerCase().includes(filterSearch.toLowerCase()) || 
+        item.sku?.toLowerCase().includes(filterSearch.toLowerCase())
+      );
+    }
+    if (filterCategory && filterCategory !== "Category") {
+      result = result.filter(item => item.category?.toLowerCase() === filterCategory.toLowerCase());
+    }
+    if (filterStock && filterStock !== "Stock Levels") {
+      if (filterStock === "In Stock") result = result.filter(item => item.stock > 0);
+      if (filterStock === "Low Stock") result = result.filter(item => item.stock > 0 && item.stock < 10);
+      if (filterStock === "Out of Stock") result = result.filter(item => item.stock === 0);
+    }
+    setFilteredProducts(result);
+    setCurrentPage(1);
+  }, [products, filterSearch, filterCategory, filterStock]);
+
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredProducts.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+
+  const exportCSV = () => {
+    if (filteredProducts.length === 0) {
+      toast.warning("No data to export");
+      return;
+    }
+    const headers = ["Product Name", "SKU", "Stock", "Goal", "Price", "Category", "WhatsApp Shop"];
+    const csvRows = [];
+    csvRows.push(headers.join(","));
+    for (const row of filteredProducts) {
+      const values = [
+        `"${row.product?.name || ""}"`,
+        row.sku || "",
+        row.stock || 0,
+        row.goal || 0,
+        row.price?.toString().replace(/,/g, "") || "",
+        row.category || "",
+        row.shop ? "Yes" : "No"
+      ];
+      csvRows.push(values.join(","));
+    }
+    const blob = new Blob([csvRows.join("\\n")], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `inventory_report_${new Date().getTime()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success("Inventory exported");
+  };
+
+  const toggleShop = async (productItem) => {
+    try {
+      const updatedItem = { ...productItem, shop: !productItem.shop };
+      const apiData = {
+        name: updatedItem.product.name,
+        description: updatedItem.product.desc,
+        img: updatedItem.product.img,
+        sku: updatedItem.sku,
+        stock: updatedItem.stock,
+        goal: updatedItem.goal,
+        price: parseFloat(updatedItem.price?.toString().replace(/[₹,]/g, "") || "0"),
+        category: updatedItem.category,
+        shop: updatedItem.shop
+      };
+      await updateProduct(updatedItem._id, apiData);
+      setProducts(products.map(p => p._id === updatedItem._id ? updatedItem : p));
+      toast.success(updatedItem.shop ? "Added to WhatsApp Shop" : "Removed from WhatsApp Shop");
+    } catch (error) {
+      toast.error("Failed to update product shop status");
     }
   };
 
@@ -473,34 +562,40 @@ const Inventory = () => {
               <input
                 type="text"
                 placeholder="Search by SKU, Product name..."
+                value={filterSearch}
+                onChange={e => setFilterSearch(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg pl-10 pr-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all"
               />
             </div>
           </div>
           <div className="lg:col-span-2">
-            <select className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
-              <option>Category</option>
-              <option>Electronics</option>
-              <option>Gadgets</option>
-              <option>Professional</option>
+            <select value={filterCategory} onChange={e => setFilterCategory(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
+              <option value="Category">Category</option>
+              <option value="Electronics">Electronics</option>
+              <option value="Gadgets">Gadgets</option>
+              <option value="Professional">Professional</option>
+              <option value="Accessories">Accessories</option>
+              <option value="Apparel">Apparel</option>
+              <option value="Clothing">Clothing</option>
+              <option value="Others">Others</option>
             </select>
           </div>
           <div className="lg:col-span-2">
-            <select className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
-              <option>Stock Levels</option>
-              <option>In Stock</option>
-              <option>Low Stock</option>
-              <option>Out of Stock</option>
+            <select value={filterStock} onChange={e => setFilterStock(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
+              <option value="Stock Levels">Stock Levels</option>
+              <option value="In Stock">In Stock</option>
+              <option value="Low Stock">Low Stock</option>
+              <option value="Out of Stock">Out of Stock</option>
             </select>
           </div>
           <div className="lg:col-span-3 flex gap-2">
-            <button className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+            <button onClick={() => setFilteredProducts([...filteredProducts])} className="flex-1 border border-gray-200 rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
               Filter
             </button>
-            <button className="border border-gray-200 rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2">
+            <button onClick={exportCSV} className="border border-gray-200 rounded-lg px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors flex items-center gap-2">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
               </svg>
@@ -516,7 +611,7 @@ const Inventory = () => {
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
           </div>
-        ) : products.length === 0 ? (
+        ) : filteredProducts.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -539,7 +634,7 @@ const Inventory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {products.map((item) => (
+                {currentItems.map((item) => (
                   <tr key={item.key} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
@@ -597,7 +692,7 @@ const Inventory = () => {
                     </td>
                     <td className="px-6 py-4">
                       <button
-                        onClick={() => {}}
+                        onClick={() => toggleShop(item)}
                         className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
                           item.shop ? "bg-emerald-500" : "bg-gray-300"
                         }`}
@@ -639,22 +734,30 @@ const Inventory = () => {
             {/* Pagination */}
             <div className="flex flex-col sm:flex-row items-center justify-between px-6 py-4 border-t border-gray-200 gap-4">
               <span className="text-[13px] font-medium text-gray-600">
-                Showing 1 to {products.length} of {products.length} products
+                Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, filteredProducts.length)} of {filteredProducts.length} products
               </span>
               <div className="flex items-center gap-2">
-                <button className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
                   Previous
                 </button>
-                <button className="min-w-[32px] h-8 px-2 rounded text-sm font-semibold bg-[#10B981] text-white">
-                  1
-                </button>
-                <button className="min-w-[32px] h-8 px-2 rounded text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-                  2
-                </button>
-                <button className="min-w-[32px] h-8 px-2 rounded text-sm font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
-                  3
-                </button>
-                <button className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-colors">
+                {[...Array(totalPages)].map((_, i) => (
+                  <button 
+                    key={i}
+                    onClick={() => setCurrentPage(i + 1)}
+                    className={`min-w-[32px] h-8 px-2 rounded text-sm font-semibold transition-colors ${currentPage === i + 1 ? 'bg-[#10B981] text-white' : 'text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    {i + 1}
+                  </button>
+                ))}
+                <button 
+                  onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="px-4 py-2 rounded-lg text-[13px] font-semibold text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                >
                   Next
                 </button>
               </div>

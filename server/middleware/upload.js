@@ -98,17 +98,17 @@ const fileFilter = (req, file, cb) => {
     return cb(null, true);
   }
 
-  // Fallback: check by extension
+  // Sometimes browsers send an empty or generic mimetype, fallback to checking the original filename extension
   const allowedExts = [
     '.jpg', '.jpeg', '.png', '.gif', '.webp',
-    '.mp4', '.mov', '.avi', '.3gp',
+    '.mp4', '.mov', '.avi', '.3gp', '.mkv',
     '.mp3', '.ogg', '.wav', '.aac',
     '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
     '.txt', '.csv', '.zip', '.rar'
   ];
 
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowedExts.includes(ext)) {
+  if (allowedExts.includes(ext) || file.mimetype === 'application/octet-stream' || file.mimetype === '') {
     return cb(null, true);
   }
 

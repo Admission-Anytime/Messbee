@@ -27,11 +27,22 @@ const FILE_ICONS = {
 
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 function getAssetType(file) {
-  const t = file.type;
+  const t = file.type || "";
+  const name = file.name || "";
   if (t.startsWith("image/")) return "IMAGE";
   if (t.startsWith("video/")) return "VIDEO";
   if (t.startsWith("audio/")) return "AUDIO";
   if (t === "application/pdf") return "PDF";
+  
+  // Fallback if mimetype is missing or generic
+  const extMatch = name.match(/\.([^.]+)$/);
+  if (extMatch) {
+    const ext = extMatch[1].toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return "IMAGE";
+    if (['mp4', 'mov', 'avi', '3gp', 'mkv'].includes(ext)) return "VIDEO";
+    if (['mp3', 'ogg', 'wav', 'aac'].includes(ext)) return "AUDIO";
+    if (ext === 'pdf') return "PDF";
+  }
   return "ARCHIVE";
 }
 

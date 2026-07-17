@@ -163,11 +163,104 @@ const ApiDocs = () => {
             </div>
           </div>
         );
+      case "contacts":
+        return (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Contacts API</h1>
+              <p className="text-slate-600 text-lg">Manage your WhatsApp contacts, import lists, and retrieve user information programmatically.</p>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Add a Contact</h2>
+              <EndpointCard method="POST" path="/v1/contacts" description="Add a new contact to your list" />
+              <div className="mt-6 space-y-4">
+                <CodeBlock code={`curl -X POST https://api.messbee.com/v1/contacts \\\n  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "phone": "+919876543210",\n    "name": "John Doe",\n    "tags": ["vip", "customer"]\n  }'`} language="curl" id="add-contact" />
+                <ResponseExample status={201} data={{ success: true, contact_id: "cont_xyz123", status: "created" }} />
+              </div>
+            </div>
+          </div>
+        );
+      case "campaigns":
+        return (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Campaigns API</h1>
+              <p className="text-slate-600 text-lg">Create, schedule, and manage your WhatsApp marketing campaigns.</p>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Create Campaign</h2>
+              <EndpointCard method="POST" path="/v1/campaigns" description="Create a new promotional campaign" />
+              <div className="mt-6 space-y-4">
+                <CodeBlock code={`curl -X POST https://api.messbee.com/v1/campaigns \\\n  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "name": "Summer Sale 2024",\n    "template_id": "tpl_summer50",\n    "audience": "tag:vip",\n    "schedule_time": "2024-06-01T10:00:00Z"\n  }'`} language="curl" id="create-campaign" />
+                <ResponseExample status={201} data={{ success: true, campaign_id: "camp_8899", status: "scheduled" }} />
+              </div>
+            </div>
+          </div>
+        );
+      case "analytics":
+        return (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Analytics API</h1>
+              <p className="text-slate-600 text-lg">Retrieve detailed metrics for your account, messages, and campaigns.</p>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Get Account Stats</h2>
+              <EndpointCard method="GET" path="/v1/analytics/overview" description="Get high-level message and delivery metrics" />
+              <div className="mt-6 space-y-4">
+                <CodeBlock code={`curl -X GET "https://api.messbee.com/v1/analytics/overview?start_date=2024-01-01&end_date=2024-01-31" \\\n  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"`} language="curl" id="get-analytics" />
+                <ResponseExample status={200} data={{ success: true, data: { messages_sent: 15420, messages_delivered: 15380, messages_read: 12100, response_rate: "78%" } }} />
+              </div>
+            </div>
+          </div>
+        );
+      case "webhooks":
+        return (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Webhooks</h1>
+              <p className="text-slate-600 text-lg">Receive real-time HTTP callbacks for incoming messages and delivery events.</p>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 mb-4">Incoming Message Event</h2>
+              <p className="text-slate-700 mb-4">When a user sends a message to your WhatsApp number, we will send a POST request to your configured webhook URL.</p>
+              <div className="mt-6 space-y-4">
+                <ResponseExample status={200} data={{ event: "message.received", data: { from: "+919876543210", type: "text", text: { body: "I need help with my order." }, timestamp: 1718293847 } }} />
+              </div>
+            </div>
+          </div>
+        );
+      case "rate-limits":
+        return (
+          <div className="space-y-8">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-3">Rate Limits</h1>
+              <p className="text-slate-600 text-lg">Understand API rate limiting to ensure continuous availability.</p>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+              <table className="w-full text-left text-sm text-slate-600">
+                <thead className="bg-slate-50 text-slate-900 font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4">Endpoint</th>
+                    <th className="px-6 py-4">Limit</th>
+                    <th className="px-6 py-4">Window</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  <tr><td className="px-6 py-4 font-mono">/v1/messages/send</td><td className="px-6 py-4">100 requests</td><td className="px-6 py-4">Per second</td></tr>
+                  <tr><td className="px-6 py-4 font-mono">/v1/contacts</td><td className="px-6 py-4">50 requests</td><td className="px-6 py-4">Per second</td></tr>
+                  <tr><td className="px-6 py-4 font-mono">/v1/analytics/*</td><td className="px-6 py-4">60 requests</td><td className="px-6 py-4">Per minute</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="text-slate-700 leading-relaxed bg-amber-50 p-4 rounded-lg border border-amber-200">If you exceed the rate limits, the API will return a <code className="font-bold text-amber-700 bg-amber-100 px-1 py-0.5 rounded">429 Too Many Requests</code> HTTP status code. Check the <code className="font-bold text-amber-700 bg-amber-100 px-1 py-0.5 rounded">X-RateLimit-Reset</code> header for when to retry.</p>
+          </div>
+        );
       default:
         return (
           <div className="py-20 text-center">
-            <h2 className="text-2xl font-bold text-slate-700">Section Under Construction</h2>
-            <p className="text-slate-500 mt-2">More documentation coming soon!</p>
+            <h2 className="text-2xl font-bold text-slate-700">Section Not Found</h2>
+            <p className="text-slate-500 mt-2">The requested documentation section does not exist.</p>
           </div>
         );
     }
