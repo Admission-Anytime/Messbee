@@ -4,10 +4,31 @@ import {
   MagnifyingGlassIcon, RocketLaunchIcon, CodeBracketIcon, CreditCardIcon, ShieldCheckIcon, MegaphoneIcon,
   WrenchScrewdriverIcon, ChevronDownIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, PhoneIcon, ClockIcon,
 } from "@heroicons/react/24/solid";
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 export default function Support() {
   const navigate = useNavigate();
   const [openArticle, setOpenArticle] = useState(0);
+  
+  const [ticketData, setTicketData] = useState({ name: '', email: '', subject: '', description: '' });
+
+  const handleTicketSubmit = () => {
+    if (!ticketData.name || !ticketData.email || !ticketData.subject || !ticketData.description) {
+      toast.error("Please fill all the fields before submitting.");
+      return;
+    }
+    toast.success("Support ticket created successfully! We will get back to you shortly.");
+    setTicketData({ name: '', email: '', subject: '', description: '' });
+  };
+
+  const handleChatWithUs = () => {
+    toast.info("Live chat is connecting...");
+  };
+
+  const handleEmailSupport = () => {
+    window.location.href = "mailto:support@messbee.com?subject=Support Request";
+  };
 
   const categories = [
     { title: "Getting Started", icon: RocketLaunchIcon, count: 12, slug: "get-started" },
@@ -40,6 +61,7 @@ export default function Support() {
 
   return (
     <div className="bg-gray-50 min-h-full pb-16">
+      <ToastContainer />
       <div className="max-w-6xl mx-auto px-6 pt-14 pb-6 space-y-12">
         <div className="text-center space-y-6">
           <h1 className="text-4xl font-bold text-gray-900">How can we help you today?</h1>
@@ -71,11 +93,11 @@ export default function Support() {
           <div className="lg:col-span-2 bg-white border border-gray-200 rounded-xl p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Submit Support Ticket</h3>
             <div className="space-y-4">
-              <input placeholder="Your Name" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-              <input placeholder="Email Address" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-              <input placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-              <textarea rows="4" placeholder="Describe your issue..." className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm" />
-              <button className="bg-green-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-green-700 transition">Submit Ticket</button>
+              <input value={ticketData.name} onChange={(e) => setTicketData({...ticketData, name: e.target.value})} placeholder="Your Name" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all" />
+              <input value={ticketData.email} onChange={(e) => setTicketData({...ticketData, email: e.target.value})} placeholder="Email Address" type="email" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all" />
+              <input value={ticketData.subject} onChange={(e) => setTicketData({...ticketData, subject: e.target.value})} placeholder="Subject" className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all" />
+              <textarea value={ticketData.description} onChange={(e) => setTicketData({...ticketData, description: e.target.value})} rows="4" placeholder="Describe your issue..." className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-green-500/20 focus:border-green-500 outline-none transition-all resize-none" />
+              <button onClick={handleTicketSubmit} className="bg-green-600 text-white font-bold px-6 py-3 rounded-lg hover:bg-green-700 transition active:scale-95 cursor-pointer">Submit Ticket</button>
             </div>
           </div>
 
@@ -117,10 +139,10 @@ export default function Support() {
           <h3 className="text-2xl font-semibold mb-2">Still need help?</h3>
           <p className="text-gray-300 mb-6">Can't find the answer you're looking for? Our dedicated support team is available 24/7 to help you.</p>
           <div className="flex justify-center gap-4">
-            <button className="bg-green-600 text-white font-bold px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-green-700">
+            <button onClick={handleChatWithUs} className="bg-green-600 text-white font-bold px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-green-700 transition cursor-pointer shadow-sm">
               <ChatBubbleLeftRightIcon className="w-5"/> Chat with us
             </button>
-            <button className="bg-gray-700 px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-gray-600">
+            <button onClick={handleEmailSupport} className="bg-gray-700 text-white font-bold px-6 py-3 rounded-lg flex items-center gap-2 hover:bg-gray-600 transition cursor-pointer shadow-sm">
               <EnvelopeIcon className="w-5"/> Email Support
             </button>
           </div>

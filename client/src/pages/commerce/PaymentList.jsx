@@ -4,7 +4,13 @@ import { toast } from "react-toastify";
 
 const PaymentList = () => {
   const [data, setData] = useState([]);
+  const [filteredData, setFilteredData] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Filters State
+  const [filterFrom, setFilterFrom] = useState('');
+  const [filterTo, setFilterTo] = useState('');
+  const [filterStatus, setFilterStatus] = useState('All Status');
 
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(null);
@@ -19,12 +25,15 @@ const PaymentList = () => {
     try {
       const response = await getPayments();
       if (response.success) {
-        setData(response.data.map(p => ({ 
+        const formattedData = response.data.map(p => ({ 
           ...p, 
           key: p._id,
           amount: p.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 }),
-          date: new Date(p.date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-        })));
+          date: new Date(p.date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          rawDate: new Date(p.date)
+        }));
+        setData(formattedData);
+        setFilteredData(formattedData);
       }
     } catch (error) {
       toast.error("Failed to fetch payments");
@@ -50,6 +59,54 @@ const PaymentList = () => {
     }
   };
 
+  const applyFilters = () => {
+    let result = [...data];
+    if (filterStatus && filterStatus !== 'All Status') {
+      result = result.filter(item => item.status === filterStatus);
+    }
+    if (filterFrom) {
+      const fromDate = new Date(filterFrom);
+      fromDate.setHours(0, 0, 0, 0);
+      result = result.filter(item => item.rawDate >= fromDate);
+    }
+    if (filterTo) {
+      const toDate = new Date(filterTo);
+      toDate.setHours(23, 59, 59, 999);
+      result = result.filter(item => item.rawDate <= toDate);
+    }
+    setFilteredData(result);
+  };
+
+  const exportCSV = () => {
+    if (filteredData.length === 0) {
+      toast.warning("No data to export");
+      return;
+    }
+    const headers = ["Reference ID", "Customer Name", "WhatsApp Number", "Amount", "Currency", "Status", "Date"];
+    const csvRows = [];
+    csvRows.push(headers.join(","));
+    for (const row of filteredData) {
+      const values = [
+        row.refId || "",
+        `"${row.name || ""}"`,
+        row.number || "",
+        row.amount?.replace(/,/g, "") || "",
+        row.currency || "",
+        row.status || "",
+        `"${row.date || ""}"`
+      ];
+      csvRows.push(values.join(","));
+    }
+    const blob = new Blob([csvRows.join("\\n")], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `payments_report_${new Date().getTime()}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+    toast.success("Report downloaded");
+  };
+
   return (
     <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
       {/* Header */}
@@ -58,7 +115,7 @@ const PaymentList = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-800">Payment List</h1>
           <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
         </div>
-        <button className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm">
+        <button onClick={exportCSV} className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
@@ -71,22 +128,22 @@ const PaymentList = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 items-end">
           <div>
             <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">From Date</label>
-            <input type="date" className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all" />
+            <input type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all" />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">To Date</label>
-            <input type="date" className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all" />
+            <input type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all" />
           </div>
           <div>
             <label className="block text-[11px] font-bold text-gray-500 uppercase tracking-wider mb-2">Status</label>
-            <select className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
-              <option>All Status</option>
-              <option>Paid</option>
-              <option>Pending</option>
-              <option>Failed</option>
+            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
+              <option value="All Status">All Status</option>
+              <option value="Paid">Paid</option>
+              <option value="Pending">Pending</option>
+              <option value="Failed">Failed</option>
             </select>
           </div>
-          <button className="bg-[#10B981] hover:bg-[#059669] text-white px-5 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-sm">
+          <button onClick={applyFilters} className="bg-[#10B981] hover:bg-[#059669] text-white px-5 py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2 transition-all shadow-sm">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
@@ -101,7 +158,7 @@ const PaymentList = () => {
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
           </div>
-        ) : data.length === 0 ? (
+        ) : filteredData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -123,7 +180,7 @@ const PaymentList = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {data.map((payment) => (
+              {filteredData.map((payment) => (
                 <tr key={payment.key} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-6 py-4">
                     <div className="font-semibold text-gray-900 text-[13px]">{payment.number || "**********"}</div>

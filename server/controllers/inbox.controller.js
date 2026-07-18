@@ -65,7 +65,7 @@ export const sendManualMessage = async (req, res) => {
     };
 
     // Send to Meta
-    const url = `https://graph.facebook.com/v21.0/${channel.activeWhatsappPhoneNumberId}/messages`;
+    const url = `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${channel.activeWhatsappPhoneNumberId}/messages`;
     const response = await axios.post(url, payload, {
       headers: { 'Authorization': `Bearer ${channel.metaAccessToken}`, 'Content-Type': 'application/json' }
     });

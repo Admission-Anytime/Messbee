@@ -37,6 +37,7 @@ const Badge = ({ isActive }) => (
 
 export default function AutomationLanding({ onNavigateFlows, onCreateAutomation, onCreatePreconfigured, onNavigateWelcomeMessage, onNavigateAwayMessage, onNavigateFallbackMessage }) {
   const [automations, setAutomations] = useState([]);
+  const [settings, setSettings] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { user } = useContext(userContext);
   const navigate = useNavigate();
@@ -50,29 +51,107 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     }
   };
 
+  const fetchSettings = async () => {
+    try {
+      const res = await api.get('/tenant-settings');
+      setSettings(res.data);
+    } catch (err) {
+      console.error('Failed to fetch settings:', err);
+    }
+  };
+
   useEffect(() => {
     fetchAutomations();
+    fetchSettings();
   }, []);
 
   const handleToggle = async (automationName) => {
-    const existing = automations.find(a => a.name === automationName);
-    if (existing) {
-      try {
-        await api.put(`/automation/${existing._id}`, { isActive: !existing.isActive });
-        fetchAutomations();
-      } catch (e) {
-        console.error('Toggle failed', e);
+    try {
+      if (automationName === 'Welcome message') {
+        const newValue = !(settings?.welcomeMessage?.enabled || false);
+        await api.put('/tenant-settings', { welcomeMessage: { ...settings?.welcomeMessage, enabled: newValue } });
+        fetchSettings();
       }
-    } else {
-      if (automationName === 'Welcome New Users' || automationName === 'Welcome message') onNavigateWelcomeMessage?.();
-      else if (automationName === 'Away message') onNavigateAwayMessage?.();
-      else onCreatePreconfigured?.(); 
+      else if (automationName === 'Away message') {
+        const newValue = !(settings?.awayMessage?.enabled || false);
+        await api.put('/tenant-settings', { awayMessage: { ...settings?.awayMessage, enabled: newValue } });
+        fetchSettings();
+      }
+      else if (automationName === 'Fallback message') {
+        const newValue = !(settings?.fallbackMessage?.enabled || false);
+        await api.put('/tenant-settings', { fallbackMessage: { ...settings?.fallbackMessage, enabled: newValue } });
+        fetchSettings();
+      }
+      else {
+        // Normal template automation
+        const existing = automations.find(a => a.name === automationName);
+        if (existing) {
+          await api.put(`/automation/${existing._id}`, { isActive: !existing.isActive });
+          fetchAutomations();
+        } else {
+          // If it doesn't exist, maybe they should click Use Template. 
+          // We can optionally alert them here.
+          alert(`You need to configure the "${automationName}" automation first by clicking "Use Template".`);
+        }
+      }
+    } catch (e) {
+      console.error('Toggle failed', e);
     }
   };
 
   const checkIsActive = (name) => {
+    if (name === 'Welcome message') return settings?.welcomeMessage?.enabled || false;
+    if (name === 'Away message') return settings?.awayMessage?.enabled || false;
+    if (name === 'Fallback message') return settings?.fallbackMessage?.enabled || false;
+    
+    // Normal template automation
     const existing = automations.find(a => a.name === name);
     return existing ? existing.isActive : false;
+  };
+
+    const handleCreateTemplate = async (templateName, triggerKeyword, actionText) => {
+    try {
+      let channelId = settings?.defaultChannelId;
+      if (!channelId) {
+        const channelsRes = await api.get('/whatsapp/channels');
+        if (channelsRes.data && channelsRes.data.length > 0) {
+          channelId = channelsRes.data[0]._id;
+        } else {
+          alert("Please connect a WhatsApp channel first or set a Default Channel in settings.");
+          return;
+        }
+      }
+
+      const nodes = [
+        {
+          id: '1', type: 'triggerNode', position: { x: 250, y: 50 },
+          data: { label: 'Trigger', triggerType: 'keyword', keyword: triggerKeyword || 'start' }
+        },
+        {
+          id: '2', type: 'messageNode', position: { x: 250, y: 200 },
+          data: { label: 'Send Message', messageType: 'text', text: actionText || `Thank you for reaching out regarding ${templateName}!` }
+        }
+      ];
+      
+      const edges = [
+        { id: 'e1-2', source: '1', target: '2', type: 'smoothstep' }
+      ];
+
+      const res = await api.post('/automation', {
+        name: templateName, // Same name as the toggle string
+        isActive: false,
+        channelId,
+        nodes,
+        edges
+      });
+
+      if (res.data && res.data._id) {
+        navigate(`/admin/automation/${res.data._id}`);
+      }
+    } catch (error) {
+      console.error('Failed to create template:', error);
+      alert('Failed to create template flow.');
+    }
   };
 
   const AutomationCard = ({ title, activeStatus, onToggle, triggerIcon: TriggerIcon, triggerText, actionIcon: ActionIcon, actionText, buttonText, onButtonClick }) => (
@@ -141,7 +220,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     {
       title: "Order Confirmation", activeStatusName: 'Order Confirmation', toggleName: 'Order Confirmation',
       triggerIcon: ShoppingBag, triggerText: "When new order is placed", actionIcon: ArrowRight, actionText: "Send confirmation email with order details",
-      buttonText: "Send Message", onButtonClick: () => onCreatePreconfigured?.()
+      buttonText: "Use Template", onButtonClick: () => handleCreateTemplate('Order Confirmation', 'order', 'Your order is confirmed!')
     },
     {
       title: "Away message", activeStatusName: 'Away message', toggleName: 'Away message',
@@ -151,7 +230,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     {
       title: "Weekly Reports", activeStatusName: 'Weekly Reports', toggleName: 'Weekly Reports',
       triggerIcon: Clock, triggerText: "Every Monday at 9 AM", actionIcon: ArrowRight, actionText: "Send analytics report to team",
-      buttonText: "Send Message", onButtonClick: () => onCreatePreconfigured?.()
+      buttonText: "Use Template", onButtonClick: () => handleCreateTemplate('Weekly Reports', 'report', 'Here is your weekly report summary.')
     }
   ]);
 
@@ -253,9 +332,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <h3 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>Chatbot builder</h3>
-                          <Badge isActive={true} />
                         </div>
-                        <ToggleSwitch isActive={true} onChange={() => {}} />
                       </div>
                       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                         <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: '#F0F9FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>
@@ -273,8 +350,8 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
                         </button>
                         <button 
                           onClick={onCreateAutomation}
-                          style={{ background: '#F0FDF4', color: '#16A34A', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-                          Send Message
+                          style={{ background: '#10B981', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                          Create Chatbot
                         </button>
                       </div>
                     </div>
@@ -301,7 +378,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
                         <button 
                           onClick={onNavigateFallbackMessage}
                           style={{ background: '#F0FDF4', color: '#16A34A', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-                          Send Message
+                          Configure settings
                         </button>
                       </div>
                     </div>
@@ -334,7 +411,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
                   </div>
                   <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>{tpl.desc}</p>
                   <button 
-                    onClick={() => onCreatePreconfigured?.()}
+                    onClick={() => handleCreateTemplate(tpl.title, tpl.title.toLowerCase().replace(/\s/g, '_'), tpl.desc)}
                     style={{ width: '100%', background: 'white', border: '1px solid #E5E7EB', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', color: '#374151', cursor: 'pointer', marginTop: 'auto' }}>
                     Use Template
                   </button>

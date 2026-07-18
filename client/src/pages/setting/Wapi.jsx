@@ -497,9 +497,9 @@ export default function WhatsAppConfig() {
 
   // Check api_configuration permission — reads from rolePermissions for all roles including Admin
   const DEFAULT_API_PERMS = { Admin: true, Manager: false, Agent: false };
-  const hasApiAccess = rolePermissions?.[userRole]?.api_configuration
+  const hasApiAccess = isAdmin || (rolePermissions?.[userRole]?.api_configuration
     ?? DEFAULT_API_PERMS[userRole]
-    ?? false;
+    ?? false);
 
   // ── Access Restriction Check ──
   if (!hasApiAccess) {

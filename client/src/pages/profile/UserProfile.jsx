@@ -170,6 +170,17 @@ useEffect(() => {
 
       {/* Profile Header Card */}
       <div className="bg-white rounded-2xl border border-gray-100 p-8 mb-8 shadow-sm">
+        <div className="flex items-center gap-3 mb-4">
+          <button
+            onClick={() => navigate('/admin/dashboard')}
+            className="flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-800 transition-colors group"
+          >
+            <svg className="w-5 h-5 text-slate-400 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+            Back to Dashboard
+          </button>
+        </div>
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="relative group">
             <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden shadow-md bg-green-500 flex items-center justify-center text-4xl font-bold text-white uppercase">

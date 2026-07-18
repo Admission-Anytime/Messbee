@@ -143,6 +143,30 @@ const resolveMessageType = (messageType, mediaType) => {
   return 'text';
 };
 
+// TEMP FIX - fix orphan chats where user field points to a non-existent user
+router.get("/debug/fix-orphans", async (req, res) => {
+  const User = require('../models/User');
+  // Find all chats with user set but teamMember = Unassigned
+  const orphanChats = await Chat.find({ teamMember: 'Unassigned', user: { $ne: null } });
+  let fixed = 0;
+  let cleared = 0;
+  for (const chat of orphanChats) {
+    const owner = await User.findById(chat.user).select('name');
+    if (owner) {
+      // Valid user — assign teamMember
+      chat.teamMember = owner.name;
+      await chat.save();
+      fixed++;
+    } else {
+      // Invalid/deleted user — clear the user field so it's truly unassigned
+      chat.user = null;
+      await chat.save();
+      cleared++;
+    }
+  }
+  res.json({ message: `Fixed ${fixed}, cleared ${cleared} orphan chats`, total: orphanChats.length });
+});
+
 // Protect all chat routes
 router.use(protect);
 
@@ -153,12 +177,20 @@ router.get("/", async (req, res) => {
     const limit = Math.min(100, parseInt(req.query.limit) || 50);
     const skip  = (page - 1) * limit;
 
-    const query = {
-      $or: [
-        { user: req.user.id },
-        { source: 'whatsapp' }
-      ]
-    };
+    let query = {};
+    if (req.user.role === 'ADMIN' || req.user.role === 'admin') {
+      query = {}; // Admins can see all chats
+    } else {
+      // Strict isolation: each user can ONLY see their own chats AND unassigned chats
+      query = {
+        $or: [
+          { user: req.user.id },
+          { teamMember: req.user.id },
+          { teamMember: req.user.name },
+          { teamMember: 'Unassigned' }
+        ]
+      };
+    }
 
     // Only return the fields the sidebar actually needs (keeps payload small)
     const projection = {
@@ -299,14 +331,24 @@ router.post("/", async (req, res) => {
 // 2. Get Messages for a specific Chat
 router.get("/messages/:chatId", async (req, res) => {
   try {
-    // Step 1: Verify this chat belongs to the user OR is a shared WhatsApp chat
-    const chat = await Chat.findOne({
-      _id: req.params.chatId,
-      $or: [
-        { user: req.user.id },
-        { source: 'whatsapp' }
-      ]
-    });
+    // Step 1: Verify this chat belongs to the requesting user
+    let chatQuery;
+    if (req.user.role === 'ADMIN' || req.user.role === 'admin') {
+      chatQuery = { _id: req.params.chatId };
+    } else {
+      chatQuery = {
+        _id: req.params.chatId,
+        $or: [
+          { user: req.user.id },
+          { teamMember: req.user.id },
+          { teamMember: req.user.name },
+          { teamMember: 'Unassigned' }
+        ]
+      };
+    }
+    console.log(`[DEBUG GET /messages] user: ${req.user.id} | name: "${req.user.name}" | role: ${req.user.role} | chatId: ${req.params.chatId}`);
+    const chat = await Chat.findOne(chatQuery);
+    console.log(`[DEBUG GET /messages] chat found: ${!!chat}${chat ? ` | chat.user: ${chat.user} | chat.teamMember: "${chat.teamMember}"` : ''}`);
     if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
 
@@ -328,14 +370,22 @@ router.post("/message", async (req, res) => {
   try {
 
 
-    // Get chat info and verify ownership (or shared WhatsApp access)
-    const chat = await Chat.findOne({
-      _id: chatId,
-      $or: [
-        { user: req.user.id },
-        { source: 'whatsapp' }
-      ]
-    });
+    // Get chat info and verify ownership — strict per-user access
+    let sendQuery;
+    if (req.user.role === 'ADMIN' || req.user.role === 'admin') {
+      sendQuery = { _id: chatId };
+    } else {
+      sendQuery = {
+        _id: chatId,
+        $or: [
+          { user: req.user.id },
+          { teamMember: req.user.id },
+          { teamMember: req.user.name },
+          { teamMember: 'Unassigned' }
+        ]
+      };
+    }
+    const chat = await Chat.findOne(sendQuery);
     if (!chat) {
       console.error(`❌ Chat not found or access denied: ${chatId}`);
       return res.status(404).json({ error: "Chat not found or access denied" });
@@ -495,12 +545,20 @@ router.post("/message", async (req, res) => {
         error: whatsappError ? JSON.stringify(whatsappError).substring(0, 200) : undefined
       });
 
-      // Update Chat metadata
-      await Chat.findByIdAndUpdate(chatId, {
+      // Update Chat metadata + auto-assign ownership if unassigned
+      const chatUpdateFields = {
         lastMsg: displayText || (media ? `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}` : ''),
         lastMsgTime: msgTime,
         lastActivity: new Date()
-      });
+      };
+      // Auto-assign the sending user as owner if the chat has no owner
+      if (!chat.user && req.user?.id) {
+        chatUpdateFields.user = req.user.id;
+      }
+      if (chat.teamMember === 'Unassigned' && req.user?.name) {
+        chatUpdateFields.teamMember = req.user.name;
+      }
+      await Chat.findByIdAndUpdate(chatId, chatUpdateFields);
 
       // Emit socket event to all clients in the chat room
       try {

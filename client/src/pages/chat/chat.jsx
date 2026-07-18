@@ -134,6 +134,14 @@ const Chat = () => {
 
       // Update sidebar chat preview
       setChats(prevChats => {
+        // PERMISSION CHECK: Don't add chat if user is not authorized
+        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && data.chat) {
+          const c = data.chat;
+          if (c.user !== user?.id && c.teamMember !== user?.id && c.teamMember !== user?.name && c.teamMember !== 'Unassigned') {
+            return prevChats;
+          }
+        }
+
         const idx = prevChats.findIndex(c => c._id?.toString() === incomingChatId);
         if (idx === -1) {
           if (!data.chat) return prevChats;
@@ -201,16 +209,28 @@ const Chat = () => {
 
     // ── SOCKET: chat metadata updated ───────────────────────────────────
     socketRef.current.on("chat_updated", (updatedChat) => {
-      setChats(prev =>
-        prev.map(c =>
+      setChats(prev => {
+        // PERMISSION CHECK
+        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && updatedChat) {
+          if (updatedChat.user !== user?.id && updatedChat.teamMember !== user?.id && updatedChat.teamMember !== user?.name && updatedChat.teamMember !== 'Unassigned') {
+            return prev.filter(c => c._id?.toString() !== updatedChat._id?.toString());
+          }
+        }
+        return prev.map(c =>
           c._id?.toString() === updatedChat._id?.toString() ? updatedChat : c
         )
-      );
+      });
     });
 
     // ── SOCKET: brand-new chat created via WhatsApp webhook ────────────
     socketRef.current.on("chat_created", (newChat) => {
       setChats(prev => {
+        // PERMISSION CHECK
+        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && newChat) {
+          if (newChat.user !== user?.id && newChat.teamMember !== user?.id && newChat.teamMember !== user?.name && newChat.teamMember !== 'Unassigned') {
+            return prev;
+          }
+        }
         const exists = prev.some(c => c._id?.toString() === newChat._id?.toString());
         if (exists) return prev;
         return [newChat, ...prev];
@@ -303,7 +323,7 @@ const Chat = () => {
 
   const filteredChats = useMemo(() => {
     switch (activeTab) {
-      case "Mine": return chats.filter((c) => c.teamMember === user?.id || c.teamMember === user?._id);
+      case "Mine": return chats.filter((c) => c.teamMember === user?.id || c.teamMember === user?._id || c.teamMember === user?.name);
       case "Open": return chats.filter((c) => c.chatStatus === "open");
       case "Closed": return chats.filter((c) => c.chatStatus === "closed");
       case "WhatsApp": return chats.filter((c) => c.source === "whatsapp");

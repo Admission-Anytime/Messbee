@@ -113,14 +113,18 @@ const ActivePlan = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
                {/* Left: Current Plan Details */}
-               <div className="lg:col-span-2 bg-white rounded-2xl p-8 border border-gray-100 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
-                  <div>
-                     <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Current Plan</p>
+               <div className="lg:col-span-2 bg-gradient-to-br from-emerald-600 to-teal-800 text-white rounded-3xl p-8 shadow-xl flex flex-col md:flex-row justify-between items-center gap-6 relative overflow-hidden">
+                  {/* Decorative background elements */}
+                  <div className="absolute -right-10 -top-10 w-48 h-48 bg-white opacity-10 rounded-full blur-3xl pointer-events-none"></div>
+                  <div className="absolute left-1/2 bottom-0 w-32 h-32 bg-emerald-400 opacity-20 rounded-full blur-2xl pointer-events-none"></div>
+                  
+                  <div className="relative z-10 w-full">
+                     <p className="text-xs font-bold text-emerald-100 uppercase tracking-wider mb-2">Current Plan</p>
                      <div className="flex items-center gap-3 mb-2">
-                        <h2 className="text-3xl font-extrabold text-slate-900">{planName} Plan</h2>
-                        <span className="bg-emerald-100 text-emerald-600 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">Active</span>
+                        <h2 className="text-4xl font-extrabold text-white">{planName} Plan</h2>
+                        <span className="bg-emerald-500/40 border border-emerald-400/40 text-emerald-50 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase backdrop-blur-sm shadow-sm">Active</span>
                      </div>
-                     <p className="text-xs text-slate-400 font-medium">
+                     <p className="text-xs text-emerald-100 font-medium opacity-90">
                         {isFreePlan
                            ? "Free plan — no expiry"
                            : `Expiry date: ${expiryStr || "—"}`}
@@ -128,19 +132,19 @@ const ActivePlan = () => {
                   </div>
 
                   {/* Days Remaining Box */}
-                  <div className="bg-slate-50 rounded-xl p-4 w-full md:w-48 text-center border border-slate-100">
+                  <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-5 w-full md:w-56 text-center border border-white/20 shadow-lg hover:-translate-y-1 transition-transform duration-300">
                      {isFreePlan ? (
                         <>
-                           <div className="text-4xl font-extrabold text-slate-400 mb-1">∞</div>
-                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Unlimited</div>
+                           <div className="text-5xl font-extrabold text-white mb-1 drop-shadow-md">∞</div>
+                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">Unlimited</div>
                         </>
                      ) : (
                         <>
-                           <div className="text-4xl font-extrabold text-emerald-500 mb-1">{daysRemaining}</div>
-                           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Days Remaining</div>
-                           <div className="w-full h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                           <div className="text-5xl font-extrabold text-white mb-1 drop-shadow-md">{daysRemaining}</div>
+                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">Days Remaining</div>
+                           <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden shadow-inner">
                               <div
-                                 className="h-full bg-emerald-400 rounded-full transition-all duration-500"
+                                 className="h-full bg-emerald-300 rounded-full transition-all duration-500"
                                  style={{ width: `${progressPct}%` }}
                               ></div>
                            </div>
@@ -150,17 +154,17 @@ const ActivePlan = () => {
                </div>
 
                {/* Right: WCC Balance */}
-               <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between">
+               <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
                   <div className="flex justify-between items-center mb-4">
-                     <span className="text-xs font-bold text-slate-400 uppercase">WCC Balance</span>
-                     <button onClick={handleAddCredit} className="text-[10px] font-bold text-emerald-500 hover:underline">WCC Pricing</button>
+                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">WCC Balance</span>
+                     <button onClick={handleAddCredit} className="text-[10px] font-bold text-emerald-500 hover:text-emerald-600 transition-colors bg-emerald-50 px-2.5 py-1 rounded-md">WCC Pricing</button>
                   </div>
-                  <div className="bg-slate-50 border border-slate-100 rounded-xl py-3 px-4 text-center mb-4">
-                     <span className="text-2xl font-extrabold text-slate-900">₹{credits.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <div className="bg-gradient-to-r from-slate-50 to-emerald-50/40 border border-slate-100 rounded-2xl py-5 px-4 text-center mb-5 flex-1 flex items-center justify-center">
+                     <span className="text-3xl font-extrabold bg-clip-text text-transparent bg-gradient-to-r from-slate-900 to-slate-700">₹{credits.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
                   <button
                      onClick={handleAddCredit}
-                     className="w-full py-2.5 bg-[#00B050] hover:bg-[#009b45] text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 text-sm shadow-md shadow-emerald-100"
+                     className="w-full py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2 text-sm shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-0.5 cursor-pointer"
                   >
                      <PlusIcon className="w-4 h-4" /> Add Credit
                   </button>
@@ -193,7 +197,7 @@ const ActivePlan = () => {
                      const strokeColor = isOver ? "#F97316" : item.color;
 
                      return (
-                        <div key={item.label} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center text-center hover:shadow-md transition-shadow">
+                        <div key={item.label} className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 flex flex-col items-center text-center hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group">
                            <div className="relative w-20 h-20 mb-3">
                               <svg className="w-20 h-20 -rotate-90" viewBox="0 0 80 80">
                                  <circle cx="40" cy="40" r="32" fill="none" stroke="#f1f5f9" strokeWidth="5" />
@@ -227,7 +231,7 @@ const ActivePlan = () => {
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                      {/* Campaigns */}
-                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-blue-100 transition-all duration-300">
                         <div className="flex items-start justify-between mb-3">
                            <h4 className="text-sm font-bold text-slate-800">Campaigns</h4>
                            <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">
@@ -245,7 +249,7 @@ const ActivePlan = () => {
                      </div>
 
                      {/* Chatbots */}
-                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+                     <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md hover:border-green-100 transition-all duration-300">
                         <div className="flex items-start justify-between mb-3">
                            <h4 className="text-sm font-bold text-slate-800">Chatbots</h4>
                            <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center">
@@ -266,8 +270,10 @@ const ActivePlan = () => {
                   </div>
 
                   {/* Commerce Hub */}
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-                     <div className="flex items-center justify-between mb-3">
+                  <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-all duration-300 relative overflow-hidden group">
+                     {/* Gloss effect */}
+                     <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-slate-50/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 -translate-x-full group-hover:translate-x-full pointer-events-none z-0"></div>
+                     <div className="relative z-10 flex items-center justify-between mb-3">
                         <div>
                            <h4 className="text-sm font-bold text-slate-800">Commerce Hub</h4>
                            <p className="text-[11px] text-slate-400">Status: <span className="italic">{limits?.commerceHub?.available ? 'Available' : 'Not available on your plan'}</span></p>
@@ -293,7 +299,7 @@ const ActivePlan = () => {
                      <h3 className="text-lg font-bold text-slate-900">Developer Tools</h3>
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-5">
+                  <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-6 space-y-5 hover:shadow-md transition-all duration-300">
                      {/* API Access toggle */}
                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -345,22 +351,22 @@ const ActivePlan = () => {
             {/* ═══════════════════════════════════════
            CONTACT MANAGEMENT BAR
            ═══════════════════════════════════════ */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-               <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center">
-                     <svg className="w-5 h-5 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 hover:shadow-md transition-shadow duration-300 mt-4">
+               <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-slate-50 flex items-center justify-center border border-slate-100">
+                     <svg className="w-6 h-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>
                   </div>
                   <div>
-                     <h4 className="text-sm font-bold text-slate-800">Contact Management</h4>
-                     <p className="text-[11px] text-slate-400">Import your list or export analytics for reporting.</p>
+                     <h4 className="text-base font-bold text-slate-800">Contact Management</h4>
+                     <p className="text-xs text-slate-500 mt-0.5">Import your list or export analytics for reporting.</p>
                   </div>
                </div>
                <div className="flex items-center gap-3">
-                  <button onClick={() => toast.info("Import feature coming soon")} className="px-5 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer flex items-center gap-2">
+                  <button onClick={() => toast.info("Import feature coming soon")} className="px-5 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer flex items-center gap-2 shadow-sm hover:shadow active:scale-95">
                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>
                      Import
                   </button>
-                  <button onClick={() => handleExport("Contacts")} className="px-5 py-2 rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50 hover:border-slate-300 transition-all cursor-pointer flex items-center gap-2">
+                  <button onClick={() => handleExport("Contacts")} className="px-5 py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800 transition-all cursor-pointer flex items-center gap-2 shadow-md hover:shadow-lg active:scale-95">
                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>
                      Export
                   </button>

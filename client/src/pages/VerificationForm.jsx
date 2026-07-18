@@ -80,7 +80,7 @@ const VerificationForm = () => {
     webhookUrl: "https://api.messbee.com/webhook/123456",
     verifyToken: "messbee_verify_token_123456",
     callbackUrl: "https://api.messbee.com/callback/123456",
-    apiBaseUrl: "https://graph.facebook.com/v19.0",
+    apiBaseUrl: import.meta.env.VITE_WHATSAPP_API_BASE_URL || "https://graph.facebook.com/v20.0",
   });
 
   // Section 4: Customer Details & KYC
@@ -793,9 +793,6 @@ const VerificationForm = () => {
                   <p className="text-[11px] text-slate-400 font-bold tracking-wide">
                     Provide details that match your WhatsApp Business Profile
                   </p>
-
-                  {/* Profile Image Drag-Drop */}
-                  <div>
                     <label className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 block mb-2">Profile Image</label>
                     <div className="relative flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-200 bg-[#FAFAFA] p-5 text-center hover:bg-slate-50 transition-colors cursor-pointer group">
                       <input 
@@ -1188,8 +1185,6 @@ const VerificationForm = () => {
 
             </div>
           </div>
-
-        </div>
 
       </main>
     </div>

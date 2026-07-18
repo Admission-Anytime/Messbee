@@ -28,8 +28,8 @@ export default function AwayMessageSettings({ onBack }) {
     const fetchData = async () => {
       try {
         const [settingsRes, automationsRes] = await Promise.all([
-          api.get('/settings'),
-          api.get('/automations')
+          api.get('/tenant-settings'),
+          api.get('/automation')
         ]);
         
         const settings = settingsRes.data;
@@ -64,7 +64,7 @@ export default function AwayMessageSettings({ onBack }) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await api.put('/settings', {
+      await api.put('/tenant-settings', {
         awayMessage: {
           enabled: isEnabled,
           timezone,

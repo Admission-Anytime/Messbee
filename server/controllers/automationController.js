@@ -6,7 +6,7 @@ const automationService = require('../services/automationService');
 exports.getAutomations = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
-    const automations = await Automation.find({ tenantId }).lean();
+    const automations = await Automation.find({ tenantId }).populate('channelId', 'name phoneNumber').lean();
     
     const flowIds = automations.map(a => a._id);
     const sessionStats = await CustomerSession.aggregate([

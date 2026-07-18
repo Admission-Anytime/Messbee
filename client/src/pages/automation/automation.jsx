@@ -45,7 +45,6 @@ const Automation = () => {
                     <AutomationLanding
                         onNavigateFlows={() => setCurrentView('flows')}
                         onCreateAutomation={handleCreateAutomation}
-                        onCreatePreconfigured={() => setIsAssignModalOpen(true)}
                         onNavigateWelcomeMessage={() => setCurrentView('welcome-message')}
                         onNavigateAwayMessage={() => setCurrentView('away-message')}
                         onNavigateFallbackMessage={() => setCurrentView('fallback-message')}
