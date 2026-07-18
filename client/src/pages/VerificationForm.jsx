@@ -24,6 +24,9 @@ import axios from "../context/axios";
 import logoIcon from "../assets/MessBee Logo.png";
 import logoName from "../assets/MessBee Name.png";
 
+// --- MODALS ---
+import ConnectWhatsAppModal from "../components/Modol/ConnectWhatsAppModal";
+
 const VerificationForm = () => {
   // --- Progress Tracking State ---
   const [completedSections, setCompletedSections] = useState({
@@ -32,6 +35,8 @@ const VerificationForm = () => {
     whatsapp: false,
     kyc: false,
   });
+
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const [savingSection, setSavingSection] = useState({
     company: false,
@@ -296,16 +301,7 @@ const VerificationForm = () => {
 
   const handleConnectMeta = () => {
     toast.info("Opening Meta Embedded Signup Flow...");
-    setTimeout(() => {
-      setMetaDetails(prev => ({
-        ...prev,
-        businessManagerId: "223787399712010",
-        whatsappAccountId: "304677762696190",
-        facebookPageId: "223787399712010",
-        metaAppId: "304677762696190",
-      }));
-      toast.success("Meta Details synchronized from Facebook Signup!");
-    }, 1000);
+    setIsWhatsAppModalOpen(true);
   };
 
   return (
@@ -1187,6 +1183,11 @@ const VerificationForm = () => {
           </div>
 
       </main>
+
+      <ConnectWhatsAppModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+      />
     </div>
   );
 };
