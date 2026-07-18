@@ -11,7 +11,7 @@ const Setting = require('../models/Setting');
  */
 class WhatsAppService {
   constructor() {
-    this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v18.0';
+    this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
     this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
@@ -402,10 +402,12 @@ class WhatsAppService {
       
 
       
+      const stats = fs.statSync(filePath);
       const formData = new FormData();
       formData.append('messaging_product', 'whatsapp');
       formData.append('file', fs.createReadStream(filePath), {
-        contentType: mimeType
+        contentType: mimeType,
+        knownLength: stats.size
       });
 
       const response = await axios.post(

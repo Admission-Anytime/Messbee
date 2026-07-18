@@ -65,6 +65,7 @@ const QuickReply = lazy(() => import("./pages/setting/QuickReply"));
 const ManageTeams = lazy(() => import("./pages/setting/ManageTeams"));
 const DevApi = lazy(() => import("./pages/setting/DevApi"));
 const AppIntegration = lazy(() => import("./pages/setting/AppIntegration"));
+const SettingsOnboarding = lazy(() => import("./pages/setting/Onboarding"));
 
 // --- LAZY LOADED COMMERCE PAGES ---
 const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
@@ -315,7 +316,7 @@ function App() {
             element={<AppIntegration />}
           />
           {/* 11. Settings */}
-          <Route path="/admin/settings/onboarding" element={<VerificationForm />} />
+          <Route path="/admin/settings/onboarding" element={<SettingsOnboarding />} />
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
           <Route path="/admin/settings/media" element={<Media />} />
           <Route path="/admin/settings/teams" element={<ManageTeams />} />

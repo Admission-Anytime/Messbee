@@ -168,7 +168,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
   const msgSummary       = msgData?.summary                ?? {};
   const msgSent          = msgSummary.totalSent            ?? 0;
   const msgDelivered     = msgSummary.totalDelivered       ?? 0;
-  const deliveryRate     = msgSent > 0 ? safe((msgDelivered / msgSent) * 100) : 96.5;
+  const deliveryRate     = msgSent > 0 ? safe((msgDelivered / msgSent) * 100) : 0;
 
   // campaign aggregates
   const overallStats     = campData?.summary?.overallStats ?? {};
@@ -194,7 +194,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
   // Growth score: composite of delivery + read + reply rates (0-100)
   const growthScore = Math.min(100, Math.round(
     (deliveryRate * 0.3) + (readRate * 0.4) + (replyRate * 0.3)
-  )) || 86;
+  )) || 0;
 
   // Campaign performance growth rate (how many active vs total)
   const currentGrowthRate  = totalCampaigns > 0 ? Math.round((activeCampaigns / totalCampaigns) * 100) : 0;
@@ -203,12 +203,12 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
 
   // Engagement stats for stat columns
   const engagementStats = [
-    { label: "Messages Sent", value: fmtNum(campSent || totalMessages), change: "+12%" },
-    { label: "Delivered",     value: fmtNum(campStats.totalDelivered || msgDelivered), change: `${fmtPct(deliveryRate - 11.8)}` },
-    { label: "Read",          value: fmtNum(campRead), change: `+${fmtPct(readRate - (readRate * 0.85), 0)}` },
-    { label: "Replies",       value: fmtNum(campReplied), change: `+${fmtPct(replyRate, 0)}` },
-    { label: "CTR",           value: fmtPct(readRate, 0), change: `+${(readRate * 0.05).toFixed(1)}pp` },
-    { label: "Response Rate", value: fmtPct(replyRate, 0), change: `+${(replyRate * 0.1).toFixed(1)}pp` },
+    { label: "Messages Sent", value: fmtNum(campSent || totalMessages), change: campSent > 0 ? "+12%" : "N/A" },
+    { label: "Delivered",     value: fmtNum(campStats.totalDelivered || msgDelivered), change: deliveryRate > 0 ? fmtPct(deliveryRate) : "N/A" },
+    { label: "Read",          value: fmtNum(campRead), change: readRate > 0 ? fmtPct(readRate) : "N/A" },
+    { label: "Replies",       value: fmtNum(campReplied), change: replyRate > 0 ? fmtPct(replyRate) : "N/A" },
+    { label: "CTR",           value: readRate > 0 ? fmtPct(readRate, 0) : "0%", change: readRate > 0 ? `+${(readRate * 0.05).toFixed(1)}pp` : "N/A" },
+    { label: "Response Rate", value: replyRate > 0 ? fmtPct(replyRate, 0) : "0%", change: replyRate > 0 ? `+${(replyRate * 0.1).toFixed(1)}pp` : "N/A" },
   ];
 
   // Funnel rows — derive dynamically
@@ -217,8 +217,8 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
     { label: "Delivered",     val: funnelDelivered.toLocaleString("en-IN"), pct: funnelSent > 0 ? Math.round((funnelDelivered/funnelSent)*95) : 92, color: "bg-[#3b82f6]", drop: funnelSent > 0 ? fmtPct(100 - (funnelDelivered/funnelSent)*100) : "3.5%" },
     { label: "Read",          val: funnelRead.toLocaleString("en-IN"), pct: funnelSent > 0 ? Math.round((funnelRead/funnelSent)*95) : 70, color: "bg-[#0d9488]", drop: funnelDelivered > 0 ? fmtPct(100 - (funnelRead/Math.max(funnelDelivered,1))*100) : "18.9%" },
     { label: "Replied",       val: funnelReplied.toLocaleString("en-IN"), pct: funnelSent > 0 ? Math.round((funnelReplied/funnelSent)*95) : 33, color: "bg-[#16a34a]", drop: funnelRead > 0 ? fmtPct(100 - (funnelReplied/Math.max(funnelRead,1))*100) : "55.9%" },
-    { label: "Leads",         val: Math.round(funnelReplied * 0.36).toLocaleString("en-IN"), pct: 15, color: "bg-[#15803d]", drop: funnelReplied > 0 ? "64.1%" : null },
-    { label: "Conversions",   val: Math.round(funnelReplied * 0.14).toLocaleString("en-IN"), pct: 12, color: "bg-[#f59e0b]", drop: "60.8%" },
+    { label: "Est. Leads",    val: Math.round(funnelReplied * 0.36).toLocaleString("en-IN"), pct: 15, color: "bg-[#15803d]", drop: funnelReplied > 0 ? "64.1%" : null },
+    { label: "Est. Conversions", val: Math.round(funnelReplied * 0.14).toLocaleString("en-IN"), pct: 12, color: "bg-[#f59e0b]", drop: funnelReplied > 0 ? "60.8%" : null },
   ];
 
   // Funnel summary pills
@@ -237,7 +237,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
       // If large, multiply by 10 to represent revenue proxy
       return maxVal < 500 ? vals : vals.map(v => v * 10);
     }
-    return [75000, 82000, 90000, 95000, 105000, 115000, 0, 0];
+    return [];
   })();
 
   const revenueChartCats = (() => {
@@ -275,7 +275,8 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
     };
 
     if (!convChartSeries.length) {
-      return fallback[chartPeriod];
+      // No real data available - return empty arrays for empty state
+      return { categories: [], marketing: [], utility: [], auth: [], service: [] };
     }
 
     const mkIdx = convChartSeries.findIndex(s => s.name === "MARKETING");
@@ -379,18 +380,18 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
         const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
         return months[parseInt(m)-1] || d.date;
       })
-    : ["Apr W1","Apr W2","Apr W3","Apr W4","May W1","May W2"];
+    : [];
 
-  const engagementSentData      = msgChartData.length > 0 ? msgChartData.slice(-6).map(d => d.sent      || 0) : [8500,8900,9400,9900,10600,12000];
-  const engagementDeliveredData = msgChartData.length > 0 ? msgChartData.slice(-6).map(d => d.delivered || 0) : [8400,8800,9300,9800,10550,11950];
+  const engagementSentData      = msgChartData.length > 0 ? msgChartData.slice(-6).map(d => d.sent      || 0) : [];
+  const engagementDeliveredData = msgChartData.length > 0 ? msgChartData.slice(-6).map(d => d.delivered || 0) : [];
   // smartYMax already defined above — use it here for the engagement chart
   const engagementYMax = smartYMax(engagementSentData);
 
   // Health indicators derived from real data
   const opportunityScore  = growthScore;
-  const campaignHealth    = totalCampaigns > 0 ? Math.min(100, Math.round((activeCampaigns / totalCampaigns) * 100 + 40)) : 78;
+  const campaignHealth    = totalCampaigns > 0 ? Math.min(100, Math.round((activeCampaigns / totalCampaigns) * 100 + 40)) : 0;
   const revenueHealth     = Math.min(100, Math.round(deliveryRate * 0.82));
-  const conversionScore   = Math.min(100, Math.round(replyRate * 1.5) || 71);
+  const conversionScore   = Math.min(100, Math.round(replyRate * 1.5) || 0);
 
   const healthBadge = (v) => v >= 80 ? "Excellent" : "Good";
 
@@ -532,7 +533,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                       </p>
                       {loading ? <Skeleton className="h-7 w-24" /> :
                         <p className="text-lg font-extrabold text-[#10B981] leading-tight">
-                          +₹{potentialRevIncrease > 0 ? potentialRevIncrease.toLocaleString("en-IN") : "1,25,000"}
+                          +₹{potentialRevIncrease > 0 ? potentialRevIncrease.toLocaleString("en-IN") : "0"}
                         </p>}
                     </div>
                     {/* Lead */}
@@ -729,7 +730,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                       <div className="flex items-center gap-1.5">
                         {loading ? <Skeleton className="h-7 w-16" /> : <>
                           <span className="text-lg font-extrabold text-slate-900">
-                            ₹{currentRevenue > 0 ? (currentRevenue >= 100000 ? `${(currentRevenue/100000).toFixed(2)}L` : currentRevenue.toLocaleString("en-IN")) : "1.18L"}
+                            ₹{currentRevenue > 0 ? (currentRevenue >= 100000 ? `${(currentRevenue/100000).toFixed(2)}L` : currentRevenue.toLocaleString("en-IN")) : "0"}
                           </span>
                           <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
                             <TrendingUp className="w-2.5 h-2.5" />+8%
@@ -741,7 +742,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                       <p className="text-[10px] text-slate-400 mb-0.5">Projected Revenue</p>
                       {loading ? <Skeleton className="h-5 w-16" /> :
                         <span className="text-base font-extrabold text-amber-600">
-                          ₹{projectedRevenue > 0 ? (projectedRevenue >= 100000 ? `${(projectedRevenue/100000).toFixed(2)}L` : projectedRevenue.toLocaleString("en-IN")) : "2.43L"}
+                          ₹{projectedRevenue > 0 ? (projectedRevenue >= 100000 ? `${(projectedRevenue/100000).toFixed(2)}L` : projectedRevenue.toLocaleString("en-IN")) : "0"}
                         </span>}
                     </div>
                     <div>
@@ -749,7 +750,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                       <div className="flex items-center gap-1.5">
                         {loading ? <Skeleton className="h-5 w-16" /> : <>
                           <span className="text-sm font-extrabold text-slate-900">
-                            +₹{potentialRevIncrease > 0 ? (potentialRevIncrease >= 100000 ? `${(potentialRevIncrease/100000).toFixed(2)}L` : potentialRevIncrease.toLocaleString("en-IN")) : "1.25L"}
+                            +₹{potentialRevIncrease > 0 ? (potentialRevIncrease >= 100000 ? `${(potentialRevIncrease/100000).toFixed(2)}L` : potentialRevIncrease.toLocaleString("en-IN")) : "0"}
                           </span>
                           <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-0.5">
                             <TrendingUp className="w-2.5 h-2.5" />+{potentialRevIncrease > 0 && currentRevenue > 0 ? Math.round((potentialRevIncrease/currentRevenue)*100) : 106}%
@@ -887,19 +888,20 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                       <p className="text-[10px] text-slate-500 font-medium mb-0.5">Current Revenue</p>
                       {loading ? <Skeleton className="h-7 w-24 mx-auto" /> :
                         <p className="text-xl font-extrabold text-[#059669]">
-                          ₹{currentRevenue > 0 ? currentRevenue.toLocaleString("en-IN") : "1,18,000"}
+                          ₹{currentRevenue > 0 ? currentRevenue.toLocaleString("en-IN") : "0"}
                         </p>}
                     </div>
                     <div className="bg-[#eff6ff] rounded-full px-5 py-2.5 text-center min-w-[120px]">
                       <p className="text-[10px] text-slate-500 font-medium mb-0.5">Projected Revenue</p>
                       {loading ? <Skeleton className="h-7 w-24 mx-auto" /> :
                         <p className="text-xl font-extrabold text-[#2563eb]">
-                          ₹{projectedRevenue > 0 ? projectedRevenue.toLocaleString("en-IN") : "1,68,000"}
+                          ₹{projectedRevenue > 0 ? projectedRevenue.toLocaleString("en-IN") : "0"}
                         </p>}
                     </div>
                     <div className="bg-[#faf5ff] rounded-full px-5 py-2.5 text-center min-w-[120px]">
                       <p className="text-[10px] text-slate-500 font-medium mb-0.5">Avg Order Value</p>
-                      <p className="text-xl font-extrabold text-[#a855f7]">₹2,430</p>
+                      <p className="text-xl font-extrabold text-[#a855f7]">₹{campSent > 0 && campReplied > 0 ? Math.round((overallStats.read || 0) / Math.max(campReplied, 1) * 100).toLocaleString("en-IN") : "—"}</p>
+                      <p className="text-[8px] text-slate-400 mt-0.5 italic">Estimated</p>
                     </div>
                   </div>
                 </div>
@@ -1014,7 +1016,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
 
                     {/* Top Regions */}
                     <div className="flex flex-col">
-                      <p className="text-[10px] text-slate-400 font-semibold mb-4 border-l border-slate-100 pl-4 -ml-4">Top Regions</p>
+                      <p className="text-[10px] text-slate-400 font-semibold mb-4 border-l border-slate-100 pl-4 -ml-4 flex items-center gap-2">Top Regions <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Sample data</span></p>
                       <div className="space-y-3.5 border-l border-slate-100 pl-4 -ml-4 flex-1">
                         {[
                           { name: "Maharashtra", val: "34%", color: "#10B981" },
@@ -1055,7 +1057,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                     <Clock className="w-4 h-4 text-[#10B981]" strokeWidth={2.5} />
                     <div>
                       <h2 className="text-base font-bold text-slate-900">Best Time to Send</h2>
-                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Engagement heatmap by day and hour</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium flex items-center gap-2">Engagement heatmap by day and hour <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Sample data</span></p>
                     </div>
                   </div>
 
@@ -1307,7 +1309,7 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                     <Zap className="w-4 h-4 text-[#10B981]" strokeWidth={2.5} />
                     <div>
                       <h2 className="text-base font-bold text-slate-900">Action Plan Center</h2>
-                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Prioritised tasks for maximum growth impact</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium flex items-center gap-2">Prioritised tasks for maximum growth impact <span className="text-[8px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">Estimated values</span></p>
                     </div>
                   </div>
 
@@ -1584,13 +1586,13 @@ const GrowthOpportunityAnalysis = ({ onBack }) => {
                     <p className="text-[10px] text-slate-400 mb-1">Revenue</p>
                     {loading ? <Skeleton className="h-6 w-16" /> :
                       <p className="text-lg font-extrabold text-slate-900">
-                        ₹{thisMonthRevenue > 0 ? (thisMonthRevenue >= 100000 ? `${(thisMonthRevenue/100000).toFixed(2)}L` : thisMonthRevenue.toLocaleString("en-IN")) : "1.18L"}
+                        ₹{thisMonthRevenue > 0 ? (thisMonthRevenue >= 100000 ? `${(thisMonthRevenue/100000).toFixed(2)}L` : thisMonthRevenue.toLocaleString("en-IN")) : "0"}
                       </p>}
                   </div>
                   <div>
                     <p className="text-[10px] text-slate-400 mb-1">Conversions</p>
                     {loading ? <Skeleton className="h-6 w-12" /> :
-                      <p className="text-lg font-extrabold text-slate-900">{thisMonthConversions || 486}</p>}
+                      <p className="text-lg font-extrabold text-slate-900">{thisMonthConversions}</p>}
                   </div>
                 </div>
               </div>

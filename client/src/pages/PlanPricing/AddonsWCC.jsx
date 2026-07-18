@@ -128,41 +128,43 @@ const AddonsWCC = () => {
             </div>
 
             {/* --- CARD 1: WCC CREDITS --- */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8">
-               <div className="flex flex-col md:flex-row justify-between items-start gap-6">
+            <div className="bg-white rounded-3xl border border-emerald-100 shadow-md shadow-emerald-500/5 p-8 relative overflow-hidden group hover:shadow-xl hover:shadow-emerald-500/10 transition-all duration-300">
+               <div className="absolute -top-20 -right-20 w-64 h-64 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-full blur-3xl opacity-60 group-hover:scale-125 transition-transform duration-700 pointer-events-none"></div>
+               
+               <div className="relative z-10 flex flex-col md:flex-row justify-between items-start gap-6">
                   <div className="space-y-3">
                      <div className="flex items-center gap-3">
-                        <h2 className="text-lg font-bold text-slate-900">WhatsApp Conversation Credit (WCC)</h2>
-                        <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-[10px] font-bold uppercase rounded-md">Popular</span>
+                        <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">WhatsApp Conversation Credit (WCC)</h2>
+                        <span className="px-2.5 py-1 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-600 text-[10px] font-black uppercase tracking-wider rounded-md border border-blue-100/50 shadow-sm">Popular</span>
                      </div>
-                     <p className="text-slate-500 text-sm max-w-lg leading-relaxed">
+                     <p className="text-slate-500 text-sm max-w-lg leading-relaxed font-medium">
                         Top up your account balance to ensure uninterrupted messaging for your WhatsApp campaigns.
                      </p>
-                     <button className="text-emerald-500 text-xs font-bold hover:underline">View WCC Pricing ↗</button>
+                     <button className="text-emerald-500 text-xs font-bold hover:text-emerald-600 transition-colors inline-flex items-center gap-1">View WCC Pricing <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M7 17l9.2-9.2M17 17V7H7"/></svg></button>
                   </div>
                </div>
 
-               <div className="mt-8 bg-slate-50 rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-6">
+               <div className="relative z-10 mt-8 bg-gradient-to-r from-slate-50 to-slate-50/50 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-between gap-6 border border-slate-100">
                   <div className="flex items-center gap-6">
                      <div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Available Credit</span>
-                        <div className="text-3xl font-extrabold text-slate-900 flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Available Credit</span>
+                        <div className="text-3xl font-black text-slate-900 flex items-center gap-2 mt-1">
                            {formatCurrency(balance)}
-                           <span className="bg-emerald-100 text-emerald-600 p-1 rounded-md"><CurrencyRupeeIcon className="w-4 h-4" /></span>
+                           <span className="bg-emerald-100/80 text-emerald-600 p-1.5 rounded-lg shadow-sm"><CurrencyRupeeIcon className="w-4 h-4" /></span>
                         </div>
                      </div>
-                     <div className="hidden md:block w-px h-12 bg-gray-200"></div>
-                     <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-orange-100 shadow-sm">
-                        <span className="text-lg">🎁</span>
-                        <span className="text-xs font-medium text-slate-600">Get WCC as cashback. <button className="text-emerald-600 font-bold hover:underline">Learn more</button></span>
+                     <div className="hidden md:block w-px h-12 bg-slate-200/60"></div>
+                     <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-full border border-orange-100 shadow-sm hover:shadow-md transition-shadow cursor-pointer">
+                        <span className="text-xl drop-shadow-sm">🎁</span>
+                        <span className="text-xs font-semibold text-slate-600">Get WCC as cashback. <span className="text-emerald-600 font-bold hover:underline">Learn more</span></span>
                      </div>
                   </div>
 
                   <button
                      onClick={() => setIsModalOpen(true)}
-                     className="px-6 py-2.5 bg-[#00B050] hover:bg-[#009b45] text-white text-sm font-bold rounded-lg shadow-lg shadow-emerald-100 transition-all flex items-center gap-2"
+                     className="px-8 py-3.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 transition-all flex items-center gap-2 group/btn"
                   >
-                     <CurrencyRupeeIcon className="w-4 h-4" /> Add Credit
+                     <CurrencyRupeeIcon className="w-5 h-5 group-hover/btn:scale-110 transition-transform" /> Add Credit
                   </button>
                </div>
             </div>
@@ -256,15 +258,15 @@ const AddonsWCC = () => {
                               <button
                                  key={amt}
                                  onClick={() => { setSelectedAmount(amt); setCustomAmount(""); }}
-                                 className={`relative py-3 rounded-xl border flex flex-col items-center justify-center transition-all
+                                 className={`relative py-4 rounded-xl border flex flex-col items-center justify-center transition-all duration-300 cursor-pointer
                                ${selectedAmount === amt && !customAmount
-                                       ? "border-emerald-500 bg-emerald-50 text-emerald-700 ring-1 ring-emerald-500"
-                                       : "border-gray-200 hover:border-emerald-300 hover:bg-slate-50"
+                                       ? "border-emerald-500 bg-emerald-50/60 text-emerald-700 ring-2 ring-emerald-500 shadow-md scale-105 z-10"
+                                       : "border-slate-200 hover:border-emerald-300 hover:bg-slate-50 hover:-translate-y-1"
                                     }`}
                               >
-                                 {amt === 5000 && <span className="absolute -top-2 bg-emerald-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">BEST VALUE</span>}
-                                 <span className="text-lg font-bold">₹{amt}</span>
-                                 <span className="text-[9px] font-medium opacity-60 uppercase">{amt === 500 ? "Standard" : amt === 1000 ? "Professional" : "Enterprise"}</span>
+                                 {amt === 5000 && <span className="absolute -top-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-[9px] font-black px-2 py-0.5 rounded-full shadow-sm tracking-wider">BEST VALUE</span>}
+                                 <span className="text-xl font-extrabold">₹{amt}</span>
+                                 <span className="text-[9px] font-bold opacity-70 uppercase tracking-widest mt-1">{amt === 500 ? "Standard" : amt === 1000 ? "Pro" : "Enterprise"}</span>
                               </button>
                            ))}
                         </div>
@@ -333,10 +335,10 @@ const AddonsWCC = () => {
                      <button
                         onClick={handlePayment}
                         disabled={finalAmount < 100}
-                        className={`w-full py-3.5 text-white font-bold rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 ${
+                        className={`w-full py-4 text-white font-bold rounded-2xl shadow-lg transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
                            finalAmount < 100
-                              ? "bg-slate-300 shadow-none cursor-not-allowed"
-                              : "bg-[#00B050] hover:bg-[#009b45] shadow-emerald-200"
+                              ? "bg-slate-300 shadow-none cursor-not-allowed text-slate-500"
+                              : "bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5"
                         }`}
                      >
                         Confirm & Pay

@@ -251,3 +251,81 @@ export const CrmSyncModal = ({ onClose }) => {
     </div>
   );
 };
+
+export const ChannelAssignmentModal = ({ onClose }) => {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [channels, setChannels] = useState([]);
+  const [selectedChannelId, setSelectedChannelId] = useState('');
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [channelsRes, settingsRes] = await Promise.all([
+          api.get('/whatsapp/channels'),
+          api.get('/tenant-settings')
+        ]);
+        setChannels(channelsRes.data || []);
+        if (settingsRes.data && settingsRes.data.defaultChannelId) {
+          setSelectedChannelId(settingsRes.data.defaultChannelId);
+        } else if (channelsRes.data && channelsRes.data.length > 0) {
+          setSelectedChannelId(channelsRes.data[0]._id);
+        }
+        setLoading(false);
+      } catch (e) {
+        console.error(e);
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await api.put('/tenant-settings', { defaultChannelId: selectedChannelId });
+      toast.success('Default channel saved successfully');
+      onClose();
+    } catch (e) {
+      console.error(e);
+      alert('Failed to save default channel');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return null;
+
+  return (
+    <div style={modalOverlayStyle}>
+      <div style={modalContainerStyle}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#111827' }}>Default Channel Assignment</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer' }}><X size={20} color="#6B7280" /></button>
+        </div>
+        
+        <div>
+          <label style={labelStyle}>Select Default WhatsApp Channel</label>
+          <select style={inputStyle} value={selectedChannelId} onChange={e => setSelectedChannelId(e.target.value)}>
+            <option value="" disabled>Select a channel</option>
+            {channels.map(channel => (
+              <option key={channel._id} value={channel._id}>
+                {channel.name} ({channel.phoneNumber})
+              </option>
+            ))}
+          </select>
+          <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '-10px' }}>
+            This channel will be automatically assigned to new automations and fallback messages.
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+          <button onClick={handleSave} disabled={saving} style={{...buttonStyle, opacity: saving ? 0.7 : 1}}>
+            <Save size={16} /> {saving ? 'Saving...' : 'Save Default Channel'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+

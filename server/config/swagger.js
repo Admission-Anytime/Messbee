@@ -22,7 +22,7 @@ const options = {
         description: 'Development server'
       },
       {
-        url: 'https://webservices.messbee.com',
+        url: process.env.PRODUCTION_API_URL || 'https://webservices.messbee.com',
         description: 'Production server'
       }
     ],
@@ -212,6 +212,18 @@ const options = {
               type: 'object'
             }
           }
+        },
+        Automation: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            name: { type: 'string', example: 'Welcome Flow' },
+            nodes: { type: 'array' },
+            edges: { type: 'array' },
+            channelId: { type: 'string' },
+            tenantId: { type: 'string' },
+            createdAt: { type: 'string', format: 'date-time' }
+          }
         }
       }
     },
@@ -244,7 +256,138 @@ const options = {
         name: 'Automation',
         description: 'Automation workflow management'
       }
-    ]
+    ],
+    paths: {
+      '/api/automations': {
+        get: {
+          summary: 'Get all automations',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'List of automations with stats' }
+          }
+        },
+        post: {
+          summary: 'Create a new automation',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Automation' }
+              }
+            }
+          },
+          responses: {
+            201: { description: 'Created automation successfully' }
+          }
+        }
+      },
+      '/api/automations/activity': {
+        get: {
+          summary: 'Get activity log for automations',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Activity log of customer sessions' }
+          }
+        }
+      },
+      '/api/automations/{id}/test': {
+        post: {
+          summary: 'Test an automation workflow',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { phoneNumber: { type: 'string', description: 'Phone number to test the automation with' } }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: 'Test triggered successfully' } }
+        }
+      },
+      '/api/automations/{id}/simulate/start': {
+        post: {
+          summary: 'Start a simulation for an automation',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: { simulatorPhone: { type: 'string' } }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: 'Simulation started' } }
+        }
+      },
+      '/api/automations/{id}/simulate/message': {
+        post: {
+          summary: 'Send a simulated message',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    channelId: { type: 'string' },
+                    simulatorPhone: { type: 'string' },
+                    message: { type: 'string' }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: 'Simulated message sent' } }
+        }
+      },
+      '/api/automations/{id}': {
+        get: {
+          summary: 'Get automation by ID',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          responses: { 200: { description: 'Automation details' } }
+        },
+        put: {
+          summary: 'Update an automation',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: { $ref: '#/components/schemas/Automation' }
+              }
+            }
+          },
+          responses: { 200: { description: 'Updated automation' } }
+        },
+        delete: {
+          summary: 'Delete an automation',
+          tags: ['Automation'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
+          responses: { 200: { description: 'Automation deleted' } }
+        }
+      }
+    }
   },
   apis: ['./routes/*.js', './server.js']
 };

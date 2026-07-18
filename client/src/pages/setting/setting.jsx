@@ -54,6 +54,7 @@ export const items = [
     null,
     [
       getItem("WhatsApp Api No.", "wapi", <MessageCircle className="w-4 h-4" />),
+      getItem("Onboarding", "onboarding", <FolderKanban className="w-4 h-4" />),
       getItem("Templates", "templates", <Split className="w-4 h-4" />),
       getItem("Template Gallery", "templates-gallery", <Layers className="w-4 h-4" />),
       getItem("Media", "media", <FileImage className="w-4 h-4" />),

@@ -207,17 +207,17 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
   return (
     <div>
       {/* Tabs */}
-      <div className="flex border-b border-slate-200 mb-4">
+      <div className="flex bg-slate-100/70 p-1 rounded-xl mb-5">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold transition-all cursor-pointer border-b-2 -mb-px ${activeTab === tab.id
-              ? "border-emerald-500 text-emerald-600"
-              : "border-transparent text-slate-400 hover:text-slate-600"
+            className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-xs font-bold transition-all duration-300 cursor-pointer rounded-lg ${activeTab === tab.id
+              ? "bg-white text-emerald-600 shadow-sm border border-slate-200/50"
+              : "text-slate-500 hover:text-slate-700 hover:bg-slate-200/50"
               }`}
           >
-            <span className="w-3.5 h-3.5 flex-shrink-0">{tab.icon}</span>
+            <span className={`w-4 h-4 flex-shrink-0 transition-colors ${activeTab === tab.id ? 'text-emerald-500' : 'text-slate-400'}`}>{tab.icon}</span>
             <span className="hidden sm:inline">{tab.label}</span>
           </button>
         ))}
@@ -334,10 +334,11 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
       {/* Pay button */}
       <button
         onClick={onPay}
-        className="w-full mt-6 py-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-base transition-all shadow-lg shadow-emerald-200 cursor-pointer flex items-center justify-center gap-2"
+        className="w-full mt-6 py-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-bold text-base transition-all duration-300 shadow-xl shadow-emerald-500/30 hover:shadow-emerald-500/50 hover:-translate-y-0.5 cursor-pointer flex items-center justify-center gap-2 relative overflow-hidden group"
       >
-        <Lock className="w-4 h-4" />
-        Pay &amp; Upgrade Now - ${totalDue.toFixed(2)}
+        <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+        <Lock className="w-4 h-4 relative z-10" />
+        <span className="relative z-10">Pay &amp; Upgrade Now - ₹{totalDue.toFixed(2)}</span>
       </button>
 
       {/* Secured by logos */}
@@ -507,8 +508,10 @@ const InvoicePreview = ({ plan, billingCycle, txnId, subtotal, gstAmount, totalI
   return (
     <div className="bg-[#F0F2F5] font-['Urbanist'] min-h-[calc(100vh-120px)] flex flex-col">
       {/* Scrollable invoice area */}
-      <div className="flex-1 overflow-y-auto py-8 px-4 flex justify-center">
-        <div className="bg-white rounded-2xl shadow-sm w-full max-w-3xl p-10 md:p-14">
+      <div className="flex-1 overflow-y-auto py-10 px-4 flex justify-center bg-slate-50/50">
+        <div className="bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-100 w-full max-w-3xl p-10 md:p-14 relative overflow-hidden transition-all">
+          {/* Subtle top decoration */}
+          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-teal-500"></div>
 
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
