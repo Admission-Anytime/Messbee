@@ -346,9 +346,7 @@ router.get("/messages/:chatId", async (req, res) => {
         ]
       };
     }
-    console.log(`[DEBUG GET /messages] user: ${req.user.id} | name: "${req.user.name}" | role: ${req.user.role} | chatId: ${req.params.chatId}`);
     const chat = await Chat.findOne(chatQuery);
-    console.log(`[DEBUG GET /messages] chat found: ${!!chat}${chat ? ` | chat.user: ${chat.user} | chat.teamMember: "${chat.teamMember}"` : ''}`);
     if (!chat) return res.status(404).json({ error: "Chat not found or access denied" });
 
 

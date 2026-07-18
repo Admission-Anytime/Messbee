@@ -52,7 +52,7 @@ exports.testConnection = async (req, res, next) => {
 // @access  Private
 exports.connectOAuthToken = async (req, res, next) => {
   try {
-    const { code } = req.body;
+    const { code, wabaId: clientWabaId, phoneNumberId: clientPhoneNumberId } = req.body;
     if (!code) {
       return res.status(400).json({ success: false, message: 'OAuth code is required' });
     }
@@ -77,25 +77,29 @@ exports.connectOAuthToken = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid Meta access token' });
     }
     
-    let wabaId = null;
-    try {
-        // Attempt to auto-fetch the first WhatsApp Business Account ID associated with the user's businesses
-        const bizRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/me/businesses?access_token=${accessToken}`);
-        if (bizRes.data && bizRes.data.data && bizRes.data.data.length > 0) {
-            const bizId = bizRes.data.data[0].id;
-            const wabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/owned_whatsapp_business_accounts?access_token=${accessToken}`);
-            if (wabaRes.data && wabaRes.data.data && wabaRes.data.data.length > 0) {
-                wabaId = wabaRes.data.data[0].id;
-            } else {
-               // Also check client_whatsapp_business_accounts
-               const clientWabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/client_whatsapp_business_accounts?access_token=${accessToken}`);
-               if (clientWabaRes.data && clientWabaRes.data.data && clientWabaRes.data.data.length > 0) {
-                  wabaId = clientWabaRes.data.data[0].id;
-               }
-            }
-        }
-    } catch (e) {
-        console.error("Could not auto-fetch WABA ID", e.response?.data || e.message);
+    let wabaId = clientWabaId || null;
+    let phoneNumberId = clientPhoneNumberId || null;
+    
+    if (!wabaId) {
+      try {
+          // Attempt to auto-fetch the first WhatsApp Business Account ID associated with the user's businesses
+          const bizRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/me/businesses?access_token=${accessToken}`);
+          if (bizRes.data && bizRes.data.data && bizRes.data.data.length > 0) {
+              const bizId = bizRes.data.data[0].id;
+              const wabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/owned_whatsapp_business_accounts?access_token=${accessToken}`);
+              if (wabaRes.data && wabaRes.data.data && wabaRes.data.data.length > 0) {
+                  wabaId = wabaRes.data.data[0].id;
+              } else {
+                 // Also check client_whatsapp_business_accounts
+                 const clientWabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/client_whatsapp_business_accounts?access_token=${accessToken}`);
+                 if (clientWabaRes.data && clientWabaRes.data.data && clientWabaRes.data.data.length > 0) {
+                    wabaId = clientWabaRes.data.data[0].id;
+                 }
+              }
+          }
+      } catch (e) {
+          console.error("Could not auto-fetch WABA ID", e.response?.data || e.message);
+      }
     }
 
     const Setting = require('../models/Setting');
@@ -109,7 +113,8 @@ exports.connectOAuthToken = async (req, res, next) => {
     setting.value = {
         ...setting.value,
         accessToken: accessToken,
-        businessAccountId: wabaId || setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+        businessAccountId: wabaId || setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
     };
     
     await setting.save();
@@ -118,11 +123,13 @@ exports.connectOAuthToken = async (req, res, next) => {
     const whatsappService = require('../services/whatsappService');
     whatsappService.accessToken = accessToken;
     if (wabaId) whatsappService.businessAccountId = wabaId;
+    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
 
     res.status(200).json({
       success: true,
       message: 'WhatsApp account connected successfully',
       wabaId: wabaId,
+      phoneNumberId: phoneNumberId,
       metaUserId: userRes.data.id
     });
 
@@ -132,6 +139,56 @@ exports.connectOAuthToken = async (req, res, next) => {
       success: false,
       message: 'Failed to connect WhatsApp account via OAuth',
       error: error.response?.data?.error?.message || error.message
+    });
+  }
+};
+
+// @desc    Connect Manually via Tokens
+// @route   POST /api/whatsapp/connect-manual
+// @access  Private
+exports.connectManual = async (req, res, next) => {
+  try {
+    const { wabaId, accessToken, phoneNumberId } = req.body;
+    if (!wabaId || !accessToken) {
+      return res.status(400).json({ success: false, message: 'WABA ID and Access Token are required' });
+    }
+
+    const Setting = require('../models/Setting');
+    
+    // Save token and WABA ID to settings
+    let setting = await Setting.findOne({ key: 'whatsapp_config' });
+    if (!setting) {
+        setting = new Setting({ key: 'whatsapp_config', value: {} });
+    }
+    
+    setting.value = {
+        ...setting.value,
+        accessToken: accessToken,
+        businessAccountId: wabaId,
+        phoneNumberId: phoneNumberId || setting.value.phoneNumberId
+    };
+    
+    await setting.save();
+    
+    // Update service config in memory
+    const whatsappService = require('../services/whatsappService');
+    whatsappService.accessToken = accessToken;
+    whatsappService.businessAccountId = wabaId;
+    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
+
+    res.status(200).json({
+      success: true,
+      message: 'WhatsApp account connected manually successfully',
+      wabaId: wabaId,
+      phoneNumberId: phoneNumberId
+    });
+
+  } catch (error) {
+    console.error('Manual Connection Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to connect WhatsApp account manually',
+      error: error.message
     });
   }
 };
