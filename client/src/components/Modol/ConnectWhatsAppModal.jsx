@@ -66,6 +66,26 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
     const configId = import.meta.env.VITE_META_CONFIG_ID || "3478777475636588";
 
+    // Setup listener for Embedded Signup v2 session info
+    const sessionInfoListener = (event) => {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
+        return;
+      }
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
+          const { phone_number_id, waba_id } = data.data;
+          window.lastMetaSessionInfo = { phone_number_id, waba_id };
+          console.log("Captured Meta Session Info:", window.lastMetaSessionInfo);
+        }
+      } catch (error) {
+        // Ignore non-JSON messages
+      }
+    };
+    
+    window.addEventListener("message", sessionInfoListener);
+
+
     window.FB.login(
       (response) => {
         if (response.authResponse) {
@@ -74,28 +94,40 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
           if (code) {
             setIsConnecting(true);
             
-            // Run async API call inside normal function
-            api.post('/whatsapp/connect-oauth', { code })
-              .then((res) => {
-                if (res.data?.success) {
-                  toast.success("WhatsApp Business Account connected successfully!");
-                  onClose();
-                } else {
-                  toast.error(res.data?.message || "Failed to connect WhatsApp account");
-                }
+            // Wait briefly to ensure message event is processed
+            setTimeout(() => {
+              const sessionInfo = window.lastMetaSessionInfo || {};
+              window.removeEventListener("message", sessionInfoListener);
+              window.lastMetaSessionInfo = null;
+
+              api.post('/whatsapp/connect-oauth', { 
+                code,
+                wabaId: sessionInfo.waba_id,
+                phoneNumberId: sessionInfo.phone_number_id
               })
-              .catch((err) => {
-                console.error("Error connecting OAuth:", err);
-                toast.error(err.response?.data?.message || "Error connecting WhatsApp account");
-              })
-              .finally(() => {
-                setIsConnecting(false);
-              });
+                .then((res) => {
+                  if (res.data?.success) {
+                    toast.success("WhatsApp Business Account connected successfully!");
+                    onClose();
+                  } else {
+                    toast.error(res.data?.message || "Failed to connect WhatsApp account");
+                  }
+                })
+                .catch((err) => {
+                  console.error("Error connecting OAuth:", err);
+                  toast.error(err.response?.data?.message || "Error connecting WhatsApp account");
+                })
+                .finally(() => {
+                  setIsConnecting(false);
+                });
+            }, 500);
           } else {
              alert("Authenticated, but no code received.");
+             window.removeEventListener("message", sessionInfoListener);
           }
         } else {
           console.log("User cancelled login or did not fully authorize.");
+          window.removeEventListener("message", sessionInfoListener);
         }
       },
       {
@@ -122,17 +154,23 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
     setIsConnecting(true);
 
     try {
-      // TODO: Call your API to save WABA credentials
-      // await WhatsAppApi.connectAccount({ wabaId, accessToken });
-      console.log("Connecting with:", { wabaId, accessToken });
-      
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      
-      alert("WhatsApp Business Account connected successfully!");
-      onClose();
+      const res = await api.post('/whatsapp/connect-manual', { 
+        wabaId, 
+        accessToken
+      });
+
+      if (res.data?.success) {
+        toast.success("WhatsApp Business Account connected manually!");
+        onClose();
+      } else {
+        toast.error(res.data?.message || "Failed to connect WhatsApp account");
+        setError(res.data?.message || "Connection failed");
+      }
     } catch (err) {
-      setError(err.message || "Connection failed. Please check your credentials.");
+      console.error("Error connecting manually:", err);
+      const errorMessage = err.response?.data?.message || "Error connecting WhatsApp account manually. Please check your credentials.";
+      toast.error(errorMessage);
+      setError(errorMessage);
     } finally {
       setIsConnecting(false);
     }
