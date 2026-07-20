@@ -165,8 +165,6 @@ export default function MapFields() {
     }
   }, [file, headers.length, navigate]);
 
-  if (!file || !headers.length) return null;
-
   // ── Initial mappings via smart-match ──────────────────────────────────────────
   const initialMappings = useMemo(() => {
     const result = {};
@@ -201,6 +199,8 @@ export default function MapFields() {
     setMappings(initialMappings.result);
     setAutoFlags(initialMappings.autoFlags);
   }, [initialMappings]);
+
+  if (!file || !headers.length) return null;
 
   // ── Get sample values for a header ────────────────────────────────────────────
   const getSample = (header) => {

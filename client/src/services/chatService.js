@@ -520,24 +520,7 @@ const chatService = {
     }
   },
 
-  /**
-   * Delete a chat
-   */
-  async deleteChat(chatId) {
-    try {
-      const response = await axios.delete(`/chats/${chatId}`);
-      return {
-        success: true,
-        data: response.data
-      };
-    } catch (error) {
-      console.error('Error deleting chat:', error);
-      return {
-        success: false,
-        error: error.response?.data?.message || error.message
-      };
-    }
-  }
+
 };
 
 export default chatService;

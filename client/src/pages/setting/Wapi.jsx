@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect, useContext } from "react";
+import { useState, useRef, useContext } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
-import axios from "../../context/axios";
 import { userContext } from "../../context/Context";
 import { Lock } from "lucide-react";
+import HealthDiagnosticModal from "../../components/Modol/HealthDiagnosticModal";
+import TestConnectionModal from "../../components/Modol/TestConnectionModal";
+import { useWhatsAppConfig } from "../../hooks/useWhatsAppConfig";
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
 function Toggle({ enabled, onChange }) {
@@ -81,412 +83,7 @@ function Spinner() {
   );
 }
 
-// ─── Health Diagnostic Modal ───────────────────────────────────────────────────
-const ENDPOINTS = [
-  { id: "msg",      icon: "💬", label: "Send Message API",     path: "/v1/messages",           latency: null, status: "WAITING", enabled: true  },
-  { id: "media",    icon: "🖼️", label: "Media Upload",         path: "/v1/media",              latency: null, status: "WAITING", enabled: true  },
-  { id: "template", icon: "📄", label: "Template Management",  path: "/v1/message_templates",  latency: null, status: "WAITING", enabled: true  },
-  { id: "analytic", icon: "📊", label: "Analytics Fetch",      path: "/v1/business_analytics", latency: null, status: "DISABLED", enabled: false },
-];
 
-
-function HealthDiagnosticModal({ open, onClose }) {
-  const [running, setRunning] = useState(false);
-  const [revealed, setRevealed] = useState([]);
-  const [score, setScore] = useState(0);
-  const [scoreDisplay, setScoreDisplay] = useState(0);
-  const [lastChecked, setLastChecked] = useState("Just Now");
-  const [done, setDone] = useState(false);
-
-  const runDiagnostic = () => {
-    setRunning(true);
-    setRevealed([]);
-    setScore(0);
-    setScoreDisplay(0);
-    setDone(false);
-
-    // Reveal endpoints one by one
-    ENDPOINTS.forEach((ep, idx) => {
-      setTimeout(() => {
-        setRevealed((prev) => [...prev, ep.id]);
-        if (idx === ENDPOINTS.length - 1) {
-          // animate score counter
-          const finalScore = 100;
-          let current = 0;
-          const step = () => {
-            current = Math.min(current + 4, finalScore);
-            setScoreDisplay(current);
-            if (current < finalScore) requestAnimationFrame(step);
-            else { setScore(100); setDone(true); setRunning(false); setLastChecked("Just Now"); }
-          };
-          requestAnimationFrame(step);
-        }
-      }, (idx + 1) * 600);
-    });
-  };
-
-  useEffect(() => {
-    if (open) runDiagnostic();
-    else { setRevealed([]); setScore(0); setScoreDisplay(0); setDone(false); setRunning(false); }
-  }, [open]);
-
-  const handleExportDiagnostic = () => {
-    const report = {
-      generatedAt: new Date().toISOString(),
-      overallScore: score,
-      environment: "Production",
-      endpoints: ENDPOINTS.map((ep) => ({
-        name: ep.label,
-        path: ep.path,
-        latency: ep.latency ? `${ep.latency}ms` : "N/A",
-        status: ep.status,
-        enabled: ep.enabled,
-      })),
-    };
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "diagnostic-report.json" });
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast.success("Diagnostic report exported!");
-  };
-
-  if (!open) return null;
-
-  // SVG circular arc
-  const R = 60, C = 2 * Math.PI * R;
-  const arcOffset = C - (scoreDisplay / 100) * C;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4" style={{ animation: "popIn 0.25s ease" }}>
-
-        {/* Header */}
-        <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-lg font-bold text-gray-900">Connection Health Diagnostic</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Deep-link technical verification for WhatsApp Business API</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition text-xl leading-none">×</button>
-        </div>
-
-        {/* Body — two columns */}
-        <div className="flex divide-x divide-gray-100">
-
-          {/* Left — Score */}
-          <div className="w-64 flex-shrink-0 p-6 flex flex-col items-center">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-6">Overall Score</p>
-
-            {/* Circular score */}
-            <div className="relative w-36 h-36 mb-6">
-              <svg className="w-36 h-36 -rotate-90" viewBox="0 0 140 140">
-                <circle cx="70" cy="70" r={R} fill="none" stroke="#e5e7eb" strokeWidth="8" />
-                <circle
-                  cx="70" cy="70" r={R}
-                  fill="none"
-                  stroke="#22c55e"
-                  strokeWidth="8"
-                  strokeLinecap="round"
-                  strokeDasharray={C}
-                  strokeDashoffset={arcOffset}
-                  style={{ transition: "stroke-dashoffset 0.05s linear" }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-gray-900">{scoreDisplay}%</span>
-                <span className={`text-xs font-bold mt-0.5 tracking-wider ${done ? "text-green-500" : "text-gray-400"}`}>
-                  {done ? "READY" : "CHECKING..."}
-                </span>
-              </div>
-            </div>
-
-            {/* Info pills */}
-            <div className="w-full space-y-2 mb-5">
-              {[
-                { label: "Environment", value: "Production" },
-                { label: "Last Checked",  value: lastChecked  },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex items-center justify-between border border-gray-200 rounded-xl px-3 py-2">
-                  <span className="text-xs text-gray-500 font-medium">{label}</span>
-                  <span className="text-xs font-bold text-gray-800">{value}</span>
-                </div>
-              ))}
-            </div>
-
-            {done && (
-              <p className="text-xs text-gray-400 text-center italic leading-relaxed">
-                All systems are operational. Latency is within acceptable thresholds for business messaging.
-              </p>
-            )}
-          </div>
-
-          {/* Right — Endpoint list */}
-          <div className="flex-1 p-6">
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Endpoint Latency &amp; Status</p>
-            <div className="space-y-3">
-              {ENDPOINTS.map((ep) => {
-                const isRevealed = revealed.includes(ep.id);
-                return (
-                  <div
-                    key={ep.id}
-                    className={`flex items-center justify-between border rounded-xl px-4 py-3 transition-all duration-500 ${
-                      isRevealed ? "border-gray-100 bg-gray-50 opacity-100" : "border-transparent bg-transparent opacity-0"
-                    }`}
-                    style={{ transform: isRevealed ? "translateY(0)" : "translateY(8px)" }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-white border border-gray-200 flex items-center justify-center text-base shadow-sm">
-                        {ep.icon}
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-gray-800">{ep.label}</p>
-                        <p className="text-xs text-gray-400 font-mono">{ep.path}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      {ep.enabled ? (
-                        <>
-                          <p className="text-sm font-bold text-green-500">{ep.latency}ms</p>
-                          <p className="text-xs text-gray-400 font-semibold">STATUS: {ep.status}</p>
-                        </>
-                      ) : (
-                        <>
-                          <p className="text-sm font-bold text-gray-400">N/A</p>
-                          <p className="text-xs text-gray-400 font-bold tracking-wider">DISABLED</p>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
-          <button
-            onClick={handleExportDiagnostic}
-            disabled={!done}
-            className="flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-700 disabled:opacity-30 transition"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-            Export Diagnostic Report (.JSON)
-          </button>
-          <div className="flex gap-3">
-            <button onClick={onClose} className="px-5 py-2 text-sm font-semibold text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50 transition">
-              Close
-            </button>
-            <button
-              onClick={runDiagnostic}
-              disabled={running}
-              className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-green-500 hover:bg-green-600 rounded-xl transition disabled:opacity-60"
-            >
-              <svg className={`w-4 h-4 ${running ? "animate-spin" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              Re-run Test
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-const TEST_STEPS = [
-  { id: "handshake",  label: "Handshake with Meta Servers",       badge: "SUCCESS",    delay: 800  },
-  { id: "token",      label: "Validating System User Access Token",badge: "VERIFIED",   delay: 1600 },
-  { id: "phone",      label: "Checking Phone Number ID Status",    badge: "ACTIVE",     delay: 2400 },
-  { id: "webhook",    label: "Testing Webhook Response",           badge: "PROCESSING", delay: 3200 },
-];
-
-function TestConnectionModal({ open, onClose, onDone }) {
-  const [stepStates, setStepStates] = useState({}); // id -> "pending"|"done"|"processing"
-  const [phase, setPhase] = useState("idle"); // idle | running | done
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    if (!open) { setStepStates({}); setPhase("idle"); setProgress(0); return; }
-    setPhase("running");
-    setStepStates({});
-    setProgress(0);
-
-    // Animate circular progress
-    let frame;
-    let start = null;
-    const totalDuration = 3600;
-    const animateProgress = (ts) => {
-      if (!start) start = ts;
-      const elapsed = ts - start;
-      setProgress(Math.min((elapsed / totalDuration) * 100, 100));
-      if (elapsed < totalDuration) frame = requestAnimationFrame(animateProgress);
-    };
-    frame = requestAnimationFrame(animateProgress);
-
-    // Fire each step
-    TEST_STEPS.forEach((step, idx) => {
-      // mark processing right before it completes
-      setTimeout(() => {
-        setStepStates((prev) => ({ ...prev, [step.id]: "processing" }));
-      }, step.delay - 400);
-      setTimeout(() => {
-        setStepStates((prev) => ({ ...prev, [step.id]: "done" }));
-        if (idx === TEST_STEPS.length - 1) {
-          setTimeout(() => { setPhase("done"); cancelAnimationFrame(frame); setProgress(100); }, 400);
-        }
-      }, step.delay);
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [open]);
-
-  if (!open) return null;
-
-  // SVG arc for circular progress
-  const R = 54;
-  const C = 2 * Math.PI * R;
-  const offset = C - (progress / 100) * C;
-
-  const stepColor = (id) => {
-    const s = stepStates[id];
-    if (!s) return "text-gray-300";
-    if (s === "done") return "text-green-500";
-    return "text-gray-400";
-  };
-  const badgeColor = (badge) => {
-    if (badge === "SUCCESS") return "text-green-600";
-    if (badge === "VERIFIED") return "text-green-600";
-    if (badge === "ACTIVE") return "text-green-600";
-    return "text-gray-400";
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={phase === "done" ? onClose : undefined}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8"
-        style={{ animation: "popIn 0.25s ease" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-gray-900">Test Connection</h3>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition text-lg font-light">×</button>
-        </div>
-
-        {/* Circular progress */}
-        <div className="flex flex-col items-center mb-8">
-          <div className="relative w-36 h-36">
-            <svg className="w-36 h-36 -rotate-90" viewBox="0 0 124 124">
-              {/* Track */}
-              <circle cx="62" cy="62" r={R} fill="none" stroke="#e5e7eb" strokeWidth="6" />
-              {/* Progress */}
-              <circle
-                cx="62" cy="62" r={R}
-                fill="none"
-                stroke={phase === "done" ? "#22c55e" : "#22c55e"}
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray={C}
-                strokeDashoffset={offset}
-                style={{ transition: "stroke-dashoffset 0.1s linear" }}
-              />
-            </svg>
-            {/* Center icon */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              {phase === "done" ? (
-                <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                </svg>
-              )}
-            </div>
-          </div>
-          <p className={`mt-4 text-base font-semibold ${phase === "done" ? "text-green-600" : "text-gray-700"}`}>
-            {phase === "done" ? "Connection Successful" : "Testing connectivity..."}
-          </p>
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-4 mb-6">
-          {TEST_STEPS.map((step) => {
-            const s = stepStates[step.id];
-            const isDone = s === "done";
-            const isProcessing = s === "processing";
-            const isPending = !s;
-            return (
-              <div key={step.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {/* Icon */}
-                  <div className="w-6 h-6 flex items-center justify-center flex-shrink-0">
-                    {isDone && (
-                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                      </svg>
-                    )}
-                    {isProcessing && (
-                      <svg className="w-5 h-5 text-gray-400" style={{ animation: "spin 1s linear infinite" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                    )}
-                    {isPending && (
-                      <div className="w-4 h-4 rounded-full border-2 border-gray-200" />
-                    )}
-                  </div>
-                  <span className={`text-sm font-medium transition-colors duration-300 ${isDone ? "text-gray-700" : isProcessing ? "text-gray-500" : "text-gray-300"}`}>
-                    {step.label}
-                  </span>
-                </div>
-                <span className={`text-xs font-bold tracking-wider transition-all duration-300 ${
-                  isDone ? badgeColor(step.badge) :
-                  isProcessing ? "text-gray-400" : "text-gray-200"
-                }`}>
-                  {isDone ? step.badge : isProcessing ? "PROCESSING" : "—"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Success banner */}
-        <div className={`rounded-xl border transition-all duration-500 overflow-hidden ${phase === "done" ? "max-h-24 opacity-100 border-green-200 bg-green-50 p-4 mb-6" : "max-h-0 opacity-0 border-transparent p-0 mb-0"}`}>
-          <div className="flex items-start gap-3">
-            <div className="w-7 h-7 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
-            </div>
-            <div>
-              <p className="text-sm font-bold text-gray-800">Connection established successfully.</p>
-              <p className="text-xs text-gray-500 mt-0.5">API is ready for messaging through your configuration.</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Close button */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => onDone()}
-            disabled={phase !== "done"}
-            className={`px-8 py-2.5 text-sm font-semibold rounded-xl transition-all duration-300 ${
-              phase === "done"
-                ? "bg-green-500 hover:bg-green-600 text-white shadow-md"
-                : "bg-gray-100 text-gray-300 cursor-not-allowed"
-            }`}
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ══════════════════════════════════════════════════════════════════════════════
 export default function WhatsAppConfig() {
@@ -500,6 +97,53 @@ export default function WhatsAppConfig() {
   const hasApiAccess = isAdmin || (rolePermissions?.[userRole]?.api_configuration
     ?? DEFAULT_API_PERMS[userRole]
     ?? false);
+
+
+
+
+  const {
+    businessId, setBusinessId,
+    phoneId, setPhoneId,
+    accessToken, setAccessToken,
+    webhookUrl, setWebhookUrl,
+    events, setEvents,
+    loading, saving,
+    connectionStatus, setConnectionStatus,
+    lastSync, setLastSync,
+    hasChanges,
+    saveConfig,
+    testWebhook,
+    refreshConnection,
+    exportConfig
+  } = useWhatsAppConfig();
+
+  const [showToken, setShowToken] = useState(false);
+  const [editingCreds, setEditingCreds] = useState(false);
+  const [credsDraft, setCredsDraft] = useState({});
+
+  const [webhookDraft, setWebhookDraft] = useState("");
+  const [verifyToken] = useState(generateToken(24));
+  const [showVerifyToken, setShowVerifyToken] = useState(false);
+  const [webhookStatus, setWebhookStatus] = useState("idle");
+  const [webhookEditMode, setWebhookEditMode] = useState(false);
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const [pin, setPin] = useState(["", "", "", "", "", ""]);
+  const [confirmPin, setConfirmPin] = useState(["", "", "", "", "", ""]);
+  const [pinSet, setPinSet] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinError, setPinError] = useState("");
+  const pinRefs = useRef([]);
+  const confirmPinRefs = useRef([]);
+
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [disconnectText, setDisconnectText] = useState("");
+  const [disconnected, setDisconnected] = useState(false);
+  const [showRotateModal, setShowRotateModal] = useState(false);
+  const [showTestModal, setShowTestModal] = useState(false);
+  const [showHealthModal, setShowHealthModal] = useState(false);
+
 
   // ── Access Restriction Check ──
   if (!hasApiAccess) {
@@ -525,138 +169,11 @@ export default function WhatsAppConfig() {
     );
   }
 
-  // ── Credentials ──
-  const [businessId, setBusinessId] = useState("");
-  const [phoneId, setPhoneId] = useState("");
-  const [accessToken, setAccessToken] = useState("");
-
-  const [showToken, setShowToken] = useState(false);
-  const [editingCreds, setEditingCreds] = useState(false);
-  const [credsDraft, setCredsDraft] = useState({});
-
-  // ── Webhook ──
-  const [webhookUrl, setWebhookUrl] = useState("");
-
-  const [webhookDraft, setWebhookDraft] = useState("");
-  const [verifyToken] = useState(generateToken(24));
-  const [showVerifyToken, setShowVerifyToken] = useState(false);
-  const [webhookStatus, setWebhookStatus] = useState("idle");
-  const [webhookEditMode, setWebhookEditMode] = useState(false);
-
-  // ── Connection ──
-  const [connectionStatus, setConnectionStatus] = useState("Disconnected");
-  const [lastSync, setLastSync] = useState("Never");
-
-  const [refreshing, setRefreshing] = useState(false);
-
-  // ── Events ──
-  const [events, setEvents] = useState({ messages: true, messageStatus: true, templateStatus: true, securityAlerts: true, orderUpdates: false, profileUpdates: false });
-
-  // ── PIN ──
-  const [pin, setPin] = useState(["", "", "", "", "", ""]);
-  const [confirmPin, setConfirmPin] = useState(["", "", "", "", "", ""]);
-  const [pinSet, setPinSet] = useState(false);
-  const [showPinModal, setShowPinModal] = useState(false);
-  const [pinError, setPinError] = useState("");
-  const pinRefs = useRef([]);
-  const confirmPinRefs = useRef([]);
-
-  // ── Modals ──
-  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
-  const [disconnectText, setDisconnectText] = useState("");
-  const [disconnected, setDisconnected] = useState(false);
-  const [showRotateModal, setShowRotateModal] = useState(false);
-  const [showTestModal, setShowTestModal] = useState(false);
-  const [showHealthModal, setShowHealthModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  // ── Fetch Config from DB ──
-  useEffect(() => {
-    const fetchConfig = async () => {
-      try {
-        setLoading(true);
-        const response = await axios.get("/settings/whatsapp_config");
-        if (response.data && response.data.value) {
-          const config = response.data.value;
-          setBusinessId(config.businessAccountId || "");
-          setPhoneId(config.phoneNumberId || "");
-          setAccessToken(config.accessToken || "");
-          setWebhookUrl(config.webhookUrl || "");
-          if (config.events) setEvents(config.events);
-          setSavedSnapshot(JSON.stringify({
-            businessId: config.businessAccountId || "",
-            phoneId: config.phoneNumberId || "",
-            webhookUrl: config.webhookUrl || "",
-            events: config.events || events
-          }));
-        }
-      } catch (error) {
-        console.error("Error fetching WhatsApp config:", error);
-        // Fallback to defaults or stay as is
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchConfig();
-  }, []);
-
-  // ── Save / unsaved tracking ──
-  const [savedSnapshot, setSavedSnapshot] = useState(null);
-  const [saving, setSaving] = useState(false);
-
-  const snapshot = JSON.stringify({ businessId, phoneId, webhookUrl, events });
-  const hasChanges = savedSnapshot !== null && snapshot !== savedSnapshot;
-
-  useEffect(() => { if (savedSnapshot === null) setSavedSnapshot(snapshot); }, []);
-
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-      const response = await axios.get("/whatsapp/test-connection");
-      if (response.data.success) {
-        setConnectionStatus("Active");
-        setLastSync("Just now");
-        setShowTestModal(true); // Keep the animation but we know it's success
-      } else {
-        setConnectionStatus("Inactive");
-        toast.error("Connection test failed: " + response.data.message);
-      }
-    } catch (error) {
-      console.error("Error testing connection:", error);
-      setConnectionStatus("Error");
-      toast.error("Failed to connect to WhatsApp API. Check your credentials.");
-    } finally {
-      setRefreshing(false);
-    }
-  };
+  const handleRefresh = () => refreshConnection({ setRefreshing, setShowTestModal });
 
-  const handleTestWebhook = async () => {
-    const url = webhookEditMode ? webhookDraft : webhookUrl;
-    if (!url.startsWith("http")) {
-      toast.error("Enter a valid URL starting with http(s)://");
-      return;
-    }
-    setWebhookStatus("testing");
-    try {
-      // In a real scenario, you might want a backend route that pings this URL
-      // Or just assume it works if the connection is active
-      await new Promise((r) => setTimeout(r, 1500));
-      const response = await axios.get("/whatsapp/test-connection");
-      if (response.data.success) {
-        setWebhookStatus("success");
-        toast.success("Connection test passed ✓");
-      } else {
-        setWebhookStatus("error");
-        toast.error("Connection test failed — check your credentials");
-      }
-    } catch (error) {
-      setWebhookStatus("error");
-      toast.error("Webhook test failed — check your server");
-    }
-    setTimeout(() => setWebhookStatus("idle"), 6000);
-  };
+  const handleTestWebhook = () => testWebhook({ webhookEditMode, webhookDraft, setWebhookStatus });
 
   const handleRotateConfirm = () => {
     setAccessToken(generateToken(48));
@@ -666,58 +183,14 @@ export default function WhatsAppConfig() {
   };
 
   const handleSave = async () => {
-    if (!businessId.trim() || !phoneId.trim()) {
-      toast.error("Business Account ID and Phone Number ID cannot be empty");
-      return;
-    }
-    setSaving(true);
-    try {
-      const configValue = {
-        businessAccountId: businessId,
-        phoneNumberId: phoneId,
-        accessToken: accessToken,
-        verifyToken: verifyToken,
-        webhookUrl: webhookEditMode && webhookDraft ? webhookDraft : webhookUrl,
-        events: events,
-        apiVersion: "v18.0"
-      };
-
-      await axios.post("/settings", {
-        key: "whatsapp_config",
-        value: configValue,
-        description: "WhatsApp Cloud API Configuration"
-      });
-
-      if (webhookEditMode && webhookDraft) {
-        setWebhookUrl(webhookDraft);
-      }
-      
-      setSavedSnapshot(JSON.stringify({
-        businessId,
-        phoneId,
-        webhookUrl: webhookEditMode ? webhookDraft : webhookUrl,
-        events
-      }));
-      
+    const success = await saveConfig({ verifyToken, webhookEditMode, webhookDraft });
+    if (success) {
       setEditingCreds(false);
       setWebhookEditMode(false);
-      toast.success("Configuration saved successfully!");
-    } catch (error) {
-      console.error("Error saving WhatsApp config:", error);
-      toast.error("Failed to save configuration: " + (error.response?.data?.error || error.message));
-    } finally {
-      setSaving(false);
     }
   };
 
-  const handleExport = () => {
-    const config = { businessAccountId: businessId, phoneNumberId: phoneId, webhookUrl, environment: "PRODUCTION", subscribedEvents: events, exportedAt: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
-    const a = Object.assign(document.createElement("a"), { href: URL.createObjectURL(blob), download: "whatsapp-config.json" });
-    a.click();
-    URL.revokeObjectURL(a.href);
-    toast.success("Config exported as whatsapp-config.json");
-  };
+  const handleExport = () => exportConfig();
 
   const startEditCreds = () => { setCredsDraft({ businessId, phoneId }); setEditingCreds(true); };
   const cancelEditCreds = () => { setBusinessId(credsDraft.businessId); setPhoneId(credsDraft.phoneId); setEditingCreds(false); };
