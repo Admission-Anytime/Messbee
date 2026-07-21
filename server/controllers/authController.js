@@ -58,54 +58,6 @@ exports.requestSignupOTP = async (req, res, next) => {
   try {
     const { email, name, password, phone } = req.body;
 
-    // Validation
-    if (!email || !name || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email, name, and password'
-      });
-    }
-
-    // Name must contain at least one alphabetic character
-    if (!/[a-zA-Z]/.test(name)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Name must contain at least one alphabetic character'
-      });
-    }
-
-    // Password complexity validation
-    if (password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters'
-      });
-    }
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must contain at least one uppercase letter'
-      });
-    }
-    if (!/[a-z]/.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must contain at least one lowercase letter'
-      });
-    }
-    if (!/[0-9]/.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must contain at least one numeric digit'
-      });
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(password)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Password must contain at least one special character'
-      });
-    }
-
     // Check if user already exists
     const existingUser = await User.findOne({ email });
     if (existingUser && existingUser.isEmailVerified) {
@@ -180,13 +132,6 @@ exports.requestSignupOTP = async (req, res, next) => {
 exports.verifySignupOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and OTP'
-      });
-    }
 
     // Find user with OTP fields
     const user = await User.findOne({ email }).select('+otp +otpExpiry +otpAttempts +otpBlockedUntil');
@@ -285,13 +230,6 @@ exports.requestLoginOTP = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email'
-      });
-    }
-
     // Find user
     const user = await User.findOne({ email }).select('+otpAttempts +otpBlockedUntil');
 
@@ -373,13 +311,6 @@ exports.requestLoginOTP = async (req, res, next) => {
 exports.verifyLoginOTP = async (req, res, next) => {
   try {
     const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and OTP'
-      });
-    }
 
     // Find user
     const user = await User.findOne({ email }).select('+otp +otpExpiry +otpAttempts +otpBlockedUntil');
@@ -492,13 +423,6 @@ exports.verifyLoginOTP = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email and password'
-      });
-    }
 
     // Find user with password
     const user = await User.findOne({ email }).select('+password');
@@ -703,13 +627,6 @@ exports.resendOTP = async (req, res, next) => {
   try {
     const { email, purpose } = req.body; // purpose: 'signup', 'login', 'reset'
 
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email'
-      });
-    }
-
     const user = await User.findOne({ email }).select('+otpBlockedUntil');
 
     if (!user) {
@@ -769,13 +686,6 @@ exports.resendOTP = async (req, res, next) => {
 exports.forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
-
-    if (!email) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide email'
-      });
-    }
 
     const user = await User.findOne({ email });
 
