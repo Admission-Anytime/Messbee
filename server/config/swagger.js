@@ -386,6 +386,147 @@ const options = {
           parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Automation ID' }],
           responses: { 200: { description: 'Automation deleted' } }
         }
+      },
+      '/api/users': {
+        get: {
+          summary: 'Get all users (Admin only)',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: {
+              description: 'List of users',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      success: { type: 'boolean' },
+                      count: { type: 'integer' },
+                      data: {
+                        type: 'array',
+                        items: { $ref: '#/components/schemas/User' }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        post: {
+          summary: 'Create a new user (Admin only)',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['name', 'email', 'password'],
+                  properties: {
+                    name: { type: 'string' },
+                    email: { type: 'string', format: 'email' },
+                    password: { type: 'string' },
+                    role: { type: 'string', enum: ['user', 'admin'] }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            201: { description: 'User created successfully' }
+          }
+        }
+      },
+      '/api/users/bulk-delete': {
+        post: {
+          summary: 'Delete multiple users at once',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['userIds'],
+                  properties: {
+                    userIds: { type: 'array', items: { type: 'string' } }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            200: { description: 'Users deleted successfully' }
+          }
+        }
+      },
+      '/api/users/account-limits': {
+        get: {
+          summary: 'Get current user account usage and limits',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'Account limits and usage data' }
+          }
+        }
+      },
+      '/api/users/pending-approval': {
+        get: {
+          summary: 'Get list of users pending admin approval',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          responses: {
+            200: { description: 'List of pending users' }
+          }
+        }
+      },
+      '/api/users/{id}/approve': {
+        put: {
+          summary: 'Approve a pending user account',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'User ID' }],
+          responses: {
+            200: { description: 'User approved successfully' }
+          }
+        }
+      },
+      '/api/users/{id}': {
+        put: {
+          summary: 'Update a specific user (Admin)',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'User ID' }],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    email: { type: 'string' },
+                    role: { type: 'string' }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            200: { description: 'User updated successfully' }
+          }
+        },
+        delete: {
+          summary: 'Delete a user',
+          tags: ['Users'],
+          security: [{ bearerAuth: [] }],
+          parameters: [{ in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'User ID' }],
+          responses: {
+            200: { description: 'User deleted successfully' }
+          }
+        }
       }
     }
   },
