@@ -15,6 +15,15 @@ const {
 } = require('../controllers/authController');
 const { protect, optionalProtect } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
+const {
+  signupValidator,
+  loginValidator,
+  requestLoginOTPValidator,
+  verifyOTPValidator,
+  forgotPasswordValidator,
+  resetPasswordValidator
+} = require('../middleware/validators/authValidator');
+const { validate } = require('../middleware/validators/validate');
 
 const router = express.Router();
 
@@ -109,7 +118,7 @@ const authRateLimiter = createRateLimiter({ windowMs: 60 * 1000, max: 15 });
  *       400:
  *         description: Validation error or user already exists
  */
-router.post('/signup/request-otp', requestSignupOTP);
+router.post('/signup/request-otp', signupValidator, validate, requestSignupOTP);
 
 /**
  * @swagger
@@ -146,7 +155,7 @@ router.post('/signup/request-otp', requestSignupOTP);
  *       429:
  *         description: Too many failed attempts
  */
-router.post('/signup/verify-otp', verifySignupOTP);
+router.post('/signup/verify-otp', verifyOTPValidator, validate, verifySignupOTP);
 
 // ==================== LOGIN ROUTES ====================
 
@@ -174,7 +183,7 @@ router.post('/signup/verify-otp', verifySignupOTP);
  *       404:
  *         description: User not found
  */
-router.post('/login/request-otp', authRateLimiter, requestLoginOTP);
+router.post('/login/request-otp', authRateLimiter, requestLoginOTPValidator, validate, requestLoginOTP);
 
 /**
  * @swagger
@@ -209,7 +218,7 @@ router.post('/login/request-otp', authRateLimiter, requestLoginOTP);
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/login/verify-otp', authRateLimiter, verifyLoginOTP);
+router.post('/login/verify-otp', authRateLimiter, verifyOTPValidator, validate, verifyLoginOTP);
 
 /**
  * @swagger
@@ -242,7 +251,7 @@ router.post('/login/verify-otp', authRateLimiter, verifyLoginOTP);
  *       401:
  *         description: Invalid credentials
  */
-router.post('/login', authRateLimiter, login);
+router.post('/login', authRateLimiter, loginValidator, validate, login);
 
 // ==================== TOKEN & SESSION ROUTES ====================
 
@@ -314,7 +323,7 @@ router.post('/logout', optionalProtect, logout);
  *       429:
  *         description: Too many attempts
  */
-router.post('/resend-otp', resendOTP);
+router.post('/resend-otp', forgotPasswordValidator, validate, resendOTP);
 
 // ==================== PASSWORD RESET ROUTES ====================
 
@@ -342,7 +351,7 @@ router.post('/resend-otp', resendOTP);
  *       404:
  *         description: User not found
  */
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', forgotPasswordValidator, validate, forgotPassword);
 
 /**
  * @swagger
@@ -375,7 +384,7 @@ router.post('/forgot-password', forgotPassword);
  *       400:
  *         description: Invalid or expired OTP
  */
-router.post('/reset-password', resetPassword);
+router.post('/reset-password', resetPasswordValidator, validate, resetPassword);
 
 // ==================== USER INFO & PASSWORD UPDATE ====================
 
