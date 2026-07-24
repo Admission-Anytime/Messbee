@@ -72,6 +72,17 @@ const PaymentList = lazy(() => import("./pages/commerce/PaymentList"));
 const ProductList = lazy(() => import("./pages/commerce/ProductList"));
 const Inventory = lazy(() => import("./pages/commerce/Inventory"));
 
+// --- LAZY LOADED INVENTORY & BILLING PAGES ---
+const CategoryManagement = lazy(() => import("./pages/inventory_billing/CategoryManagement"));
+const ProductManagement = lazy(() => import("./pages/inventory_billing/ProductManagement"));
+const SupplierManagement = lazy(() => import("./pages/inventory_billing/SupplierManagement"));
+const CustomerManagement = lazy(() => import("./pages/inventory_billing/CustomerManagement"));
+const PurchaseModule = lazy(() => import("./pages/inventory_billing/PurchaseModule"));
+const SalesModule = lazy(() => import("./pages/inventory_billing/SalesModule"));
+const InventoryDashboard = lazy(() => import("./pages/inventory_billing/InventoryDashboard"));
+const ReportsDashboard = lazy(() => import("./pages/inventory_billing/ReportsDashboard"));
+const BillingSettings = lazy(() => import("./pages/inventory_billing/BillingSettings"));
+
 // --- LAZY LOADED PROFILE ---
 const UserProfile = lazy(() => import("./pages/profile/UserProfile"));
 const BusinessProfile = lazy(() => import("./pages/profile/BusinessProfile"));
@@ -320,6 +331,18 @@ function App() {
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
           <Route path="/admin/settings/media" element={<Media />} />
           <Route path="/admin/settings/teams" element={<ManageTeams />} />
+          
+          {/* INVENTORY & BILLING ROUTES */}
+          <Route path="/admin/inventory/categories" element={<CategoryManagement />} />
+          <Route path="/admin/inventory/products" element={<ProductManagement />} />
+          <Route path="/admin/inventory/logs" element={<InventoryDashboard />} />
+          <Route path="/admin/purchase/suppliers" element={<SupplierManagement />} />
+          <Route path="/admin/purchase/bills" element={<PurchaseModule />} />
+          <Route path="/admin/sales/customers" element={<CustomerManagement />} />
+          <Route path="/admin/sales/invoices" element={<SalesModule />} />
+          <Route path="/admin/billing/reports" element={<ReportsDashboard />} />
+          <Route path="/admin/billing/settings" element={<BillingSettings />} />
+
           {/* 12. Plan & Pricing */}
           <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
           <Route path="/admin/plan/addons" element={<AddonsWCC />} />

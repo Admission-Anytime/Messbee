@@ -1,54 +1,34 @@
 const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: [true, 'Product name is required'],
-    trim: true
-  },
-  sku: {
-    type: String,
-    required: [true, 'SKU is required'],
-    unique: true,
-    trim: true,
-    uppercase: true
-  },
-  category: {
-    type: String,
-    required: [true, 'Category is required']
-  },
-  price: {
-    type: Number,
-    required: [true, 'Price is required']
-  },
-  stock: {
-    type: Number,
-    required: [true, 'Stock is required'],
-    default: 0
-  },
-  goal: {
-    type: Number,
-    default: 100
-  },
-  img: {
-    type: String,
-    default: 'https://via.placeholder.com/150?text=Product'
-  },
-  description: {
-    type: String,
-    trim: true
-  },
-  shop: {
-    type: Boolean,
-    default: false
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    index: true
   },
   user: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true
-  }
-}, {
-  timestamps: true
-});
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+  name: { type: String, required: true },
+  sku: { type: String, required: true, unique: true },
+  barcode: { type: String },
+  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  brand: { type: String },
+  description: { type: String },
+  purchasePrice: { type: Number, required: true, default: 0 },
+  sellingPrice: { type: Number, required: true, default: 0 },
+  gstPercentage: { type: Number, default: 18 },
+  hsnCode: { type: String },
+  unit: { type: String, default: 'pcs' },
+  currentStock: { type: Number, default: 0 },
+  minimumStock: { type: Number, default: 10 },
+  productImage: { type: String },
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' }
+}, { timestamps: true });
+
+// Prevent index errors if sku is empty initially but we require it anyway
+productSchema.index({ tenantId: 1, sku: 1 });
+productSchema.index({ tenantId: 1, name: 1 });
 
 module.exports = mongoose.model('Product', productSchema);
