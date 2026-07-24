@@ -75,6 +75,19 @@ const tenantSettingsSchema = new mongoose.Schema({
     rateLimitWindowMs: { type: Number, default: 60000 },
     maxMessagesPerWindow: { type: Number, default: 10 },
     blocklist: [{ type: String }] // Array of phone numbers
+  },
+  // Billing & Invoice Settings
+  billing: {
+    companyName: { type: String, default: '' },
+    logo: { type: String, default: '' },
+    gstNumber: { type: String, default: '' },
+    address: { type: String, default: '' },
+    city: { type: String, default: '' },
+    state: { type: String, default: '' },
+    pincode: { type: String, default: '' },
+    invoicePrefix: { type: String, default: 'INV-' },
+    currency: { type: String, default: 'INR' },
+    taxPercentage: { type: Number, default: 18 } // Default GST
   }
 }, {
   timestamps: true
