@@ -66,6 +66,25 @@ const MENU_ITEMS = [
       },
       { title: "Automation", path: "/admin/automation", icon: "feather:cpu" },
       { title: "Developer API", path: "/admin/developer/api", icon: "feather:code" },
+      {
+        title: "Inventory Management",
+        icon: "feather:archive",
+        isSubmenu: true,
+        children: [
+          { title: "Categories", path: "/admin/inventory/categories", icon: "feather:layers" },
+          { title: "Products", path: "/admin/inventory/products", icon: "feather:box" },
+          { title: "Inventory", path: "/admin/inventory/logs", icon: "feather:clipboard" },
+          { title: "Suppliers", path: "/admin/purchase/suppliers", icon: "feather:truck" },
+          { title: "Purchase Bills", path: "/admin/purchase/bills", icon: "feather:file-plus" },
+          { title: "Customers", path: "/admin/sales/customers", icon: "feather:users" },
+          { title: "Sales Bills", path: "/admin/sales/invoices", icon: "feather:dollar-sign" },
+          { title: "Sales Report", path: "/admin/billing/reports", icon: "feather:trending-up" },
+          { title: "Purchase Report", path: "/admin/billing/reports", icon: "feather:trending-down" },
+          { title: "Inventory Report", path: "/admin/billing/reports", icon: "feather:bar-chart-2" },
+          { title: "GST Report", path: "/admin/billing/reports", icon: "feather:percent" },
+          { title: "Billing Settings", path: "/admin/billing/settings", icon: "feather:credit-card" },
+        ],
+      },
       { title: "App integration", path: "/admin/integration/apps", icon: "feather:link" },
       {
         title: "Settings",
@@ -198,8 +217,8 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
 
   // Auto-open submenu based on URL
   useEffect(() => {
-    const paths = ["templates", "contacts", "commerce", "plan", "help", "analytic", "settings"];
-    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support", "Analytics", "Settings"];
+    const paths = ["templates", "contacts", "commerce", "plan", "help", "analytic", "settings", "inventory", "purchase", "sales", "billing"];
+    const labels = ["Templates", "Contacts & CRM", "Commerce", "Plan & Pricing", "Help & Support", "Analytics", "Settings", "Inventory Management", "Inventory Management", "Inventory Management", "Inventory Management"];
     paths.forEach((p, i) => { if (location.pathname.includes(`/admin/${p}`)) setOpenSubmenu(labels[i]); });
   }, [location.pathname]);
 

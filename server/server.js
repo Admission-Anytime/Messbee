@@ -163,6 +163,16 @@ app.use('/api/notifications', require('./routes/notificationRoutes')); // Notifi
 app.use('/api/performance', require('./routes/performanceRoutes')); // Dashboard Performance Overview
 app.use('/api/webhook', require('./routes/webhookRoutes')); // Webhook routes
 
+// ================== INVENTORY & BILLING ROUTES ==================
+app.use('/api/categories', require('./routes/categoryRoutes'));
+app.use('/api/products', require('./routes/productRoutes'));
+app.use('/api/suppliers', require('./routes/supplierRoutes'));
+app.use('/api/customers', require('./routes/customerRoutes'));
+app.use('/api/purchases', require('./routes/purchaseRoutes'));
+app.use('/api/sales', require('./routes/salesRoutes'));
+app.use('/api/inventory', require('./routes/inventoryRoutes'));
+app.use('/api/reports', require('./routes/reportsRoutes'));
+
 // ================== HEALTH CHECK ==================
 
 

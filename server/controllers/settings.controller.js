@@ -60,6 +60,10 @@ exports.updateSettings = async (req, res) => {
       settings.spamProtection = spamProtection;
       settings.markModified('spamProtection');
     }
+    if (req.body.billing !== undefined) {
+      settings.billing = req.body.billing;
+      settings.markModified('billing');
+    }
 
     await settings.save();
     res.json(settings);
