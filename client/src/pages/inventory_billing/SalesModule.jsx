@@ -7,6 +7,7 @@ const SalesModule = () => {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
+  const [createdInvoice, setCreatedInvoice] = useState(null);
   
   useEffect(() => {
     axios.get('/api/customers?limit=100', { withCredentials: true }).then(res => setCustomers(res.data.data));
@@ -63,12 +64,160 @@ const SalesModule = () => {
       };
       const res = await axios.post('/api/sales', payload, { withCredentials: true });
       toast.success('Sales Invoice Created! Invoice No: ' + res.data.data.invoiceNumber);
+      
+      const invoiceData = {
+        invoiceNumber: res.data.data.invoiceNumber,
+        date: new Date().toLocaleDateString(),
+        customer: customers.find(c => c._id === selectedCustomer),
+        items: [...cart],
+        grandTotal
+      };
+      setCreatedInvoice(invoiceData);
       setCart([]);
-      // You could trigger window.print() here for the invoice component
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create invoice');
     }
   };
+
+  const handlePrint = () => {
+    const printContent = document.getElementById('printable-invoice').innerHTML;
+    const printWindow = window.open('', '', 'height=800,width=800');
+    printWindow.document.write('<html><head><title>Print Invoice</title>');
+    printWindow.document.write(`
+      <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #333; padding: 20px; }
+        .invoice-header { display: flex; justify-content: space-between; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+        .invoice-title { font-size: 28px; font-weight: bold; color: #1e293b; margin: 0; }
+        .invoice-details { text-align: right; }
+        .invoice-details p { margin: 4px 0; color: #64748b; }
+        .customer-info { margin-bottom: 30px; }
+        .customer-info h2 { font-size: 16px; color: #475569; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 12px; }
+        .customer-info p { margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: #f8fafc; color: #475569; font-weight: 600; }
+        .text-right { text-align: right; }
+        .total-section { display: flex; justify-content: flex-end; }
+        .total-box { width: 300px; border-top: 2px solid #eee; padding-top: 15px; }
+        .total-row { display: flex; justify-content: space-between; font-size: 18px; font-weight: bold; }
+      </style>
+    `);
+    printWindow.document.write('</head><body>');
+    printWindow.document.write(printContent);
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    // Use a slight timeout to ensure styles are applied before printing
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+  };
+
+
+  if (createdInvoice) {
+    return (
+      <div className="p-6 bg-slate-50 min-h-screen flex flex-col items-center">
+        <div className="w-full max-w-4xl bg-white p-8 rounded-xl shadow-md border border-slate-200 mb-6 relative">
+          
+          {/* Hidden Printable Content */}
+          <div id="printable-invoice" className="hidden">
+            <div className="invoice-header">
+              <div>
+                <h1 className="invoice-title">INVOICE</h1>
+              </div>
+              <div className="invoice-details">
+                <p><strong>Invoice No:</strong> {createdInvoice.invoiceNumber}</p>
+                <p><strong>Date:</strong> {createdInvoice.date}</p>
+              </div>
+            </div>
+            
+            <div className="customer-info">
+              <h2>Billed To:</h2>
+              <p><strong>{createdInvoice.customer?.customerName}</strong></p>
+              <p>Mobile: {createdInvoice.customer?.mobile}</p>
+              {createdInvoice.customer?.email && <p>Email: {createdInvoice.customer?.email}</p>}
+              {createdInvoice.customer?.address && <p>Address: {createdInvoice.customer?.address}</p>}
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th className="text-right">Qty</th>
+                  <th className="text-right">Price</th>
+                  <th className="text-right">GST(%)</th>
+                  <th className="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {createdInvoice.items.map((item, i) => (
+                  <tr key={i}>
+                    <td>{item.name}</td>
+                    <td className="text-right">{item.quantity}</td>
+                    <td className="text-right">₹{item.sellingPrice}</td>
+                    <td className="text-right">{item.gst}%</td>
+                    <td className="text-right">₹{item.total.toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div className="total-section">
+              <div className="total-box">
+                <div className="total-row">
+                  <span>Grand Total:</span>
+                  <span>₹{createdInvoice.grandTotal.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Visible Screen Content */}
+          <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-800">Invoice Created Successfully!</h2>
+              <p className="text-slate-500 mt-2">Invoice #{createdInvoice.invoiceNumber}</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={handlePrint} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
+                </svg>
+                Print / Download PDF
+              </button>
+              <button onClick={() => setCreatedInvoice(null)} className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-lg font-bold hover:bg-slate-200 transition-colors">
+                Create New Invoice
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-6 rounded-lg border border-slate-100">
+            <h3 className="text-lg font-semibold mb-4 text-slate-800">Invoice Summary</h3>
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-sm text-slate-500 mb-1">Customer</p>
+                <p className="font-semibold text-slate-800">{createdInvoice.customer?.customerName}</p>
+                <p className="text-sm text-slate-600">{createdInvoice.customer?.mobile}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500 mb-1">Date</p>
+                <p className="font-semibold text-slate-800">{createdInvoice.date}</p>
+              </div>
+            </div>
+            
+            <div className="border-t border-slate-200 pt-4">
+              <p className="text-sm text-slate-500 mb-2">Items ({createdInvoice.items.length})</p>
+              <div className="flex justify-between items-center font-bold text-xl text-slate-800">
+                <span>Grand Total:</span>
+                <span>₹{createdInvoice.grandTotal.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
