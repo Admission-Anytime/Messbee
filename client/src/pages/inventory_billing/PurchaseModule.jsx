@@ -10,6 +10,7 @@ const PurchaseModule = () => {
   const [notes, setNotes] = useState('');
   const [freight, setFreight] = useState(0);
   const [createdBill, setCreatedBill] = useState(null);
+  const [isScanning, setIsScanning] = useState(false);
 
   const invoiceRef = useRef();
 
@@ -89,6 +90,41 @@ const PurchaseModule = () => {
       setSelectedSupplier('');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create purchase bill');
+    }
+  };
+
+  const handleScanInvoice = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    const formData = new FormData();
+    formData.append('invoice', file);
+
+    try {
+      const res = await axios.post('/api/purchases/scan-invoice', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true
+      });
+
+      const { data } = res.data;
+      if (data.supplierId) {
+        setSelectedSupplier(data.supplierId);
+        toast.success(`Matched Supplier: ${data.supplierName}`);
+      } else {
+        toast.info(`Could not match supplier: ${data.supplierName || 'Unknown'}. Please select manually.`);
+      }
+
+      setCart(data.items);
+      toast.success('Invoice products extracted successfully!');
+
+      // Reset file input
+      e.target.value = '';
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to scan invoice image');
+    } finally {
+      setIsScanning(false);
     }
   };
 
@@ -252,6 +288,25 @@ const PurchaseModule = () => {
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Create Purchase Bill</h1>
+        <div className="relative">
+          <input 
+            type="file" 
+            id="invoice-upload" 
+            accept="image/*,application/pdf" 
+            className="hidden" 
+            onChange={handleScanInvoice} 
+            disabled={isScanning}
+          />
+          <label 
+            htmlFor="invoice-upload" 
+            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-white shadow-sm transition-colors cursor-pointer ${isScanning ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+            </svg>
+            {isScanning ? 'Analyzing Invoice...' : 'Scan Auto-Invoice'}
+          </label>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
