@@ -10,6 +10,7 @@ const ProductManagement = () => {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
   const [editId, setEditId] = useState(null);
   const [formData, setFormData] = useState({
     name: '', sku: '', barcode: '', category: '', brand: '', description: '',
@@ -20,9 +21,9 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/products?search=${search}&page=${page}`, { withCredentials: true });
+      const res = await axios.get(`/api/products?search=${search}&page=${page}&limit=7`, { withCredentials: true });
       setProducts(res.data.data);
-      setTotalPages(res.data.pagination.pages);
+      setTotalPages(res.data.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch products');
     }
@@ -64,20 +65,83 @@ const ProductManagement = () => {
     }
   };
 
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this product?')) return;
+    try {
+      await axios.delete(`/api/products/${id}`, { withCredentials: true });
+      toast.success('Product deleted successfully');
+      fetchProducts();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete product');
+    }
+  };
+
+  const handleScanInvoice = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsScanning(true);
+    const uploadData = new FormData();
+    uploadData.append('invoice', file);
+
+    try {
+      const res = await axios.post('/api/purchases/scan-invoice', uploadData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        withCredentials: true
+      });
+      
+      const { data } = res.data;
+      if (data.items && data.items.length > 0) {
+        toast.success(`${data.items.length} products found and updated in inventory!`);
+        fetchProducts(); // Refresh list to show new products
+      } else {
+        toast.info('No products could be extracted from this image.');
+      }
+      
+      e.target.value = '';
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Failed to scan invoice image');
+    } finally {
+      setIsScanning(false);
+    }
+  };
+
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-slate-800">Product Management</h1>
-        <button 
-          onClick={() => { 
-            setEditId(null); 
-            setFormData({ name: '', sku: '', barcode: '', category: '', brand: '', description: '', purchasePrice: 0, sellingPrice: 0, gstPercentage: 18, hsnCode: '', unit: 'pcs', minimumStock: 10, currentStock: 0, status: 'active' }); 
-            setIsModalOpen(true); 
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-        >
-          + Add Product
-        </button>
+        <div className="flex gap-3">
+          <div className="relative">
+            <input 
+              type="file" 
+              id="product-invoice-upload" 
+              accept="image/*,application/pdf" 
+              className="hidden" 
+              onChange={handleScanInvoice} 
+              disabled={isScanning}
+            />
+            <label 
+              htmlFor="product-invoice-upload" 
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-white shadow-sm transition-colors cursor-pointer ${isScanning ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+              {isScanning ? 'Scanning...' : 'Scan Image'}
+            </label>
+          </div>
+          <button 
+            onClick={() => { 
+              setEditId(null); 
+              setFormData({ name: '', sku: '', barcode: '', category: '', brand: '', description: '', purchasePrice: 0, sellingPrice: 0, gstPercentage: 18, hsnCode: '', unit: 'pcs', minimumStock: 10, currentStock: 0, status: 'active' }); 
+              setIsModalOpen(true); 
+            }}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+          >
+            + Add Product
+          </button>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
@@ -125,13 +189,39 @@ const ProductManagement = () => {
                         {prod.status}
                       </span>
                     </td>
-                    <td className="p-4 space-x-2">
-                      <button onClick={() => { setEditId(prod._id); setFormData({...prod, category: prod.category?._id}); setIsModalOpen(true); }} className="text-blue-600">Edit</button>
+                    <td className="p-4 space-x-3">
+                      <button onClick={() => { setEditId(prod._id); setFormData({...prod, category: prod.category?._id}); setIsModalOpen(true); }} className="text-blue-600 font-medium hover:text-blue-800">Edit</button>
+                      <button onClick={() => handleDelete(prod._id)} className="text-red-500 font-medium hover:text-red-700">Delete</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+        
+        {/* Pagination UI */}
+        {!loading && products.length > 0 && (
+          <div className="p-4 border-t border-slate-200 flex justify-between items-center bg-slate-50">
+            <div className="text-sm text-slate-600">
+              Page {page} of {totalPages}
+            </div>
+            <div className="space-x-2">
+              <button 
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-3 py-1 border border-slate-300 rounded text-sm bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <button 
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1 border border-slate-300 rounded text-sm bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
           </div>
         )}
       </div>
