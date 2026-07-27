@@ -14,7 +14,7 @@ const ProductManagement = () => {
   const [formData, setFormData] = useState({
     name: '', sku: '', barcode: '', category: '', brand: '', description: '',
     purchasePrice: 0, sellingPrice: 0, gstPercentage: 18, hsnCode: '', unit: 'pcs',
-    minimumStock: 10, status: 'active'
+    minimumStock: 10, currentStock: 0, status: 'active'
   });
 
   const fetchProducts = async () => {
@@ -71,7 +71,7 @@ const ProductManagement = () => {
         <button 
           onClick={() => { 
             setEditId(null); 
-            setFormData({ name: '', sku: '', barcode: '', category: '', brand: '', description: '', purchasePrice: 0, sellingPrice: 0, gstPercentage: 18, hsnCode: '', unit: 'pcs', minimumStock: 10, status: 'active' }); 
+            setFormData({ name: '', sku: '', barcode: '', category: '', brand: '', description: '', purchasePrice: 0, sellingPrice: 0, gstPercentage: 18, hsnCode: '', unit: 'pcs', minimumStock: 10, currentStock: 0, status: 'active' }); 
             setIsModalOpen(true); 
           }}
           className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
@@ -160,6 +160,7 @@ const ProductManagement = () => {
                 <div><label className="text-sm">GST %</label><input type="number" value={formData.gstPercentage} onChange={e=>setFormData({...formData, gstPercentage:e.target.value})} className="w-full border p-2 rounded" /></div>
                 <div><label className="text-sm">HSN Code</label><input value={formData.hsnCode} onChange={e=>setFormData({...formData, hsnCode:e.target.value})} className="w-full border p-2 rounded" /></div>
                 <div><label className="text-sm">Min Stock Alert</label><input type="number" value={formData.minimumStock} onChange={e=>setFormData({...formData, minimumStock:e.target.value})} className="w-full border p-2 rounded" /></div>
+                <div><label className="text-sm">Current Stock</label><input type="number" value={formData.currentStock} onChange={e=>setFormData({...formData, currentStock:e.target.value})} className="w-full border p-2 rounded" /></div>
                 <div><label className="text-sm">Product Image URL</label><input value={formData.productImage || ''} onChange={e=>setFormData({...formData, productImage:e.target.value})} className="w-full border p-2 rounded" placeholder="https://..." /></div>
                 <div><label className="text-sm">Status</label>
                   <select value={formData.status} onChange={e=>setFormData({...formData, status:e.target.value})} className="w-full border p-2 rounded">
