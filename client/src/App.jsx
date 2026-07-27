@@ -340,7 +340,7 @@ function App() {
           <Route path="/admin/purchase/bills" element={<PurchaseModule />} />
           <Route path="/admin/sales/customers" element={<CustomerManagement />} />
           <Route path="/admin/sales/invoices" element={<SalesModule />} />
-          <Route path="/admin/billing/reports" element={<ReportsDashboard />} />
+          <Route path="/admin/billing/reports/:tab?" element={<ReportsDashboard />} />
           <Route path="/admin/billing/settings" element={<BillingSettings />} />
 
           {/* 12. Plan & Pricing */}
