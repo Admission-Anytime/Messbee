@@ -15,11 +15,54 @@ exports.getDashboardStats = async (req, res) => {
     today.setHours(0, 0, 0, 0);
     const thisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    // Aggregate Sales for this month
+    // Aggregate Sales and calculate COGS & Daily Trends for this month
     const salesStats = await Sales.aggregate([
       { $match: { tenantId: tenantObjId, salesDate: { $gte: thisMonth } } },
-      { $group: { _id: null, totalSales: { $sum: "$grandTotal" }, count: { $sum: 1 } } }
+      { $unwind: "$products" },
+      {
+        $lookup: {
+          from: "products",
+          localField: "products.product",
+          foreignField: "_id",
+          as: "productInfo"
+        }
+      },
+      { $unwind: { path: "$productInfo", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: "$_id",
+          salesDate: { $first: "$salesDate" },
+          grandTotal: { $first: "$grandTotal" },
+          totalCOGS: { 
+            $sum: { $multiply: ["$products.quantity", { $ifNull: ["$productInfo.purchasePrice", 0] }] } 
+          }
+        }
+      },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m-%d", date: "$salesDate" } },
+          dailyRevenue: { $sum: "$grandTotal" },
+          dailyCOGS: { $sum: "$totalCOGS" }
+        }
+      },
+      { $sort: { _id: 1 } }
     ]);
+
+    let totalMonthlySales = 0;
+    let totalMonthlyCOGS = 0;
+    let dailyTrends = [];
+
+    salesStats.forEach(dayStat => {
+      totalMonthlySales += dayStat.dailyRevenue;
+      totalMonthlyCOGS += dayStat.dailyCOGS;
+      dailyTrends.push({
+        date: dayStat._id,
+        sales: dayStat.dailyRevenue,
+        profit: dayStat.dailyRevenue - dayStat.dailyCOGS
+      });
+    });
+
+    const netProfit = totalMonthlySales - totalMonthlyCOGS;
 
     // Aggregate Purchases for this month
     const purchaseStats = await Purchase.aggregate([
@@ -46,8 +89,10 @@ exports.getDashboardStats = async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        monthlySales: salesStats.length > 0 ? salesStats[0].totalSales : 0,
+        monthlySales: totalMonthlySales,
         monthlyPurchases: purchaseStats.length > 0 ? purchaseStats[0].totalPurchase : 0,
+        netProfit: netProfit,
+        dailyTrends: dailyTrends,
         lowStockAlerts: lowStockCount,
         outOfStockAlerts: outOfStockCount,
         totalProducts: productsCount,

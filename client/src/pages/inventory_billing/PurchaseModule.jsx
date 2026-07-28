@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
+import { useLocation } from 'react-router-dom';
 
 const PurchaseModule = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -13,11 +15,41 @@ const PurchaseModule = () => {
   const [isScanning, setIsScanning] = useState(false);
 
   const invoiceRef = useRef();
+  const location = useLocation();
 
   useEffect(() => {
-    axios.get('/api/suppliers?limit=100', { withCredentials: true }).then(res => setSuppliers(res.data.data));
-    axios.get('/api/products?status=active&limit=200', { withCredentials: true }).then(res => setProducts(res.data.data));
+    // 1. Fetch suppliers and products
+    Promise.all([
+      axios.get('/api/suppliers?limit=100', { withCredentials: true }),
+      axios.get('/api/products?status=active&limit=200', { withCredentials: true })
+    ]).then(([supplierRes, productRes]) => {
+      setSuppliers(supplierRes.data.data);
+      setProducts(productRes.data.data);
+    }).catch(err => toast.error('Failed to initialize purchase module'));
   }, []);
+
+  // 2. Auto-fill cart if we arrived from "1-Click Reorder"
+  useEffect(() => {
+    if (location.state?.reorderItems && location.state.reorderItems.length > 0) {
+      const prefilledCart = location.state.reorderItems.map(p => {
+        const qty = Math.max((p.minimumStock - p.currentStock) || 10, 10);
+        const price = p.purchasePrice || 0;
+        const gst = p.gstPercentage || 18;
+        return {
+          product: p._id,
+          name: p.name,
+          quantity: qty,
+          purchasePrice: price,
+          discount: 0,
+          gst: gst,
+          total: (price * qty) * (1 + gst / 100)
+        };
+      });
+      
+      setCart(prefilledCart);
+      toast.success(`Cart auto-filled with ${prefilledCart.length} low-stock item(s)!`);
+    }
+  }, [location.state]);
 
   const addProductToCart = (productId) => {
     const product = products.find(p => p._id === productId);
@@ -244,11 +276,17 @@ const PurchaseModule = () => {
               <p className="text-slate-500 mt-2">Bill #{createdBill.invoiceNumber}</p>
             </div>
             <div className="flex gap-3">
+              <button onClick={() => generateInvoicePDF(createdBill)} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
+                </svg>
+                Download Pro PDF
+              </button>
               <button onClick={handlePrint} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                 </svg>
-                Print / Download PDF
+                Print Receipt
               </button>
               <button onClick={() => setCreatedBill(null)} className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-lg font-bold hover:bg-slate-200 transition-colors">
                 Create New Bill
