@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
+import Chart from 'react-apexcharts';
 
 const ReportsDashboard = () => {
   const { tab } = useParams();
@@ -8,8 +9,8 @@ const ReportsDashboard = () => {
   const activeTab = tab || 'dashboard';
 
   const [stats, setStats] = useState({
-    monthlySales: 0, monthlyPurchases: 0, lowStockAlerts: 0,
-    outOfStockAlerts: 0, totalProducts: 0, totalCustomers: 0, totalSuppliers: 0
+    monthlySales: 0, monthlyPurchases: 0, netProfit: 0, dailyTrends: [], 
+    lowStockAlerts: 0, outOfStockAlerts: 0, totalProducts: 0, totalCustomers: 0, totalSuppliers: 0
   });
   const [salesReport, setSalesReport] = useState([]);
   const [purchaseReport, setPurchaseReport] = useState([]);
@@ -96,14 +97,18 @@ const ReportsDashboard = () => {
   const renderOverview = () => (
     <>
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 p-6 rounded-xl shadow-md border-0 text-white">
+          <h3 className="text-indigo-100 text-sm font-medium">Net Profit</h3>
+          <p className="text-3xl font-bold mt-2">₹{(stats.netProfit || 0).toLocaleString()}</p>
+        </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
           <h3 className="text-slate-500 text-sm font-medium">Monthly Sales</h3>
-          <p className="text-3xl font-bold text-slate-800 mt-2">₹{stats.monthlySales.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-slate-800 mt-2">₹{(stats.monthlySales || 0).toLocaleString()}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
           <h3 className="text-slate-500 text-sm font-medium">Monthly Purchases</h3>
-          <p className="text-3xl font-bold text-slate-800 mt-2">₹{stats.monthlyPurchases.toLocaleString()}</p>
+          <p className="text-3xl font-bold text-slate-800 mt-2">₹{(stats.monthlyPurchases || 0).toLocaleString()}</p>
         </div>
         <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-yellow-500 flex justify-between items-center">
           <div>
@@ -120,6 +125,39 @@ const ReportsDashboard = () => {
           <p className="text-sm font-bold text-slate-800 mt-2">{stats.totalProducts} Products</p>
           <p className="text-sm font-bold text-slate-800 mt-1">{stats.totalCustomers} Customers</p>
           <p className="text-sm font-bold text-slate-800 mt-1">{stats.totalSuppliers} Suppliers</p>
+        </div>
+      </div>
+
+      {/* Analytics Chart */}
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 mb-8">
+        <h2 className="font-bold text-lg text-slate-800 mb-4">Sales & Profit Trends (This Month)</h2>
+        <div className="h-[350px]">
+          {stats.dailyTrends && stats.dailyTrends.length > 0 ? (
+            <Chart
+              options={{
+                chart: { type: 'area', toolbar: { show: false }, fontFamily: 'inherit' },
+                colors: ['#3b82f6', '#10b981'], // Blue for sales, Green for profit
+                dataLabels: { enabled: false },
+                stroke: { curve: 'smooth', width: 2 },
+                xaxis: { 
+                  categories: stats.dailyTrends.map(t => t.date),
+                  labels: { style: { colors: '#64748b' } }
+                },
+                yaxis: { labels: { formatter: (val) => `₹${val.toLocaleString()}`, style: { colors: '#64748b' } } },
+                tooltip: { y: { formatter: (val) => `₹${val.toLocaleString()}` } },
+                fill: { type: 'gradient', gradient: { shadeIntensity: 1, opacityFrom: 0.4, opacityTo: 0.05, stops: [0, 90, 100] } },
+                legend: { position: 'top', horizontalAlign: 'right' }
+              }}
+              series={[
+                { name: 'Revenue', data: stats.dailyTrends.map(t => t.sales) },
+                { name: 'Net Profit', data: stats.dailyTrends.map(t => t.profit) }
+              ]}
+              type="area"
+              height="100%"
+            />
+          ) : (
+             <div className="h-full flex items-center justify-center text-slate-400">No sales data for this month to chart.</div>
+          )}
         </div>
       </div>
 
