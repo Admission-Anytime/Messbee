@@ -6,6 +6,20 @@ const Product = require('../models/Product');
 const Supplier = require('../models/Supplier');
 const Category = require('../models/Category');
 
+// Helper to fix common handwriting OCR mistakes in what should be a number
+function fixOCRNumber(str) {
+  if (!str) return str;
+  // Replace common misreadings
+  return str
+    .replace(/[lIi|]/g, '1')
+    .replace(/[oO]/g, '0')
+    .replace(/[sS]/g, '5')
+    .replace(/[zZ]/g, '2')
+    .replace(/[bB]/g, '8')
+    .replace(/[gG]/g, '6')
+    .replace(/,/g, '.');
+}
+
 function parseInvoiceText(text) {
   const lines = text.split('\n');
   const items = [];
@@ -35,39 +49,57 @@ function parseInvoiceText(text) {
 
     if (lowerLine.includes('total') && lowerLine.indexOf('total') < 5) continue; // Skip Total summary line
 
-    // Extract all numbers and words
-    const numberMatches = cleanLine.match(/[\d.]+/g);
-    const wordMatches = cleanLine.match(/[a-zA-Z]+/g);
+    // Extract potential words and numbers, fixing OCR misreadings for numbers.
+    // Instead of strict [\d.]+, we look for tokens that might be numbers (mixed digits and common letter errors)
+    const tokens = cleanLine.split(/\s+/);
+    const nums = [];
+    const wordParts = [];
 
-    if (numberMatches && numberMatches.length >= 2 && wordMatches && wordMatches.length >= 1) {
-      // Filter out invalid numbers like just a dot
-      let nums = numberMatches.map(n => parseFloat(n)).filter(n => !isNaN(n));
+    for (const token of tokens) {
+      // Check if the token looks like a number (contains at least one digit, or is a very common misread)
+      if (/[\d]/.test(token) || /^[lIiOoSsZzBbGg.,]+$/.test(token)) {
+         const fixedToken = fixOCRNumber(token);
+         // Extract just the valid float part
+         const match = fixedToken.match(/[\d.]+/);
+         if (match) {
+            const num = parseFloat(match[0]);
+            if (!isNaN(num) && num > 0) {
+                nums.push(num);
+                continue;
+            }
+         }
+      }
+      // If it doesn't parse as a number, treat as a word
+      const wordMatch = token.match(/[a-zA-Z]+/);
+      if (wordMatch) {
+          wordParts.push(wordMatch[0]);
+      }
+    }
+
+    if (nums.length >= 2 && wordParts.length >= 1) {
+      // Assume last number is Total, second to last is Rate/Price
+      const total = nums[nums.length - 1];
+      const rate = nums[nums.length - 2];
+      // If there are at least 3 numbers, the third to last might be Qty, otherwise default to 1
+      let qty = 1;
+      if (nums.length >= 3) {
+          qty = nums[nums.length - 3];
+          // Sanity check: if qty is strangely large (like it picked up a weight 100gm instead), set to 1
+          if (qty > 1000) qty = 1;
+      }
       
-      if (nums.length >= 2) {
-        // Assume last number is Total, second to last is Rate/Price
-        const total = nums[nums.length - 1];
-        const rate = nums[nums.length - 2];
-        // If there are at least 3 numbers, the third to last might be Qty, otherwise default to 1
-        let qty = 1;
-        if (nums.length >= 3) {
-            qty = nums[nums.length - 3];
-            // Sanity check: if qty is strangely large (like it picked up a weight 100gm instead), set to 1
-            if (qty > 1000) qty = 1;
-        }
-        
-        // Remove common header words from the product name
-        const ignoreWords = ['sno', 'qty', 'rate', 'amount', 'description', 'total', 'rs'];
-        const nameParts = wordMatches.filter(w => !ignoreWords.includes(w.toLowerCase()) && w.length > 1);
-        
-        if (nameParts.length > 0 && total > 0 && rate > 0) {
-            items.push({
-                name: nameParts.join(' ').substring(0, 50),
-                quantity: Math.round(qty),
-                purchasePrice: rate,
-                total: total,
-                gstPercentage: 18 // Default
-            });
-        }
+      // Remove common header words from the product name
+      const ignoreWords = ['sno', 'qty', 'rate', 'amount', 'description', 'total', 'rs'];
+      const nameParts = wordParts.filter(w => !ignoreWords.includes(w.toLowerCase()) && w.length > 1);
+      
+      if (nameParts.length > 0 && total > 0 && rate > 0) {
+          items.push({
+              name: nameParts.join(' ').substring(0, 50),
+              quantity: Math.round(qty),
+              purchasePrice: rate,
+              total: total,
+              gstPercentage: 18 // Default
+          });
       }
     }
   }
@@ -89,18 +121,19 @@ exports.scanInvoice = async (req, res) => {
 
     // 0. Extreme Preprocess Image with Sharp for handwriting
     await sharp(imagePath)
-      .resize({ width: 2000 }) // Upscale to make thin pen strokes thicker
-      .median(3) // Smooth out jagged pen edges
-      .grayscale()
-      .normalize()
-      .linear(1.5, -0.2) // Increase contrast aggressively
-      .threshold(130)
+      .resize({ width: 2500, withoutEnlargement: true }) // Larger upscale for handwritten details
+      .grayscale() // Convert to grayscale
+      .normalize() // Stretch contrast
+      .linear(1.5, -0.2) // Increased contrast boost for lighter pen strokes
+      .sharpen({ sigma: 1.5 }) // Added sharpen to make edges crisper
+      // Removed median and harsh threshold as they often destroy handwritten curves
       .toFile(preprocessedImagePath);
 
-    // 1. Process Preprocessed Image with Tesseract.js (Tuned for tables/lists)
+    // 1. Process Preprocessed Image with Tesseract.js
     const { data: { text } } = await Tesseract.recognize(preprocessedImagePath, 'eng', {
-      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789. -',
-      tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK, // PSM 6: Assume a single uniform block of text
+      tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT, // PSM 11: Sparse text. Better for non-uniform handwritten invoices
+      tessjs_create_pdf: '0',
+      oem: 1, // Explicitly use LSTM OCR Engine
     });
     console.log("OCR Extracted Text:", text);
     const parsedData = parseInvoiceText(text);

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
 
 const InventoryDashboard = () => {
+  const navigate = useNavigate();
   const [logs, setLogs] = useState([]);
   const [lowStock, setLowStock] = useState([]);
   const [outOfStock, setOutOfStock] = useState([]);
@@ -73,19 +75,43 @@ const InventoryDashboard = () => {
         </div>
 
         {/* Low stock alerts */}
-        <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-xl shadow-sm">
-          <h2 className="text-yellow-700 font-bold text-lg mb-4 flex items-center">
-            <span className="mr-2">📉</span> Low Stock Alerts ({lowStock.length})
-          </h2>
-          <div className="max-h-48 overflow-y-auto">
+        <div className="bg-yellow-50 border border-yellow-200 p-6 rounded-xl shadow-sm flex flex-col h-full">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-yellow-700 font-bold text-lg flex items-center">
+              <span className="mr-2">📉</span> Low Stock Alerts ({lowStock.length})
+            </h2>
+            {lowStock.length > 0 && (
+              <button 
+                onClick={() => navigate('/admin/purchase/bills', { state: { reorderItems: lowStock } })}
+                className="bg-yellow-600 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm hover:bg-yellow-700 transition-colors"
+              >
+                1-Click Restock All
+              </button>
+            )}
+          </div>
+          <div className="flex-1 overflow-y-auto pr-1">
             {lowStock.length === 0 ? <p className="text-sm text-yellow-600">No low stock items.</p> : (
-              <ul className="space-y-2">
-                {lowStock.map(p => (
-                  <li key={p._id} className="text-sm font-medium text-yellow-800 flex justify-between bg-white p-2 rounded shadow-sm border border-yellow-100">
-                    <span>{p.name}</span>
-                    <span>{p.currentStock} {p.unit} (Min: {p.minimumStock})</span>
-                  </li>
-                ))}
+              <ul className="space-y-3">
+                {lowStock.map(p => {
+                  const deficit = Math.max((p.minimumStock - p.currentStock), 10); // Standardize minimum restock to 10
+                  return (
+                    <li key={p._id} className="text-sm font-medium text-yellow-800 flex justify-between items-center bg-white p-3 rounded-lg shadow-sm border border-yellow-100">
+                      <div>
+                        <span className="font-bold">{p.name}</span>
+                        <div className="text-xs text-yellow-600 mt-1 font-semibold">Current: {p.currentStock} {p.unit} | Min: {p.minimumStock}</div>
+                      </div>
+                      <button 
+                        onClick={() => navigate('/admin/purchase/bills', { state: { reorderItems: [p] } })}
+                        className="bg-slate-100 text-slate-700 border border-slate-200 px-3 py-1.5 rounded text-xs font-bold hover:bg-slate-200 hover:border-slate-300 transition-all shadow-sm flex gap-1 items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        Restock +{deficit}
+                      </button>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
