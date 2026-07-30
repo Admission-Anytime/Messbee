@@ -11,7 +11,8 @@ const {
   forgotPassword,
   resetPassword,
   getMe,
-  updatePassword
+  updatePassword,
+  facebookLogin
 } = require('../controllers/authController');
 const { protect, optionalProtect } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
@@ -252,6 +253,35 @@ router.post('/login/verify-otp', authRateLimiter, verifyOTPValidator, validate, 
  *         description: Invalid credentials
  */
 router.post('/login', authRateLimiter, loginValidator, validate, login);
+
+/**
+ * @swagger
+ * /api/auth/facebook:
+ *   post:
+ *     summary: Login or Signup with Facebook SSO
+ *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       201:
+ *         description: Signup successful, pending approval
+ *       400:
+ *         description: Access token required
+ *       401:
+ *         description: Invalid Facebook token
+ */
+router.post('/facebook', facebookLogin);
 
 // ==================== TOKEN & SESSION ROUTES ====================
 

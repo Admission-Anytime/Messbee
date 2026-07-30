@@ -9,6 +9,14 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Please add a name'],
     trim: true
   },
+  authProvider: {
+    type: String,
+    enum: ['local', 'facebook'],
+    default: 'local'
+  },
+  facebookId: {
+    type: String
+  },
   email: {
     type: String,
     required: [true, 'Please add an email'],

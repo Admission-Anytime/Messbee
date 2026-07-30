@@ -1,16 +1,57 @@
-import React from "react";
-import { Link } from "react-router-dom";
+import React, { useContext, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify"; // Added toast for the Google button
 import LoginForm from "../../components/auth/LoginForm";
 import Google from "../../assets/googlelogo.svg";
+import Facebook from "../../assets/facebooklogo.svg";
+import FacebookLogin from "@greatsumini/react-facebook-login";
+import { userContext } from "../../context/Context";
+import { loginWithFacebook, saveAuthData } from "../../services/authService";
 
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
 
 const Login = () => {
+  const navigate = useNavigate();
+  const { loginUser } = useContext(userContext);
+  const [fbLoading, setFbLoading] = useState(false);
 
   const handleGoogleLogin = () => {
     toast.info("Google SSO integration coming soon!", { icon: "🚀" });
+  };
+
+  const handleFacebookSuccess = async (response) => {
+    if (!response.accessToken) {
+      toast.error("Failed to get access token from Facebook.");
+      return;
+    }
+
+    try {
+      setFbLoading(true);
+      const res = await loginWithFacebook(response.accessToken);
+      
+      if (res.success) {
+        toast.success("Successfully logged in with Facebook!");
+        saveAuthData(res.data);
+        loginUser(res.data.user);
+        navigate("/admin/dashboard");
+      }
+    } catch (error) {
+      const message = error?.response?.data?.message || "Facebook login failed";
+      const isPending = error?.response?.data?.pendingApproval || false;
+      if (isPending) {
+        toast.info(message, { autoClose: 5000 });
+      } else {
+        toast.error(message);
+      }
+    } finally {
+      setFbLoading(false);
+    }
+  };
+
+  const handleFacebookFail = (error) => {
+    console.error("Facebook Login Failed:", error);
+    toast.error("Facebook login cancelled or failed.");
   };
 
   return (
@@ -69,15 +110,42 @@ const Login = () => {
             <p className="text-slate-500 text-sm">Please enter your details to sign in.</p>
           </div>
 
-          {/* ✅ Made Google Button Interactive */}
-          <button 
-            onClick={handleGoogleLogin}
-            type="button"
-            className="w-full flex items-center justify-center gap-3 py-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors mb-6 text-sm font-semibold text-slate-700 shadow-sm"
-          >
-            <img src={Google} alt="Google" className="w-5 h-5" />
-            Sign in with Google
-          </button>
+          {/* ✅ Social Login Buttons (Grid 2-Columns, Equal Width) */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <button 
+              onClick={handleGoogleLogin}
+              type="button"
+              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-slate-700 shadow-sm"
+            >
+              <img src={Google} alt="Google" className="w-5 h-5 shrink-0" />
+              <span>Google</span>
+            </button>
+            
+            <FacebookLogin
+              appId="1401700501230008" // WHATSAPP_APP_ID from server .env
+              onSuccess={handleFacebookSuccess}
+              onFail={handleFacebookFail}
+              onProfileSuccess={(response) => console.log('Profile:', response)}
+              disabled={fbLoading}
+              render={({ onClick, disabled }) => (
+                <button 
+                  onClick={onClick}
+                  disabled={disabled || fbLoading}
+                  type="button"
+                  className="w-full flex items-center justify-center gap-2.5 py-3 px-4 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-sm font-semibold text-slate-700 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+                >
+                  {fbLoading ? (
+                    <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <img src={Facebook} alt="Facebook" className="w-5 h-5 shrink-0" />
+                      <span>Facebook</span>
+                    </>
+                  )}
+                </button>
+              )}
+            />
+          </div>
 
           <div className="flex items-center mb-6">
             <div className="flex-1 h-px bg-slate-200"></div>

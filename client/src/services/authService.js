@@ -60,6 +60,16 @@ export const loginWithPassword = async (email, password) => {
   return data;
 };
 
+/**
+ * Login with Facebook
+ */
+export const loginWithFacebook = async (accessToken) => {
+  const { data } = await axios.post("/auth/facebook", {
+    accessToken,
+  });
+  return data;
+};
+
 // ==================== TOKEN MANAGEMENT ====================
 
 /**
