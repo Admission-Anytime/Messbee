@@ -2,6 +2,7 @@ const User = require('../models/User');
 const { generateOTP, getOTPExpiry, isOTPExpired, isOTPBlocked, calculateBlockDuration } = require('../utils/otpHelper');
 const { sendOTPEmail, sendWelcomeEmail } = require('../services/emailService');
 const crypto = require('crypto');
+const axios = require('axios');
 
 // ==================== COOKIE HELPER ====================
 
@@ -916,5 +917,118 @@ exports.updatePassword = async (req, res, next) => {
   } catch (error) {
     console.error('Update password error:', error);
     next(error);
+  }
+};
+
+// ==================== FACEBOOK LOGIN ====================
+
+/**
+ * @desc    Login or Signup with Facebook
+ * @route   POST /api/auth/facebook
+ * @access  Public
+ */
+exports.facebookLogin = async (req, res, next) => {
+  try {
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ success: false, message: 'Access token is required' });
+    }
+
+    // Verify token with Facebook Graph API
+    const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+    const { id, name, email, picture } = response.data;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Facebook account must have an email attached' });
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // User exists, check if deactivated
+      if (!user.isActive) {
+        return res.status(403).json({ success: false, message: 'Account is deactivated' });
+      }
+
+      // Check if admin has approved the account
+      if (user.isApproved === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+          pendingApproval: true
+        });
+      }
+
+      // Ensure Facebook ID is saved if they originally signed up via email
+      if (!user.facebookId) {
+        user.facebookId = id;
+        await user.save();
+      }
+    } else {
+      // Create new user via Facebook
+      user = await User.create({
+        name,
+        email,
+        facebookId: id,
+        authProvider: 'facebook',
+        avatar: picture?.data?.url,
+        isEmailVerified: true, // Trusted from Facebook
+        isApproved: false, // New users still need admin approval by default
+        role: 'AGENT'
+      });
+      
+      // Wait for admin approval message
+      return res.status(201).json({
+        success: true,
+        message: 'Signup successful! Your account is pending admin approval.',
+        pendingApproval: true,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email
+          }
+        }
+      });
+    }
+
+    // Generate tokens for login
+    user.lastLogin = Date.now();
+    const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
+    
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    setTokenCookies(res, token, refreshToken);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      tokens: {
+        accessToken: token,
+        refreshToken
+      },
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          subscriptionPlan: user.subscriptionPlan,
+          credits: user.credits,
+          subscriptionEndDate: user.subscriptionEndDate
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Facebook login error:', error.response?.data || error);
+    res.status(401).json({
+      success: false,
+      message: 'Invalid Facebook token or Facebook API error'
+    });
   }
 };
