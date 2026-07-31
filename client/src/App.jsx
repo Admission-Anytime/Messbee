@@ -14,6 +14,7 @@ import MainSidebar from "./components/mainsidebar/MainSidebar";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import WhatsAppConfig from "./pages/setting/Wapi";
+import LazyOnboardingModal from "./components/LazyOnboardingModal";
 
 // --- UPDATED LOADING UI ---
 const PageLoader = () => <Loading />;
@@ -157,7 +158,7 @@ const AppLayout = memo(() => {
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
-      
+      <LazyOnboardingModal />
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && (
         <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />

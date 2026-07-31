@@ -4,10 +4,58 @@ import logoIcon from "../../assets/MessBee Logo.png";
 import logoName from "../../assets/MessBee Name.png";
 import ConnectWhatsAppModal from "../../components/Modol/ConnectWhatsAppModal";
 
+// ── Icons & Options ──
+const LocIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
+  </svg>
+);
+
+const SectionLabel = ({ icon, text }) => (
+  <div className="flex items-center gap-2 mb-3 mt-4">
+    {icon ? (
+      <span className="text-slate-400">{icon}</span>
+    ) : (
+      <span className="w-[3px] h-[14px] bg-[#00E56A] rounded-full shrink-0" />
+    )}
+    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
+      {text}
+    </span>
+  </div>
+);
+
+const GlobeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+  </svg>
+);
+
+const CATEGORIES = [
+  { value: "education", label: "Education", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z" /><path d="M6 12v5c3 3 9 3 12 0v-5" /></svg> },
+  { value: "ecommerce", label: "E-commerce", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" /></svg> },
+  { value: "realestate", label: "Real Estate", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg> },
+  { value: "hospital", label: "Hospital", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg> },
+  { value: "coaching", label: "Coaching", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg> },
+  { value: "marketing", label: "Marketing Agency", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" /><path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" /></svg> },
+  { value: "other", label: "Other", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg> },
+];
+
+const BUSINESS_TYPES = ["Individual", "Company", "Startup", "Agency"];
+const COUNTRIES = ["India", "United States", "United Kingdom", "Australia", "Canada", "Singapore", "UAE", "Germany", "France", "Japan"];
+
+
 const Onboarding = () => {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  
+  // -- Form State --
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedType, setSelectedType] = useState("Individual");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [country, setCountry] = useState("");
 
   // --- Reusable Icons ---
   const CheckIcon = ({ className = "w-3.5 h-3.5" }) => (
@@ -60,17 +108,70 @@ const Onboarding = () => {
               </button>
             </div>
 
-            {/* Dropdown */}
+            {/* Business Category - SVG Grid */}
+            <div className="mb-6">
+              <SectionLabel text="Business Category" />
+              <div className="grid grid-cols-4 gap-2">
+                {CATEGORIES.map((cat) => (
+                  <button key={cat.value} type="button"
+                    onClick={() => setSelectedCategory(cat.value)}
+                    className={`flex flex-col items-center justify-center gap-2 py-3 px-1 border rounded-[10px] text-center transition-all cursor-pointer
+                      ${selectedCategory === cat.value
+                        ? "border-[#00E56A] bg-[#00E56A]/10 text-[#00c95d] shadow-[0_0_0_3px_rgba(0,229,106,0.13)]"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-[#00E56A] hover:bg-[#00E56A]/5 hover:text-[#00c95d]"}`}>
+                    <span className={selectedCategory === cat.value ? "text-[#00E56A]" : "text-slate-400"}>
+                      {cat.icon}
+                    </span>
+                    <span className="text-[10px] font-medium leading-tight">{cat.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Business Type */}
+            <div className="mb-6">
+              <SectionLabel text="Business Type" />
+              <div className="grid grid-cols-4 border border-slate-200 rounded-[10px] overflow-hidden">
+                {BUSINESS_TYPES.map((type, i) => (
+                  <button key={type} type="button"
+                    onClick={() => setSelectedType(type)}
+                    className={`py-[11px] px-2 text-[12px] font-medium text-center transition-colors
+                      ${i < BUSINESS_TYPES.length - 1 ? "border-r border-slate-200" : ""}
+                      ${selectedType === type
+                        ? "bg-white text-slate-900 font-semibold"
+                        : "bg-slate-50 text-slate-500 hover:bg-slate-100"}`}>
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Location Details */}
             <div className="mb-10">
-              <label className="text-[11px] font-bold text-slate-500 mb-2 block">Business Category</label>
-              <div className="relative">
-                <select className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none appearance-none cursor-pointer">
-                  <option value="">Select your industry</option>
-                  <option value="ecommerce">E-Commerce</option>
-                  <option value="education">Education</option>
-                  <option value="software">Software / IT</option>
-                </select>
-                <svg className="w-4 h-4 text-slate-400 absolute right-4 top-4 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+              <SectionLabel text="Location Details" />
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                 <div className="flex items-center border border-slate-200 rounded-[9px] bg-white overflow-hidden focus-within:border-[#00E56A] focus-within:ring-2 focus-within:ring-[#00E56A]/10 transition-all">
+                    <span className="pl-3 text-slate-400"><LocIcon /></span>
+                    <input type="text" placeholder="City" value={city} onChange={e=>setCity(e.target.value)} className="w-full px-3 py-[11px] bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-300" />
+                 </div>
+                 <div className="flex items-center border border-slate-200 rounded-[9px] bg-white overflow-hidden focus-within:border-[#00E56A] focus-within:ring-2 focus-within:ring-[#00E56A]/10 transition-all">
+                    <span className="pl-3 text-slate-400"><LocIcon /></span>
+                    <input type="text" placeholder="State" value={state} onChange={e=>setState(e.target.value)} className="w-full px-3 py-[11px] bg-transparent text-[13px] text-slate-700 outline-none placeholder:text-slate-300" />
+                 </div>
+              </div>
+              <div className="flex items-center border border-slate-200 rounded-[9px] bg-white overflow-hidden focus-within:border-[#00E56A] focus-within:ring-2 focus-within:ring-[#00E56A]/10 transition-all">
+                 <span className="pl-3 text-slate-400"><GlobeIcon /></span>
+                 <select value={country} onChange={e=>setCountry(e.target.value)} className="flex-1 text-[13px] text-slate-700 py-[11px] px-3 bg-transparent outline-none appearance-none cursor-pointer">
+                    <option value="" disabled>Select Country</option>
+                    {COUNTRIES.map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                 </select>
+                 <span className="pr-3 text-slate-400 pointer-events-none shrink-0">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                 </span>
               </div>
             </div>
 
