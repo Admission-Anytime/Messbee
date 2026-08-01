@@ -238,7 +238,7 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const fieldsToUpdate = {};
-    const allowed = ['name', 'email', 'phone', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'];
+    const allowed = ['name', 'email', 'phone', 'businessName', 'businessCategory', 'businessType', 'city', 'state', 'country', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'];
     
     allowed.forEach(key => {
       if (req.body[key] !== undefined) {

@@ -61,12 +61,28 @@ export const loginWithPassword = async (email, password) => {
 };
 
 /**
- * Login with Facebook
+ * Login with Facebook (Legacy)
  */
 export const loginWithFacebook = async (accessToken) => {
   const { data } = await axios.post("/auth/facebook", {
     accessToken,
   });
+  if (data.isNewUser) {
+    localStorage.setItem('isNewUser', 'true');
+  }
+  return data;
+};
+
+/**
+ * Login with Social Provider (Google, Facebook, etc.)
+ */
+export const loginWithSocial = async (provider, accessToken) => {
+  const { data } = await axios.post(`/auth/social/${provider}`, {
+    accessToken,
+  });
+  if (data.isNewUser) {
+    localStorage.setItem('isNewUser', 'true');
+  }
   return data;
 };
 

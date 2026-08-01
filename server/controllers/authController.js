@@ -1,8 +1,8 @@
 const User = require('../models/User');
+const axios = require('axios');
 const { generateOTP, getOTPExpiry, isOTPExpired, isOTPBlocked, calculateBlockDuration } = require('../utils/otpHelper');
 const { sendOTPEmail, sendWelcomeEmail } = require('../services/emailService');
 const crypto = require('crypto');
-const axios = require('axios');
 
 // ==================== COOKIE HELPER ====================
 
@@ -1030,5 +1030,142 @@ exports.facebookLogin = async (req, res, next) => {
       success: false,
       message: 'Invalid Facebook token or Facebook API error'
     });
+  }
+};
+
+/**
+ * @desc    Login or Signup with Social Providers (Google, Facebook, etc.)
+ * @route   POST /api/auth/social/:login_type
+ * @access  Public
+ */
+exports.socialLogin = async (req, res, next) => {
+  try {
+    const { login_type } = req.params;
+    const { accessToken } = req.body;
+
+    if (!accessToken) {
+      return res.status(400).json({ success: false, message: 'Access token is required' });
+    }
+
+    let response, regdata = {};
+
+    try {
+      switch (login_type.toLowerCase()) {
+        case 'google':
+          try {
+            response = await axios.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${accessToken}`);
+            // Security: Verify audience matches our Client ID to prevent cross-client token forgery
+            if (process.env.GOOGLE_CLIENT_ID && response.data.aud !== process.env.GOOGLE_CLIENT_ID) {
+              return res.status(401).json({ success: false, message: 'Invalid Google Client ID (Audience mismatch)' });
+            }
+            regdata = { id: response.data.sub, name: response.data.name, email: response.data.email, picture: response.data.picture };
+          } catch (err) {
+            response = await axios.get('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            regdata = { id: response.data.sub, name: response.data.name, email: response.data.email, picture: response.data.picture };
+          }
+          break;
+        case 'facebook':
+          response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
+          regdata = { id: response.data.id, name: response.data.name, email: response.data.email, picture: response.data.picture?.data?.url };
+          break;
+        default:
+          return res.status(400).json({ success: false, message: 'Unsupported provider' });
+      }
+    } catch (error) {
+      console.error('Social verify error:', error.response?.data || error.message);
+      return res.status(401).json({ success: false, message: 'Invalid social token' });
+    }
+
+    if (!regdata.email) {
+      return res.status(400).json({ success: false, message: 'Social account must have an email attached' });
+    }
+
+    const updatePayload = {
+      $setOnInsert: {
+        name: regdata.name,
+        email: regdata.email,
+        password: null, // As requested, explicitly set to null
+        authProvider: login_type,
+        avatar: regdata.picture,
+        isEmailVerified: true,
+        isApproved: true, // Auto-approve social logins
+        role: 'AGENT'
+      },
+      $set: {}
+    };
+
+    // Dynamically assign the provider ID to ensure existing accounts get linked properly
+    if (login_type.toLowerCase() === 'facebook') {
+      updatePayload.$set.facebookId = regdata.id;
+    } else if (login_type.toLowerCase() === 'google') {
+      updatePayload.$set.googleId = regdata.id;
+    }
+
+    // Use findOneAndUpdate with upsert: true to prevent E11000 race conditions
+    const result = await User.findOneAndUpdate(
+      { email: regdata.email },
+      updatePayload,
+      { upsert: true, new: true, rawResult: true, setDefaultsOnInsert: true }
+    );
+
+    let user = result.value;
+    let isNewUser = false;
+
+    // rawResult.lastErrorObject.updatedExisting tells us if a new document was inserted
+    if (!result.lastErrorObject.updatedExisting) {
+      isNewUser = true;
+    } else {
+      // Existing user checks
+      if (!user.isActive) {
+        return res.status(403).json({ success: false, message: 'Account is deactivated' });
+      }
+      if (user.isApproved === false) {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin is reviewing your account. Kindly wait for admin approval.',
+          pendingApproval: true
+        });
+      }
+    }
+
+    // Generate tokens for login
+    user.lastLogin = Date.now();
+    const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
+    
+    user.refreshToken = refreshToken;
+    await user.save(); // Single save operation for both new and existing users
+
+    setTokenCookies(res, token, refreshToken);
+
+    res.status(isNewUser ? 201 : 200).json({
+      success: true,
+      message: 'Login successful',
+      isNewUser,
+      tokens: {
+        accessToken: token,
+        refreshToken
+      },
+      data: {
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          phone: user.phone,
+          schoolName: user.schoolName,
+          company: user.company,
+          subscriptionPlan: user.subscriptionPlan,
+          credits: user.credits,
+          subscriptionEndDate: user.subscriptionEndDate
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Social login error:', error);
+    next(error);
   }
 };
