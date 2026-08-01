@@ -12,7 +12,8 @@ const {
   resetPassword,
   getMe,
   updatePassword,
-  facebookLogin
+  facebookLogin,
+  socialLogin
 } = require('../controllers/authController');
 const { protect, optionalProtect } = require('../middleware/auth');
 const { createRateLimiter } = require('../middleware/rateLimit');
@@ -282,6 +283,42 @@ router.post('/login', authRateLimiter, loginValidator, validate, login);
  *         description: Invalid Facebook token
  */
 router.post('/facebook', facebookLogin);
+
+/**
+ * @swagger
+ * /api/auth/social/{login_type}:
+ *   post:
+ *     summary: Login or Signup with Social SSO (Google, Facebook, etc.)
+ *     tags: [Authentication]
+ *     parameters:
+ *       - in: path
+ *         name: login_type
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Provider name (e.g., google, facebook)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *       201:
+ *         description: Signup successful
+ *       400:
+ *         description: Access token required
+ *       401:
+ *         description: Invalid token
+ */
+router.post('/social/:login_type', socialLogin);
 
 // ==================== TOKEN & SESSION ROUTES ====================
 

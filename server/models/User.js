@@ -11,10 +11,12 @@ const UserSchema = new mongoose.Schema({
   },
   authProvider: {
     type: String,
-    enum: ['local', 'facebook'],
     default: 'local'
   },
   facebookId: {
+    type: String
+  },
+  googleId: {
     type: String
   },
   email: {
@@ -49,6 +51,24 @@ const UserSchema = new mongoose.Schema({
     type: String
   },
   company: {
+    type: String
+  },
+  businessName: {
+    type: String
+  },
+  businessCategory: {
+    type: String
+  },
+  businessType: {
+    type: String
+  },
+  city: {
+    type: String
+  },
+  state: {
+    type: String
+  },
+  country: {
     type: String
   },
   isActive: {
