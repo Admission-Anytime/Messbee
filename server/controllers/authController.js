@@ -939,12 +939,13 @@ exports.facebookLogin = async (req, res, next) => {
     const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
     const { id, name, email, picture } = response.data;
 
-    if (!email) {
-      return res.status(400).json({ success: false, message: 'Facebook account must have an email attached' });
-    }
+    // Fallback email if Facebook account has no email attached (e.g., registered via phone number)
+    const userEmail = email || `${id}@facebook.com`;
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Check if user exists by facebookId or email
+    let user = await User.findOne({
+      $or: [{ facebookId: id }, { email: userEmail }]
+    });
 
     if (user) {
       // User exists, check if deactivated
@@ -969,8 +970,8 @@ exports.facebookLogin = async (req, res, next) => {
     } else {
       // Create new user via Facebook
       user = await User.create({
-        name,
-        email,
+        name: name || 'Facebook User',
+        email: userEmail,
         facebookId: id,
         authProvider: 'facebook',
         avatar: picture?.data?.url,
@@ -1079,12 +1080,16 @@ exports.socialLogin = async (req, res, next) => {
     }
 
     if (!regdata.email) {
-      return res.status(400).json({ success: false, message: 'Social account must have an email attached' });
+      if (login_type.toLowerCase() === 'facebook' && regdata.id) {
+        regdata.email = `${regdata.id}@facebook.com`;
+      } else {
+        return res.status(400).json({ success: false, message: 'Social account must have an email attached' });
+      }
     }
 
     const updatePayload = {
       $setOnInsert: {
-        name: regdata.name,
+        name: regdata.name || 'Facebook User',
         email: regdata.email,
         password: null, // As requested, explicitly set to null
         authProvider: login_type,
@@ -1097,15 +1102,22 @@ exports.socialLogin = async (req, res, next) => {
     };
 
     // Dynamically assign the provider ID to ensure existing accounts get linked properly
+    let queryFilter = { email: regdata.email };
     if (login_type.toLowerCase() === 'facebook') {
       updatePayload.$set.facebookId = regdata.id;
+      if (regdata.id) {
+        const existingFbUser = await User.findOne({ facebookId: regdata.id });
+        if (existingFbUser) {
+          queryFilter = { _id: existingFbUser._id };
+        }
+      }
     } else if (login_type.toLowerCase() === 'google') {
       updatePayload.$set.googleId = regdata.id;
     }
 
     // Use findOneAndUpdate with upsert: true to prevent E11000 race conditions
     const result = await User.findOneAndUpdate(
-      { email: regdata.email },
+      queryFilter,
       updatePayload,
       { upsert: true, new: true, rawResult: true, setDefaultsOnInsert: true }
     );
