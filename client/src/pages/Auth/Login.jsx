@@ -122,7 +122,9 @@ const Login = () => {
             </button>
             
             <FacebookLogin
-              appId="1401700501230008" // WHATSAPP_APP_ID from server .env
+              appId={import.meta.env.VITE_FB_LOGIN_APP_ID || import.meta.env.VITE_META_APP_ID || "1401700501230008"}
+              scope="public_profile,email"
+              fields="name,email,picture"
               onSuccess={handleFacebookSuccess}
               onFail={handleFacebookFail}
               onProfileSuccess={(response) => console.log('Profile:', response)}
