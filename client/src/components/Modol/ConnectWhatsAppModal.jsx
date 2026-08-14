@@ -11,17 +11,13 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState("");
   const [isFbInitialized, setIsFbInitialized] = useState(false);
 
-  // Load Facebook SDK on mount (must be before any early returns)
+  // Load or Re-initialize Facebook SDK on mount
   useEffect(() => {
-    // If it's already loaded and initialized from a previous modal open
-    if (window.FB && window.FB.login) {
-      setIsFbInitialized(true);
-      return;
-    }
+    const appId = import.meta.env.VITE_META_APP_ID || "1401700501230008"; // WhatsApp Embedded Signup App ID
 
-    window.fbAsyncInit = function () {
+    const initFB = () => {
       window.FB.init({
-        appId: import.meta.env.VITE_META_APP_ID || "YOUR_META_APP_ID", // Add this to your .env
+        appId: appId,
         cookie: true,
         xfbml: true,
         version: "v20.0", // Use the latest stable version
@@ -29,15 +25,22 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
       setIsFbInitialized(true);
     };
 
-    (function (d, s, id) {
-      var js,
-        fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s);
-      js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
-      fjs.parentNode.insertBefore(js, fjs);
-    })(document, "script", "facebook-jssdk");
+    // If FB SDK is already loaded (e.g., from the Login page), FORCE re-initialization with WhatsApp App ID
+    if (window.FB && window.FB.init) {
+      initFB();
+    } else {
+      window.fbAsyncInit = initFB;
+
+      (function (d, s, id) {
+        var js,
+          fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s);
+        js.id = id;
+        js.src = "https://connect.facebook.net/en_US/sdk.js";
+        fjs.parentNode.insertBefore(js, fjs);
+      })(document, "script", "facebook-jssdk");
+    }
   }, []);
 
   if (!isOpen) return null;
@@ -70,7 +73,7 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
     const sessionInfoListener = (event) => {
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
         return;
-      }
+      }  
       try {
         const data = JSON.parse(event.data);
         if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
@@ -137,7 +140,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         extras: {
           feature: "whatsapp_embedded_signup",
           version: 2,
-          sessionInfoVersion: 2
+          sessionInfoVersion: "2",
+          setup: {}
         },
         scope: scopes.join(",")
       }
