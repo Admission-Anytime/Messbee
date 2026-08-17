@@ -122,7 +122,7 @@ const Login = () => {
             </button>
             
             <FacebookLogin
-              appId={import.meta.env.VITE_FB_LOGIN_APP_ID || import.meta.env.VITE_META_APP_ID || "1401700501230008"}
+              appId={import.meta.env.VITE_FB_LOGIN_APP_ID || "921773847630961"}
               scope="public_profile,email"
               fields="name,email,picture"
               onSuccess={handleFacebookSuccess}
