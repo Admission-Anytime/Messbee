@@ -20,7 +20,8 @@ const CustomerManagement = () => {
     setLoading(true);
     try {
       const res = await axios.get(`/api/customers?search=${search}&page=${page}`, { withCredentials: true });
-      setCustomers(res.data.data);
+      setCustomers(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch customers');
     }

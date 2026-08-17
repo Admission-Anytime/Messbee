@@ -21,7 +21,8 @@ const SupplierManagement = () => {
     setLoading(true);
     try {
       const res = await axios.get(`/api/suppliers?search=${search}&page=${page}`, { withCredentials: true });
-      setSuppliers(res.data.data);
+      setSuppliers(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch suppliers');
     }

@@ -23,6 +23,9 @@ router.post('/register', protect, whatsappController.registerNumber);
 // Connect via OAuth Token (Protected route)
 router.post('/connect-oauth', protect, whatsappController.connectOAuthToken);
 
+// Embedded Signup Callback (Protected route)
+router.post('/embedded-signup-callback', protect, whatsappController.embeddedSignupCallback);
+
 // Connect Manually via Tokens (Protected route)
 router.post('/connect-manual', protect, whatsappController.connectManual);
 

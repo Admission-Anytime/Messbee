@@ -11,12 +11,23 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
   const [error, setError] = useState("");
   const [isFbInitialized, setIsFbInitialized] = useState(false);
 
-  // Load Facebook SDK on mount (must be before any early returns)
+  // Load Facebook SDK on mount
   useEffect(() => {
-    // If it's already loaded and initialized from a previous modal open
-    if (window.FB && window.FB.login) {
-      setIsFbInitialized(true);
-      return;
+    // The FB SDK might already be initialized by the Login page using a DIFFERENT App ID.
+    // Facebook SDK does not support changing the App ID dynamically.
+    // To ensure Embedded Signup uses the correct App ID, we must forcefully remove the old SDK and re-inject it.
+    if (window.FB) {
+      delete window.FB;
+    }
+    const existingScript = document.getElementById('facebook-jssdk');
+    if (existingScript) {
+      existingScript.remove();
+    }
+    
+    // Also remove the fb root element if it exists to ensure a clean slate
+    const fbRoot = document.getElementById('fb-root');
+    if (fbRoot) {
+      fbRoot.remove();
     }
 
     window.fbAsyncInit = function () {
@@ -74,8 +85,7 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
       try {
         const data = JSON.parse(event.data);
         if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
-          const { phone_number_id, waba_id } = data.data;
-          window.lastMetaSessionInfo = { phone_number_id, waba_id };
+          window.lastMetaSessionInfo = data;
           console.log("Captured Meta Session Info:", window.lastMetaSessionInfo);
         }
       } catch (error) {
@@ -100,10 +110,9 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
               window.removeEventListener("message", sessionInfoListener);
               window.lastMetaSessionInfo = null;
 
-              api.post('/whatsapp/connect-oauth', { 
+              api.post('/whatsapp/embedded-signup-callback', { 
                 code,
-                wabaId: sessionInfo.waba_id,
-                phoneNumberId: sessionInfo.phone_number_id
+                eventData: sessionInfo
               })
                 .then((res) => {
                   if (res.data?.success) {

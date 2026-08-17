@@ -16,8 +16,8 @@ const CategoryManagement = () => {
     setLoading(true);
     try {
       const res = await axios.get(`/api/categories?search=${search}&page=${page}`, { withCredentials: true });
-      setCategories(res.data.data);
-      setTotalPages(res.data.pagination.pages);
+      setCategories(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch categories');
     }

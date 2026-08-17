@@ -21,9 +21,9 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/products?search=${search}&page=${page}&limit=7`, { withCredentials: true });
-      setProducts(res.data.data);
-      setTotalPages(res.data.pagination?.pages || 1);
+      const res = await axios.get(`/api/products?search=${search}&page=${page}&category=${categoryFilter}`, { withCredentials: true });
+      setProducts(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch products');
     }
@@ -32,8 +32,8 @@ const ProductManagement = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get(`/api/categories?status=active&limit=100`, { withCredentials: true });
-      setCategories(res.data.data);
+      const res = await axios.get('/api/categories?limit=100', { withCredentials: true });
+      setCategories(res.data?.data || []);
     } catch (err) {
       console.error(err);
     }

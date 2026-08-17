@@ -60,10 +60,15 @@ exports.connectOAuthToken = async (req, res, next) => {
     const axios = require('axios');
     
     // 1. Exchange code for access token
-    const tokenUrl = `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/oauth/access_token?client_id=${process.env.WHATSAPP_APP_ID}&client_secret=${process.env.WHATSAPP_APP_SECRET}&code=${code}`;
     let accessToken;
     try {
-      const tokenRes = await axios.get(tokenUrl);
+      const tokenRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/oauth/access_token`, {
+        params: {
+          client_id: process.env.WHATSAPP_APP_ID,
+          client_secret: process.env.WHATSAPP_APP_SECRET,
+          code: code
+        }
+      });
       accessToken = tokenRes.data.access_token;
     } catch (err) {
       console.error("Token exchange failed:", err.response?.data || err.message);
@@ -118,6 +123,20 @@ exports.connectOAuthToken = async (req, res, next) => {
     };
     
     await setting.save();
+
+    // Save mapping to User configuration details (mapped by user ID)
+    if (req.user && req.user._id) {
+      const User = require('../models/User');
+      const userRecord = await User.findById(req.user._id);
+      if (userRecord) {
+        userRecord.whatsappConfig = {
+          wabaId: wabaId || userRecord.whatsappConfig?.wabaId,
+          phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
+          accessToken: accessToken
+        };
+        await userRecord.save();
+      }
+    }
     
     // Update service config in memory
     const whatsappService = require('../services/whatsappService');
@@ -138,6 +157,143 @@ exports.connectOAuthToken = async (req, res, next) => {
     res.status(500).json({
       success: false,
       message: 'Failed to connect WhatsApp account via OAuth',
+      error: error.response?.data?.error?.message || error.message
+    });
+  }
+};
+
+// @desc    Embedded Signup Callback
+// @route   POST /api/whatsapp/embedded-signup-callback
+// @access  Private
+exports.embeddedSignupCallback = async (req, res, next) => {
+  try {
+    const { code, eventData } = req.body;
+    if (!code) {
+      return res.status(400).json({ success: false, message: 'OAuth code is required' });
+    }
+
+    // 1. LOG THE EVENT DATA
+    console.log("📥 Embedded Signup Event Data Received:", JSON.stringify(eventData, null, 2));
+    
+    const Setting = require('../models/Setting');
+    
+    // Store logs in database for the senior
+    let logSetting = await Setting.findOne({ key: 'embedded_signup_logs' });
+    if (!logSetting) {
+        logSetting = new Setting({ key: 'embedded_signup_logs', value: [] });
+    }
+    // ensure value is array
+    if (!Array.isArray(logSetting.value)) logSetting.value = [];
+    logSetting.value.push({ timestamp: new Date(), eventData, code });
+    // keep only last 20 logs to save space
+    if (logSetting.value.length > 20) logSetting.value.shift();
+    await logSetting.save();
+
+    // Extract IDs from the event data payload
+    let clientWabaId = null;
+    let clientPhoneNumberId = null;
+    if (eventData && eventData.data) {
+        clientWabaId = eventData.data.waba_id;
+        clientPhoneNumberId = eventData.data.phone_number_id;
+    }
+
+    const axios = require('axios');
+    
+    // 2. Exchange code for access token
+    let accessToken;
+    try {
+      const tokenRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/oauth/access_token`, {
+        params: {
+          client_id: process.env.WHATSAPP_APP_ID,
+          client_secret: process.env.WHATSAPP_APP_SECRET,
+          code: code
+        }
+      });
+      accessToken = tokenRes.data.access_token;
+    } catch (err) {
+      console.error("Token exchange failed:", err.response?.data || err.message);
+      return res.status(400).json({ success: false, message: 'Failed to exchange OAuth code' });
+    }
+    
+    // 3. Fetch user info to verify token
+    const userRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/me?access_token=${accessToken}`);
+    
+    if (!userRes.data || !userRes.data.id) {
+      return res.status(400).json({ success: false, message: 'Invalid Meta access token' });
+    }
+    
+    let wabaId = clientWabaId || null;
+    let phoneNumberId = clientPhoneNumberId || null;
+    
+    if (!wabaId) {
+      try {
+          const bizRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/me/businesses?access_token=${accessToken}`);
+          if (bizRes.data && bizRes.data.data && bizRes.data.data.length > 0) {
+              const bizId = bizRes.data.data[0].id;
+              const wabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/owned_whatsapp_business_accounts?access_token=${accessToken}`);
+              if (wabaRes.data && wabaRes.data.data && wabaRes.data.data.length > 0) {
+                  wabaId = wabaRes.data.data[0].id;
+              } else {
+                 const clientWabaRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${bizId}/client_whatsapp_business_accounts?access_token=${accessToken}`);
+                 if (clientWabaRes.data && clientWabaRes.data.data && clientWabaRes.data.data.length > 0) {
+                    wabaId = clientWabaRes.data.data[0].id;
+                 }
+              }
+          }
+      } catch (e) {
+          console.error("Could not auto-fetch WABA ID", e.response?.data || e.message);
+      }
+    }
+
+    // Save token and WABA ID to main config settings
+    let setting = await Setting.findOne({ key: 'whatsapp_config' });
+    if (!setting) {
+        setting = new Setting({ key: 'whatsapp_config', value: {} });
+    }
+    
+    setting.value = {
+        ...setting.value,
+        accessToken: accessToken,
+        businessAccountId: wabaId || setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
+    };
+    
+    await setting.save();
+
+    // Save mapping to User configuration details (mapped by user ID)
+    if (req.user && req.user._id) {
+      const User = require('../models/User');
+      const userRecord = await User.findById(req.user._id);
+      if (userRecord) {
+        userRecord.whatsappConfig = {
+          wabaId: wabaId || userRecord.whatsappConfig?.wabaId,
+          phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
+          accessToken: accessToken
+        };
+        await userRecord.save();
+      }
+    }
+    
+    // Update service config in memory
+    const whatsappService = require('../services/whatsappService');
+    whatsappService.accessToken = accessToken;
+    if (wabaId) whatsappService.businessAccountId = wabaId;
+    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
+
+    res.status(200).json({
+      success: true,
+      message: 'WhatsApp account connected successfully via Embedded Signup Callback',
+      wabaId: wabaId,
+      phoneNumberId: phoneNumberId,
+      metaUserId: userRes.data.id,
+      loggedEvent: true
+    });
+
+  } catch (error) {
+    console.error('Embedded Signup Callback Error:', error.response?.data || error.message);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to process embedded signup callback',
       error: error.response?.data?.error?.message || error.message
     });
   }
@@ -169,6 +325,20 @@ exports.connectManual = async (req, res, next) => {
     };
     
     await setting.save();
+
+    // Save mapping to User configuration details (mapped by user ID)
+    if (req.user && req.user._id) {
+      const User = require('../models/User');
+      const userRecord = await User.findById(req.user._id);
+      if (userRecord) {
+        userRecord.whatsappConfig = {
+          wabaId: wabaId || userRecord.whatsappConfig?.wabaId,
+          phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
+          accessToken: accessToken
+        };
+        await userRecord.save();
+      }
+    }
     
     // Update service config in memory
     const whatsappService = require('../services/whatsappService');
