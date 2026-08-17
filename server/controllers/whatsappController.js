@@ -72,7 +72,11 @@ exports.connectOAuthToken = async (req, res, next) => {
       accessToken = tokenRes.data.access_token;
     } catch (err) {
       console.error("Token exchange failed:", err.response?.data || err.message);
-      return res.status(400).json({ success: false, message: 'Failed to exchange OAuth code' });
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Failed to exchange OAuth code: ' + (err.response?.data?.error?.message || err.message),
+        details: err.response?.data
+      });
     }
     
     // 2. Fetch user info to verify token
