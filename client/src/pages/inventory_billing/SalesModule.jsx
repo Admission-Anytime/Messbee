@@ -11,8 +11,14 @@ const SalesModule = () => {
   const [createdInvoice, setCreatedInvoice] = useState(null);
   
   useEffect(() => {
-    axios.get('/api/customers?limit=100', { withCredentials: true }).then(res => setCustomers(res.data.data));
-    axios.get('/api/products?status=active&limit=200', { withCredentials: true }).then(res => setProducts(res.data.data));
+    // 1. Fetch customers and products
+    Promise.all([
+      axios.get('/api/customers?limit=100', { withCredentials: true }),
+      axios.get('/api/products?status=active&limit=200', { withCredentials: true })
+    ]).then(([customerRes, productRes]) => {
+      setCustomers(customerRes.data?.data || []);
+      setProducts(productRes.data?.data || []);
+    }).catch(err => toast.error('Failed to initialize sales module'));
   }, []);
 
   const addProductToCart = (productId) => {

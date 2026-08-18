@@ -138,6 +138,12 @@ const UserSchema = new mongoose.Schema({
   lastLogin: {
     type: Date
   },
+  // WhatsApp Configuration tied to this specific user
+  whatsappConfig: {
+    wabaId: { type: String },
+    phoneNumberId: { type: String },
+    accessToken: { type: String }
+  },
   // Password reset fields
   resetPasswordToken: {
     type: String,

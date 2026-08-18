@@ -23,8 +23,8 @@ const PurchaseModule = () => {
       axios.get('/api/suppliers?limit=100', { withCredentials: true }),
       axios.get('/api/products?status=active&limit=200', { withCredentials: true })
     ]).then(([supplierRes, productRes]) => {
-      setSuppliers(supplierRes.data.data);
-      setProducts(productRes.data.data);
+      setSuppliers(supplierRes.data?.data || []);
+      setProducts(productRes.data?.data || []);
     }).catch(err => toast.error('Failed to initialize purchase module'));
   }, []);
 
