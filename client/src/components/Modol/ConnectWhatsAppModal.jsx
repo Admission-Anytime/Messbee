@@ -3,7 +3,7 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import api from "../../context/axios";
 import { toast } from "react-toastify";
 
-const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
+const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false }) => {
   const overlayRef = useRef();
   const [wabaId, setWabaId] = useState("");
   const [accessToken, setAccessToken] = useState("");
@@ -13,56 +13,67 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
   // Load Facebook SDK on mount
   useEffect(() => {
-    // The FB SDK might already be initialized by the Login page using a DIFFERENT App ID.
-    // Facebook SDK does not support changing the App ID dynamically.
-    // To ensure Embedded Signup uses the correct App ID, we must forcefully remove the old SDK and re-inject it.
-    if (window.FB) {
-      delete window.FB;
-    }
-    const existingScript = document.getElementById('facebook-jssdk');
-    if (existingScript) {
-      existingScript.remove();
-    }
-    
-    // Also remove the fb root element if it exists to ensure a clean slate
-    const fbRoot = document.getElementById('fb-root');
-    if (fbRoot) {
-      fbRoot.remove();
-    }
-
     const appId = import.meta.env.VITE_META_APP_ID || "1401700501230008"; // WhatsApp Embedded Signup App ID
 
     const initFB = () => {
-      window.FB.init({
-        appId: appId,
-        cookie: true,
-        xfbml: true,
-        version: "v20.0", // Use the latest stable version
-      });
-      setIsFbInitialized(true);
+      if (window.FB && window.FB.init) {
+        try {
+          window.FB.init({
+            appId: appId,
+            cookie: true,
+            xfbml: true,
+            version: "v20.0",
+          });
+        } catch (err) {
+          console.warn("FB Init warning:", err);
+        }
+        setIsFbInitialized(true);
+      }
     };
 
-    // If FB SDK is already loaded (e.g., from the Login page), FORCE re-initialization with WhatsApp App ID
-    if (window.FB && window.FB.init) {
+    // If FB is already loaded on window, initialize it immediately
+    if (window.FB && window.FB.login) {
       initFB();
     } else {
-      window.fbAsyncInit = initFB;
+      const prevAsyncInit = window.fbAsyncInit;
+      window.fbAsyncInit = () => {
+        if (typeof prevAsyncInit === "function") prevAsyncInit();
+        initFB();
+      };
 
-      (function (d, s, id) {
-        var js,
-          fjs = d.getElementsByTagName(s)[0];
-        if (d.getElementById(id)) return;
-        js = d.createElement(s);
-        js.id = id;
+      if (!document.getElementById("facebook-jssdk")) {
+        const js = document.createElement("script");
+        js.id = "facebook-jssdk";
         js.src = "https://connect.facebook.net/en_US/sdk.js";
-        fjs.parentNode.insertBefore(js, fjs);
-      })(document, "script", "facebook-jssdk");
+        js.async = true;
+        js.defer = true;
+        js.onload = () => {
+          if (window.FB) initFB();
+        };
+        const fjs = document.getElementsByTagName("script")[0];
+        if (fjs && fjs.parentNode) {
+          fjs.parentNode.insertBefore(js, fjs);
+        } else {
+          document.head.appendChild(js);
+        }
+      }
     }
+
+    // Safety fallback: Poll every 500ms to ensure FB initialized as soon as loaded
+    const checkInterval = setInterval(() => {
+      if (window.FB && window.FB.login) {
+        initFB();
+        clearInterval(checkInterval);
+      }
+    }, 500);
+
+    return () => clearInterval(checkInterval);
   }, []);
 
   if (!isOpen) return null;
 
   const handleOverlayClick = (e) => {
+    if (isMandatory) return;
     if (overlayRef.current === e.target) {
       onClose();
     }
@@ -70,8 +81,23 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
   // One-click Meta integration (opens Meta popup)
   const handleConnectWhatsApp = (withCatalog) => {
-    if (!isFbInitialized) {
-      alert("Facebook SDK is still loading and initializing. Please wait 2 seconds and click again.");
+    const appId = import.meta.env.VITE_META_APP_ID || "1401700501230008";
+
+    // Dynamic check: If window.FB exists, ensure init is called and proceed immediately
+    if (window.FB && window.FB.init && window.FB.login) {
+      try {
+        window.FB.init({
+          appId: appId,
+          cookie: true,
+          xfbml: true,
+          version: "v20.0",
+        });
+        setIsFbInitialized(true);
+      } catch (e) {
+        console.warn("FB init error during click:", e);
+      }
+    } else if (!isFbInitialized) {
+      toast.info("Facebook SDK is initializing... Please wait a moment and click again.");
       return;
     }
 
@@ -126,7 +152,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
                 .then((res) => {
                   if (res.data?.success) {
                     toast.success("WhatsApp Business Account connected successfully!");
-                    onClose();
+                    if (!isMandatory) {
+                      onClose();
+                    } else {
+                      window.location.reload(); // Reload to refresh global state and clear lock
+                    }
                   } else {
                     toast.error(res.data?.message || "Failed to connect WhatsApp account");
                   }
@@ -210,18 +240,20 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/80 to-white">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Connect WhatsApp Business
+              {isMandatory ? "Verify your Meta Business Account" : "Connect WhatsApp Business"}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Choose your preferred integration method
+              {isMandatory ? "You must connect your Meta account to access all features." : "Choose your preferred integration method"}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+          {!isMandatory && (
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* Body — Two Cards */}
