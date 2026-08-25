@@ -113,9 +113,11 @@ exports.getSalesReport = async (req, res) => {
     let matchStage = { tenantId: new mongoose.Types.ObjectId(tenantId) };
     
     if (startDate && endDate) {
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
       matchStage.salesDate = { 
         $gte: new Date(startDate), 
-        $lte: new Date(endDate) 
+        $lte: endOfDay 
       };
     }
 
@@ -156,9 +158,11 @@ exports.getPurchaseReport = async (req, res) => {
     let matchStage = { tenantId: new mongoose.Types.ObjectId(tenantId) };
     
     if (startDate && endDate) {
+      const endOfDay = new Date(endDate);
+      endOfDay.setHours(23, 59, 59, 999);
       matchStage.purchaseDate = { 
         $gte: new Date(startDate), 
-        $lte: new Date(endDate) 
+        $lte: endOfDay 
       };
     }
 
