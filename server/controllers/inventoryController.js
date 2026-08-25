@@ -80,7 +80,7 @@ exports.adjustStock = async (req, res) => {
     const difference = newStockLevel - previousStock;
 
     if (difference !== 0) {
-      await Product.findByIdAndUpdate(productId, { currentStock: newStockLevel }, { session });
+      await Product.findByIdAndUpdate(productId, { $inc: { currentStock: difference } }, { session, new: true });
 
       await InventoryLog.create([{
         tenantId,

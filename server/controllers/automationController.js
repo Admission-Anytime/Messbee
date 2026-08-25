@@ -114,9 +114,6 @@ exports.testAutomation = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
     let { phoneNumber } = req.body;
-    if (phoneNumber && phoneNumber.length === 10) {
-      phoneNumber = `91${phoneNumber}`;
-    }
     const automation = await Automation.findOne({ _id: req.params.id, tenantId });
     if (!automation) {
       return res.status(404).json({ success: false, message: 'Automation not found' });

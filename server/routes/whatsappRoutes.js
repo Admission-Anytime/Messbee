@@ -116,15 +116,28 @@ router.post('/debug-send', protect, async (req, res) => {
 router.post('/templates/upload-media', protect, upload.single('file'), whatsappController.uploadTemplateMedia);
 router.post('/templates/upload-media-by-url', protect, whatsappController.uploadTemplateMediaByUrl);
 
-// Get connected WhatsApp Channels (Mock)
-router.get('/channels', protect, (req, res) => {
-  res.status(200).json([
-    { 
-      _id: '609b55b6c00d4334b07e7821', 
-      name: 'Main WhatsApp Business', 
-      phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || '+1234567890' 
+// Get connected WhatsApp Channels (Real DB Data with Local Fallback)
+router.get('/channels', protect, async (req, res) => {
+  try {
+    const Channel = require('../models/Channel');
+    const tenantId = req.user.tenantId || req.user._id;
+    const channels = await Channel.find({ tenantId });
+    
+    // Agar real channel nahi hai aur hum live (production) pe nahi hain, tabhi mock return karo
+    if (channels.length === 0 && process.env.NODE_ENV !== 'production') {
+      return res.status(200).json([
+        { 
+          _id: '609b55b6c00d4334b07e7821', 
+          name: 'Local Test Business', 
+          phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || '+919217742081' 
+        }
+      ]);
     }
-  ]);
+
+    res.status(200).json(channels);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching channels' });
+  }
 });
 
 // Get WhatsApp message templates (Protected route)

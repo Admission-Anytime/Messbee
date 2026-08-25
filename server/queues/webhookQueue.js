@@ -13,7 +13,8 @@ const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, 
       console.log(`[Webhook Queue] Processing background webhook for ${customerPhone}`);
       
       // Lazy import to avoid circular dependencies
-      const { executeWorkflowStep } = require('../engine/flowRunner.js');
+      const flowRunner = await import('../engine/flowRunner.js');
+      const executeWorkflowStep = flowRunner.executeWorkflowStep;
       
       await executeWorkflowStep(customerPhone, incomingPayload, channelId, referral, incomingMessageId, simulatorTargetFlowId);
       

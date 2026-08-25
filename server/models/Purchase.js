@@ -23,6 +23,6 @@ const purchaseSchema = new mongoose.Schema({
   notes: { type: String }
 }, { timestamps: true });
 
-purchaseSchema.index({ tenantId: 1, invoiceNumber: 1 });
+purchaseSchema.index({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
 
 module.exports = mongoose.model('Purchase', purchaseSchema);

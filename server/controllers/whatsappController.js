@@ -607,6 +607,7 @@ async function handleIncomingMessage(data) {
 
     // Find or create chat (check both phone and whatsappId with normalized number)
     // We sort by 'user' desc to prefer chats that already have an owner assigned
+    let isNewContact = false;
     let chat = await Chat.findOne({ 
       $or: [
         { phone: normalizedFrom },
@@ -617,6 +618,7 @@ async function handleIncomingMessage(data) {
     }).sort({ user: -1 });
 
     if (!chat) {
+      isNewContact = true;
       // Try to find if this contact belongs to any user in the CRM (Contact model)
       const crmContact = await Contact.findOne({ 
         $or: [
@@ -869,7 +871,8 @@ async function handleIncomingMessage(data) {
         contactPhone: normalizedFrom,
         messageId: newMessage._id,
         messageType: messageType,
-        mediaUrl: mediaUrl
+        mediaUrl: mediaUrl,
+        isNewContact: isNewContact
       },
       resolvedChannelId // MUST pass channelId, not userId!
     );
