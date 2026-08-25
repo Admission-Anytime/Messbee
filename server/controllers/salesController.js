@@ -89,8 +89,8 @@ exports.createSale = async (req, res) => {
 
       await Product.findByIdAndUpdate(
         product._id,
-        { currentStock: newStock },
-        { session }
+        { $inc: { currentStock: -item.quantity } },
+        { session, new: true }
       );
 
       await InventoryLog.create([{

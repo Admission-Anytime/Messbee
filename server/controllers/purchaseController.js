@@ -88,8 +88,8 @@ exports.createPurchase = async (req, res) => {
       // Update Product Stock
       await Product.findByIdAndUpdate(
         product._id,
-        { currentStock: newStock },
-        { session }
+        { $inc: { currentStock: item.quantity } },
+        { session, new: true }
       );
 
       // Create Inventory Log

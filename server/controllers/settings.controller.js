@@ -30,8 +30,12 @@ exports.updateSettings = async (req, res) => {
       settings = await TenantSettings.create({ tenantId });
     }
 
-    const { deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage, spamProtection } = req.body;
+    const { defaultChannelId, deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage, spamProtection } = req.body;
     
+    if (defaultChannelId !== undefined) {
+      settings.defaultChannelId = defaultChannelId;
+      settings.markModified('defaultChannelId');
+    }
     if (deliveryRules !== undefined) {
       settings.deliveryRules = deliveryRules;
       settings.markModified('deliveryRules');

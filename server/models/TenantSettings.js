@@ -13,6 +13,11 @@ const tenantSettingsSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  defaultChannelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
+    default: null
+  },
   // Outbound Delivery Rules
   deliveryRules: {
     maxMessagesPerMinute: { type: Number, default: 30 },
