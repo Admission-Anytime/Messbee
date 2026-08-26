@@ -20,10 +20,10 @@ const InventoryDashboard = () => {
   const fetchInventoryData = async () => {
     try {
       const [logsRes, lowRes, outRes, prodRes] = await Promise.all([
-        axios.get('/api/inventory/logs?limit=10', { withCredentials: true }),
-        axios.get('/api/inventory/low-stock', { withCredentials: true }),
-        axios.get('/api/inventory/out-of-stock', { withCredentials: true }),
-        axios.get('/api/products?status=active&limit=100', { withCredentials: true })
+        axios.get('/inventory/logs?limit=10', { withCredentials: true }),
+        axios.get('/inventory/low-stock', { withCredentials: true }),
+        axios.get('/inventory/out-of-stock', { withCredentials: true }),
+        axios.get('/products?status=active&limit=100', { withCredentials: true })
       ]);
       setLogs(logsRes.data.data);
       setLowStock(lowRes.data.data);
@@ -37,7 +37,7 @@ const InventoryDashboard = () => {
   const handleAdjustStock = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('/api/inventory/adjust', adjustData, { withCredentials: true });
+      await axios.post('/inventory/adjust', adjustData, { withCredentials: true });
       toast.success('Stock adjusted successfully');
       setIsAdjustModalOpen(false);
       setAdjustData({ productId: '', newStockLevel: 0, notes: '' });
