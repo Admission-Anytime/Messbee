@@ -20,7 +20,7 @@ const CustomerManagement = () => {
   const fetchCustomers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/customers?search=${search}&page=${page}`, { withCredentials: true });
+      const res = await axios.get(`/customers?search=${search}&page=${page}`, { withCredentials: true });
       setCustomers(res.data?.data || []);
       setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
@@ -37,10 +37,10 @@ const CustomerManagement = () => {
     e.preventDefault();
     try {
       if (editId) {
-        await axios.put(`/api/customers/${editId}`, formData, { withCredentials: true });
+        await axios.put(`/customers/${editId}`, formData, { withCredentials: true });
         toast.success('Customer updated successfully');
       } else {
-        await axios.post('/api/customers', formData, { withCredentials: true });
+        await axios.post('/customers', formData, { withCredentials: true });
         toast.success('Customer created successfully');
       }
       setIsModalOpen(false);
@@ -53,7 +53,7 @@ const CustomerManagement = () => {
 
   const handleViewHistory = async (customerId) => {
     try {
-      const res = await axios.get(`/api/customers/${customerId}/sales`, { withCredentials: true });
+      const res = await axios.get(`/customers/${customerId}/sales`, { withCredentials: true });
       setSalesHistory(res.data.data);
       setIsHistoryModalOpen(true);
     } catch (error) {

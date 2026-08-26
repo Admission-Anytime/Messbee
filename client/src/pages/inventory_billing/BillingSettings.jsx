@@ -15,7 +15,7 @@ const BillingSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      const res = await axios.get('/api/tenant-settings', { withCredentials: true });
+      const res = await axios.get('/tenant-settings', { withCredentials: true });
       if (res.data?.billing) {
         setFormData(res.data.billing);
       }
@@ -28,7 +28,7 @@ const BillingSettings = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await axios.put('/api/tenant-settings', { billing: formData }, { withCredentials: true });
+      await axios.put('/tenant-settings', { billing: formData }, { withCredentials: true });
       toast.success('Billing Settings updated successfully!');
     } catch (error) {
       toast.error('Failed to update settings');
