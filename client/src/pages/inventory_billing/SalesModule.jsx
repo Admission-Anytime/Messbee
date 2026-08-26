@@ -14,8 +14,8 @@ const SalesModule = () => {
   useEffect(() => {
     // 1. Fetch customers and products
     Promise.all([
-      axios.get('/api/customers?limit=100', { withCredentials: true }),
-      axios.get('/api/products?status=active&limit=200', { withCredentials: true })
+      axios.get('/customers?limit=100', { withCredentials: true }),
+      axios.get('/products?status=active&limit=200', { withCredentials: true })
     ]).then(([customerRes, productRes]) => {
       setCustomers(customerRes.data?.data || []);
       setProducts(productRes.data?.data || []);
@@ -71,7 +71,7 @@ const SalesModule = () => {
         products: cart,
         grandTotal
       };
-      const res = await axios.post('/api/sales', payload, { withCredentials: true });
+      const res = await axios.post('/sales', payload, { withCredentials: true });
       toast.success('Sales Invoice Created! Invoice No: ' + res.data.data.invoiceNumber);
       
       const invoiceData = {

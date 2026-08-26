@@ -22,7 +22,7 @@ const ProductManagement = () => {
   const fetchProducts = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/products?search=${search}&page=${page}&category=${categoryFilter}`, { withCredentials: true });
+      const res = await axios.get(`/products?search=${search}&page=${page}&category=${categoryFilter}`, { withCredentials: true });
       setProducts(res.data?.data || []);
       setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
@@ -33,7 +33,7 @@ const ProductManagement = () => {
 
   const fetchCategories = async () => {
     try {
-      const res = await axios.get('/api/categories?limit=100', { withCredentials: true });
+      const res = await axios.get('/categories?limit=100', { withCredentials: true });
       setCategories(res.data?.data || []);
     } catch (err) {
       console.error(err);
@@ -52,10 +52,10 @@ const ProductManagement = () => {
     e.preventDefault();
     try {
       if (editId) {
-        await axios.put(`/api/products/${editId}`, formData, { withCredentials: true });
+        await axios.put(`/products/${editId}`, formData, { withCredentials: true });
         toast.success('Product updated');
       } else {
-        await axios.post('/api/products', formData, { withCredentials: true });
+        await axios.post('/products', formData, { withCredentials: true });
         toast.success('Product created');
       }
       setIsModalOpen(false);
@@ -69,7 +69,7 @@ const ProductManagement = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this product?')) return;
     try {
-      await axios.delete(`/api/products/${id}`, { withCredentials: true });
+      await axios.delete(`/products/${id}`, { withCredentials: true });
       toast.success('Product deleted successfully');
       fetchProducts();
     } catch (err) {
@@ -86,7 +86,7 @@ const ProductManagement = () => {
     uploadData.append('invoice', file);
 
     try {
-      const res = await axios.post('/api/purchases/scan-invoice', uploadData, {
+      const res = await axios.post('/purchases/scan-invoice', uploadData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true
       });

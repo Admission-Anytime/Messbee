@@ -21,8 +21,8 @@ const PurchaseModule = () => {
   useEffect(() => {
     // 1. Fetch suppliers and products
     Promise.all([
-      axios.get('/api/suppliers?limit=100', { withCredentials: true }),
-      axios.get('/api/products?status=active&limit=200', { withCredentials: true })
+      axios.get('/suppliers?limit=100', { withCredentials: true }),
+      axios.get('/products?status=active&limit=200', { withCredentials: true })
     ]).then(([supplierRes, productRes]) => {
       setSuppliers(supplierRes.data?.data || []);
       setProducts(productRes.data?.data || []);
@@ -104,7 +104,7 @@ const PurchaseModule = () => {
         notes,
         grandTotal
       };
-      const res = await axios.post('/api/purchases', payload, { withCredentials: true });
+      const res = await axios.post('/purchases', payload, { withCredentials: true });
       toast.success('Purchase Bill Created! Auto-stock updated. Bill No: ' + res.data.data.invoiceNumber);
       
       const billData = {
@@ -138,7 +138,7 @@ const PurchaseModule = () => {
     formData.append('invoice', file);
 
     try {
-      const res = await axios.post('/api/purchases/scan-invoice', formData, {
+      const res = await axios.post('/purchases/scan-invoice', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true
       });
