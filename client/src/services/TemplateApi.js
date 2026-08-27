@@ -152,7 +152,6 @@ export const uploadTemplateMedia = async (file, onUploadProgress) => {
     const formData = new FormData();
     formData.append('file', file);
     const { data } = await axios.post('/whatsapp/templates/upload-media', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       onUploadProgress
     });
     return data; // { success, data: { url, filename, mimetype, size } }
