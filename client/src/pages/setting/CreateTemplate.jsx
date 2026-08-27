@@ -278,11 +278,13 @@ const CreateTemplate = () => {
           toast.success('Media uploaded! (Note: template needs a public URL for Meta)');
         }
       } else {
-        toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+        const errMsg = response?.message || 'Server upload failed.';
+        toast.error(`Media upload failed: ${errMsg}`);
       }
     } catch (uploadErr) {
       console.error('Template media upload error:', uploadErr);
-      toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+      const errMsg = uploadErr.response?.data?.message || uploadErr.message || 'Server upload failed.';
+      toast.error(`Upload error: ${errMsg}`);
     } finally {
       setIsUploadingMedia(false);
     }
