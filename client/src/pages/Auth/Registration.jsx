@@ -16,13 +16,13 @@ import logoName from "../../assets/MessBee Name.png";
 
 // ── Shared Section Label ──────────────────────────────────────
 const SectionLabel = ({ icon, text }) => (
-  <div className="flex items-center gap-2 mb-4 mt-2">
+  <div className="flex items-center gap-2 mb-1.5 mt-0.5">
     {icon ? (
       <span className="text-slate-400">{icon}</span>
     ) : (
-      <span className="w-[3px] h-[14px] bg-[#22c55e] rounded-full shrink-0" />
+      <span className="w-[3px] h-[10px] bg-[#22c55e] rounded-full shrink-0" />
     )}
-    <span className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">
+    <span className="text-[9px] font-bold text-slate-400 tracking-widest uppercase">
       {text}
     </span>
   </div>
@@ -30,25 +30,25 @@ const SectionLabel = ({ icon, text }) => (
 
 // ── Field Wrapper ─────────────────────────────────────────────
 const Field = ({ label, optional, hint, children }) => (
-  <div className="mb-4">
-    <label className="block text-[13px] font-medium text-slate-700 mb-1.5">
+  <div className="mb-2">
+    <label className="block text-[10px] font-medium text-slate-700 mb-0.5">
       {label}{" "}
       {optional && <span className="text-slate-400 font-normal">(Optional)</span>}
     </label>
     {children}
-    {hint && <p className="mt-1.5 text-[11px] text-blue-500">{hint}</p>}
+    {hint && <p className="mt-0.5 text-[9px] text-blue-500">{hint}</p>}
   </div>
 );
 
 // ── Input with icon ───────────────────────────────────────────
 const IconInput = ({ icon, rightIcon, ...props }) => (
-  <div className="flex items-center border border-slate-200 rounded-[9px] bg-white overflow-hidden focus-within:border-[#22c55e] focus-within:ring-2 focus-within:ring-[#22c55e]/10 transition-all min-w-0">
+  <div className="flex items-center border border-slate-200 rounded-[7px] bg-white overflow-hidden focus-within:border-[#22c55e] focus-within:ring-2 focus-within:ring-[#22c55e]/10 transition-all min-w-0">
     {icon && (
-      <span className="flex items-center px-3 text-slate-400 shrink-0">{icon}</span>
+      <span className="flex items-center px-2 text-slate-400 shrink-0">{icon}</span>
     )}
     <input
       {...props}
-      className="flex-1 text-[13px] text-slate-700 py-[11px] pr-3 bg-transparent outline-none min-w-0 placeholder:text-slate-300"
+      className="flex-1 text-[11px] text-slate-700 py-[6px] pr-3 bg-transparent outline-none min-w-0 placeholder:text-slate-300"
     />
     {rightIcon}
   </div>
@@ -217,24 +217,24 @@ const Step1 = ({ onNext }) => {
       <div className="w-full max-w-[430px] bg-white flex-1 min-h-screen flex flex-col">
 
         {/* Logo Bar */}
-        <div className="px-6 pt-6 pb-2 flex items-center gap-2">
-          <img src={logoIcon} alt="MessBee" className="w-7 h-7 object-contain" />
-          <img src={logoName} alt="MessBee" className="h-5 object-contain" />
+        <div className="px-5 pt-4 pb-1 flex items-center gap-2">
+          <img src={logoIcon} alt="MessBee" className="w-6 h-6 object-contain" />
+          <img src={logoName} alt="MessBee" className="h-4 object-contain" />
         </div>
 
-        <form onSubmit={submit} className="flex-1 flex flex-col px-6 pb-6">
+        <form onSubmit={submit} className="flex-1 flex flex-col px-5 pb-4">
           {/* Header */}
-          <div className="mt-5 mb-6">
-            <h1 className="text-[1.45rem] font-bold text-slate-900 leading-tight mb-1">
+          <div className="mt-2 mb-2">
+            <h1 className="text-[1rem] font-bold text-slate-900 leading-tight mb-0.5">
               Basic Personal Details
             </h1>
-            <p className="text-[13px] text-slate-500">
+            <p className="text-[10px] text-slate-500">
               Enter your business and account information to continue.
             </p>
           </div>
 
           {/* Required Information */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel text="Required Information" />
             <Field label="Full Name">
               <IconInput
@@ -260,7 +260,7 @@ const Step1 = ({ onNext }) => {
           </div>
 
           {/* Security */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel
               text="Security"
               icon={<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>}
@@ -296,7 +296,7 @@ const Step1 = ({ onNext }) => {
           </div>
 
           {/* Optional */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel text="Optional" />
             <Field label="Referral Code" optional>
               <IconInput
@@ -308,21 +308,21 @@ const Step1 = ({ onNext }) => {
           </div>
 
           {/* Auto-generated */}
-          <div className="border-t border-slate-100 pt-3 mb-5">
+          <div className="border-t border-slate-100 pt-2 mb-3">
             <SectionLabel text="Auto-Generated by System" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               {[["Client ID", clientId], ["Trial Account ID", trialId]].map(([lbl, val]) => (
                 <div key={lbl}>
-                  <label className="block text-[13px] font-medium text-slate-700 mb-1.5">{lbl}</label>
-                  <div className="flex items-center border border-slate-200 rounded-[9px] bg-slate-50 overflow-hidden min-w-0">
-                    <span className="flex items-center px-3 text-slate-400 shrink-0">
+                  <label className="block text-[10px] font-medium text-slate-700 mb-0.5">{lbl}</label>
+                  <div className="flex items-center border border-slate-200 rounded-[7px] bg-slate-50 overflow-hidden min-w-0">
+                    <span className="flex items-center px-2 text-slate-400 shrink-0">
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/>
                         <line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/>
                       </svg>
                     </span>
                     <input readOnly value={val}
-                      className="flex-1 text-[12px] font-medium text-slate-600 py-[11px] pr-2 bg-transparent outline-none min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" />
+                      className="flex-1 text-[10px] font-medium text-slate-600 py-[6px] pr-2 bg-transparent outline-none min-w-0 overflow-hidden text-ellipsis whitespace-nowrap" />
                   </div>
                 </div>
               ))}
@@ -331,18 +331,18 @@ const Step1 = ({ onNext }) => {
 
           {/* Continue */}
           <button type="submit"
-            className="w-full py-[14px] bg-[#22c55e] hover:bg-[#16a34a] text-white font-semibold text-[15px] rounded-[10px] transition-all shadow-sm hover:shadow-[0_4px_16px_rgba(34,197,94,0.3)] active:scale-[0.98]">
+            className="w-full py-[10px] bg-[#22c55e] hover:bg-[#16a34a] text-white font-semibold text-[13px] rounded-[10px] transition-all shadow-sm hover:shadow-[0_4px_16px_rgba(34,197,94,0.3)] active:scale-[0.98]">
             Continue
           </button>
 
-          <p className="text-center text-[13px] text-slate-500 mt-4">
+          <p className="text-center text-[10px] text-slate-500 mt-2">
             Already have an account?{" "}
             <Link to="/login" className="text-blue-500 font-semibold hover:underline">Sign In</Link>
           </p>
         </form>
 
-        <div className="px-6 py-4 bg-[#f0f2f5] text-center">
-          <p className="text-[11px] text-slate-400">
+        <div className="px-5 py-2 bg-[#f0f2f5] text-center">
+          <p className="text-[10px] text-slate-400">
             By continuing, you agree to our{" "}
             <Link to="#" className="text-slate-500 font-medium hover:underline">Terms of Service</Link>{" "}
             and{" "}
@@ -385,50 +385,50 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
       <div className="w-full max-w-[430px] bg-white flex-1 min-h-screen flex flex-col">
 
         {/* Logo Bar */}
-        <div className="px-6 pt-6 pb-2 flex items-center gap-2">
-          <img src={logoIcon} alt="MessBee" className="w-7 h-7 object-contain" />
-          <img src={logoName} alt="MessBee" className="h-5 object-contain" />
+        <div className="px-5 pt-4 pb-1 flex items-center gap-2">
+          <img src={logoIcon} alt="MessBee" className="w-6 h-6 object-contain" />
+          <img src={logoName} alt="MessBee" className="h-4 object-contain" />
         </div>
 
-        <form onSubmit={submit} className="flex-1 flex flex-col px-6 pb-6">
+        <form onSubmit={submit} className="flex-1 flex flex-col px-5 pb-4">
           {/* Header */}
-          <div className="mt-5 mb-6">
-            <h1 className="text-[1.45rem] font-bold text-slate-900 leading-tight mb-1">
+          <div className="mt-2 mb-2">
+            <h1 className="text-[1rem] font-bold text-slate-900 leading-tight mb-0.5">
               Business Information
             </h1>
-            <p className="text-[13px] text-slate-500">
+            <p className="text-[10px] text-slate-500">
               Tell us more about your business setup and location.
             </p>
           </div>
 
           {/* Business Category */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel text="Business Category" />
-            <div className="grid grid-cols-4 gap-2 mb-2">
+            <div className="grid grid-cols-4 gap-1.5 mb-2">
               {CATEGORIES.map((cat) => (
                 <button key={cat.value} type="button"
                   onClick={() => setSelectedCategory(cat.value)}
-                  className={`flex flex-col items-center justify-center gap-2 py-3 px-1 border rounded-[10px] text-center transition-all cursor-pointer
+                  className={`flex flex-col items-center justify-center gap-1 py-2 px-1 border rounded-[8px] text-center transition-all cursor-pointer
                     ${selectedCategory === cat.value
-                      ? "border-[#22c55e] bg-green-50 text-[#16a34a] shadow-[0_0_0_3px_rgba(34,197,94,0.13)]"
+                      ? "border-[#22c55e] bg-green-50 text-[#16a34a] shadow-[0_0_0_2px_rgba(34,197,94,0.13)]"
                       : "border-slate-200 bg-white text-slate-500 hover:border-[#22c55e] hover:bg-green-50 hover:text-[#16a34a]"}`}>
-                  <span className={selectedCategory === cat.value ? "text-[#22c55e]" : "text-slate-400"}>
+                  <span className={`scale-75 ${selectedCategory === cat.value ? "text-[#22c55e]" : "text-slate-400"}`}>
                     {cat.icon}
                   </span>
-                  <span className="text-[10px] font-medium leading-tight">{cat.label}</span>
+                  <span className="text-[9px] font-medium leading-tight">{cat.label}</span>
                 </button>
               ))}
             </div>
           </div>
 
           {/* Business Type */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel text="Business Type" />
-            <div className="grid grid-cols-4 border border-slate-200 rounded-[10px] overflow-hidden">
+            <div className="grid grid-cols-4 border border-slate-200 rounded-[8px] overflow-hidden">
               {BUSINESS_TYPES.map((type, i) => (
                 <button key={type} type="button"
                   onClick={() => setSelectedType(type)}
-                  className={`py-[11px] px-2 text-[12px] font-medium text-center transition-colors
+                  className={`py-[7px] px-2 text-[10px] font-medium text-center transition-colors
                     ${i < BUSINESS_TYPES.length - 1 ? "border-r border-slate-200" : ""}
                     ${selectedType === type
                       ? "bg-white text-slate-900 font-semibold"
@@ -440,9 +440,9 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
           </div>
 
           {/* Location Details */}
-          <div className="border-t border-slate-100 pt-3">
+          <div className="border-t border-slate-100 pt-2">
             <SectionLabel text="Location Details" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <Field label="City">
                 <IconInput icon={<LocIcon />} type="text" placeholder="Enter your city"
                   value={city} onChange={(e) => setCity(e.target.value)} required />
@@ -453,15 +453,15 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
               </Field>
             </div>
             <Field label="Country">
-              <div className="flex items-center border border-slate-200 rounded-[9px] bg-white overflow-hidden focus-within:border-[#22c55e] focus-within:ring-2 focus-within:ring-[#22c55e]/10 transition-all">
-                <span className="flex items-center px-3 text-slate-400 shrink-0">
+              <div className="flex items-center border border-slate-200 rounded-[7px] bg-white overflow-hidden focus-within:border-[#22c55e] focus-within:ring-2 focus-within:ring-[#22c55e]/10 transition-all">
+                <span className="flex items-center px-2 text-slate-400 shrink-0">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/>
                     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
                   </svg>
                 </span>
                 <select value={country} onChange={(e) => setCountry(e.target.value)} required
-                  className="flex-1 text-[13px] text-slate-700 py-[11px] pr-8 bg-transparent outline-none appearance-none cursor-pointer min-w-0">
+                  className="flex-1 text-[11px] text-slate-700 py-[6px] pr-8 bg-transparent outline-none appearance-none cursor-pointer min-w-0">
                   <option value="" disabled></option>
                   {["India","United States","United Kingdom","Australia","Canada","Singapore","UAE","Germany","France","Japan"].map((c) => (
                     <option key={c} value={c}>{c}</option>
@@ -477,9 +477,9 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
           </div>
 
           {/* Optional Details */}
-          <div className="border-t border-slate-100 pt-3 mb-5">
+          <div className="border-t border-slate-100 pt-2 mb-2">
             <SectionLabel text="Optional Details" />
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-2">
               <Field label="GST Number" optional>
                 <IconInput
                   icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>}
@@ -495,24 +495,23 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
                 />
               </Field>
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">Optional for businesses registered under GST.</p>
           </div>
 
           {/* Buttons */}
-          <div className="grid grid-cols-2 gap-3 mt-auto">
+          <div className="grid grid-cols-2 gap-2 mt-auto">
             <button type="button" onClick={onBack}
-              className="py-[14px] border-[1.8px] border-slate-200 text-slate-700 font-semibold text-[14px] rounded-[10px] hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.97]">
+              className="py-[9px] border-[1.8px] border-slate-200 text-slate-700 font-semibold text-[12px] rounded-[8px] hover:bg-slate-50 hover:border-slate-300 transition-all active:scale-[0.97]">
               Back
             </button>
             <button type="submit" disabled={isLoading}
-              className="py-[14px] bg-[#22c55e] hover:bg-[#16a34a] text-white font-semibold text-[14px] rounded-[10px] transition-all shadow-sm hover:shadow-[0_4px_16px_rgba(34,197,94,0.3)] active:scale-[0.97] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+              className="py-[9px] bg-[#22c55e] hover:bg-[#16a34a] text-white font-semibold text-[12px] rounded-[8px] transition-all shadow-sm hover:shadow-[0_4px_16px_rgba(34,197,94,0.3)] active:scale-[0.97] disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {isLoading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : "Continue"}
             </button>
           </div>
         </form>
 
-        <div className="px-6 py-4 bg-[#f0f2f5] text-center">
-          <p className="text-[11px] text-slate-400">
+        <div className="px-5 py-2 bg-[#f0f2f5] text-center">
+          <p className="text-[10px] text-slate-400">
             By continuing, you agree to our{" "}
             <Link to="#" className="text-slate-500 font-medium hover:underline">Terms of Service</Link>{" "}
             and{" "}
