@@ -160,7 +160,7 @@ const AppLayout = memo(() => {
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
   // --- LIVE PRODUCTION CHECK ---
-  const isWhatsAppConnected = Boolean(user?.whatsappConfig?.wabaId);
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
   
   // --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
   // const isWhatsAppConnected = true; 
@@ -171,17 +171,17 @@ const AppLayout = memo(() => {
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
       <LazyOnboardingModal />
       {/* Force WhatsApp connection modal if not connected */}
-      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} />}
+      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} user={user} />}
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && (
-        <div className={showWhatsAppLock ? "pointer-events-none opacity-50" : ""}>
+        <div className={showWhatsAppLock ? "pointer-events-none opacity-50" : ""} inert={showWhatsAppLock ? "" : undefined}>
           <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         </div>
       )}
 
       {/* 2. Main content container (Navbar + Page Content) */}
-      <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${showWhatsAppLock ? "pointer-events-none opacity-50" : ""}`}>
+      <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${showWhatsAppLock ? "pointer-events-none opacity-50" : ""}`} inert={showWhatsAppLock ? "" : undefined}>
         
         {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
         {isDashboard && (

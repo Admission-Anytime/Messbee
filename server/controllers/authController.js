@@ -388,7 +388,8 @@ exports.verifyLoginOTP = async (req, res, next) => {
           phone: user.phone,
           company: user.company,
           subscriptionPlan: user.subscriptionPlan,
-          lastLogin: user.lastLogin
+          lastLogin: user.lastLogin,
+          whatsappConfig: user.whatsappConfig
         }
       }
     });
@@ -470,7 +471,8 @@ exports.login = async (req, res, next) => {
           email: user.email,
           role: user.role,
           avatar: user.avatar,
-          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate
+          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate,
+          whatsappConfig: user.whatsappConfig
         }
       }
     });
@@ -815,7 +817,21 @@ exports.resetPassword = async (req, res, next) => {
  */
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).lean();
+    
+    if (user) {
+      const Channel = require('../models/Channel');
+      const tenantId = user.tenantId || user._id;
+      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      
+      user.tenantWhatsAppConnected = !!channel;
+
+      // Fix for Employee/Agent Lockout: Give them a mock wabaId if the Admin connected it
+      if (user.tenantWhatsAppConnected) {
+        if (!user.whatsappConfig) user.whatsappConfig = {};
+        user.whatsappConfig.wabaId = user.whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+      }
+    }
 
     res.status(200).json({
       success: true,
