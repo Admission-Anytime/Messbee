@@ -70,6 +70,16 @@ exports.updateSettings = async (req, res) => {
     }
 
     await settings.save();
+
+    // Broadcast real-time update
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) {
+        io.emit('settings_updated', { tenantId, settings });
+      }
+    } catch (_) {}
+
     res.json(settings);
   } catch (error) {
     console.error('Update settings error:', error);

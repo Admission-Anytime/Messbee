@@ -37,7 +37,7 @@ const normalize = (s) => s.toLowerCase().replace(/[\s_\-().]/g, "");
 
 const SMART_MATCH_RULES = [
   // phone / whatsapp
-  { patterns: ["phone","phonenumber","mobilenumber","mobile","whatsapp","whatsappnumber","cell","cellphone","contact","contactnumber","mob","tel","telephone"], field: "phone" },
+  { patterns: ["phone","phonenumber","phoneno","mobilenumber","mobileno","mobile","whatsapp","whatsappnumber","whatsappno","cell","cellphone","cellno","contact","contactnumber","contactno","mob","mobno","tel","telno","telephone"], field: "phone" },
   // first name
   { patterns: ["firstname","fname","first","givenname","forename"], field: "firstName" },
   // last name
