@@ -284,7 +284,7 @@ const Templates = ({ activeTab }) => {
             </div>
           </div>
           
-          <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between min-h-[680px] overflow-hidden">
+          <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between min-h-[420px] overflow-hidden">
             {/* Filter bar */}
             <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
               <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">

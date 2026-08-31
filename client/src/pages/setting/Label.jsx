@@ -194,7 +194,7 @@ const Label = () => {
         </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 flex flex-col justify-between min-h-[680px]">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 flex flex-col justify-between min-h-[420px]">
         {/* Filter bar */}
         <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
           <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
@@ -252,7 +252,7 @@ const Label = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {loading ? (
-                Array.from({ length: 10 }).map((_, i) => (
+                Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
                     <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-24" /></td>
                     <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-full" /></td>
