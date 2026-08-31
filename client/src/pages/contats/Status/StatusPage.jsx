@@ -227,7 +227,7 @@ const StatusPage = () => {
         </div>
 
         {/* --- TABLE CARD --- */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 min-h-[680px] flex flex-col justify-between">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 min-h-[420px] flex flex-col justify-between">
            {/* Filter bar */}
            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
              <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
@@ -279,7 +279,7 @@ const StatusPage = () => {
 
              <div className="divide-y divide-gray-50">
               {isLoading ? (
-                 Array.from({ length: 10 }).map((_, i) => (
+                 Array.from({ length: 5 }).map((_, i) => (
                     <div key={i} className="grid grid-cols-1 md:grid-cols-12 gap-4 px-6 py-5 items-center">
                        <div className="col-span-3"><div className="h-4 bg-gray-200 animate-pulse rounded w-24" /></div>
                        <div className="hidden md:block col-span-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></div>

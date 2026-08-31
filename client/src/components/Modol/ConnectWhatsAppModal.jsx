@@ -7,7 +7,7 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
   const overlayRef = useRef();
   
   // Check if user is agent/employee (not allowed to connect)
-  const isAgent = false;
+  const isAgent = user?.role === 'agent' || user?.role === 'AGENT' || user?.role === 'user';
   const [wabaId, setWabaId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
