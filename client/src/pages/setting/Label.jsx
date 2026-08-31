@@ -113,7 +113,6 @@ const Label = () => {
       await fetchLabels(); // Refresh the list
       setIsDeleteModalOpen(false);
       setLabelToDelete(null);
-      toast.success('Label deleted successfully');
     } catch (error) {
       console.error('Failed to delete label:', error);
       toast.error(`❌ ${error.response?.data?.message || 'Failed to delete label'}`);
@@ -124,6 +123,40 @@ const Label = () => {
     setIsModalOpen(false);
     setEditingLabel(null);
   };
+
+  const [filterCategory, setFilterCategory] = useState('All Labels');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const ROWS_OPTIONS = [10, 25, 50, 100];
+
+  const filteredLabels = labels.filter(l => {
+    const matchesSearch = 
+      (l.name && l.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.desc && l.desc.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (l.creator && l.creator.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchesSearch) return false;
+    if (filterCategory === 'With Description') return !!l.desc;
+    if (filterCategory === 'No Description') return !l.desc;
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredLabels.length / rowsPerPage) || 1;
+  const pagedLabels = filteredLabels.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = [1];
+    if (currentPage > 3) pages.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
+
+  const startIdx = filteredLabels.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const endIdx = Math.min(currentPage * rowsPerPage, filteredLabels.length);
 
   // Show error state if error occurred
   if (error && !loading) {
@@ -160,100 +193,179 @@ const Label = () => {
           </div>
         </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 flex flex-col">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="bg-slate-50/50 border-b border-slate-100">
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colour</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Created By</th>
-              <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i}>
-                  <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-24" /></td>
-                  <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-full" /></td>
-                  <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-16" /></td>
-                  <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-24" /></td>
-                  <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-12 mx-auto" /></td>
-                </tr>
-              ))
-            ) : labels.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="h-[300px] text-center text-slate-400 text-sm">
-                  No labels found. Add one above!
-                </td>
-              </tr>
-            ) : (
-              labels.map((label) => (
-                <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
-                  <td className="px-6 py-5">
-                    <span 
-                      className="px-2.5 py-1 rounded-md text-[13px] font-black border"
-                      style={{ 
-                        backgroundColor: label.color ? `${label.color}15` : '#F3F4F6',
-                        color: label.color || '#374151',
-                        borderColor: label.color ? `${label.color}30` : '#E5E7EB'
-                      }}
-                    >
-                      {label.name}
-                    </span>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="text-gray-500 text-[13px] font-medium leading-relaxed truncate max-w-xs" title={label.desc}>{label.desc || '-'}</div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2 w-fit px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono text-gray-500">
-                      <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: label.color }}></span>
-                      {label.color}
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex items-center gap-2">
-                      {(label.avatar || (user && label.creator === user.name && user.avatar)) ? (
-                        <img src={label.avatar || user.avatar} alt="" className="w-6 h-6 rounded-full" />
-                      ) : (
-                        <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-[9px] font-black text-gray-500 border border-gray-200">
-                          {label.creator ? label.creator.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??'}
-                        </div>
-                      )}
-                      <span className="text-sm font-bold text-slate-700">{label.creator}</span>
-                    </div>
-                  </td>
-                  <td className="px-6 py-5">
-                    <div className="flex justify-center items-center gap-2">
-                      <button onClick={() => handleOpenModal(label)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-                        </svg>
-                      </button>
-                      <button onClick={() => confirmDelete(label)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                        </svg>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+      {/* Card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 flex flex-col justify-between min-h-[680px]">
+        {/* Filter bar */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
+          <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
+            <span className="text-sm text-gray-500 font-medium">Filter:</span>
+            <div className="relative">
+              <select
+                value={filterCategory}
+                onChange={e => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+                className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium bg-white cursor-pointer outline-none focus:border-green-400 transition-colors shadow-sm"
+              >
+                <option>All Labels</option>
+                <option>With Description</option>
+                <option>No Description</option>
+              </select>
+              <svg className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
+          <div className="relative w-full sm:w-72 xl:w-60 xl:ml-auto">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search labels..."
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 w-full outline-none focus:border-green-400 transition-colors shadow-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                title="Clear search"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
             )}
-          </tbody>
-        </table>
-        <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between bg-white">
-          <span className="text-xs font-medium text-slate-400">Showing {labels.length} of {labels.length} label(s)</span>
-          <div className="flex items-center gap-1">
-            <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[800px]">
+            <thead>
+              <tr className="bg-slate-50/50 border-b border-slate-100">
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Name</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Description</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Colour</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Created By</th>
+                <th className="px-6 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading ? (
+                Array.from({ length: 10 }).map((_, i) => (
+                  <tr key={i}>
+                    <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-24" /></td>
+                    <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-full" /></td>
+                    <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-16" /></td>
+                    <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-24" /></td>
+                    <td className="px-6 py-5"><div className="h-4 bg-gray-100 animate-pulse rounded w-12 mx-auto" /></td>
+                  </tr>
+                ))
+              ) : filteredLabels.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="h-[480px] text-center text-slate-400 text-sm align-middle">
+                    {searchQuery ? "No matching labels found." : "No labels found. Add one above!"}
+                  </td>
+                </tr>
+              ) : (
+                pagedLabels.map((label) => (
+                  <tr key={label._id} className="hover:bg-gray-50/50 transition-colors">
+                    <td className="px-6 py-5">
+                      <span 
+                        className="px-2.5 py-1 rounded-md text-[13px] font-black border"
+                        style={{ 
+                          backgroundColor: label.color ? `${label.color}15` : '#F3F4F6',
+                          color: label.color || '#374151',
+                          borderColor: label.color ? `${label.color}30` : '#E5E7EB'
+                        }}
+                      >
+                        {label.name}
+                      </span>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="text-gray-500 text-[13px] font-medium leading-relaxed truncate max-w-xs" title={label.desc}>{label.desc || '-'}</div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2 w-fit px-2 py-1 bg-white border border-gray-200 rounded text-xs font-mono text-gray-500">
+                        <span className="w-3 h-3 rounded-sm" style={{ backgroundColor: label.color }}></span>
+                        {label.color}
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex items-center gap-2">
+                        {(label.avatar || (user && label.creator === user.name && user.avatar)) ? (
+                          <img src={label.avatar || user.avatar} alt="" className="w-6 h-6 rounded-full" />
+                        ) : (
+                          <div className="w-6 h-6 bg-gray-100 rounded-full flex items-center justify-center text-[9px] font-black text-gray-500 border border-gray-200">
+                            {label.creator ? label.creator.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '??'}
+                          </div>
+                        )}
+                        <span className="text-sm font-bold text-slate-700">{label.creator}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-5">
+                      <div className="flex justify-center items-center gap-2">
+                        <button onClick={() => handleOpenModal(label)} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Edit">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                          </svg>
+                        </button>
+                        <button onClick={() => confirmDelete(label)} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors" title="Delete">
+                          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                          </svg>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Contact-Style Pagination */}
+        <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans shrink-0">
+          <span className="text-sm text-gray-500">Total labels: <strong className="text-gray-900">{filteredLabels.length}</strong></span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm text-gray-500">Rows per page:</span>
+            <select
+              value={rowsPerPage}
+              onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+              className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-green-400 bg-white"
+            >
+              {ROWS_OPTIONS.map(n => <option key={n}>{n}</option>)}
+            </select>
+            <span className="text-sm text-gray-500 min-w-[90px] text-center">{startIdx}–{endIdx} of {filteredLabels.length}</span>
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
               </svg>
             </button>
-            <button className="p-1.5 rounded-md border border-gray-200 text-slate-400 hover:bg-gray-50 disabled:opacity-50" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+            <div className="flex gap-1">
+              {getPages().map((p, i) =>
+                p === "..."
+                  ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+                  : <button
+                    key={p}
+                    onClick={() => setCurrentPage(p)}
+                    className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-green-500 text-white border-green-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-700"}`}
+                  >
+                    {p}
+                  </button>
+              )}
+            </div>
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
               </svg>
             </button>
           </div>

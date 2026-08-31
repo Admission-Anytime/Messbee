@@ -118,19 +118,46 @@ const CustomFieldsSection = () => {
 
   useEffect(() => { fetchCustomFields(); }, []);
 
-  // ─── Pagination ───────────────────────────────────────────────────────────
-  const totalPages  = Math.ceil((fields?.length || 0) / ITEMS_PER_PAGE);
-  const startIndex  = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex    = startIndex + ITEMS_PER_PAGE;
-  const currentFields = Array.isArray(fields) ? fields.slice(startIndex, endIndex) : [];
+  // ─── Search & Pagination ───────────────────────────────────────────────────────────
+  const [filterType, setFilterType] = useState('All Types');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const ROWS_OPTIONS = [10, 25, 50, 100];
+
+  const filteredFields = (Array.isArray(fields) ? fields : []).filter(f => {
+    const matchesSearch =
+      (f.name && f.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (f.description && f.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (f.key && f.key.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (f.type && f.type.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (f.createdBy?.name && f.createdBy.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchesSearch) return false;
+    if (filterType !== 'All Types') return f.type?.toLowerCase() === filterType.toLowerCase();
+    return true;
+  });
+
+  const totalPages  = Math.ceil(filteredFields.length / rowsPerPage) || 1;
+  const startIndex  = (currentPage - 1) * rowsPerPage;
+  const endIndex    = startIndex + rowsPerPage;
+  const currentFields = filteredFields.slice(startIndex, endIndex);
+
+  const startIdx = filteredFields.length === 0 ? 0 : startIndex + 1;
+  const endIdx   = Math.min(endIndex, filteredFields.length);
+
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = [1];
+    if (currentPage > 3) pages.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
 
   useEffect(() => {
     if (currentPage > totalPages && totalPages > 0) setCurrentPage(totalPages);
-  }, [fields, currentPage, totalPages]);
-
-  const goToNextPage     = () => currentPage < totalPages && setCurrentPage(p => p + 1);
-  const goToPreviousPage = () => currentPage > 1 && setCurrentPage(p => p - 1);
-  const goToPage         = (n) => n >= 1 && n <= totalPages && setCurrentPage(n);
+  }, [filteredFields, currentPage, totalPages]);
 
   // ─── Delete ───────────────────────────────────────────────────────────────
   const [deleteIndex, setDeleteIndex] = useState(null);
@@ -420,43 +447,91 @@ const CustomFieldsSection = () => {
       </div>
 
       {/* Table Section - Added responsive horizontal scroll */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between min-h-[680px] overflow-hidden">
+        {/* Filter bar */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
+          <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
+            <span className="text-sm text-gray-500 font-medium">Filter Type:</span>
+            <div className="relative">
+              <select
+                value={filterType}
+                onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
+                className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium bg-white cursor-pointer outline-none focus:border-green-400 transition-colors shadow-sm capitalize"
+              >
+                <option>All Types</option>
+                <option value="text">Text</option>
+                <option value="number">Number</option>
+                <option value="date">Date</option>
+                <option value="boolean">Boolean</option>
+                <option value="select">Select</option>
+              </select>
+              <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+            </div>
+          </div>
+          <div className="relative w-full sm:w-72 xl:w-60 xl:ml-auto">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input
+              type="text"
+              placeholder="Search custom fields..."
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 w-full outline-none focus:border-green-400 transition-colors shadow-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                title="Clear search"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+
         {loading ? (
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-200">
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
-                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <tr key={i} className="border-b border-gray-50">
-                  <td className="px-6 py-4"><div className="h-4 bg-gray-200 animate-pulse rounded w-32" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-24 font-mono" /></td>
-                  <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
-                  <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[800px]">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-200">
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Key</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Created By</th>
+                  <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : fields.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <tr key={i} className="border-b border-gray-50">
+                    <td className="px-6 py-4"><div className="h-4 bg-gray-200 animate-pulse rounded w-32" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-16" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-24 font-mono" /></td>
+                    <td className="px-6 py-4"><div className="h-3 bg-gray-200 animate-pulse rounded w-20" /></td>
+                    <td className="px-6 py-4"><div className="flex justify-end gap-3"><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /><div className="h-4 w-4 bg-gray-200 animate-pulse rounded" /></div></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : filteredFields.length === 0 ? (
+          <div className="flex-1 flex flex-col items-center justify-center py-16 text-gray-400">
             <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            <p className="text-lg font-semibold">No custom fields found</p>
-            <p className="text-sm">Create your first custom field to get started</p>
+            <p className="text-lg font-semibold">{searchQuery ? "No matching custom fields" : "No custom fields found"}</p>
+            <p className="text-sm">{searchQuery ? "Try a different search query" : "Create your first custom field to get started"}</p>
           </div>
         ) : (
           <>
-            <table className="w-full text-left border-collapse min-w-[800px]">
+            <div className="flex-1 overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-gray-50/50 border-b border-gray-200">
                   <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Name</th>
@@ -534,29 +609,47 @@ const CustomFieldsSection = () => {
               }
               </tbody>
             </table>
+            </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200">
-              <div className="text-sm text-gray-600 font-medium">
-                Showing {(fields?.length || 0) === 0 ? 0 : startIndex + 1} to {Math.min(endIndex, fields?.length || 0)} of {fields?.length || 0} custom fields
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={goToPreviousPage} disabled={currentPage === 1} className={`p-1 rounded ${currentPage === 1 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Previous page">
-                  <ChevronLeftIcon className="w-5 h-5" />
+            {/* Contact-Style Pagination */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans shrink-0">
+              <span className="text-sm text-gray-500">Total custom fields: <strong className="text-gray-900">{filteredFields.length}</strong></span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-500">Rows per page:</span>
+                <select
+                  value={rowsPerPage}
+                  onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                  className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-green-400 bg-white"
+                >
+                  {ROWS_OPTIONS.map(n => <option key={n}>{n}</option>)}
+                </select>
+                <span className="text-sm text-gray-500 min-w-[90px] text-center">{startIdx}–{endIdx} of {filteredFields.length}</span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+                >
+                  <ChevronLeftIcon className="w-4 h-4" />
                 </button>
-                <div className="flex items-center gap-1">
-                  {totalPages > 0 && Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => (
-                    <button
-                      key={pageNum}
-                      onClick={() => goToPage(pageNum)}
-                      className={`min-w-[32px] h-8 px-2 rounded text-sm font-semibold transition-colors ${currentPage === pageNum ? "bg-[#10B981] text-white" : "text-gray-600 hover:bg-gray-100"}`}
-                    >
-                      {pageNum}
-                    </button>
-                  ))}
+                <div className="flex gap-1">
+                  {getPages().map((p, i) =>
+                    p === "..."
+                      ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+                      : <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-green-500 text-white border-green-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-700"}`}
+                      >
+                        {p}
+                      </button>
+                  )}
                 </div>
-                <button onClick={goToNextPage} disabled={currentPage === totalPages || totalPages === 0} className={`p-1 rounded ${currentPage === totalPages || totalPages === 0 ? "text-gray-300 cursor-not-allowed" : "text-gray-600 hover:text-gray-900 hover:bg-gray-100"}`} title="Next page">
-                  <ChevronRightIcon className="w-5 h-5" />
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+                >
+                  <ChevronRightIcon className="w-4 h-4" />
                 </button>
               </div>
             </div>

@@ -1985,7 +1985,7 @@ export default function ContactsCRM() {
       </div>
 
       {/* Card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-visible min-h-[680px] flex flex-col justify-between">
 
         {/* Filter bar */}
         <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
@@ -2100,7 +2100,7 @@ export default function ContactsCRM() {
         )}
 
         {/* Table + Profile Panel */}
-        <div className="flex min-w-0">
+        <div className="flex min-w-0 flex-1">
           <div className="flex-1 overflow-x-auto min-w-0">
             <table className="w-full border-collapse min-w-[760px] xl:min-w-[980px]">
               <thead>

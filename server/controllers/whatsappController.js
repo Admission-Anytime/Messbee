@@ -14,17 +14,75 @@ const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
 const automationService = require('../services/automationService');
 
-// --- MULTI-TENANT SERVICE HELPER ---
+// --- MULTI-TENANT & HYBRID SERVICE HELPER ---
 const getTenantWhatsAppService = async (tenantId) => {
-  let channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null } }).select('+metaAccessToken');
-  
-  if (!channel || !channel.metaAccessToken || !channel.activeWhatsappPhoneNumberId) {
+  let accessToken = null;
+  let phoneNumberId = null;
+  let businessAccountId = null;
+
+  // 1. Try Channel (Multi-tenant DB record)
+  if (tenantId) {
+    try {
+      const channel = await Channel.findOne({ 
+        tenantId, 
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
+      }).select('+metaAccessToken');
+
+      if (channel && channel.metaAccessToken && channel.activeWhatsappPhoneNumberId) {
+        accessToken = channel.metaAccessToken;
+        phoneNumberId = channel.activeWhatsappPhoneNumberId;
+        businessAccountId = channel.metadata?.wabaId;
+      }
+    } catch (e) {
+      console.warn("Channel lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 2. Try User model configuration (user.whatsappConfig)
+  if (!accessToken && tenantId) {
+    try {
+      const User = require('../models/User');
+      const user = await User.findById(tenantId);
+      if (user && user.whatsappConfig && user.whatsappConfig.accessToken) {
+        accessToken = user.whatsappConfig.accessToken;
+        phoneNumberId = user.whatsappConfig.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        businessAccountId = user.whatsappConfig.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      }
+    } catch (e) {
+      console.warn("User lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 3. Try Setting model (key: 'whatsapp_config')
+  if (!accessToken) {
+    try {
+      const Setting = require('../models/Setting');
+      const setting = await Setting.findOne({ key: 'whatsapp_config' });
+      if (setting && setting.value && (setting.value.accessToken || setting.value.phoneNumberId)) {
+        accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+        phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        businessAccountId = setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      }
+    } catch (e) {
+      console.warn("Setting lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 4. Try Global .env Fallback
+  if (!accessToken) {
+    accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  }
+
+  if (!accessToken || !phoneNumberId) {
     return null;
   }
+
   const service = new WhatsAppService();
-  service.accessToken = channel.metaAccessToken;
-  service.phoneNumberId = channel.activeWhatsappPhoneNumberId;
-  service.businessAccountId = channel.metadata?.wabaId;
+  service.accessToken = accessToken;
+  service.phoneNumberId = phoneNumberId;
+  service.businessAccountId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
   service.baseURL = `https://graph.facebook.com/${service.apiVersion || 'v20.0'}/${service.phoneNumberId}`;
   
   // Override syncConfig to prevent it from resetting tokens to global .env/Setting
@@ -1620,24 +1678,33 @@ exports.getTemplates = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
     }
     
-    let data;
+    let data = { data: [] };
     try {
       console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
       data = await tenantWhatsAppService.getTemplates();
       console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
     } catch (err) {
-      console.error('[DEBUG] Meta API returned Error in getTemplates:', err.response?.status, err.response?.data || err.message);
-      return res.status(err.response?.status || 500).json({
-        success: false,
-        message: 'Error fetching templates from Meta API',
-        error: err.response?.data || err.message
-      });
+      console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
+      // Don't crash or return 401 — fall back to local MongoDB templates
+      data = { data: [] };
     }
 
-    const allTemplates = Array.isArray(data?.data) ? data.data : [];
+    let allTemplates = Array.isArray(data?.data) ? data.data : [];
     
     // Get templates owned by this user from our DB
     const userTemplates = await Template.find({ user: req.user.id });
+    
+    // If Meta API returned 0 or failed, use local templates
+    if (allTemplates.length === 0 && userTemplates.length > 0) {
+      allTemplates = userTemplates.map(t => ({
+        id: t.whatsappTemplateId || t._id,
+        name: t.name,
+        category: t.category,
+        language: t.language,
+        status: t.status || 'APPROVED',
+        components: t.components || []
+      }));
+    }
     const userTemplatesMap = {};
     userTemplates.forEach(t => {
       userTemplatesMap[String(t.name).trim()] = t;
@@ -1757,7 +1824,7 @@ exports.createTemplate = async (req, res, next) => {
 
     // Save template ownership to our DB
     const templateName = result.templateName || name;
-    await Template.create({
+    const createdLocal = await Template.create({
       name: templateName,
       whatsappTemplateId: result.data?.id,
       category: category || 'MARKETING',
@@ -1766,6 +1833,12 @@ exports.createTemplate = async (req, res, next) => {
       user: req.user.id,
       status: 'PENDING'
     });
+
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('template_created', { tenantId, template: createdLocal });
+    } catch (_) {}
 
     res.status(201).json({
       success: true,
