@@ -131,34 +131,36 @@ const Label = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border">
       <div className="max-w-[1800px] mx-auto">
       {/* Header */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md border-b border-slate-100 mb-8 flex flex-col md:flex-row justify-between items-center py-4 transition-all">
-           <div className="flex items-center gap-2">
-              <h1 className="text-2xl md:text-3xl font-black text-slate-900">Labels</h1>
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-400 cursor-help">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-              </svg>
-           </div>
-           <div className="flex flex-wrap items-center gap-3">
-              <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${labels.length >= PLAN_LIMIT ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
-                <span className={`w-2 h-2 rounded-full ${labels.length >= PLAN_LIMIT ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
-                Label used: {labels.length}/{PLAN_LIMIT}
-              </div>
-              <button 
-                id="btn-add-label"
-                onClick={() => handleOpenModal()} 
-                disabled={labels.length >= PLAN_LIMIT}
-                className={`${labels.length >= PLAN_LIMIT ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#00B050] hover:bg-[#009b45] text-white shadow-emerald-200'} px-5 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-sm`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                Add Labels
-              </button>
-           </div>
+        <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight">Labels</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage and organise contact labels from one place.</p>
+          </div>
+          <div className="flex gap-2.5 flex-wrap items-center">
+            <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${labels.length >= PLAN_LIMIT ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${labels.length >= PLAN_LIMIT ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+              Labels: {labels.length}/{PLAN_LIMIT}
+            </div>
+            <button
+              id="btn-add-label"
+              onClick={() => handleOpenModal()}
+              disabled={labels.length >= PLAN_LIMIT}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px ${
+                labels.length >= PLAN_LIMIT
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                  : 'bg-[#10B981] hover:bg-[#059669] text-white'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+              Add Labels
+            </button>
+          </div>
         </div>
 
-      <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden mb-10 flex flex-col">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10 flex flex-col">
         <table className="w-full text-left border-collapse min-w-[800px]">
           <thead>
             <tr className="bg-slate-50/50 border-b border-slate-100">

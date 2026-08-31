@@ -162,41 +162,37 @@ const StatusPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-['Urbanist'] w-full relative">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border relative">
       <div className="max-w-7xl mx-auto">
         
-        {/* --- STICKY HEADER --- */}
-        <div className="sticky top-0 z-30 bg-[#F8FAFC]/95 backdrop-blur-md -mt-6 -mx-6 px-6 py-4 lg:-mt-10 lg:-mx-10 lg:px-10 lg:py-6 border-b border-gray-200/50 mb-8 flex flex-col md:flex-row justify-between items-center gap-4 transition-all">
-           
-           <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-900">Status</h1>
-              <InformationCircleIcon className="w-5 h-5 text-slate-400 cursor-help" />
-           </div>
-
-           <div className="flex items-center gap-4">
-              <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
-                 <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
-                 Status used: {usedCount}/{PLAN_LIMIT}
-              </div>
-
-              <button 
-                id="btn-add-status"
-                onClick={() => openModal()}
-                // ✅ NEW: Disable button visually and functionally if limit reached
-                disabled={isLimitReached}
-                className={`px-5 py-2 text-sm font-bold rounded-lg shadow-sm transition-all flex items-center gap-2
-                  ${isLimitReached 
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                    : 'bg-[#00B050] hover:bg-[#009b45] text-white shadow-emerald-200'
-                  }`}
-              >
-                 <PlusIcon className="w-5 h-5" /> Add Status
-              </button>
-           </div>
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 leading-tight">Status</h1>
+            <p className="text-sm text-gray-500 mt-1">Define and manage contact lifecycle statuses.</p>
+          </div>
+          <div className="flex gap-2.5 flex-wrap items-center">
+            <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+              <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+              Status: {usedCount}/{PLAN_LIMIT}
+            </div>
+            <button
+              id="btn-add-status"
+              onClick={() => openModal()}
+              disabled={isLimitReached}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px ${
+                isLimitReached
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none'
+                  : 'bg-[#10B981] hover:bg-[#059669] text-white'
+              }`}
+            >
+              <PlusIcon className="w-4 h-4 stroke-[3]" /> Add Status
+            </button>
+          </div>
         </div>
 
         {/* --- TABLE CARD --- */}
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-10">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-10">
            
            <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-4 border-b border-gray-100 bg-gray-50/50 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <div className="col-span-3">Name</div>

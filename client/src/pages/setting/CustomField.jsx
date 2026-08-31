@@ -395,15 +395,15 @@ const CustomFieldsSection = () => {
 
   // ─── Render ───────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border antialiased text-gray-900">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Custom Fields</h1>
-          <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
+      <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Custom Fields</h1>
+          <p className="text-sm text-gray-500 mt-1">Create and manage custom data fields for your contacts.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+        <div className="flex gap-2.5 flex-wrap items-center">
+          <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
             <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
             Custom fields: {fields.length}/{PLAN_LIMIT}
           </div>
@@ -411,16 +411,16 @@ const CustomFieldsSection = () => {
             id="btn-add-custom-field"
             onClick={openCreateModal}
             disabled={isLimitReached}
-            className={`${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-200'} px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
+            className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px ${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-[#10B981] hover:bg-[#059669] text-white'}`}
           >
-            <span className="text-lg">+</span>
-            <span>Create Custom Fields</span>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
+            Create Custom Field
           </button>
         </div>
       </div>
 
       {/* Table Section - Added responsive horizontal scroll */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto shadow-sm">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         {loading ? (
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead>
