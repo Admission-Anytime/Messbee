@@ -19,6 +19,27 @@ const SOCKET_URL =
     ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '')
     : '');
 
+const isChatAccessibleForUser = (chat, currentUser) => {
+  if (!chat || !currentUser) return false;
+  const role = (currentUser.role || '').toUpperCase();
+  if (role === 'ADMIN') return true;
+
+  const currentUserId = (currentUser._id || currentUser.id || '').toString();
+  const currentUserName = (currentUser.name || '').trim().toLowerCase();
+  const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
+
+  const chatUserId = (chat.user?._id || chat.user || '').toString();
+  const chatTeamMember = (chat.teamMember || '').trim();
+  const chatTeamMemberLower = chatTeamMember.toLowerCase();
+
+  if (chatUserId && currentUserId && chatUserId === currentUserId) return true;
+  if (currentUserName && chatTeamMemberLower === currentUserName) return true;
+  if (currentUserId && chatTeamMember === currentUserId) return true;
+  if (currentUserEmail && chatTeamMemberLower === currentUserEmail) return true;
+
+  return false;
+};
+
 const Chat = () => {
   const { fetchChats: refreshGlobalUnread } = useContext(ChatContext);
   const { user, rolePermissions } = useContext(userContext);
@@ -135,11 +156,8 @@ const Chat = () => {
       // Update sidebar chat preview
       setChats(prevChats => {
         // PERMISSION CHECK: Don't add chat if user is not authorized
-        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && data.chat) {
-          const c = data.chat;
-          if (c.user !== user?.id && c.teamMember !== user?.id && c.teamMember !== user?.name && c.teamMember !== 'Unassigned') {
-            return prevChats;
-          }
+        if (data.chat && !isChatAccessibleForUser(data.chat, user)) {
+          return prevChats;
         }
 
         const idx = prevChats.findIndex(c => c._id?.toString() === incomingChatId);
@@ -211,14 +229,12 @@ const Chat = () => {
     socketRef.current.on("chat_updated", (updatedChat) => {
       setChats(prev => {
         // PERMISSION CHECK
-        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && updatedChat) {
-          if (updatedChat.user !== user?.id && updatedChat.teamMember !== user?.id && updatedChat.teamMember !== user?.name && updatedChat.teamMember !== 'Unassigned') {
-            return prev.filter(c => c._id?.toString() !== updatedChat._id?.toString());
-          }
+        if (updatedChat && !isChatAccessibleForUser(updatedChat, user)) {
+          return prev.filter(c => (c._id || c.id)?.toString() !== (updatedChat._id || updatedChat.id)?.toString());
         }
         return prev.map(c =>
-          c._id?.toString() === updatedChat._id?.toString() ? updatedChat : c
-        )
+          (c._id || c.id)?.toString() === (updatedChat._id || updatedChat.id)?.toString() ? updatedChat : c
+        );
       });
     });
 
@@ -226,12 +242,10 @@ const Chat = () => {
     socketRef.current.on("chat_created", (newChat) => {
       setChats(prev => {
         // PERMISSION CHECK
-        if (user?.role !== 'ADMIN' && user?.role !== 'admin' && newChat) {
-          if (newChat.user !== user?.id && newChat.teamMember !== user?.id && newChat.teamMember !== user?.name && newChat.teamMember !== 'Unassigned') {
-            return prev;
-          }
+        if (newChat && !isChatAccessibleForUser(newChat, user)) {
+          return prev;
         }
-        const exists = prev.some(c => c._id?.toString() === newChat._id?.toString());
+        const exists = prev.some(c => (c._id || c.id)?.toString() === (newChat._id || newChat.id)?.toString());
         if (exists) return prev;
         return [newChat, ...prev];
       });
