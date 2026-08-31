@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const Payment = require('../models/Payment');
+const { syncProductToMeta } = require('../services/metaCatalogService');
 
 // --- PRODUCT CONTROLLERS ---
 
@@ -25,7 +26,13 @@ exports.getProducts = async (req, res, next) => {
 exports.createProduct = async (req, res, next) => {
   try {
     req.body.user = req.user.id;
+    req.body.tenantId = req.user.tenantId || req.user._id; // Ensure tenantId is set
+    
     const product = await Product.create(req.body);
+    
+    // Async background sync to Meta
+    syncProductToMeta(product, product.tenantId, 'CREATE');
+
     res.status(201).json({
       success: true,
       data: product
@@ -45,6 +52,10 @@ exports.updateProduct = async (req, res, next) => {
     if (product.user.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'Not authorized' });
 
     product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
+    
+    // Async background sync to Meta
+    syncProductToMeta(product, product.tenantId, 'UPDATE');
+
     res.status(200).json({ success: true, data: product });
   } catch (error) {
     next(error);
@@ -60,6 +71,9 @@ exports.deleteProduct = async (req, res, next) => {
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
     if (product.user.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'Not authorized' });
 
+    // Async background sync to Meta (before deleting locally, though we just pass the object)
+    syncProductToMeta(product, product.tenantId, 'DELETE');
+    
     await product.deleteOne();
     res.status(200).json({ success: true, data: {} });
   } catch (error) {

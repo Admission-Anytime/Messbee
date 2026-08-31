@@ -24,7 +24,10 @@ const productSchema = new mongoose.Schema({
   currentStock: { type: Number, default: 0 },
   minimumStock: { type: Number, default: 10 },
   productImage: { type: String },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' }
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  metaProductId: { type: String },
+  metaSyncStatus: { type: String, enum: ['pending', 'synced', 'failed'], default: 'pending' },
+  metaSyncError: { type: String }
 }, { timestamps: true });
 
 // Prevent index errors if sku is empty initially but we require it anyway
