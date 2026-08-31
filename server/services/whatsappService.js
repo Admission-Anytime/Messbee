@@ -14,7 +14,7 @@ class WhatsAppService {
     this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
     this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
     
     // Initial sync from DB
@@ -51,12 +51,11 @@ class WhatsAppService {
           };
           await setting.save();
         }
-
         // ✅ DB values take priority — only fall back to .env if DB value is missing/empty
         this.apiVersion         = setting.value.apiVersion         || process.env.WHATSAPP_API_VERSION;
         this.phoneNumberId      = setting.value.phoneNumberId      || process.env.WHATSAPP_PHONE_NUMBER_ID;
         this.accessToken        = setting.value.accessToken        || process.env.WHATSAPP_ACCESS_TOKEN;
-        this.businessAccountId  = setting.value.businessAccountId  || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        this.businessAccountId  = setting.value.businessAccountId  || (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
       } catch (error) {
@@ -937,7 +936,7 @@ class WhatsAppService {
 
       
       const response = await axios.get(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
         {
           params: {
             fields: 'id,name,status,category,language,created_timestamp,rejected_reason,quality_score,components'
@@ -1142,7 +1141,7 @@ class WhatsAppService {
 
           
           const response = await axios.post(
-            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
             createTemplatePayload(templateName),
             {
               headers: {
@@ -1190,7 +1189,7 @@ class WhatsAppService {
 
       try {
         response = await axios.post(
-          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
           payload,
           {
             headers: {
@@ -1399,7 +1398,7 @@ class WhatsAppService {
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
       const response = await axios.delete(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
         {
           params: {
             name: templateName
@@ -1461,3 +1460,4 @@ class WhatsAppService {
 }
 
 module.exports = new WhatsAppService();
+module.exports.WhatsAppService = WhatsAppService;

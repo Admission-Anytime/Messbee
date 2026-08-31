@@ -3,8 +3,11 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import api from "../../context/axios";
 import { toast } from "react-toastify";
 
-const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false }) => {
+const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) => {
   const overlayRef = useRef();
+  
+  // Check if user is agent/employee (not allowed to connect)
+  const isAgent = user?.role === 'agent' || user?.role === 'AGENT' || user?.role === 'user';
   const [wabaId, setWabaId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
@@ -210,7 +213,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false }) => {
 
       if (res.data?.success) {
         toast.success("WhatsApp Business Account connected manually!");
-        onClose();
+        if (!isMandatory) {
+          onClose();
+        } else {
+          window.location.reload(); // Reload to refresh global state and clear lock
+        }
       } else {
         toast.error(res.data?.message || "Failed to connect WhatsApp account");
         setError(res.data?.message || "Connection failed");
@@ -256,10 +263,22 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false }) => {
           )}
         </div>
 
-        {/* Body — Two Cards */}
+        {/* Body — Conditional Rendering for Agents vs Admins */}
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: Recommended — One Click */}
-          <div className="relative border-2 border-emerald-200 rounded-xl p-6 bg-gradient-to-b from-emerald-50/50 to-white hover:shadow-lg transition-shadow group">
+          {isAgent ? (
+            <div className="col-span-1 md:col-span-2 text-center p-12 bg-red-50 rounded-xl border border-red-100">
+              <svg className="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h3 className="text-xl font-bold text-slate-800">Administrator Access Required</h3>
+              <p className="mt-2 text-slate-600 max-w-md mx-auto">
+                Only the workspace owner or an administrator can connect the WhatsApp Business Account. Please contact your administrator to complete this setup.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Card 1: Recommended — One Click */}
+              <div className="relative border-2 border-emerald-200 rounded-xl p-6 bg-gradient-to-b from-emerald-50/50 to-white hover:shadow-lg transition-shadow group">
             {/* Recommended Badge */}
             <span className="absolute -top-3 left-6 px-3 py-0.5 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-sm">
               Recommended
@@ -395,6 +414,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false }) => {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Footer */}
