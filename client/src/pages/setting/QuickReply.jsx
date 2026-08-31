@@ -204,18 +204,16 @@ const QuickReply = () => {
   }
 
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border antialiased text-gray-900">
       <div className="flex flex-col xl:flex-row gap-6">
         <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
-              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                Total: {replies.length}
-              </span>
+          <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight">Quick Replies</h1>
+              <p className="text-sm text-gray-500 mt-1">Set up shortcut responses to answer common questions faster.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+            <div className="flex gap-2.5 flex-wrap items-center">
+              <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
                 <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                 Quick Replies: {replies.length}/{PLAN_LIMIT}
               </div>
@@ -230,14 +228,14 @@ const QuickReply = () => {
                   setIsModalOpen(true);
                 }}
                 disabled={isLimitReached}
-                className={`${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-200'} px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px ${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-[#10B981] hover:bg-[#059669] text-white'}`}
               >
-                <Plus size={18} /> Add Quick Reply
+                <Plus size={16} /> Add Quick Reply
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             {loading ? (
               <table className="w-full table-fixed text-left border-collapse">
                 <thead>
