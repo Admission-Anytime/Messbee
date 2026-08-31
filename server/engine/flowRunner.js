@@ -387,18 +387,57 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     if (!nodeData.catalogId) {
       return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration.' } };
     }
-    return {
-      ...basePayload,
-      type: 'interactive',
-      interactive: {
-        type: nodeData.catalogType === 'single_product' ? 'product' : 'product_list',
+
+    if (nodeData.catalogType === 'multi_product') {
+      const validSections = (nodeData.sections || []).filter(sec => sec.productItems && sec.productItems.length > 0);
+      if (validSections.length === 0) {
+        return { ...basePayload, type: 'text', text: { body: 'Missing product sections configuration.' } };
+      }
+
+      const interactive = {
+        type: 'product_list',
+        header: { type: 'text', text: parseDynamicVariables(nodeData.headerText, contextData) || 'Products' },
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out our products!' },
+        action: {
+          catalog_id: nodeData.catalogId,
+          sections: validSections.map(sec => ({
+            title: parseDynamicVariables(sec.title, contextData) || 'Section',
+            product_items: sec.productItems.slice(0, 30).map(item => ({
+              product_retailer_id: parseDynamicVariables(item.productId, contextData) || 'product_1'
+            }))
+          }))
+        }
+      };
+
+      if (nodeData.footer) {
+        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
+      }
+
+      return {
+        ...basePayload,
+        type: 'interactive',
+        interactive
+      };
+    } else {
+      const interactive = {
+        type: 'product',
+        body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out this product!' },
         action: {
           catalog_id: nodeData.catalogId,
           product_retailer_id: parseDynamicVariables(nodeData.productId, contextData) || 'product_1'
         }
+      };
+
+      if (nodeData.footer) {
+        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
       }
-    };
+
+      return {
+        ...basePayload,
+        type: 'interactive',
+        interactive
+      };
+    }
   }
 
   if (nodeType === 'pollNode') {

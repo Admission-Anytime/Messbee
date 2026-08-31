@@ -160,6 +160,8 @@ const CreateTemplate = () => {
     bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
     expirationDate: '24h',
+    catalogButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Catalog',
+    mpmButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Items',
   });
 
   // Prepopulate buttons if editing
@@ -474,6 +476,14 @@ const CreateTemplate = () => {
       }
     }
 
+    if (formData.headerType === 'Text' && headerVariables.length > 0) {
+      const hasMissingHeaderSamples = headerVariables.some((id) => !String(headerSamples[id] || '').trim());
+      if (hasMissingHeaderSamples) {
+        toast.error("Please add sample text for all header variables");
+        return;
+      }
+    }
+
     if (strippedBody.length > 1024) {
       toast.error(`Template body is ${strippedBody.length} characters. WhatsApp allows a maximum of 1024 characters.`);
       return;
@@ -528,6 +538,11 @@ const CreateTemplate = () => {
 
     if (waName.length < 4) {
       toast.error(`Template name too short. Formatted name "${waName}" is ${waName.length} chars. Minimum is 4 characters.`);
+      return;
+    }
+
+    if (templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
+      toast.error("A Header is mandatory for Multi-Product Messages. Please add a Text or Media header.");
       return;
     }
 
@@ -603,11 +618,19 @@ const CreateTemplate = () => {
       // Add HEADER component only if valid
       if (formData.headerType && formData.headerType !== 'None') {
         if (formData.headerType === 'Text') {
-          components.push({ 
+          const headerComponent = { 
             type: 'HEADER', 
             format: 'TEXT', 
             text: (formData.headerText || formData.name || '').substring(0, 60)
-          });
+          };
+          
+          if (headerVariables.length > 0) {
+            headerComponent.example = {
+              header_text: headerVariables.map((id) => String(headerSamples[id] || '').trim())
+            };
+          }
+          
+          components.push(headerComponent);
         } else {
           // For IMAGE/VIDEO/DOCUMENT: prefer Meta handle (ngrok-free), fallback to URL
           const format = formData.headerType.toUpperCase();
@@ -638,7 +661,27 @@ const CreateTemplate = () => {
         components.push({ type: 'FOOTER', text: formData.footerText.substring(0, 60) }); // Max 60 chars
       }
 
-      if (buttons && buttons.length > 0) {
+      if (templateType === 'CATALOG') {
+        components.push({
+          type: 'BUTTONS',
+          buttons: [
+            {
+              type: 'CATALOG',
+              text: (formData.catalogButtonText || 'View Catalog').trim().substring(0, 20)
+            }
+          ]
+        });
+      } else if (templateType === 'MPM') {
+        components.push({
+          type: 'BUTTONS',
+          buttons: [
+            {
+              type: 'MPM',
+              text: (formData.mpmButtonText || 'View Items').trim().substring(0, 20)
+            }
+          ]
+        });
+      } else if (buttons && buttons.length > 0) {
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
             return { type: 'URL', text: b.text, url: b.value };
@@ -984,7 +1027,7 @@ const CreateTemplate = () => {
                                 </div>
                             </div>
                         ) : (
-                            (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
+                            (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'MPM', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
                               <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
                                 <div className="flex items-start gap-4">
                                     {templateType === type ? (
@@ -996,11 +1039,12 @@ const CreateTemplate = () => {
                                     )}
                                     <div className="flex-1">
                                       <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
-                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : 'LIMITED TIME OFFER'}
+                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : type === 'MPM' ? 'MULTI-PRODUCT MESSAGE' : 'LIMITED TIME OFFER'}
                                       </span>
                                       <p className="text-[13px] text-gray-500 leading-relaxed">
                                           {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
                                           : type === 'CATALOG' ? 'Display your entire product catalog'
+                                          : type === 'MPM' ? 'Showcase up to 30 specific products'
                                           : 'Send an offer with a countdown timer to drive urgency'}
                                       </p>
                                     </div>
@@ -1362,6 +1406,70 @@ const CreateTemplate = () => {
                     )}
 
                     <div className="pt-8 border-t border-gray-100 mt-6">
+                        {templateType === 'CATALOG' ? (
+                            <div>
+                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Catalog Button</h3>
+                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
+                                                Open Catalog
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.catalogButtonText || ''} 
+                                                    onChange={(e) => setFormData({...formData, catalogButtonText: e.target.value})}
+                                                    maxLength={20}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                    placeholder="View Catalog"
+                                                />
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
+                                                    {(formData.catalogButtonText || '').length}/20
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">This button will open your WhatsApp Commerce catalog when clicked by the user.</p>
+                            </div>
+                        ) : templateType === 'MPM' ? (
+                            <div>
+                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Multi-Product Button</h3>
+                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
+                                                View Items
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.mpmButtonText || ''} 
+                                                    onChange={(e) => setFormData({...formData, mpmButtonText: e.target.value})}
+                                                    maxLength={20}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                    placeholder="View Items"
+                                                />
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
+                                                    {(formData.mpmButtonText || '').length}/20
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">This button opens a curated selection of products inside WhatsApp.</p>
+                            </div>
+                        ) : (
+                        <>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons </h3>
                             <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
@@ -1456,6 +1564,8 @@ const CreateTemplate = () => {
                                 </div>
                             ))}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
                 )}
@@ -1490,18 +1600,22 @@ const CreateTemplate = () => {
             </div>
             {/* Scale adjustment for smaller laptop screens */}
             <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
-              <MobilePreview 
-                name={formData.name || 'YOUR_TEMPLATE'} 
-                body={formData.bodyText} 
-                footer={formData.category === 'Authentication' ? '' : formData.footerText} 
-                headerMedia={headerMedia}
-                headerType={formData.headerType}
-                showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
-                offer={formData.offerTitle} 
-                isLimited={templateType === 'LIMITED_TIME_OFFER'}
-                buttons={formData.category === 'Authentication' ? [] : buttons} 
-                isSetupView={view === 'setup'}
-              />
+          <MobilePreview 
+            name={formData.name || 'YOUR_TEMPLATE'} 
+            body={formData.bodyText} 
+            footer={formData.category === 'Authentication' ? '' : formData.footerText} 
+            headerMedia={headerMedia}
+            headerType={formData.headerType}
+            showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
+            offer={formData.offerTitle} 
+            isLimited={templateType === 'LIMITED_TIME_OFFER'}
+            isCatalog={templateType === 'CATALOG'}
+            isMpm={templateType === 'MPM'}
+            catalogButtonText={formData.catalogButtonText}
+            mpmButtonText={formData.mpmButtonText}
+            buttons={formData.category === 'Authentication' ? [] : buttons} 
+            isSetupView={view === 'setup'}
+          />
             </div>
         </div>
       </div>
@@ -1579,7 +1693,7 @@ const CreateTemplate = () => {
   );
 };
 
-const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLimited = false, buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
+const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLimited = false, isCatalog = false, isMpm = false, catalogButtonText = "", mpmButtonText = "", buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
   if (isSetupView) {
     return (
       <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
@@ -1682,7 +1796,15 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
                </div>
             </div>
             
-            {buttons && buttons.length > 0 && (
+            {isCatalog || isMpm ? (
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
+                  <div className="w-full py-3 flex items-center justify-center gap-2">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2">
+                       {isCatalog ? (catalogButtonText || 'View Catalog') : (mpmButtonText || 'View Items')}
+                     </span>
+                  </div>
+               </div>
+            ) : buttons && buttons.length > 0 && (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
                      <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">

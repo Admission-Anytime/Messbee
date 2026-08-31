@@ -93,6 +93,11 @@ const tenantSettingsSchema = new mongoose.Schema({
     invoicePrefix: { type: String, default: 'INV-' },
     currency: { type: String, default: 'INR' },
     taxPercentage: { type: Number, default: 18 } // Default GST
+  },
+  // Meta Commerce (WhatsApp Catalog Sync)
+  metaCommerce: {
+    catalogId: { type: String, default: '' },
+    systemUserToken: { type: String, default: '' }
   }
 }, {
   timestamps: true

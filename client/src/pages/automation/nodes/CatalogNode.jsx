@@ -7,12 +7,15 @@ export default function CatalogNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
   
-  // Basic validation just checking if catalogId or productIds isn't empty if required, but let's just make it always valid for now unless catalogId is explicitly tracked.
-  // Assuming a real app might track data.catalogId
-  const isValid = data.catalogId !== ''; 
-  const borderColor = isValid ? '#10b981' : '#ef4444';
+  const isMultiProduct = data.catalogType === 'multi_product';
+  
+  const isValid = !!(
+    data.catalogId && 
+    data.text && 
+    (isMultiProduct ? data.headerText && data.sections?.length > 0 : data.productId)
+  );
 
-  const isMultiProduct = data.catalogType === 'multi_product' || data.catalogType === 'catalog';
+  const borderColor = isValid ? '#10b981' : '#ef4444';
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>

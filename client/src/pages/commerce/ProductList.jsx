@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "../../services/CommerceApi";
+import { getProducts, createProduct, updateProduct, deleteProduct, getMetaSettings, updateMetaSettings } from "../../services/CommerceApi";
 import { toast } from "react-toastify";
 
 const ProductList = () => {
@@ -14,9 +14,15 @@ const ProductList = () => {
     category: "",
     price: "",
     stock: "",
-    img: ""
   });
   const [dataSource, setDataSource] = useState([]);
+
+  // Meta Settings State
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [metaSettings, setMetaSettings] = useState({
+    catalogId: "",
+    systemUserToken: ""
+  });
 
   // Filters State
   const [filterSearch, setFilterSearch] = useState("");
@@ -50,7 +56,37 @@ const ProductList = () => {
 
   useEffect(() => {
     fetchProducts();
+    fetchMetaSettings();
   }, []);
+
+  const fetchMetaSettings = async () => {
+    try {
+      const response = await getMetaSettings();
+      if (response && response.metaCommerce) {
+        setMetaSettings({
+          catalogId: response.metaCommerce.catalogId || "",
+          systemUserToken: response.metaCommerce.systemUserToken || ""
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch meta settings:", error);
+    }
+  };
+
+  const handleSaveMetaSettings = async () => {
+    try {
+      await updateMetaSettings({
+        metaCommerce: {
+          catalogId: metaSettings.catalogId,
+          systemUserToken: metaSettings.systemUserToken
+        }
+      });
+      toast.success("Meta Catalog settings saved!");
+      setIsSettingsModalOpen(false);
+    } catch (error) {
+      toast.error("Failed to save settings");
+    }
+  };
 
   // Pre-fill form when editing
   React.useEffect(() => {
@@ -169,13 +205,25 @@ const ProductList = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-800">Product List</h1>
           <p className="text-gray-500 text-[13px] mt-1 font-medium">Manage your digital catalog & inventory</p>
         </div>
-        <button
-          onClick={openAddDrawer}
-          className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
-        >
-          <span className="text-lg">+</span>
-          Add Product
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsSettingsModalOpen(true)}
+            className="bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+            Connect Meta
+          </button>
+          <button
+            onClick={openAddDrawer}
+            className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm"
+          >
+            <span className="text-lg">+</span>
+            Add Product
+          </button>
+        </div>
       </div>
 
       {/* Filter Section */}
@@ -225,6 +273,7 @@ const ProductList = () => {
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Category</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Price</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Stock</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider">Meta Sync</th>
                 <th className="px-6 py-4 text-[11px] font-bold text-gray-500 uppercase tracking-wider text-right">Actions</th>
               </tr>
             </thead>
@@ -268,6 +317,14 @@ const ProductList = () => {
                         <div className="text-[10px] text-gray-400 font-medium mt-1">
                           {product.stock} units
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-1">
+                        {product.metaSyncStatus === 'synced' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-green-50 text-green-700 w-fit"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>Synced</span>}
+                        {product.metaSyncStatus === 'pending' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-700 w-fit"><div className="w-1.5 h-1.5 rounded-full bg-amber-500"></div>Pending</span>}
+                        {product.metaSyncStatus === 'failed' && <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-50 text-red-700 w-fit" title={product.metaSyncError}><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div>Failed</span>}
+                        {!product.metaSyncStatus && <span className="text-[11px] text-gray-400 font-medium italic">Not synced</span>}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -339,6 +396,67 @@ const ProductList = () => {
                 className="flex-1 order-1 sm:order-2 px-4 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px"
               >
                 Confirm
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- META SETTINGS MODAL --- */}
+      {isSettingsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-in zoom-in duration-200">
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                </svg>
+                Meta Catalog Sync
+              </h3>
+              <button onClick={() => setIsSettingsModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-500 mb-2">Connect your Meta Commerce Manager to automatically sync products to your WhatsApp catalog.</p>
+              
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Catalog ID</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 123456789012345"
+                  value={metaSettings.catalogId}
+                  onChange={(e) => setMetaSettings(prev => ({ ...prev, catalogId: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5 uppercase tracking-wide">System User Token</label>
+                <textarea
+                  placeholder="EAAGm0P..."
+                  value={metaSettings.systemUserToken}
+                  onChange={(e) => setMetaSettings(prev => ({ ...prev, systemUserToken: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono h-24 resize-none"
+                />
+              </div>
+            </div>
+            
+            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
+              <button
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 hover:bg-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveMetaSettings}
+                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold transition-all shadow-md"
+              >
+                Save Settings
               </button>
             </div>
           </div>
