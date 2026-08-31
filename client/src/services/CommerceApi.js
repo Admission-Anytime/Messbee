@@ -34,3 +34,14 @@ export const getPayments = async () => {
   const response = await axiosInstance.get('/payments');
   return response.data;
 };
+
+// Tenant Settings endpoints
+export const getMetaSettings = async () => {
+  const response = await axios.get(`${import.meta.env.VITE_API_URL}/tenant-settings`, { withCredentials: true });
+  return response.data;
+};
+
+export const updateMetaSettings = async (settingsData) => {
+  const response = await axios.put(`${import.meta.env.VITE_API_URL}/tenant-settings`, settingsData, { withCredentials: true });
+  return response.data;
+};

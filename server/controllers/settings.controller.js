@@ -30,7 +30,7 @@ exports.updateSettings = async (req, res) => {
       settings = await TenantSettings.create({ tenantId });
     }
 
-    const { defaultChannelId, deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage, spamProtection } = req.body;
+    const { defaultChannelId, deliveryRules, executionSpeed, crmSync, welcomeMessage, awayMessage, fallbackMessage, spamProtection, metaCommerce } = req.body;
     
     if (defaultChannelId !== undefined) {
       settings.defaultChannelId = defaultChannelId;
@@ -67,6 +67,10 @@ exports.updateSettings = async (req, res) => {
     if (req.body.billing !== undefined) {
       settings.billing = req.body.billing;
       settings.markModified('billing');
+    }
+    if (metaCommerce !== undefined) {
+      settings.metaCommerce = metaCommerce;
+      settings.markModified('metaCommerce');
     }
 
     await settings.save();
