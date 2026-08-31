@@ -420,7 +420,7 @@ const Templates = ({ activeTab }) => {
           </div>
         </div>
         
-        <div className="w-full lg:w-[320px] bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-sm">
+        <div className="w-full lg:w-[295px] bg-white rounded-xl border border-gray-200 overflow-hidden flex flex-col shadow-sm">
             <div className="flex-1 flex items-center justify-center p-3 sm:p-4 bg-gradient-to-br from-gray-50 to-gray-100/50">
               <MobilePreview 
                 name={selectedTemplate?.name || '/template'} 
@@ -452,7 +452,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
   const formattedBody = formatWhatsAppMarkdown(body);
 
   return (
-  <div className="relative w-full max-w-[240px] sm:max-w-[276px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+  <div className="relative w-full max-w-[215px] sm:max-w-[245px] aspect-[245/500] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
     <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
     <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />
     <div className="h-full bg-[#e7ddd1] pt-7 sm:pt-8 relative flex flex-col">
