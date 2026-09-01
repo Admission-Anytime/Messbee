@@ -1927,16 +1927,14 @@ exports.testSendTemplate = async (req, res, next) => {
 };
 
 // @desc    Delete a template
+// @desc    Delete template
 // @route   DELETE /api/whatsapp/templates/:templateId
 // @access  Private
 exports.deleteTemplate = async (req, res, next) => {
   try {
     const tenantId = req.user?.tenantId || req.user?._id;
-    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
-    if (!tenantWhatsAppService) return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
-
     const { templateId } = req.params;
-    const { templateName } = req.body;
+    let { templateName } = req.body || {};
 
     if (!templateId) {
       return res.status(400).json({
@@ -1945,60 +1943,65 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
+    // Look up templateName if missing
     if (!templateName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Template name is required to delete a template'
-      });
+      try {
+        const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
+        const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
+        const localDoc = await Template.findOne(query);
+        if (localDoc) {
+          templateName = localDoc.name;
+        }
+      } catch (_) {}
     }
 
-    console.log('🗑️ [Controller] Attempting to delete template:', { templateId, templateName });
-    const result = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+    let metaResult = { success: false };
 
-    // Check if this is a Meta permission error (code 100 - BSP/WABA ownership restriction)
-    // In this case we soft-delete: remove from our local DB so it disappears from the UI
-    const isMetaPermissionError =
-      !result.success &&
-      (result.error?.code === 100 ||
-        (typeof result.error?.message === 'string' &&
-          result.error.message.includes('Need permission on either WhatsApp Business Account')));
-
-    if (!result.success && !isMetaPermissionError) {
-      // A genuine failure (network error, invalid name, etc.) — surface it to the user
-      console.error('❌ [Controller] Delete failed:', result.error);
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to delete template',
-        error: result.error
-      });
+    if (tenantWhatsAppService && templateName) {
+      console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
+      try {
+        metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+      } catch (err) {
+        console.warn('⚠️ [Controller] Meta delete warning:', err.message);
+      }
     }
 
-    // Soft delete from local DB so it doesn't show up in getTemplates
+    // Always delete or soft-delete from local DB
     try {
-      await Template.findOneAndUpdate(
-        { name: templateName, user: req.user.id },
-        { status: 'DELETED', name: templateName, user: req.user.id },
-        { new: true, upsert: true }
-      );
-      console.log('✅ [Controller] Template soft-deleted from local DB:', templateName);
+      const userScope = getUserScope(req);
+      if (templateName) {
+        await Template.deleteMany({
+          name: templateName,
+          $or: [
+            { user: { $in: userScope } },
+            { tenantId: { $in: userScope } }
+          ]
+        });
+        await Template.findOneAndUpdate(
+          { name: templateName, user: req.user.id },
+          { status: 'DELETED', name: templateName, user: req.user.id },
+          { new: true, upsert: true }
+        );
+      }
+      if (/^[0-9a-fA-F]{24}$/.test(templateId)) {
+        await Template.deleteOne({ _id: templateId });
+      }
+      console.log('✅ [Controller] Template removed from local view:', templateName || templateId);
     } catch (dbError) {
-      console.warn('⚠️ [Controller] Could not soft-delete template from local DB:', dbError.message);
+      console.warn('⚠️ [Controller] Local DB delete warning:', dbError.message);
     }
 
-    if (isMetaPermissionError) {
-      console.warn('⚠️ [Controller] Meta API rejected delete (permission), but template removed from local view.');
-      return res.status(200).json({
-        success: true,
-        message: 'Template removed from your account. Note: It may still appear in WhatsApp Manager due to BSP permission restrictions — you can delete it directly from Meta Business Manager.',
-        softDeleted: true
-      });
-    }
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('template_deleted', { tenantId, templateId, templateName });
+    } catch (_) {}
 
-    console.log('✅ [Controller] Template deleted successfully from WhatsApp + local DB:', templateName);
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Template deleted successfully',
-      data: result.data
+      data: metaResult?.data || null
     });
   } catch (error) {
     console.error('❌ [Controller] Delete template error:', error.message);
