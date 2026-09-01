@@ -160,10 +160,12 @@ const AppLayout = memo(() => {
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
   // --- LIVE PRODUCTION CHECK ---
-  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  
-  // --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
-  // const isWhatsAppConnected = true; 
+const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
+
+// --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
+// const isWhatsAppConnected = true; 
+
+ 
 
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 

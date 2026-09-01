@@ -3,7 +3,7 @@ import axios from '../../context/axios';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
-  Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, Phone, Smile, Paperclip, Send, CheckCheck 
+  Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, ChevronDown, Phone, Smile, Paperclip, Send, CheckCheck 
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState';
@@ -198,24 +198,55 @@ const QuickReply = () => {
       toast.info(`✏️ Editing: ${item.shortcut}`);
   };
 
+  const [filterType, setFilterType] = useState('All Types');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const ROWS_OPTIONS = [10, 25, 50, 100];
+
+  const filteredReplies = replies.filter(r => {
+    const matchesSearch =
+      (r.shortcut && r.shortcut.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (r.content && r.content.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (r.type && r.type.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    if (!matchesSearch) return false;
+    if (filterType !== 'All Types') return r.type?.toUpperCase() === filterType.toUpperCase();
+    return true;
+  });
+
+  const totalPages = Math.ceil(filteredReplies.length / rowsPerPage) || 1;
+  const pagedReplies = filteredReplies.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage);
+
+  const getPages = () => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, i) => i + 1);
+    const pages = [1];
+    if (currentPage > 3) pages.push("...");
+    for (let i = Math.max(2, currentPage - 1); i <= Math.min(totalPages - 1, currentPage + 1); i++) pages.push(i);
+    if (currentPage < totalPages - 2) pages.push("...");
+    pages.push(totalPages);
+    return pages;
+  };
+
+  const startIdx = filteredReplies.length === 0 ? 0 : (currentPage - 1) * rowsPerPage + 1;
+  const endIdx = Math.min(currentPage * rowsPerPage, filteredReplies.length);
+
   // Show error state if error occurred
   if (error && !loading) {
     return <ErrorState onRetry={fetchReplies} message={error} />;
   }
 
   return (
-    <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
-      <div className="flex flex-col xl:flex-row gap-6">
+    <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border antialiased text-gray-900">
+      <div className="flex flex-col xl:flex-row gap-6 max-w-[1800px] mx-auto">
         <div className="flex-1 min-w-0">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-800">Quick Replies</h1>
-              <span className="text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">
-                Total: {replies.length}
-              </span>
+          <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 leading-tight">Quick Replies</h1>
+              <p className="text-sm text-gray-500 mt-1">Set up shortcut responses to answer common questions faster.</p>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <div className={`px-4 py-2 bg-white border rounded-lg text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
+            <div className="flex gap-2.5 flex-wrap items-center">
+              <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
                 <span className={`w-2 h-2 rounded-full ${isLimitReached ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                 Quick Replies: {replies.length}/{PLAN_LIMIT}
               </div>
@@ -230,16 +261,60 @@ const QuickReply = () => {
                   setIsModalOpen(true);
                 }}
                 disabled={isLimitReached}
-                className={`${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-200'} px-4 py-2.5 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm`}
+                className={`flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[13px] font-bold transition-all shadow-md active:translate-y-px ${isLimitReached ? 'bg-gray-300 text-gray-500 cursor-not-allowed shadow-none' : 'bg-[#10B981] hover:bg-[#059669] text-white'}`}
               >
-                <Plus size={18} /> Add Quick Reply
+                <Plus size={16} /> Add Quick Reply
               </button>
             </div>
           </div>
 
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between min-h-[420px] overflow-hidden">
+            {/* Filter bar */}
+            <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">
+              <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-0">
+                <span className="text-sm text-gray-500 font-medium">Filter Type:</span>
+                <div className="relative">
+                  <select
+                    value={filterType}
+                    onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
+                    className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium bg-white cursor-pointer outline-none focus:border-green-400 transition-colors shadow-sm capitalize"
+                  >
+                    <option>All Types</option>
+                    <option value="TEXT">Text</option>
+                    <option value="IMAGE">Image</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="DOCUMENT">Document</option>
+                    <option value="AUDIO">Audio</option>
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                </div>
+              </div>
+              <div className="relative w-full sm:w-72 xl:w-60 xl:ml-auto">
+                <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                </svg>
+                <input
+                  type="text"
+                  placeholder="Search quick replies..."
+                  value={searchQuery}
+                  onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                  className="pl-8 pr-8 py-2 border border-gray-200 rounded-lg text-sm text-gray-700 w-full outline-none focus:border-green-400 transition-colors shadow-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => { setSearchQuery(""); setCurrentPage(1); }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500"
+                    title="Clear search"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+            </div>
+
             {loading ? (
-              <table className="w-full table-fixed text-left border-collapse">
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full table-fixed text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-50/50 border-b border-gray-200">
                     <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
@@ -259,68 +334,116 @@ const QuickReply = () => {
                   ))}
                 </tbody>
               </table>
-            ) : replies.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400 px-4">
+              </div>
+            ) : filteredReplies.length === 0 ? (
+              <div className="flex-1 flex flex-col items-center justify-center py-16 text-gray-400 px-4">
                 <Type size={52} className="mb-3 text-gray-300" />
-                <p className="text-lg font-semibold text-gray-600">No quick replies found</p>
-                <p className="text-sm mt-1">Create your first quick reply to speed up responses.</p>
+                <p className="text-lg font-semibold text-gray-600">{searchQuery ? "No matching quick replies found" : "No quick replies found"}</p>
+                <p className="text-sm mt-1">{searchQuery ? "Try a different search query" : "Create your first quick reply to speed up responses."}</p>
               </div>
             ) : (
-              <table className="w-full table-fixed text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-50/50 border-b border-gray-200">
-                    <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
-                    <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
-                    <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {replies.map((reply, idx) => (
-                    <tr
-                      key={reply._id || idx}
-                      onClick={() => setActivePreview(reply)}
-                      className={`transition-colors cursor-pointer ${activePreview?._id === reply._id ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'}`}
-                    >
-                      <td className="px-4 md:px-6 py-4">
-                        <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
-                          {reply.shortcut}
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 text-[13px] text-gray-600 font-medium">
-                        <p className="truncate md:pr-2">{reply.content || 'Media only quick reply'}</p>
-                      </td>
-                      <td className="px-4 md:px-6 py-4">
-                        <span className="inline-flex rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-blue-600">
-                          {reply.type}
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 text-right">
-                        <div className="flex justify-end gap-3 text-gray-400">
-                          <button
-                            onClick={(e) => handleEdit(e, idx)}
-                            className="hover:text-blue-500 transition-colors"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={(e) => openDeleteConfirmation(e, reply._id)}
-                            className="hover:text-red-500 transition-colors"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
+              <div className="flex-1 overflow-x-auto">
+                <table className="w-full table-fixed text-left border-collapse">
+                  <thead>
+                    <tr className="bg-gray-50/50 border-b border-gray-200">
+                      <th className="w-[24%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Shortcut</th>
+                      <th className="w-[44%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Message Content</th>
+                      <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500">Type</th>
+                      <th className="w-[16%] px-4 md:px-6 py-4 text-[11px] font-bold uppercase tracking-wider text-gray-500 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {pagedReplies.map((reply, idx) => (
+                      <tr
+                        key={reply._id || idx}
+                        onClick={() => setActivePreview(reply)}
+                        className={`transition-colors cursor-pointer ${activePreview?._id === reply._id ? 'bg-emerald-50/60' : 'hover:bg-gray-50/60'}`}
+                      >
+                        <td className="px-4 md:px-6 py-4">
+                          <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[12px] font-semibold text-emerald-700">
+                            {reply.shortcut}
+                          </span>
+                        </td>
+                        <td className="px-4 md:px-6 py-4 text-[13px] text-gray-600 font-medium">
+                          <p className="truncate md:pr-2">{reply.content || 'Media only quick reply'}</p>
+                        </td>
+                        <td className="px-4 md:px-6 py-4">
+                          <span className="inline-flex rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-[10px] font-bold tracking-wider uppercase text-blue-600">
+                            {reply.type}
+                          </span>
+                        </td>
+                        <td className="px-4 md:px-6 py-4 text-right">
+                          <div className="flex justify-end gap-3 text-gray-400">
+                            <button
+                              onClick={(e) => handleEdit(e, idx)}
+                              className="hover:text-blue-500 transition-colors"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => openDeleteConfirmation(e, reply._id)}
+                              className="hover:text-red-500 transition-colors"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
+
+            {/* Contact-Style Pagination */}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100 bg-gray-50 flex-wrap gap-2 font-sans shrink-0">
+              <span className="text-sm text-gray-500">Total quick replies: <strong className="text-gray-900">{filteredReplies.length}</strong></span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-sm text-gray-500">Rows per page:</span>
+                <select
+                  value={rowsPerPage}
+                  onChange={e => { setRowsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                  className="border border-gray-200 rounded-md text-sm text-gray-700 px-2 py-1 cursor-pointer outline-none focus:border-green-400 bg-white"
+                >
+                  {ROWS_OPTIONS.map(n => <option key={n}>{n}</option>)}
+                </select>
+                <span className="text-sm text-gray-500 min-w-[90px] text-center">{startIdx}–{endIdx} of {filteredReplies.length}</span>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+                <div className="flex gap-1">
+                  {getPages().map((p, i) =>
+                    p === "..."
+                      ? <span key={`d${i}`} className="px-2 py-1 text-sm text-gray-400">…</span>
+                      : <button
+                        key={p}
+                        onClick={() => setCurrentPage(p)}
+                        className={`min-w-[32px] px-2 py-1 border rounded-md text-sm font-medium transition-all ${p === currentPage ? "bg-green-500 text-white border-green-500 font-bold" : "bg-white text-gray-500 border-gray-200 hover:border-green-400 hover:text-green-700"}`}
+                      >
+                        {p}
+                      </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages || totalPages === 0}
+                  className="p-1.5 border border-gray-200 rounded-md text-gray-500 hover:border-green-400 hover:text-green-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors bg-white"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="hidden xl:block xl:w-[360px] 2xl:w-[420px]">
-          <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+        <div className="hidden xl:block xl:w-[310px] 2xl:w-[350px]">
+          <div className="sticky top-6 bg-white rounded-xl border border-gray-200 shadow-sm p-4">
             <MobilePreview
               name={previewData?.shortcut || '/quick-reply'}
               headerType={previewHeaderType}
@@ -532,7 +655,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
   const previewName = name || 'Business Update';
 
   return (
-    <div className="relative w-full max-w-[240px] sm:max-w-[276px] aspect-[240/470] sm:aspect-[276/520] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+    <div className="relative w-full max-w-[215px] sm:max-w-[245px] aspect-[245/500] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
       <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
 
       <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />
