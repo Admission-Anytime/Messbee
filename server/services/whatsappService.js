@@ -664,6 +664,36 @@ class WhatsAppService {
         }
       }
 
+      // ── AUTHENTICATION TEMPLATE OTP INTERCEPTION ──
+      // The Meta API requires the OTP variable to be sent as a URL button parameter, 
+      // AND also requires the body parameter to populate the `{{1}}` in the text body.
+      // Here we duplicate the body parameter to the correct button parameter.
+      if (String(template.category).toUpperCase() === 'AUTHENTICATION') {
+        const bodyCompIndex = components.findIndex(c => String(c.type).toLowerCase() === 'body');
+        
+        if (bodyCompIndex > -1) {
+          const bodyComp = components[bodyCompIndex];
+          if (bodyComp.parameters && bodyComp.parameters.length > 0) {
+            // Extract the OTP code the user entered
+            const otpCode = bodyComp.parameters[0].text;
+            
+            // Add the required URL button component for the COPY_CODE button,
+            // while keeping the body component intact for the `{{1}}` injection.
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [
+                {
+                  type: 'text',
+                  text: encodeURIComponent(String(otpCode).trim())
+                }
+              ]
+            });
+          }
+        }
+      }
+
       const payload = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
@@ -1042,8 +1072,41 @@ class WhatsAppService {
 
       // Validate BODY component exists and has content
       // Note: AUTHENTICATION templates use add_security_recommendation (no text field) — skip text checks for them.
-      const bodyComponent = preparedComponents.find(c => c.type === 'BODY');
+      const bodyComponent = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'BODY');
       const isAuthTemplate = String(category || '').toUpperCase() === 'AUTHENTICATION';
+      const isUtilityTemplate = String(category || '').toUpperCase() === 'UTILITY';
+
+      if (isAuthTemplate) {
+        const footerComp = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'FOOTER');
+        if (footerComp && footerComp.code_expiration_minutes !== undefined) {
+          const expMins = Number(footerComp.code_expiration_minutes);
+          if (isNaN(expMins) || expMins < 1 || expMins > 90) {
+            return {
+              success: false,
+              error: {
+                message: 'Authentication template code expiration must be between 1 and 90 minutes.'
+              }
+            };
+          }
+        }
+      }
+
+      if (isUtilityTemplate) {
+        const promoWords = ['offer', 'discount', 'sale', 'promo', 'coupon', 'free'];
+        const bodyTextLower = (bodyComponent?.text || '').toLowerCase();
+        // Regex to match whole words only to avoid false positives (e.g. "wholesale", "offerings" could be allowed but better safe than sorry, let's just do a basic check)
+        const foundPromo = promoWords.find(word => new RegExp(`\\b${word}\\b`, 'i').test(bodyTextLower));
+        
+        if (foundPromo) {
+          return {
+            success: false,
+            error: {
+              message: `Utility templates strictly prohibit promotional content. Found restricted word: "${foundPromo}". Please remove it to avoid Meta rejection, or change the category to Marketing.`
+            }
+          };
+        }
+      }
+
       if (!isAuthTemplate) {
         if (!bodyComponent || !bodyComponent.text || bodyComponent.text.trim().length < 20) {
           return {
