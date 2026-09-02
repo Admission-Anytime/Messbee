@@ -3,31 +3,59 @@ const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
 const Template = require('../models/Template');
 
+const getUserScope = (req) => {
+  const ids = [];
+  if (req.user?._id) ids.push(req.user._id);
+  if (req.user?.id && !ids.some(id => id.toString() === req.user.id.toString())) ids.push(req.user.id);
+  if (req.user?.tenantId && !ids.some(id => id.toString() === req.user.tenantId.toString())) {
+    ids.push(req.user.tenantId);
+  }
+  return ids;
+};
+
 // @desc    Get dashboard analytics
 // @route   GET /api/analytics/dashboard
 // @access  Private
 exports.getDashboardAnalytics = async (req, res, next) => {
   try {
     const { startDate, endDate } = req.query;
+    const userScope = getUserScope(req);
     
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
 
-    const query = { user: req.user._id };
+    const query = {
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    };
     if (Object.keys(dateFilter).length > 0) {
       query.createdAt = dateFilter;
     }
 
     // Total contacts
-    const totalContacts = await Contact.countDocuments({ user: req.user.id });
+    const totalContacts = await Contact.countDocuments({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    });
     
     // Active contacts (with messages in last 30 days)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const activeContacts = await Contact.countDocuments({
-      user: req.user.id,
-      lastMessageDate: { $gte: thirtyDaysAgo }
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ],
+      $or: [
+        { lastMessageDate: { $gte: thirtyDaysAgo } },
+        { lastInteractionAt: { $gte: thirtyDaysAgo } },
+        { updatedAt: { $gte: thirtyDaysAgo } }
+      ]
     });
 
     // Total messages
@@ -46,7 +74,10 @@ exports.getDashboardAnalytics = async (req, res, next) => {
     const messagesOverTime = await Message.aggregate([
       {
         $match: {
-          user: req.user._id,
+          $or: [
+            { user: { $in: userScope } },
+            { tenantId: { $in: userScope } }
+          ],
           createdAt: { $gte: sevenDaysAgo }
         }
       },
@@ -62,13 +93,18 @@ exports.getDashboardAnalytics = async (req, res, next) => {
     ]);
 
     // Campaign statistics
-    const campaigns = await Campaign.find({ user: req.user.id });
+    const campaigns = await Campaign.find({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    });
     const campaignStats = {
       total: campaigns.length,
       active: campaigns.filter(c => c.status === 'active').length,
       completed: campaigns.filter(c => c.status === 'completed').length,
-      totalSent: campaigns.reduce((sum, c) => sum + c.stats.sent, 0),
-      totalDelivered: campaigns.reduce((sum, c) => sum + c.stats.delivered, 0)
+      totalSent: campaigns.reduce((sum, c) => sum + (c.stats?.sent || 0), 0),
+      totalDelivered: campaigns.reduce((sum, c) => sum + (c.stats?.delivered || 0), 0)
     };
 
     res.status(200).json({
@@ -105,16 +141,23 @@ exports.getMessageAnalytics = async (req, res, next) => {
     const end = endDate ? new Date(endDate) : new Date();
     end.setHours(23, 59, 59, 999);
 
+    const userScope = getUserScope(req);
     // Campaign messages don't store `user` on the Message doc — they store
     // metadata.campaignId.  So we scope by the user's campaign IDs.
-    const userCampaigns = await Campaign.find({ user: req.user._id }).select('_id');
+    const userCampaigns = await Campaign.find({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    }).select('_id');
     const campaignIds = userCampaigns.map(c => c._id.toString());
 
     const baseMatch = {
       createdAt: { $gte: start, $lte: end },
       $or: [
         { 'metadata.campaignId': { $in: campaignIds } },
-        { user: req.user._id }
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
       ]
     };
 
@@ -188,7 +231,13 @@ exports.getMessageAnalytics = async (req, res, next) => {
 // @access  Private
 exports.getCampaignAnalytics = async (req, res, next) => {
   try {
-    const campaigns = await Campaign.find({ user: req.user.id })
+    const userScope = getUserScope(req);
+    const campaigns = await Campaign.find({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    })
       .select('name status stats createdAt')
       .sort('-createdAt');
 

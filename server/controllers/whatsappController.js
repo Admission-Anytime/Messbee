@@ -14,17 +14,75 @@ const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
 const automationService = require('../services/automationService');
 
-// --- MULTI-TENANT SERVICE HELPER ---
+// --- MULTI-TENANT & HYBRID SERVICE HELPER ---
 const getTenantWhatsAppService = async (tenantId) => {
-  let channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null } }).select('+metaAccessToken');
-  
-  if (!channel || !channel.metaAccessToken || !channel.activeWhatsappPhoneNumberId) {
+  let accessToken = null;
+  let phoneNumberId = null;
+  let businessAccountId = null;
+
+  // 1. Try Channel (Multi-tenant DB record)
+  if (tenantId) {
+    try {
+      const channel = await Channel.findOne({ 
+        tenantId, 
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
+      }).select('+metaAccessToken');
+
+      if (channel && channel.metaAccessToken && channel.activeWhatsappPhoneNumberId) {
+        accessToken = channel.metaAccessToken;
+        phoneNumberId = channel.activeWhatsappPhoneNumberId;
+        businessAccountId = channel.metadata?.wabaId;
+      }
+    } catch (e) {
+      console.warn("Channel lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 2. Try User model configuration (user.whatsappConfig)
+  if (!accessToken && tenantId) {
+    try {
+      const User = require('../models/User');
+      const user = await User.findById(tenantId);
+      if (user && user.whatsappConfig && user.whatsappConfig.accessToken) {
+        accessToken = user.whatsappConfig.accessToken;
+        phoneNumberId = user.whatsappConfig.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        businessAccountId = user.whatsappConfig.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      }
+    } catch (e) {
+      console.warn("User lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 3. Try Setting model (key: 'whatsapp_config')
+  if (!accessToken) {
+    try {
+      const Setting = require('../models/Setting');
+      const setting = await Setting.findOne({ key: 'whatsapp_config' });
+      if (setting && setting.value && (setting.value.accessToken || setting.value.phoneNumberId)) {
+        accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+        phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        businessAccountId = setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+      }
+    } catch (e) {
+      console.warn("Setting lookup warning in getTenantWhatsAppService:", e.message);
+    }
+  }
+
+  // 4. Try Global .env Fallback
+  if (!accessToken) {
+    accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+    phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+    businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  }
+
+  if (!accessToken || !phoneNumberId) {
     return null;
   }
+
   const service = new WhatsAppService();
-  service.accessToken = channel.metaAccessToken;
-  service.phoneNumberId = channel.activeWhatsappPhoneNumberId;
-  service.businessAccountId = channel.metadata?.wabaId;
+  service.accessToken = accessToken;
+  service.phoneNumberId = phoneNumberId;
+  service.businessAccountId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
   service.baseURL = `https://graph.facebook.com/${service.apiVersion || 'v20.0'}/${service.phoneNumberId}`;
   
   // Override syncConfig to prevent it from resetting tokens to global .env/Setting
@@ -1620,24 +1678,33 @@ exports.getTemplates = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
     }
     
-    let data;
+    let data = { data: [] };
     try {
       console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
       data = await tenantWhatsAppService.getTemplates();
       console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
     } catch (err) {
-      console.error('[DEBUG] Meta API returned Error in getTemplates:', err.response?.status, err.response?.data || err.message);
-      return res.status(err.response?.status || 500).json({
-        success: false,
-        message: 'Error fetching templates from Meta API',
-        error: err.response?.data || err.message
-      });
+      console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
+      // Don't crash or return 401 — fall back to local MongoDB templates
+      data = { data: [] };
     }
 
-    const allTemplates = Array.isArray(data?.data) ? data.data : [];
+    let allTemplates = Array.isArray(data?.data) ? data.data : [];
     
     // Get templates owned by this user from our DB
     const userTemplates = await Template.find({ user: req.user.id });
+    
+    // If Meta API returned 0 or failed, use local templates
+    if (allTemplates.length === 0 && userTemplates.length > 0) {
+      allTemplates = userTemplates.map(t => ({
+        id: t.whatsappTemplateId || t._id,
+        name: t.name,
+        category: t.category,
+        language: t.language,
+        status: t.status || 'APPROVED',
+        components: t.components || []
+      }));
+    }
     const userTemplatesMap = {};
     userTemplates.forEach(t => {
       userTemplatesMap[String(t.name).trim()] = t;
@@ -1757,7 +1824,7 @@ exports.createTemplate = async (req, res, next) => {
 
     // Save template ownership to our DB
     const templateName = result.templateName || name;
-    await Template.create({
+    const createdLocal = await Template.create({
       name: templateName,
       whatsappTemplateId: result.data?.id,
       category: category || 'MARKETING',
@@ -1766,6 +1833,12 @@ exports.createTemplate = async (req, res, next) => {
       user: req.user.id,
       status: 'PENDING'
     });
+
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('template_created', { tenantId, template: createdLocal });
+    } catch (_) {}
 
     res.status(201).json({
       success: true,
@@ -1854,16 +1927,14 @@ exports.testSendTemplate = async (req, res, next) => {
 };
 
 // @desc    Delete a template
+// @desc    Delete template
 // @route   DELETE /api/whatsapp/templates/:templateId
 // @access  Private
 exports.deleteTemplate = async (req, res, next) => {
   try {
     const tenantId = req.user?.tenantId || req.user?._id;
-    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
-    if (!tenantWhatsAppService) return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
-
     const { templateId } = req.params;
-    const { templateName } = req.body;
+    let { templateName } = req.body || {};
 
     if (!templateId) {
       return res.status(400).json({
@@ -1872,60 +1943,65 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
+    // Look up templateName if missing
     if (!templateName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Template name is required to delete a template'
-      });
+      try {
+        const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
+        const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
+        const localDoc = await Template.findOne(query);
+        if (localDoc) {
+          templateName = localDoc.name;
+        }
+      } catch (_) {}
     }
 
-    console.log('🗑️ [Controller] Attempting to delete template:', { templateId, templateName });
-    const result = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+    let metaResult = { success: false };
 
-    // Check if this is a Meta permission error (code 100 - BSP/WABA ownership restriction)
-    // In this case we soft-delete: remove from our local DB so it disappears from the UI
-    const isMetaPermissionError =
-      !result.success &&
-      (result.error?.code === 100 ||
-        (typeof result.error?.message === 'string' &&
-          result.error.message.includes('Need permission on either WhatsApp Business Account')));
-
-    if (!result.success && !isMetaPermissionError) {
-      // A genuine failure (network error, invalid name, etc.) — surface it to the user
-      console.error('❌ [Controller] Delete failed:', result.error);
-      return res.status(400).json({
-        success: false,
-        message: 'Failed to delete template',
-        error: result.error
-      });
+    if (tenantWhatsAppService && templateName) {
+      console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
+      try {
+        metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+      } catch (err) {
+        console.warn('⚠️ [Controller] Meta delete warning:', err.message);
+      }
     }
 
-    // Soft delete from local DB so it doesn't show up in getTemplates
+    // Always delete or soft-delete from local DB
     try {
-      await Template.findOneAndUpdate(
-        { name: templateName, user: req.user.id },
-        { status: 'DELETED', name: templateName, user: req.user.id },
-        { new: true, upsert: true }
-      );
-      console.log('✅ [Controller] Template soft-deleted from local DB:', templateName);
+      const userScope = getUserScope(req);
+      if (templateName) {
+        await Template.deleteMany({
+          name: templateName,
+          $or: [
+            { user: { $in: userScope } },
+            { tenantId: { $in: userScope } }
+          ]
+        });
+        await Template.findOneAndUpdate(
+          { name: templateName, user: req.user.id },
+          { status: 'DELETED', name: templateName, user: req.user.id },
+          { new: true, upsert: true }
+        );
+      }
+      if (/^[0-9a-fA-F]{24}$/.test(templateId)) {
+        await Template.deleteOne({ _id: templateId });
+      }
+      console.log('✅ [Controller] Template removed from local view:', templateName || templateId);
     } catch (dbError) {
-      console.warn('⚠️ [Controller] Could not soft-delete template from local DB:', dbError.message);
+      console.warn('⚠️ [Controller] Local DB delete warning:', dbError.message);
     }
 
-    if (isMetaPermissionError) {
-      console.warn('⚠️ [Controller] Meta API rejected delete (permission), but template removed from local view.');
-      return res.status(200).json({
-        success: true,
-        message: 'Template removed from your account. Note: It may still appear in WhatsApp Manager due to BSP permission restrictions — you can delete it directly from Meta Business Manager.',
-        softDeleted: true
-      });
-    }
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('template_deleted', { tenantId, templateId, templateName });
+    } catch (_) {}
 
-    console.log('✅ [Controller] Template deleted successfully from WhatsApp + local DB:', templateName);
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
       message: 'Template deleted successfully',
-      data: result.data
+      data: metaResult?.data || null
     });
   } catch (error) {
     console.error('❌ [Controller] Delete template error:', error.message);
