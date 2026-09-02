@@ -274,49 +274,49 @@ const PurchaseModule = () => {
           </div>
 
           {/* Visible Screen Content */}
-          <div className="flex justify-between items-center mb-8 pb-6 border-b border-slate-100">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-6 border-b border-slate-100">
             <div>
-              <h2 className="text-3xl font-bold text-slate-800">Purchase Bill Created!</h2>
-              <p className="text-slate-500 mt-2">Bill #{createdBill.invoiceNumber}</p>
+              <h2 className="text-2xl font-bold tracking-tight text-slate-800">Purchase Bill Created!</h2>
+              <p className="text-slate-500 text-[13px] mt-1 font-medium">Bill #{createdBill.invoiceNumber}</p>
             </div>
-            <div className="flex gap-3">
-              <button onClick={() => generateInvoicePDF(createdBill)} className="flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-indigo-700 transition-colors shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => generateInvoicePDF(createdBill)} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd" />
                 </svg>
-                Download Pro PDF
+                Download PDF
               </button>
-              <button onClick={handlePrint} className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg font-bold hover:bg-blue-700 transition-colors shadow-sm">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <button onClick={handlePrint} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                   <path fillRule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clipRule="evenodd" />
                 </svg>
                 Print Receipt
               </button>
-              <button onClick={() => setCreatedBill(null)} className="bg-slate-100 text-slate-700 px-5 py-2.5 rounded-lg font-bold hover:bg-slate-200 transition-colors">
+              <button onClick={() => setCreatedBill(null)} className="bg-white border border-slate-200 text-slate-700 px-4 py-2 rounded-lg font-semibold text-sm hover:bg-slate-50 transition-all shadow-sm">
                 Create New Bill
               </button>
             </div>
           </div>
 
-          <div className="bg-slate-50 p-6 rounded-lg border border-slate-100">
-            <h3 className="text-lg font-semibold mb-4 text-slate-800">Bill Summary</h3>
-            <div className="grid grid-cols-2 gap-6 mb-6">
+          <div className="bg-slate-50/70 p-5 rounded-xl border border-slate-200">
+            <h3 className="text-base font-bold mb-4 text-slate-800">Bill Summary</h3>
+            <div className="grid grid-cols-2 gap-4 mb-4 text-sm">
               <div>
-                <p className="text-sm text-slate-500 mb-1">Supplier</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Supplier</p>
                 <p className="font-semibold text-slate-800">{createdBill.supplier?.companyName}</p>
-                <p className="text-sm text-slate-600">{createdBill.supplier?.mobile}</p>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">{createdBill.supplier?.mobile}</p>
               </div>
               <div>
-                <p className="text-sm text-slate-500 mb-1">Date</p>
+                <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Date</p>
                 <p className="font-semibold text-slate-800">{createdBill.date}</p>
               </div>
             </div>
             
-            <div className="border-t border-slate-200 pt-4">
-              <p className="text-sm text-slate-500 mb-2">Items ({createdBill.items.length})</p>
-              <div className="flex justify-between items-center font-bold text-xl text-slate-800">
+            <div className="border-t border-slate-200 pt-3">
+              <p className="text-xs font-medium text-slate-500 mb-1">Items ({createdBill.items.length})</p>
+              <div className="flex justify-between items-center font-bold text-xl text-slate-900">
                 <span>Grand Total:</span>
-                <span>₹{createdBill.grandTotal.toFixed(2)}</span>
+                <span className="text-[#10B981]">₹{createdBill.grandTotal.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -326,10 +326,13 @@ const PurchaseModule = () => {
   }
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
+    <div className="p-4 md:p-6 bg-slate-50 min-h-screen font-['Urbanist',sans-serif]">
 
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-slate-800">Create Purchase Bill</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Create Purchase Bill</h1>
+          <p className="text-slate-500 text-[13px] mt-1 font-medium">Record supplier purchases, inward stock, and taxes</p>
+        </div>
         <div className="relative">
           <input 
             type="file" 
@@ -341,9 +344,9 @@ const PurchaseModule = () => {
           />
           <label 
             htmlFor="invoice-upload" 
-            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-white shadow-sm transition-colors cursor-pointer ${isScanning ? 'bg-slate-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm border transition-all shadow-sm cursor-pointer ${isScanning ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed' : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'}`}
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-emerald-600" viewBox="0 0 20 20" fill="currentColor">
               <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zM6.293 6.707a1 1 0 010-1.414l3-3a1 1 0 011.414 0l3 3a1 1 0 01-1.414 1.414L11 5.414V13a1 1 0 11-2 0V5.414L7.707 6.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
             {isScanning ? 'Analyzing Invoice...' : 'Scan Auto-Invoice'}
@@ -353,83 +356,83 @@ const PurchaseModule = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h2 className="font-semibold mb-4 text-lg">Select Supplier</h2>
-            <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className="w-full p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h2 className="font-bold text-base text-slate-800 mb-3">Select Supplier</h2>
+            <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981] text-slate-800 bg-white">
               <option value="">-- Choose Supplier --</option>
               {suppliers.map(s => <option key={s._id} value={s._id}>{s.companyName} ({s.contactPerson})</option>)}
             </select>
           </div>
 
-          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <h2 className="font-semibold mb-4 text-lg no-print">Add Products</h2>
-            <select onChange={(e) => { addProductToCart(e.target.value); e.target.value=''; }} className="w-full p-3 border rounded-lg mb-4 outline-none focus:ring-2 focus:ring-blue-500 no-print">
+          <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h2 className="font-bold text-base text-slate-800 mb-3 no-print">Add Products</h2>
+            <select onChange={(e) => { addProductToCart(e.target.value); e.target.value=''; }} className="w-full p-2.5 text-sm border border-slate-200 rounded-lg mb-4 outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981] text-slate-800 bg-white no-print">
               <option value="">-- Search & Add Product --</option>
               {products.map(p => <option key={p._id} value={p._id}>{p.name} (Stock: {p.currentStock}) - ₹{p.purchasePrice}</option>)}
             </select>
 
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-100 text-sm">
-                    <th className="p-2">Product</th>
-                    <th className="p-2 w-20">Qty</th>
-                    <th className="p-2 w-24">Pur. Price</th>
-                    <th className="p-2 w-20">Disc(₹)</th>
-                    <th className="p-2 w-20">GST(%)</th>
-                    <th className="p-2">Total</th>
-                    <th className="p-2 no-print"></th>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                    <th className="px-3 py-2.5">Product</th>
+                    <th className="px-3 py-2.5 w-20">Qty</th>
+                    <th className="px-3 py-2.5 w-24">Pur. Price</th>
+                    <th className="px-3 py-2.5 w-20">Disc(₹)</th>
+                    <th className="px-3 py-2.5 w-20">GST(%)</th>
+                    <th className="px-3 py-2.5">Total</th>
+                    <th className="px-3 py-2.5 no-print w-10"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-100 text-sm">
                   {cart.map((item, i) => (
-                    <tr key={i} className="border-b">
-                      <td className="p-2">{item.name}</td>
-                      <td className="p-2"><input type="number" min="1" value={item.quantity} onChange={(e) => updateCartItem(i, 'quantity', e.target.value)} className="w-full border p-1 rounded outline-none" /></td>
-                      <td className="p-2"><input type="number" value={item.purchasePrice} onChange={(e) => updateCartItem(i, 'purchasePrice', e.target.value)} className="w-full border p-1 rounded outline-none" /></td>
-                      <td className="p-2"><input type="number" value={item.discount} onChange={(e) => updateCartItem(i, 'discount', e.target.value)} className="w-full border p-1 rounded outline-none" /></td>
-                      <td className="p-2">{item.gst}%</td>
-                      <td className="p-2 font-medium">₹{item.total.toFixed(2)}</td>
-                      <td className="p-2 no-print"><button onClick={() => removeCartItem(i)} className="text-red-500 hover:text-red-700 font-bold">✕</button></td>
+                    <tr key={i} className="hover:bg-slate-50/60">
+                      <td className="px-3 py-2.5 font-semibold text-slate-800 text-sm">{item.name}</td>
+                      <td className="px-3 py-2.5"><input type="number" min="1" value={item.quantity} onChange={(e) => updateCartItem(i, 'quantity', e.target.value)} className="w-full border border-slate-200 p-1.5 rounded text-sm outline-none focus:border-[#10B981]" /></td>
+                      <td className="px-3 py-2.5"><input type="number" value={item.purchasePrice} onChange={(e) => updateCartItem(i, 'purchasePrice', e.target.value)} className="w-full border border-slate-200 p-1.5 rounded text-sm outline-none focus:border-[#10B981]" /></td>
+                      <td className="px-3 py-2.5"><input type="number" value={item.discount} onChange={(e) => updateCartItem(i, 'discount', e.target.value)} className="w-full border border-slate-200 p-1.5 rounded text-sm outline-none focus:border-[#10B981]" /></td>
+                      <td className="px-3 py-2.5 text-xs font-semibold text-slate-600">{item.gst}%</td>
+                      <td className="px-3 py-2.5 font-bold text-slate-800 text-sm">₹{item.total.toFixed(2)}</td>
+                      <td className="px-3 py-2.5 no-print text-center"><button onClick={() => removeCartItem(i)} className="text-rose-500 hover:text-rose-700 font-bold text-sm px-1.5 py-0.5 rounded hover:bg-rose-50">✕</button></td>
                     </tr>
                   ))}
-                  {cart.length === 0 && <tr><td colSpan="7" className="p-4 text-center text-slate-400">No products added</td></tr>}
+                  {cart.length === 0 && <tr><td colSpan="7" className="p-6 text-center text-sm font-medium text-slate-400">No products added yet</td></tr>}
                 </tbody>
               </table>
             </div>
             
             <div className="mt-4 no-print">
-              <label className="text-sm font-medium text-slate-700">Notes / Remarks</label>
-              <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full border p-2 rounded-lg mt-1 outline-none focus:ring-2 focus:ring-blue-500" rows="2"></textarea>
+              <label className="block text-xs sm:text-sm font-semibold text-slate-700 mb-1">Notes / Remarks</label>
+              <textarea value={notes} onChange={e => setNotes(e.target.value)} className="w-full border border-slate-200 p-2.5 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981] text-slate-800" rows="2" placeholder="Optional notes..."></textarea>
             </div>
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 h-fit sticky top-6">
-          <h2 className="font-bold text-xl mb-6">Order Summary</h2>
-          <div className="space-y-4">
+        <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 h-fit sticky top-6">
+          <h2 className="font-bold text-base text-slate-800 mb-4 pb-2 border-b border-slate-100">Order Summary</h2>
+          <div className="space-y-3 text-sm">
             <div className="flex justify-between text-slate-600">
-              <span>Items Count:</span>
-              <span>{cart.length}</span>
+              <span className="font-medium">Items Count:</span>
+              <span className="font-semibold text-slate-800">{cart.length}</span>
             </div>
             <div className="flex justify-between text-slate-600">
-              <span>Cart Total:</span>
-              <span>₹{cartTotal.toFixed(2)}</span>
+              <span className="font-medium">Cart Subtotal:</span>
+              <span className="font-semibold text-slate-800">₹{cartTotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center text-slate-600">
-              <span>Freight Charges:</span>
-              <input type="number" value={freight} onChange={e => setFreight(e.target.value)} className="w-24 border p-1 rounded text-right no-print" />
-              <span className="hidden print:inline">₹{freight}</span>
+              <span className="font-medium">Freight Charges:</span>
+              <input type="number" value={freight} onChange={e => setFreight(e.target.value)} className="w-24 border border-slate-200 p-1.5 rounded text-right text-sm outline-none focus:border-[#10B981] no-print" />
+              <span className="hidden print:inline font-semibold text-slate-800">₹{freight}</span>
             </div>
-            <div className="flex justify-between font-bold text-xl border-t pt-4 text-blue-600">
+            <div className="flex justify-between font-bold text-lg border-t border-slate-200 pt-3 text-slate-900">
               <span>Grand Total:</span>
-              <span>₹{grandTotal.toFixed(2)}</span>
+              <span className="text-[#10B981]">₹{grandTotal.toFixed(2)}</span>
             </div>
           </div>
           <button 
             onClick={handleGenerateBill} 
             disabled={isSubmitting}
-            className={`w-full mt-6 text-white p-3 rounded-lg font-bold text-lg transition-colors shadow-lg no-print ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+            className={`w-full mt-5 text-white py-2.5 px-4 rounded-lg font-semibold text-sm transition-all shadow-sm no-print ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-[#10B981] hover:bg-[#059669]'}`}
           >
             {isSubmitting ? 'Saving...' : 'Save & Print Bill'}
           </button>
