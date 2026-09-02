@@ -159,13 +159,7 @@ const AppLayout = memo(() => {
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
-  // --- LIVE PRODUCTION CHECK ---
-const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-
-// --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
-// const isWhatsAppConnected = true; 
-
- 
+  const isWhatsAppConnected = import.meta.env.DEV ? true : Boolean(user?.tenantWhatsAppConnected);
 
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 
@@ -173,7 +167,7 @@ const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
       <LazyOnboardingModal />
       {/* Force WhatsApp connection modal if not connected */}
-      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} user={user} />}
+      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={false} onClose={() => {}} user={user} />}
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && (
