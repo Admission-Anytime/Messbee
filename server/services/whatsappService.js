@@ -26,6 +26,8 @@ class WhatsAppService {
 
   /**
    * Sync configuration from database
+   * DB values take priority over .env (DB stores live OAuth tokens)
+   * .env is only used as a fallback when DB has no value
    */
     async syncConfig() {
       try {
@@ -38,23 +40,21 @@ class WhatsAppService {
         const Setting = require('../models/Setting');
         let setting = await Setting.findOne({ key: 'whatsapp_config' });
         
-        if (!setting) {
-          setting = new Setting({ key: 'whatsapp_config', value: {} });
+        if (!setting || !setting.value) {
+          setting = setting || new Setting({ key: 'whatsapp_config', value: {} });
+          setting.value = {
+            apiVersion: process.env.WHATSAPP_API_VERSION,
+            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+            accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+            businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
+          };
+          await setting.save();
         }
         
-        // Force update DB with current .env (since user updated .env manually)
-        setting.value = {
-          apiVersion: process.env.WHATSAPP_API_VERSION,
-          phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-          accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-          businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
-        };
-        await setting.save();
-        
-        this.apiVersion = process.env.WHATSAPP_API_VERSION;
-        this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-        this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-        this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
+        this.apiVersion = setting.value.apiVersion || process.env.WHATSAPP_API_VERSION;
+        this.phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        this.accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+        this.businessAccountId = setting.value.businessAccountId || (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
       } catch (error) {

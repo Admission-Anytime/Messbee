@@ -194,7 +194,7 @@ const LoginForm = () => {
             setStep("email");
             setErrorMessage("");
           }}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
             loginMethod === "password"
               ? "bg-white text-slate-900 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
@@ -209,7 +209,7 @@ const LoginForm = () => {
             setStep("email");
             setErrorMessage("");
           }}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-bold transition-all ${
+          className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all ${
             loginMethod === "otp"
               ? "bg-white text-slate-900 shadow-sm"
               : "text-slate-500 hover:text-slate-700"
@@ -234,7 +234,7 @@ const LoginForm = () => {
               value={formData.email}
               onChange={handleInputChange}
               required
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
+              className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
             />
           </div>
 
@@ -256,7 +256,7 @@ const LoginForm = () => {
                 value={formData.password}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all pr-12"
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all pr-12"
               />
               <button
                 type="button"
@@ -279,7 +279,7 @@ const LoginForm = () => {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+            className="w-full py-2.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
           >
             {isLoading ? (
               <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
@@ -307,7 +307,7 @@ const LoginForm = () => {
                   value={formData.email}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
                 />
               </div>
 
@@ -320,7 +320,7 @@ const LoginForm = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-2.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
@@ -360,7 +360,7 @@ const LoginForm = () => {
                   required
                   maxLength={6}
                   pattern="[0-9]{6}"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 text-center tracking-widest focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-900 text-center tracking-widest focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
                 />
               </div>
 
@@ -391,7 +391,7 @@ const LoginForm = () => {
               <button
                 type="submit"
                 disabled={isLoading || formData.otp.length !== 6}
-                className="w-full py-3.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="w-full py-2.5 mt-2 bg-[#00E56A] hover:bg-[#00c95d] text-slate-900 font-bold rounded-xl shadow-md transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed text-sm"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>

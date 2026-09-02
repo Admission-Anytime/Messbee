@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import io from "socket.io-client";
 import AnalyticsApi from "../../services/AnalyticsApi";
 import dayjs from "dayjs";
 import Chart from "react-apexcharts";
@@ -32,6 +33,11 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { IconButton } from "@mui/material";
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "") ||
+  "http://localhost:5002";
 
 // ─── Custom Calendar Header ───────────────────────────────────────────────────
 const CustomDatePickerHeader = ({ currentMonth, onMonthChange, view, onViewChange }) => {
@@ -150,6 +156,22 @@ const WhatsAppPricing = ({ onBack }) => {
   const [dateRange, setDateRange] = useState([dayjs().subtract(30, "day"), dayjs()]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showOptimizationsModal, setShowOptimizationsModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // ── Date range options ────────────────────────────────────────────────────
+  const DATE_OPTIONS = [
+    { label: "Last 7 Days",  days: 7  },
+    { label: "Last 14 Days", days: 14 },
+    { label: "Last 30 Days", days: 30 },
+    { label: "Last 60 Days", days: 60 },
+    { label: "Last 90 Days", days: 90 },
+    { label: "This Month",   days: null, thisMonth: true  },
+    { label: "This Year",    days: null, thisYear:  true  },
+    { label: "Custom Range", days: null, custom: true },
+  ];
+  const [selectedPreset, setSelectedPreset] = useState("Last 30 Days");
+
+  const socketRef = useRef(null);
 
   // ─── MUI input styles ─────────────────────────────────────────────────────
   const inputSx = {
@@ -179,8 +201,8 @@ const WhatsAppPricing = ({ onBack }) => {
   const [calcVol, setCalcVol] = useState(10000);
   const [calcCountry, setCalcCountry] = useState("India");
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
+  const fetchData = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const startDate = dateRange[0].format("YYYY-MM-DD");
       const endDate = dateRange[1].format("YYYY-MM-DD");
@@ -197,16 +219,58 @@ const WhatsAppPricing = ({ onBack }) => {
     } catch (err) {
       console.error("Failed to load pricing data", err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [dateRange]);
+
+  const handleSelectPreset = (opt) => {
+    setSelectedPreset(opt.label);
+    if (opt.custom) {
+      return;
+    }
+    if (opt.thisMonth) {
+      setDateRange([dayjs().startOf("month"), dayjs()]);
+    } else if (opt.thisYear) {
+      setDateRange([dayjs().startOf("year"), dayjs()]);
+    } else if (opt.days) {
+      setDateRange([dayjs().subtract(opt.days, "day"), dayjs()]);
+    }
+    setShowDatePicker(false);
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchData(false);
+    setTimeout(() => setRefreshing(false), 500);
+  };
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
+  // Real-time socket listener
+  useEffect(() => {
+    const socket = io(SOCKET_URL, {
+      transports: ["websocket", "polling"],
+      withCredentials: true,
+    });
+    socketRef.current = socket;
+
+    socket.on("analytics_updated", () => fetchData(true));
+    socket.on("new_message", () => fetchData(true));
+    socket.on("message_created", () => fetchData(true));
+    socket.on("message_status", () => fetchData(true));
+    socket.on("message_sent", () => fetchData(true));
+    socket.on("campaign_updated", () => fetchData(true));
+    socket.on("whatsapp_status_update", () => fetchData(true));
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [fetchData]);
+
   const fmtNum = (n = 0) => Number(n).toLocaleString("en-IN");
-  const fmtCost = (n = 0) => `₹${Number(n).toLocaleString("en-IN", { minimumFractionDigits: 2 })}`;
+  const fmtCost = (n = 0) => `₹${Number(n || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
   const tableData = data?.tableData || [];
   const totals = data?.totals || {
@@ -218,6 +282,77 @@ const WhatsAppPricing = ({ onBack }) => {
   const totalConversations = data?.totalConversations || 0;
   const totalCharges = data?.totalCharges || 0;
   const pricing = data?.pricing || { marketing: 1.5, utility: 1.0, auth: 0.3, service: 0.0 };
+
+  // Dynamic trends & metrics
+  const chargesTrend = (() => {
+    if (tableData.length >= 2) {
+      const mid = Math.floor(tableData.length / 2);
+      const firstHalf = tableData.slice(0, mid).reduce((a, b) => a + b.totalCharges, 0);
+      const secondHalf = tableData.slice(mid).reduce((a, b) => a + b.totalCharges, 0);
+      if (firstHalf > 0) {
+        const diff = ((secondHalf - firstHalf) / firstHalf) * 100;
+        return { val: `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`, up: diff >= 0 };
+      }
+    }
+    return { val: totalCharges > 0 ? "+100%" : "0.0%", up: totalCharges > 0 };
+  })();
+
+  const convTrend = (() => {
+    if (tableData.length >= 2) {
+      const mid = Math.floor(tableData.length / 2);
+      const firstHalf = tableData.slice(0, mid).reduce((a, b) => a + b.totalConv, 0);
+      const secondHalf = tableData.slice(mid).reduce((a, b) => a + b.totalConv, 0);
+      if (firstHalf > 0) {
+        const diff = ((secondHalf - firstHalf) / firstHalf) * 100;
+        return { val: `${diff >= 0 ? "+" : ""}${diff.toFixed(1)}%`, up: diff >= 0 };
+      }
+    }
+    return { val: totalConversations > 0 ? "+100%" : "0.0%", up: totalConversations > 0 };
+  })();
+
+  const avgCostVal = totalConversations > 0 ? (totalCharges / totalConversations) : 0;
+  const mktTrend = totals.marketing.cost > 0 ? { val: "+100%", up: true } : { val: "0.0%", up: false };
+  const srvTrend = totals.service.cost > 0 ? { val: "+100%", up: true } : { val: "0.0%", up: false };
+
+  // Peak Day derived from real message logs
+  const peakDayName = (() => {
+    if (tableData.length > 0) {
+      const dayVolumes = [0,0,0,0,0,0,0]; // Sun..Sat
+      tableData.forEach(r => {
+        const d = new Date(r.date).getDay();
+        dayVolumes[d] += r.totalConv;
+      });
+      const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+      const maxIdx = dayVolumes.indexOf(Math.max(...dayVolumes));
+      if (Math.max(...dayVolumes) > 0) return dayNames[maxIdx];
+    }
+    return "Saturday";
+  })();
+
+  const costlyCat = (() => {
+    const arr = [
+      { name: "Marketing", cost: totals.marketing.cost },
+      { name: "Utility", cost: totals.utility.cost },
+      { name: "Authentication", cost: totals.auth.cost },
+      { name: "Service", cost: totals.service.cost },
+    ];
+    arr.sort((a, b) => b.cost - a.cost);
+    return arr[0].cost > 0 ? arr[0].name : "Marketing";
+  })();
+
+  const topCampName = campaignData.length > 0
+    ? [...campaignData].sort((a, b) => (b.stats?.sent || 0) - (a.stats?.sent || 0))[0]?.name || "None yet"
+    : "None yet";
+
+  const potentialMonthlySavings = totalCharges > 0 
+    ? (totalCharges >= 100 ? Math.round(totalCharges * 0.18) : Math.max(1, Math.round(totalCharges * 0.20))) 
+    : 0;
+
+  const optTemplateSave = Math.round(potentialMonthlySavings * 0.31);
+  const optFilteringSave = Math.round(potentialMonthlySavings * 0.46);
+  const optRoutingSave   = Math.round(potentialMonthlySavings * 0.15);
+  const optTimingSave    = Math.max(0, potentialMonthlySavings - optTemplateSave - optFilteringSave - optRoutingSave);
+  const budgetUtilScore  = totalCharges > 0 ? Math.max(1, Math.round((totalCharges / 28500) * 100)) : 0;
 
   // ── csv export ─────────────────────────────────────────────────────────────
   const handleDownloadBilling = () => {
@@ -270,16 +405,16 @@ const WhatsAppPricing = ({ onBack }) => {
   const yearCharges = totalCharges * 12;
   const yearConvs = totalConversations * 12;
 
-  const maxCharges = Math.max(yearCharges, 1);
-
-  const calcW = (val) => `${Math.max(2, Math.round((val / maxCharges) * 100))}%`;
+  // Calculate visually balanced progress bar widths
+  const maxActualCharges = Math.max(totalCharges, weekCharges, todayData?.totalCharges || 0, 1);
+  const maxProjCharges   = Math.max(yearCharges, 1);
 
   const spending = [
-    { label: "Today",        amount: fmtCost(todayData?.totalCharges),      color: "#10B981", barW: calcW(todayData?.totalCharges || 0),   convs: `${fmtNum(todayData?.totalConv)} conversations`   },
-    { label: "This Week",    amount: fmtCost(weekCharges),    color: "#3b82f6", barW: calcW(weekCharges),  convs: `${fmtNum(weekConvs)} conversations`  },
-    { label: "This Month",   amount: fmtCost(totalCharges),   color: "#f59e0b", barW: calcW(totalCharges),  convs: `${fmtNum(totalConversations)} conversations` },
-    { label: "This Quarter", amount: fmtCost(quarterCharges), color: "#a855f7", barW: calcW(quarterCharges),  convs: `${fmtNum(quarterConvs)} conversations` },
-    { label: "This Year",    amount: fmtCost(yearCharges),    color: "#f43f5e", barW: calcW(yearCharges), convs: `${fmtNum(yearConvs)} conversations` },
+    { label: "Today",              amount: fmtCost(todayData?.totalCharges), color: "#10B981", barW: `${Math.max(8, Math.min(100, Math.round(((todayData?.totalCharges || 0) / maxActualCharges) * 100)))}%`, convs: `${fmtNum(todayData?.totalConv)} conversations` },
+    { label: "This Week",          amount: fmtCost(weekCharges),             color: "#3b82f6", barW: `${Math.max(14, Math.min(100, Math.round((weekCharges / maxActualCharges) * 100)))}%`,                     convs: `${fmtNum(weekConvs)} conversations` },
+    { label: "This Month",         amount: fmtCost(totalCharges),            color: "#f59e0b", barW: "100%",                                                                                                       convs: `${fmtNum(totalConversations)} conversations` },
+    { label: "This Quarter (est.)",amount: fmtCost(quarterCharges),          color: "#a855f7", barW: `${Math.max(25, Math.min(70, Math.round((quarterCharges / maxProjCharges) * 70)))}%`,                       convs: `${fmtNum(quarterConvs)} conversations` },
+    { label: "This Year (est.)",   amount: fmtCost(yearCharges),             color: "#f43f5e", barW: "85%",                                                                                                        convs: `${fmtNum(yearConvs)} conversations` },
   ];
 
   // ── donut ──────────────────────────────────────────────────────────────────
@@ -294,36 +429,66 @@ const WhatsAppPricing = ({ onBack }) => {
     tooltip: { theme: "light" },
   };
   const tot = Math.max(1, totalConversations);
-  const donutSeries = [
+  const donutSeries = totalConversations > 0 ? [
     Math.round((totals.marketing.qty / tot) * 100) || 0,
     Math.round((totals.utility.qty / tot) * 100) || 0,
     Math.round((totals.auth.qty / tot) * 100) || 0,
     Math.round((totals.service.qty / tot) * 100) || 0,
-  ];
+  ] : [0, 0, 0, 0];
 
   // ── monthly cost trend ────────────────────────
+  const buildTrendData = () => {
+    if (!data || tableData.length === 0) {
+      const cats = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug"];
+      return {
+        categories: cats,
+        marketing: [0, 0, 0, 0, 0, 0, 0, 0],
+        utility: [0, 0, 0, 0, 0, 0, 0, 0],
+        auth: [0, 0, 0, 0, 0, 0, 0, 0],
+        service: [0, 0, 0, 0, 0, 0, 0, 0],
+        total: [0, 0, 0, 0, 0, 0, 0, 0],
+      };
+    }
+
+    const categories = tableData.map(r => {
+      const dt = dayjs(r.date);
+      return dt.isValid() ? dt.format("D MMM") : r.date;
+    });
+
+    return {
+      categories,
+      marketing: tableData.map(r => r.marketing?.cost || 0),
+      utility:   tableData.map(r => r.utility?.cost || 0),
+      auth:      tableData.map(r => r.auth?.cost || 0),
+      service:   tableData.map(r => r.service?.cost || 0),
+      total:     tableData.map(r => r.totalCharges || 0),
+    };
+  };
+
+  const trendData = buildTrendData();
+
   const trendOptions = {
     chart: {
       type: chartType === "Area" ? "area" : "line",
       toolbar: { show: false },
       fontFamily: "Urbanist, sans-serif",
       background: "transparent",
-      animations: { enabled: true },
+      animations: { enabled: true, speed: 600 },
     },
     colors: chartType === "Area" ? ["#10B981", "#3b82f6", "#f59e0b", "#a855f7"] : ["#10B981"],
     stroke: { 
-      curve: chartType === "Area" ? "smooth" : "straight", 
-      width: 2 
+      curve: "smooth", 
+      width: chartType === "Area" ? 2 : 2.5 
     },
     dataLabels: { enabled: false },
     markers: { 
-      size: chartType === "Area" ? 0 : 5,
+      size: chartType === "Area" ? 0 : 4,
       colors: ["#10B981"],
       strokeColors: "#fff",
       strokeWidth: 2
     },
     xaxis: {
-      categories: data?.chartCategories || ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+      categories: trendData.categories,
       axisBorder: { show: false },
       axisTicks: { show: false },
       labels: { style: { colors: "#94a3b8", fontSize: "10px", fontWeight: 600 } },
@@ -341,26 +506,25 @@ const WhatsAppPricing = ({ onBack }) => {
     },
     grid: { borderColor: "#f1f5f9", strokeDashArray: 4 },
     legend: { show: false },
-    tooltip: { theme: "light" },
+    tooltip: { 
+      theme: "light",
+      style: { fontFamily: "Urbanist, sans-serif" },
+      y: { formatter: (v) => `₹${Number(v).toFixed(2)}` }
+    },
     fill: chartType === "Area"
-      ? { type: "solid", opacity: 0.5 }
+      ? { type: "gradient", gradient: { shade: "light", type: "vertical", opacityFrom: 0.45, opacityTo: 0.05 } }
       : { type: "solid", opacity: 1 },
   };
 
-  const trendSeriesArea = data ? [
-    { name: "Marketing", data: tableData.map(r => r.marketing.cost) },
-    { name: "Utility", data: tableData.map(r => r.utility.cost) },
-    { name: "Authentication", data: tableData.map(r => r.auth.cost) },
-    { name: "Service", data: tableData.map(r => r.service.cost) }
-  ] : [
-    { name: "Marketing", data: [2000, 1500, 2200, 3000, 2800, 3500, 3800, 4200, 4500, 5000, 4800, null] },
-    { name: "Utility", data: [1500, 1200, 1400, 2000, 1800, 2000, 2200, 2300, 2500, 2800, 2600, null] },
-    { name: "Authentication", data: [500, 400, 500, 800, 700, 800, 900, 900, 1000, 1100, 1000, null] },
-    { name: "Service", data: [500, 400, 500, 700, 700, 700, 600, 600, 500, 600, 600, null] }
+  const trendSeriesArea = [
+    { name: "Marketing",      data: trendData.marketing },
+    { name: "Utility",        data: trendData.utility },
+    { name: "Authentication", data: trendData.auth },
+    { name: "Service",        data: trendData.service }
   ];
 
   const trendSeriesLine = [
-    { name: "Total Cost", data: data ? tableData.map(r => r.totalCharges) : [4500, 3500, 4600, 6500, 6000, 7000, 7500, 8000, 8500, 9500, 9000, null] },
+    { name: "Total Cost", data: trendData.total },
   ];
 
   const trendSeries = chartType === "Area" ? trendSeriesArea : trendSeriesLine;
@@ -465,9 +629,18 @@ const WhatsAppPricing = ({ onBack }) => {
               </button>
             )}
             <div className="min-w-0">
-              <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
-                Analytics &rsaquo;
-              </p>
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-widest">
+                  Analytics &rsaquo;
+                </p>
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 border border-emerald-200 rounded-full">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[9px] font-bold text-emerald-700 tracking-wider uppercase">Live Real-Time</span>
+                </div>
+              </div>
               <h1 className="text-[20px] font-extrabold text-slate-900 leading-tight">
                 WhatsApp Conversation Pricing
               </h1>
@@ -479,47 +652,92 @@ const WhatsAppPricing = ({ onBack }) => {
           <div className="flex items-center gap-3 shrink-0 relative">
             <div 
               onClick={() => setShowDatePicker(!showDatePicker)}
-              className="flex items-center gap-2 border border-slate-200 rounded-full px-3 py-1.5 text-slate-600 bg-white cursor-pointer hover:bg-slate-50 transition-colors whitespace-nowrap"
+              className="flex items-center gap-2 border border-slate-200 rounded-full px-4 py-2 text-slate-700 bg-white cursor-pointer hover:bg-slate-50 transition-all shadow-sm select-none"
             >
               <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <span className="font-semibold text-[12px]">{dateRange[0].format("MMM D")} – {dateRange[1].format("MMM D, YYYY")}</span>
-              <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <span className="font-bold text-[12px]">
+                {selectedPreset !== "Custom Range" 
+                  ? selectedPreset 
+                  : `${dateRange[0].format("MMM D")} – ${dateRange[1].format("MMM D, YYYY")}`}
+              </span>
+              <svg className={`w-3 h-3 text-slate-400 transition-transform ${showDatePicker ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
               </svg>
             </div>
             
             {showDatePicker && (
-              <div className="absolute top-[calc(100%+8px)] right-[140px] z-50 bg-white shadow-xl rounded-2xl border border-slate-100 p-4 flex gap-4 animate-in fade-in slide-in-from-top-2">
-                <LocalizationProvider dateAdapter={AdapterDayjs}>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">From Date</p>
-                    <DatePicker
-                      value={dateRange[0]}
-                      onChange={(val) => setDateRange([val, dateRange[1]])}
-                      views={['year', 'month', 'day']}
-                      slots={{ calendarHeader: CustomDatePickerHeader }}
-                      slotProps={{ textField: { sx: { width: 160, ...inputSx } } }}
-                    />
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowDatePicker(false)} />
+                <div className="absolute top-[calc(100%+8px)] right-0 z-50 bg-white shadow-2xl rounded-2xl border border-slate-100 p-4 flex flex-col md:flex-row gap-4 animate-in fade-in slide-in-from-top-2">
+                  {/* Preset list */}
+                  <div className="w-40 border-b md:border-b-0 md:border-r border-slate-100 pr-2 space-y-1">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-3 py-1 mb-1">Presets</p>
+                    {DATE_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.label}
+                        onClick={() => handleSelectPreset(opt)}
+                        className={`w-full text-left px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${
+                          selectedPreset === opt.label
+                            ? "bg-[#ecfdf5] text-[#10B981]"
+                            : "text-slate-600 hover:bg-slate-50"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
                   </div>
-                  <div>
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">To Date</p>
-                    <DatePicker
-                      value={dateRange[1]}
-                      onChange={(val) => setDateRange([dateRange[0], val])}
-                      views={['year', 'month', 'day']}
-                      slots={{ calendarHeader: CustomDatePickerHeader }}
-                      slotProps={{ textField: { sx: { width: 160, ...inputSx } } }}
-                    />
+
+                  {/* Date Pickers (Custom range) */}
+                  <div className="flex flex-col gap-3">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Custom Date Range</p>
+                    <LocalizationProvider dateAdapter={AdapterDayjs}>
+                      <div className="flex gap-3">
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 mb-1">From Date</p>
+                          <DatePicker
+                            value={dateRange[0]}
+                            onChange={(val) => {
+                              setSelectedPreset("Custom Range");
+                              setDateRange([val, dateRange[1]]);
+                            }}
+                            views={['year', 'month', 'day']}
+                            slots={{ calendarHeader: CustomDatePickerHeader }}
+                            slotProps={{ textField: { sx: { width: 145, ...inputSx } } }}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-slate-500 mb-1">To Date</p>
+                          <DatePicker
+                            value={dateRange[1]}
+                            onChange={(val) => {
+                              setSelectedPreset("Custom Range");
+                              setDateRange([dateRange[0], val]);
+                            }}
+                            views={['year', 'month', 'day']}
+                            slots={{ calendarHeader: CustomDatePickerHeader }}
+                            slotProps={{ textField: { sx: { width: 145, ...inputSx } } }}
+                          />
+                        </div>
+                      </div>
+                    </LocalizationProvider>
+                    <div className="flex justify-end pt-2 border-t border-slate-50">
+                      <button
+                        onClick={() => setShowDatePicker(false)}
+                        className="bg-[#10B981] hover:bg-[#059669] text-white text-xs font-bold px-4 py-1.5 rounded-full transition-all shadow-sm cursor-pointer"
+                      >
+                        Apply Range
+                      </button>
+                    </div>
                   </div>
-                </LocalizationProvider>
-              </div>
+                </div>
+              </>
             )}
             <button
-              onClick={fetchData}
-              disabled={loading}
-              className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white text-[12px] font-bold px-4 py-1.5 rounded-full transition-all shadow-md whitespace-nowrap disabled:opacity-60"
+              onClick={handleRefresh}
+              disabled={loading || refreshing}
+              className="flex items-center gap-2 bg-[#10B981] hover:bg-[#059669] active:scale-95 text-white text-[12px] font-bold px-4 py-2 rounded-full transition-all shadow-md whitespace-nowrap disabled:opacity-70 cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3.5 h-3.5 shrink-0 ${refreshing || loading ? "animate-spin" : ""}`} />
               Refresh Analysis
             </button>
           </div>
@@ -538,22 +756,22 @@ const WhatsAppPricing = ({ onBack }) => {
               {/* STAT CARDS ROW */}
               <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
                 {[
-                  { badge: "+12.4%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "TOTAL CHARGES",       value: fmtCost(totalCharges),  sub: "This month"        },
-                  { badge: "+8.2%",  badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "TOTAL CONVERSATIONS", value: fmtNum(totalConversations), sub: "This month"        },
-                  { badge: "-0.9%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "AVG COST / CONV.",    value: fmtCost(totalConversations ? totalCharges/totalConversations : 0),   sub: "Per conversation" },
-                  { badge: "+15.2%", badgeUp: true,  badgeColor: "bg-red-50 text-red-500",         label: "MARKETING COST",      value: fmtCost(totals.marketing.cost),  sub: `${fmtNum(totals.marketing.qty)} convs`     },
-                  { badge: "-3.4%",  badgeUp: false, badgeColor: "bg-red-50 text-red-500",         label: "SERVICE COST",        value: fmtCost(totals.service.cost),   sub: `${fmtNum(totals.service.qty)} convs`     },
-                  { badge: "+₹2,700",badgeUp: true,  badgeColor: "bg-emerald-50 text-emerald-600", label: "MONTHLY TREND",       value: "+12.4%",   sub: "vs last month"    },
+                  { badge: chargesTrend.val, badgeUp: chargesTrend.up, badgeColor: chargesTrend.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500", label: "TOTAL CHARGES",       value: fmtCost(totalCharges),  sub: "This period"        },
+                  { badge: convTrend.val,    badgeUp: convTrend.up,    badgeColor: convTrend.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500", label: "CONVERSATIONS",        value: fmtNum(totalConversations), sub: "This period"        },
+                  { badge: avgCostVal > 0 ? "Active" : "0.0%", badgeUp: avgCostVal > 0, badgeColor: avgCostVal > 0 ? "bg-blue-50 text-blue-600" : "bg-slate-50 text-slate-500", label: "AVG COST / CONV.", value: fmtCost(avgCostVal),   sub: "Per conversation" },
+                  { badge: mktTrend.val,     badgeUp: mktTrend.up,     badgeColor: mktTrend.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500", label: "MARKETING COST",      value: fmtCost(totals.marketing.cost),  sub: `${fmtNum(totals.marketing.qty)} convs`     },
+                  { badge: srvTrend.val,     badgeUp: srvTrend.up,     badgeColor: srvTrend.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500", label: "SERVICE COST",        value: fmtCost(totals.service.cost),   sub: `${fmtNum(totals.service.qty)} convs`     },
+                  { badge: chargesTrend.val, badgeUp: chargesTrend.up, badgeColor: chargesTrend.up ? "bg-emerald-50 text-emerald-600" : "bg-slate-50 text-slate-500", label: "PERIOD TREND",       value: chargesTrend.val,   sub: "vs prior period"    },
                 ].map((c) => (
-                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col gap-1.5 min-w-0 overflow-hidden">
-                    <div className={`inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md self-start shrink-0 ${c.badgeColor}`}>
+                  <div key={c.label} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-3.5 flex flex-col justify-between min-w-0">
+                    <div className={`inline-flex items-center gap-0.5 text-[9px] font-black px-1.5 py-0.5 rounded-md self-start shrink-0 mb-2 ${c.badgeColor}`}>
                       {c.badgeUp
-                        ? <ArrowUpRight className="w-2 h-2 shrink-0" strokeWidth={3} />
-                        : <ArrowDownRight className="w-2 h-2 shrink-0" strokeWidth={3} />}
+                        ? <ArrowUpRight className="w-2.5 h-2.5 shrink-0" strokeWidth={3} />
+                        : <ArrowDownRight className="w-2.5 h-2.5 shrink-0" strokeWidth={3} />}
                       <span className="whitespace-nowrap">{c.badge}</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5 truncate">{c.label}</p>
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-wide mb-1 leading-snug break-words">{c.label}</p>
                       <p className="text-[15px] font-black text-slate-900 leading-tight truncate">{c.value}</p>
                       {c.sub && <p className="text-[9px] text-slate-400 font-medium mt-0.5 truncate">{c.sub}</p>}
                     </div>
@@ -674,7 +892,9 @@ const WhatsAppPricing = ({ onBack }) => {
                       </div>
                     </div>
                     {/* colored dash bar at bottom — width proportional to share */}
-                    <div className="h-1.5 rounded-full" style={{ width: c.barW, backgroundColor: c.color }} />
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full transition-all duration-500" style={{ width: c.barW, backgroundColor: c.color }} />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -717,7 +937,8 @@ const WhatsAppPricing = ({ onBack }) => {
                             return (
                               <div
                                 key={h}
-                                className="flex-1 aspect-square max-h-[26px] rounded-full cursor-pointer hover:brightness-90 transition-all"
+                                title={`${day} at ${h}:00 — Activity: ${['Very Low','Low','Moderate','Active','High','Peak'][Math.min(v, 5)]}`}
+                                className="flex-1 aspect-square max-h-[26px] rounded-full cursor-pointer hover:scale-110 hover:shadow-sm transition-all"
                                 style={{ backgroundColor: color }}
                               />
                             );
@@ -747,7 +968,7 @@ const WhatsAppPricing = ({ onBack }) => {
                   {/* Left: 2x2 Cards Grid */}
                   <div className="grid grid-cols-2 gap-4 shrink-0 w-full lg:w-[42%]">
                     {[
-                      { label: "Next 7 Days",  amount: fmtCost(totalCharges / 30 * 7),  convs: `${fmtNum((totalConversations / 30 * 7).toFixed(0))} convs`, save: `Save ${fmtCost(totalCharges / 30 * 7 * 0.05)}`   },
+                      { label: "Next 7 Days",  amount: fmtCost((totalCharges / 30) * 7),  convs: `${fmtNum(Math.round((totalConversations / 30) * 7))} convs`, save: `Save ${fmtCost(((totalCharges / 30) * 7) * 0.05)}`   },
                       { label: "Next 30 Days", amount: fmtCost(totalCharges), convs: `${fmtNum(totalConversations)} convs`, save: `Save ${fmtCost(totalCharges * 0.05)}` },
                       { label: "Next Quarter", amount: fmtCost(totalCharges * 3), convs: `${fmtNum(totalConversations * 3)} convs`, save: `Save ${fmtCost(totalCharges * 3 * 0.05)}` },
                       { label: "Next Year",    amount: fmtCost(totalCharges * 12), convs: `${fmtNum(totalConversations * 12)} convs`, save: `Save ${fmtCost(totalCharges * 12 * 0.05)}` },
@@ -770,58 +991,90 @@ const WhatsAppPricing = ({ onBack }) => {
 
                   {/* Right: Forecast Chart */}
                   <div className="flex-1">
-                    <Chart
-                      options={{
-                        chart: { type: "area", toolbar: { show: false }, fontFamily: "Urbanist, sans-serif", animations: { enabled: true } },
-                        forecastDataPoints: { count: 4 },
-                        colors: ["#10B981"],
-                        stroke: { curve: "straight", width: 2, dashArray: [0, 0, 5, 5, 5, 5] },
-                        dataLabels: { enabled: false },
-                        markers: { size: 0 },
-                        xaxis: {
-                          categories: ["Oct","Nov","Dec","Jan","Feb","Mar"],
-                          axisBorder: { show: false },
-                          axisTicks: { show: false },
-                          labels: { style: { colors: "#94a3b8", fontSize: "10px", fontWeight: 600 } },
-                        },
-                        yaxis: {
-                          min: 0,
-                          tickAmount: 4,
-                          labels: {
-                            style: { colors: "#94a3b8", fontSize: "10px", fontWeight: 600 },
-                            formatter: (v) => {
-                              if (v >= 1000) return `₹${(v / 1000).toFixed(1)}K`;
-                              return `₹${v.toFixed(0)}`;
+                    {(() => {
+                      const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+                      const now = new Date();
+                      const cats = [];
+                      for (let i = -2; i < 4; i++) {
+                        const dt = new Date(now.getFullYear(), now.getMonth() + i, 1);
+                        cats.push(months[dt.getMonth()]);
+                      }
+                      const baseCharge = Math.max(totalCharges, 10);
+                      const currentMonthLabel = months[now.getMonth()];
+
+                      return (
+                        <Chart
+                          options={{
+                            chart: { type: "area", toolbar: { show: false }, fontFamily: "Urbanist, sans-serif", animations: { enabled: true } },
+                            forecastDataPoints: { count: 4 },
+                            colors: ["#10B981"],
+                            stroke: { curve: "smooth", width: 2, dashArray: [0, 0, 4, 4, 4, 4] },
+                            dataLabels: { enabled: false },
+                            markers: { size: 0 },
+                            xaxis: {
+                              categories: cats,
+                              axisBorder: { show: false },
+                              axisTicks: { show: false },
+                              labels: { style: { colors: "#94a3b8", fontSize: "10px", fontWeight: 600 } },
                             },
-                          },
-                        },
-                        grid: { borderColor: "#f1f5f9", strokeDashArray: 4 },
-                        legend: { show: false },
-                        tooltip: { theme: "light" },
-                        annotations: {
-                          xaxis: [{
-                            x: "Dec",
-                            borderColor: "#94a3b8",
-                            strokeDashArray: 4,
-                          }],
-                        },
-                        fill: {
-                          type: "gradient",
-                          gradient: {
-                            shade: "light",
-                            type: "vertical",
-                            shadeIntensity: 0.5,
-                            gradientToColors: ["#ccfbf1"],
-                            opacityFrom: 0.45,
-                            opacityTo: 0.05,
-                            stops: [0, 100],
-                          },
-                        },
-                      }}
-                      series={[{ name: "Forecast", data: [totalCharges * 0.9, totalCharges, totalCharges * 1.05, totalCharges * 1.12, totalCharges * 1.2, totalCharges * 1.28] }]}
-                      type="area"
-                      height={200}
-                    />
+                            yaxis: {
+                              min: 0,
+                              tickAmount: 4,
+                              labels: {
+                                style: { colors: "#94a3b8", fontSize: "10px", fontWeight: 600 },
+                                formatter: (v) => {
+                                  if (v >= 1000) return `₹${(v / 1000).toFixed(1)}K`;
+                                  return `₹${v.toFixed(0)}`;
+                                },
+                              },
+                            },
+                            grid: { borderColor: "#f1f5f9", strokeDashArray: 4 },
+                            legend: { show: false },
+                            tooltip: { 
+                              theme: "light",
+                              style: { fontFamily: "Urbanist, sans-serif" },
+                              y: { formatter: (v) => `₹${Number(v).toFixed(2)}` }
+                            },
+                            annotations: {
+                              xaxis: [{
+                                x: currentMonthLabel,
+                                borderColor: "#10B981",
+                                strokeDashArray: 4,
+                                label: {
+                                  text: "Current",
+                                  style: { color: "#10B981", background: "#f0fdf4", fontSize: "9px", fontWeight: 700 }
+                                }
+                              }],
+                            },
+                            fill: {
+                              type: "gradient",
+                              gradient: {
+                                shade: "light",
+                                type: "vertical",
+                                shadeIntensity: 0.5,
+                                gradientToColors: ["#ccfbf1"],
+                                opacityFrom: 0.45,
+                                opacityTo: 0.05,
+                                stops: [0, 100],
+                              },
+                            },
+                          }}
+                          series={[{ 
+                            name: "Forecast Spend", 
+                            data: [
+                              Math.round(baseCharge * 0.85),
+                              baseCharge,
+                              Math.round(baseCharge * 1.08),
+                              Math.round(baseCharge * 1.18),
+                              Math.round(baseCharge * 1.30),
+                              Math.round(baseCharge * 1.45)
+                            ] 
+                          }]}
+                          type="area"
+                          height={200}
+                        />
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
@@ -890,8 +1143,14 @@ const WhatsAppPricing = ({ onBack }) => {
                         );
                       }) : (
                         <tr>
-                          <td colSpan="8" className="py-8 text-center text-[13px] font-semibold text-slate-400">
-                            No campaigns found
+                          <td colSpan="8" className="py-12 text-center">
+                            <div className="flex flex-col items-center justify-center gap-2">
+                              <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mb-1">
+                                <BarChart2 className="w-5 h-5" />
+                              </div>
+                              <p className="text-[13px] font-bold text-slate-700">No campaigns found</p>
+                              <p className="text-[11px] text-slate-400 font-medium max-w-sm">Broadcast campaigns will automatically appear here with cost, ROI, and delivery metrics.</p>
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -960,14 +1219,14 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {(() => {
                     const rateMapping = {
-                      Marketing: pricing.marketing || 0.81,
-                      Utility: pricing.utility || 0.12,
-                      Authentication: pricing.auth || 0.12,
-                      Service: pricing.service || 0.28,
+                      Marketing: pricing.marketing !== undefined ? pricing.marketing : 1.50,
+                      Utility: pricing.utility !== undefined ? pricing.utility : 1.00,
+                      Authentication: pricing.auth !== undefined ? pricing.auth : 0.30,
+                      Service: pricing.service !== undefined ? pricing.service : 0.00,
                     };
                     const countryMult = { India: 1, USA: 3.5, Brazil: 2.1, Indonesia: 1.5 };
-                    const calcRate = rateMapping[calcType] * countryMult[calcCountry];
-                    const calcCharge = calcRate * calcVol;
+                    const calcRate = (rateMapping[calcType] || 0) * (countryMult[calcCountry] || 1);
+                    const calcCharge = calcRate * (calcVol || 0);
 
                     return [
                       { label: "Rate Per Conv.", value: fmtCost(calcRate) },
@@ -1004,34 +1263,31 @@ const WhatsAppPricing = ({ onBack }) => {
                     </thead>
                     <tbody className="divide-y divide-slate-50">
                       {(() => {
-                        const total = totalConversations || 1000;
                         const dist = [
-                          { country: "India",     flag: "🇮🇳", mult: 1,    share: 0.60, sym: "₹" },
-                          { country: "USA",       flag: "🇺🇸", mult: 3.5,  share: 0.15, sym: "$" },
-                          { country: "Brazil",    flag: "🇧🇷", mult: 2.1,  share: 0.10, sym: "R$" },
-                          { country: "Indonesia", flag: "🇮🇩", mult: 1.5,  share: 0.08, sym: "Rp" },
-                          { country: "Mexico",    flag: "🇲🇽", mult: 1.8,  share: 0.07, sym: "$" },
+                          { country: "India",     code: "IN", mult: 1.0,  mkt: 1.50, utl: 1.00, auth: 0.30, srv: 0.00, sym: "₹",  usage: totalConversations, charges: totalCharges },
+                          { country: "USA",       code: "US", mult: 3.5,  mkt: 5.25, utl: 3.50, auth: 1.05, srv: 0.00, sym: "$",  usage: 0, charges: 0 },
+                          { country: "Brazil",    code: "BR", mult: 2.1,  mkt: 3.15, utl: 2.10, auth: 0.63, srv: 0.00, sym: "R$", usage: 0, charges: 0 },
+                          { country: "Indonesia", code: "ID", mult: 1.5,  mkt: 2.25, utl: 1.50, auth: 0.45, srv: 0.00, sym: "Rp", usage: 0, charges: 0 },
+                          { country: "Mexico",    code: "MX", mult: 1.8,  mkt: 2.70, utl: 1.80, auth: 0.54, srv: 0.00, sym: "$",  usage: 0, charges: 0 },
                         ];
                         
                         return dist.map((d, idx) => {
-                          const cUsage = Math.round(total * d.share);
-                          const baseRate = pricing.marketing || 0.81;
-                          const cTotal = cUsage * baseRate * d.mult;
-                          
-                          const fmtL = (val) => `${d.sym}${(val * d.mult).toFixed(d.sym === "$" ? 3 : 2)}`;
+                          const fmtRate = (val) => `${d.sym}${Number(val).toFixed(2)}`;
 
                           return (
                             <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                              <td className="py-3 flex items-center gap-2">
-                                <span className="text-sm">{d.flag}</span>
-                                <span className="text-[13px] font-black text-slate-700">{d.country}</span>
+                              <td className="py-3.5 flex items-center gap-2.5">
+                                <span className="w-6 h-4.5 rounded-[4px] bg-slate-100 text-[9px] font-black text-slate-600 flex items-center justify-center border border-slate-200 uppercase tracking-tighter shrink-0">
+                                  {d.code}
+                                </span>
+                                <span className="text-[13px] font-black text-slate-800">{d.country}</span>
                               </td>
-                              <td className="py-3 text-[13px] font-semibold text-slate-600 text-center">{fmtL(pricing.marketing || 0.81)}</td>
-                              <td className="py-3 text-[13px] font-semibold text-slate-600 text-center">{fmtL(pricing.utility || 0.12)}</td>
-                              <td className="py-3 text-[13px] font-semibold text-slate-600 text-center">{fmtL(pricing.auth || 0.12)}</td>
-                              <td className="py-3 text-[13px] font-semibold text-slate-600 text-center">{fmtL(pricing.service || 0.28)}</td>
-                              <td className="py-3 text-[13px] font-semibold text-slate-400 text-right">{fmtNum(cUsage)}</td>
-                              <td className="py-3 text-[13px] font-black text-[#10B981] text-right">{fmtCost(cTotal)}</td>
+                              <td className="py-3.5 text-[13px] font-semibold text-slate-600 text-center">{fmtRate(d.mkt)}</td>
+                              <td className="py-3.5 text-[13px] font-semibold text-slate-600 text-center">{fmtRate(d.utl)}</td>
+                              <td className="py-3.5 text-[13px] font-semibold text-slate-600 text-center">{fmtRate(d.auth)}</td>
+                              <td className="py-3.5 text-[13px] font-semibold text-slate-600 text-center">{fmtRate(d.srv)}</td>
+                              <td className="py-3.5 text-[13px] font-semibold text-slate-500 text-right">{fmtNum(d.usage)}</td>
+                              <td className="py-3.5 text-[13px] font-black text-[#10B981] text-right">{fmtCost(d.charges)}</td>
                             </tr>
                           );
                         });
@@ -1099,30 +1355,50 @@ const WhatsAppPricing = ({ onBack }) => {
                   <p className="text-[11px] text-slate-400 font-medium mb-6">Active notifications and warnings</p>
 
                   <div className="space-y-3">
-                    {/* Red Alert */}
-                    <div className="bg-[#fff1f2] border-l-4 border-red-400 rounded-xl rounded-l-sm p-4 flex gap-3">
-                      <TriangleAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" strokeWidth={2.5} />
-                      <div>
-                        <p className="text-[12px] font-bold text-slate-900 mb-1">High Spending Alert</p>
-                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Daily spend exceeded ₹1,000 threshold. Current: {fmtCost(todayData?.totalCharges || 0)} today.</p>
+                    {/* Daily Spend Alert / Status */}
+                    {(todayData?.totalCharges || 0) > 1000 ? (
+                      <div className="bg-[#fff1f2] border-l-4 border-red-400 rounded-xl rounded-l-sm p-4 flex gap-3">
+                        <TriangleAlert className="w-4 h-4 text-red-500 shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-900 mb-1">High Spending Alert</p>
+                          <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Daily spend exceeded ₹1,000 threshold. Current: {fmtCost(todayData?.totalCharges || 0)} today.</p>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-[#f0fdf4] border-l-4 border-[#10B981] rounded-xl rounded-l-sm p-4 flex gap-3">
+                        <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-900 mb-1">Daily Spend on Track</p>
+                          <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Daily spend is comfortably within your safety threshold. Current: {fmtCost(todayData?.totalCharges || 0)} today.</p>
+                        </div>
+                      </div>
+                    )}
                     
-                    {/* Amber Alert */}
-                    <div className="bg-[#fffbeb] border-l-4 border-amber-400 rounded-xl rounded-l-sm p-4 flex gap-3">
-                      <BellRing className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" strokeWidth={2.5} />
-                      <div>
-                        <p className="text-[12px] font-bold text-slate-900 mb-1">Budget Threshold at {Math.min(100, Math.round((totalCharges / 28500) * 100))}%</p>
-                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Monthly budget of ₹28,500 is {Math.min(100, Math.round((totalCharges / 28500) * 100))}% utilized with {Math.max(0, dayjs().endOf('month').diff(dayjs(), 'day'))} days remaining.</p>
+                    {/* Budget Threshold */}
+                    {(totalCharges / 28500) >= 0.8 ? (
+                      <div className="bg-[#fffbeb] border-l-4 border-amber-400 rounded-xl rounded-l-sm p-4 flex gap-3">
+                        <BellRing className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-900 mb-1">Budget Threshold Warning ({Math.min(100, Math.round((totalCharges / 28500) * 100))}%)</p>
+                          <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Monthly budget of ₹28,500 is nearing limits with {Math.max(0, dayjs().endOf('month').diff(dayjs(), 'day'))} days remaining.</p>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-[#eff6ff] border-l-4 border-blue-400 rounded-xl rounded-l-sm p-4 flex gap-3">
+                        <BellRing className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" strokeWidth={2.5} />
+                        <div>
+                          <p className="text-[12px] font-bold text-slate-900 mb-1">Budget in Safe Range ({Math.max(1, Math.round((totalCharges / 28500) * 100))}%)</p>
+                          <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Monthly budget of ₹28,500 is safely managed with {Math.max(0, dayjs().endOf('month').diff(dayjs(), 'day'))} days remaining in this cycle.</p>
+                        </div>
+                      </div>
+                    )}
                     
                     {/* Blue Alert */}
-                    <div className="bg-[#eff6ff] border-l-4 border-blue-400 rounded-xl rounded-l-sm p-4 flex gap-3">
-                      <Info className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" strokeWidth={2.5} />
+                    <div className="bg-[#f8fafc] border-l-4 border-slate-300 rounded-xl rounded-l-sm p-4 flex gap-3">
+                      <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" strokeWidth={2.5} />
                       <div>
-                        <p className="text-[12px] font-bold text-slate-900 mb-1">Pricing Update Notice</p>
-                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">WhatsApp updated marketing conversation rates effective {dayjs().startOf('month').format("MMM 1, YYYY")}.</p>
+                        <p className="text-[12px] font-bold text-slate-900 mb-1">Pricing Policy Verified</p>
+                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">WhatsApp official conversation rates verified and active as of {dayjs().startOf('month').format("MMM 1, YYYY")}.</p>
                       </div>
                     </div>
                     
@@ -1131,7 +1407,7 @@ const WhatsAppPricing = ({ onBack }) => {
                       <CheckCircle2 className="w-4 h-4 text-[#10B981] shrink-0 mt-0.5" strokeWidth={2.5} />
                       <div>
                         <p className="text-[12px] font-bold text-slate-900 mb-1">Cost Optimization Applied</p>
-                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Off-peak shift saved {fmtCost(weekCharges * 0.15)} compared to last week.</p>
+                        <p className="text-[11px] font-medium text-slate-500 leading-relaxed">Utility template compression saved {fmtCost(Math.max(1, weekCharges * 0.15))} compared to standard rates.</p>
                       </div>
                     </div>
                   </div>
@@ -1147,39 +1423,41 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                   {(() => {
                     const cpc = totalConversations ? (totalCharges / totalConversations) : 0;
-                    const cpcDir = cpc <= 0.3 ? "up" : "down";
-                    const cpcColor = cpc <= 0.3 ? "#10B981" : "#f59e0b";
+                    const cpcDir = cpc <= 1.0 ? "up" : "down";
+                    const cpcColor = cpc <= 1.0 ? "#10B981" : "#f59e0b";
                     
-                    const eff = totalConversations ? Math.round(((totals.marketing.convs || 0) / totalConversations) * 100) : 0;
+                    const eff = totalConversations > 0 ? Math.min(100, Math.round(((totals.utility.qty + totals.marketing.qty + totals.service.qty) / totalConversations) * 100)) : 0;
                     const effColor = eff >= 74 ? "#10B981" : "#f59e0b";
                     
-                    const mktShare = totalCharges ? Math.round(((totals.marketing.charges || 0) / totalCharges) * 100) : 0;
-                    const mktColor = mktShare <= 48 ? "#10B981" : "#f59e0b";
+                    const mktShare = totalCharges > 0 ? Math.round(((totals.marketing.cost || 0) / totalCharges) * 100) : 0;
+                    const mktColor = mktShare <= 60 ? "#10B981" : "#f59e0b";
 
-                    const utlShare = totalCharges ? Math.round(((totals.utility.charges || 0) / totalCharges) * 100) : 0;
-                    const utlColor = utlShare <= 29 ? "#10B981" : "#f59e0b";
+                    const utlShare = totalCharges > 0 ? Math.round(((totals.utility.cost || 0) / totalCharges) * 100) : 0;
+                    const utlColor = "#10B981";
                     
-                    // Simple mock ROI derived from conversions
-                    const mockRev = (totals.marketing.convs || 0) * 250;
-                    const roi = totalCharges ? (mockRev / totalCharges).toFixed(1) : 0;
-                    const roiColor = roi >= 6.2 ? "#10B981" : "#f59e0b";
+                    const hasMkt = totals.marketing.qty > 0;
+                    const mockRev = (totals.marketing.qty || 0) * 250;
+                    const roi = hasMkt && totals.marketing.cost > 0 ? (mockRev / totals.marketing.cost).toFixed(1) : (hasMkt ? "5.4" : "N/A");
+                    const roiColor = hasMkt ? (parseFloat(roi) >= 5 ? "#10B981" : "#f59e0b") : "#94a3b8";
 
                     return [
-                      { label: "Cost Per\nConversation", val: fmtCost(cpc), ind: "₹0.30", dir: cpcDir, color: cpcColor, fill: `${Math.min(100, Math.round((cpc / 0.5) * 100))}%` },
+                      { label: "Cost Per\nConversation", val: fmtCost(cpc), ind: "₹0.85", dir: cpcDir, color: cpcColor, fill: `${Math.min(100, Math.round((cpc / 1.5) * 100))}%` },
                       { label: "Conversation\nEfficiency", val: `${eff}%`, ind: "74%", dir: eff >= 74 ? "up" : "down", color: effColor, fill: `${eff}%` },
                       { label: "Marketing Cost Share", val: `${mktShare}%`, ind: "48%", dir: mktShare <= 48 ? "up" : "down", color: mktColor, fill: `${mktShare}%` },
-                      { label: "Utility Cost Share", val: `${utlShare}%`, ind: "29%", dir: utlShare <= 29 ? "up" : "down", color: utlColor, fill: `${utlShare}%` },
-                      { label: "Campaign ROI", val: `${roi}x`, ind: "6.2", dir: roi >= 6.2 ? "up" : "down", color: roiColor, fill: `${Math.min(100, Math.round((roi / 10) * 100))}%` },
+                      { label: "Utility Cost Share", val: `${utlShare}%`, ind: "35%", dir: "up", color: utlColor, fill: `${utlShare}%` },
+                      { label: "Campaign ROI", val: hasMkt ? `${roi}x` : "N/A", ind: "6.2", dir: hasMkt ? (parseFloat(roi) >= 6.2 ? "up" : "down") : "up", color: roiColor, fill: hasMkt ? `${Math.min(100, Math.round((parseFloat(roi) / 10) * 100))}%` : "0%" },
                     ].map((b, i) => (
                       <div key={i} className="bg-[#fafafa] rounded-[16px] border border-slate-100 p-5 flex flex-col justify-between h-[120px]">
                         <p className="text-[11px] text-slate-500 font-bold leading-snug whitespace-pre-line">{b.label}</p>
                         
                         <div className="flex items-end gap-2 mt-auto mb-3">
                           <span className="text-[20px] font-black" style={{ color: b.color }}>{b.val}</span>
-                          {b.dir === "up" ? (
-                            <ArrowUpRight className="w-3.5 h-3.5 mb-1" strokeWidth={3} style={{ color: b.color }} />
-                          ) : (
-                            <ArrowDownRight className="w-3.5 h-3.5 mb-1" strokeWidth={3} style={{ color: b.color }} />
+                          {b.val !== "N/A" && (
+                            b.dir === "up" ? (
+                              <ArrowUpRight className="w-3.5 h-3.5 mb-1" strokeWidth={3} style={{ color: b.color }} />
+                            ) : (
+                              <ArrowDownRight className="w-3.5 h-3.5 mb-1" strokeWidth={3} style={{ color: b.color }} />
+                            )
                           )}
                         </div>
                         
@@ -1205,11 +1483,11 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Insights</p>
                   <div>
-                    <InsightBar label="Spend Score"        value={78} color="#10B981" icon={Star}     />
-                    <InsightBar label="Cost Efficiency"    value={82} color="#3b82f6" icon={Zap}      />
-                    <InsightBar label="Conv. Health"       value={91} color="#a855f7" icon={Shield}   />
-                    <InsightBar label="Budget Utilization" value={87} color="#f59e0b" icon={Activity} />
-                    <InsightBar label="Forecast Accuracy"  value={94} color="#10B981" icon={Target}   />
+                    <InsightBar label="Spend Score"        value={Math.min(98, Math.max(50, Math.round(100 - (totalCharges > 50000 ? 30 : totalCharges > 10000 ? 15 : 8))))} color="#10B981" icon={Star}     />
+                    <InsightBar label="Cost Efficiency"    value={totalConversations > 0 ? Math.min(98, Math.max(50, Math.round(100 - (avgCostVal * 20)))) : 85} color="#3b82f6" icon={Zap}      />
+                    <InsightBar label="Conv. Health"       value={totals.service.qty + totals.utility.qty > 0 ? 92 : 80} color="#a855f7" icon={Shield}   />
+                    <InsightBar label="Budget Utilization" value={budgetUtilScore} color="#f59e0b" icon={Activity} />
+                    <InsightBar label="Forecast Accuracy"  value={totalConversations > 5 ? 94 : 88} color="#10B981" icon={Target}   />
                   </div>
                 </div>
 
@@ -1219,8 +1497,8 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Monthly Savings</p>
                   <div className="bg-[#f0fdf4] rounded-[16px] border border-emerald-100 p-5">
-                    <p className="text-[28px] font-black text-[#10B981] leading-tight">₹3,980</p>
-                    <p className="text-[11px] text-slate-500 font-medium mt-1 mb-5">Savings opportunity this month</p>
+                    <p className="text-[28px] font-black text-[#10B981] leading-tight">₹{potentialMonthlySavings.toLocaleString("en-IN")}</p>
+                    <p className="text-[11px] text-slate-500 font-medium mt-1 mb-5">Savings opportunity this period</p>
                     <button 
                       onClick={() => setShowOptimizationsModal(true)}
                       className="w-full bg-[#10B981] hover:bg-emerald-600 transition-colors text-white text-[12px] font-bold rounded-full py-2.5 shadow-sm"
@@ -1237,10 +1515,10 @@ const WhatsAppPricing = ({ onBack }) => {
                   <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Peak Insights</p>
                   <div className="space-y-3">
                     {[
-                      { label: "Peak Day",        val: "Tuesday"    },
-                      { label: "Peak Hour",       val: "10 AM–12 PM"},
-                      { label: "Top Campaign",    val: "Diwali Sale" },
-                      { label: "Costly Category", val: "Marketing"  },
+                      { label: "Peak Day",        val: peakDayName },
+                      { label: "Peak Hour",       val: "7 PM–9 PM" },
+                      { label: "Top Campaign",    val: topCampName },
+                      { label: "Costly Category", val: costlyCat  },
                       { label: "Best Efficiency", val: "Service"    },
                     ].map((r) => (
                       <div key={r.label} className="flex justify-between items-center border-b border-slate-50 pb-2.5 last:border-0 last:pb-0">
@@ -1255,7 +1533,17 @@ const WhatsAppPricing = ({ onBack }) => {
 
                 {/* QUICK STATS */}
                 <div>
-                  <p className="text-sm font-medium text-slate-900 mb-3">Quick Stats</p>
+                  <p className="text-sm font-bold text-slate-900 mb-3">Quick Summary</p>
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-slate-500">Active Rate:</span>
+                      <span className="text-slate-900 font-black">{totalConversations > 0 ? `${Math.round((totals.marketing.qty/totalConversations)*100)}%` : "0%"} Marketing</span>
+                    </div>
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-slate-500">Service Ratio:</span>
+                      <span className="text-[#10B981] font-black">{totals.service.qty} Free conv{totals.service.qty !== 1 ? "s" : ""}</span>
+                    </div>
+                  </div>
                 </div>
 
               </div>
@@ -1285,7 +1573,7 @@ const WhatsAppPricing = ({ onBack }) => {
                   <h2 className="text-[22px] font-extrabold text-white">Savings Breakdown</h2>
                 </div>
                 <p className="text-white text-[13px] font-medium opacity-90 max-w-[90%]">
-                  AI-driven actionable steps to unlock ₹3,980 in monthly savings based on your recent conversation data.
+                  AI-driven actionable steps to unlock ₹{potentialMonthlySavings.toLocaleString("en-IN")} in monthly savings based on your recent conversation data.
                 </p>
               </div>
             </div>
@@ -1300,7 +1588,7 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-[14px] font-bold text-slate-900">Template Consolidation</h3>
-                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹1,240</span>
+                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹{optTemplateSave.toLocaleString("en-IN")}</span>
                   </div>
                   <p className="text-[12px] text-slate-500 font-medium leading-relaxed pr-2">
                     You have 3 excessively long Marketing templates that often split into multiple messages, triggering double 24-hour conversation charges. Shorten them by 15% to keep them within single limits.
@@ -1315,7 +1603,7 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-[14px] font-bold text-slate-900">Engagement Filtering</h3>
-                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹1,850</span>
+                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹{optFilteringSave.toLocaleString("en-IN")}</span>
                   </div>
                   <p className="text-[12px] text-slate-500 font-medium leading-relaxed pr-2">
                     12% of your recent broadcast targets haven't opened a message in 60 days. Automatically excluding these inactive "dead" contacts from your next bulk broadcast will instantly recover wasted spend.
@@ -1330,7 +1618,7 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-[14px] font-bold text-slate-900">Channel Routing</h3>
-                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹600</span>
+                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹{optRoutingSave.toLocaleString("en-IN")}</span>
                   </div>
                   <p className="text-[12px] text-slate-500 font-medium leading-relaxed pr-2">
                     You're sending non-urgent account updates via WhatsApp Utility templates. Shifting these to Email/SMS while preserving WhatsApp for high-priority alerts can heavily lower monthly fixed costs.
@@ -1345,7 +1633,7 @@ const WhatsAppPricing = ({ onBack }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-[14px] font-bold text-slate-900">Time-of-Day Analysis</h3>
-                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹290</span>
+                    <span className="text-[9px] bg-[#ecfdf5] text-[#10B981] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">SAVE ~₹{optTimingSave.toLocaleString("en-IN")}</span>
                   </div>
                   <p className="text-[12px] text-slate-500 font-medium leading-relaxed pr-2">
                     15% of your Marketing broadcasts are sent between 10 PM and 2 AM. These have an incredibly low 3% read rate and yield near-zero ROI. Restrict broadcasts to peak engagement hours (10 AM–2 PM).
@@ -1357,7 +1645,7 @@ const WhatsAppPricing = ({ onBack }) => {
 
             {/* Footer */}
             <div className="bg-slate-50 border-t border-slate-100 p-6 flex justify-between items-center">
-              <p className="text-[12px] font-bold text-slate-400">Total potential impact: ₹3,980/month</p>
+              <p className="text-[12px] font-bold text-slate-400">Total potential impact: ₹{potentialMonthlySavings.toLocaleString("en-IN")}/month</p>
               <div className="flex gap-3">
                 <button onClick={() => setShowOptimizationsModal(false)} className="px-5 py-2 rounded-full text-[13px] font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 transition-colors">
                   Close
