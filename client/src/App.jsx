@@ -159,19 +159,35 @@ const AppLayout = memo(() => {
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
-  // --- LIVE PRODUCTION CHECK ---
-  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
+  const isLocalDev = import.meta.env.DEV || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
   
-  // --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
-  // const isWhatsAppConnected = true; 
+  const [bypassLock, setBypassLock] = useState(() => {
+    if (localStorage.getItem("bypass_waba_lock") === "false") return false;
+    // Surpass/bypass locally by default
+    return true;
+  });
 
+  const handleBypassLock = () => {
+    localStorage.setItem("bypass_waba_lock", "true");
+    setBypassLock(true);
+  };
+
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected) || bypassLock;
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
       <LazyOnboardingModal />
       {/* Force WhatsApp connection modal if not connected */}
-      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} user={user} />}
+      {showWhatsAppLock && (
+        <ConnectWhatsAppModal
+          isOpen={true}
+          isMandatory={false}
+          onClose={handleBypassLock}
+          onBypass={handleBypassLock}
+          user={user}
+        />
+      )}
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && (
