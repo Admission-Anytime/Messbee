@@ -159,20 +159,7 @@ const AppLayout = memo(() => {
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
-  const isLocalDev = import.meta.env.DEV || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
-  
-  const [bypassLock, setBypassLock] = useState(() => {
-    if (localStorage.getItem("bypass_waba_lock") === "false") return false;
-    // Surpass/bypass locally by default
-    return true;
-  });
-
-  const handleBypassLock = () => {
-    localStorage.setItem("bypass_waba_lock", "true");
-    setBypassLock(true);
-  };
-
-  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected) || bypassLock;
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 
   return (
@@ -182,9 +169,8 @@ const AppLayout = memo(() => {
       {showWhatsAppLock && (
         <ConnectWhatsAppModal
           isOpen={true}
-          isMandatory={false}
-          onClose={handleBypassLock}
-          onBypass={handleBypassLock}
+          isMandatory={true}
+          onClose={() => {}}
           user={user}
         />
       )}
