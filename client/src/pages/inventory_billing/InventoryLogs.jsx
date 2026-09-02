@@ -11,33 +11,45 @@ const InventoryLogs = () => {
   }, []);
 
   return (
-    <div className="p-6 bg-slate-50 min-h-screen">
-      <h1 className="text-2xl font-bold text-slate-800 mb-6">Inventory Movement Logs</h1>
+    <div className="p-4 md:p-6 bg-slate-50 min-h-screen font-['Urbanist',sans-serif]">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Inventory Movement Logs</h1>
+          <p className="text-slate-500 text-[13px] mt-1 font-medium">History of all stock additions, deductions, sales, and manual adjustments</p>
+        </div>
+      </div>
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b text-sm text-slate-600">
-              <th className="p-4">Date</th>
-              <th className="p-4">Product</th>
-              <th className="p-4">Type</th>
-              <th className="p-4">Quantity Change</th>
-              <th className="p-4">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log._id} className="border-b">
-                <td className="p-4">{new Date(log.createdAt).toLocaleString()}</td>
-                <td className="p-4 font-medium">{log.product?.name}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded text-xs capitalize ${log.type === 'sale' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>{log.type}</span>
-                </td>
-                <td className="p-4 font-bold">{log.quantity > 0 ? `+${log.quantity}` : log.quantity}</td>
-                <td className="p-4 text-sm text-slate-500">{log.notes}</td>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-xs font-semibold uppercase tracking-wider">
+                <th className="px-4 py-3.5">Date & Time</th>
+                <th className="px-4 py-3.5">Product</th>
+                <th className="px-4 py-3.5">Movement Type</th>
+                <th className="px-4 py-3.5">Quantity Change</th>
+                <th className="px-4 py-3.5">Notes</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-sm">
+              {logs.map((log) => (
+                <tr key={log._id} className="hover:bg-slate-50/60 transition-colors">
+                  <td className="px-4 py-3.5 text-slate-600 text-sm">{new Date(log.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3.5 font-semibold text-slate-800 text-sm">{log.product?.name}</td>
+                  <td className="px-4 py-3.5">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${log.type === 'sale' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'}`}>{log.type}</span>
+                  </td>
+                  <td className="px-4 py-3.5 font-bold text-slate-800 text-sm">{log.quantity > 0 ? `+${log.quantity}` : log.quantity}</td>
+                  <td className="px-4 py-3.5 text-xs text-slate-500">{log.notes || '—'}</td>
+                </tr>
+              ))}
+              {logs.length === 0 && (
+                <tr>
+                  <td colSpan="5" className="p-8 text-center text-sm font-medium text-slate-400">No logs found.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
