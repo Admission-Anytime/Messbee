@@ -77,7 +77,7 @@ const UserSchema = new mongoose.Schema({
   },
   isApproved: {
     type: Boolean,
-    default: false // New users need admin approval; existing users are handled via strict === false checks
+    default: true // Users are automatically approved now, instead blocked via WhatsApp connection
   },
   isEmailVerified: {
     type: Boolean,
@@ -137,6 +137,12 @@ const UserSchema = new mongoose.Schema({
   // Security: Track last login
   lastLogin: {
     type: Date
+  },
+  // WhatsApp Configuration tied to this specific user
+  whatsappConfig: {
+    wabaId: { type: String },
+    phoneNumberId: { type: String },
+    accessToken: { type: String }
   },
   // Password reset fields
   resetPasswordToken: {

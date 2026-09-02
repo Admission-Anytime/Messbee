@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { toast } from 'react-toastify';
 
 const SupplierManagement = () => {
@@ -7,6 +7,7 @@ const SupplierManagement = () => {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
@@ -20,8 +21,9 @@ const SupplierManagement = () => {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/suppliers?search=${search}&page=${page}`, { withCredentials: true });
-      setSuppliers(res.data.data);
+      const res = await axios.get(`/suppliers?search=${search}&page=${page}`, { withCredentials: true });
+      setSuppliers(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch suppliers');
     }
@@ -36,10 +38,10 @@ const SupplierManagement = () => {
     e.preventDefault();
     try {
       if (editId) {
-        await axios.put(`/api/suppliers/${editId}`, formData, { withCredentials: true });
+        await axios.put(`/suppliers/${editId}`, formData, { withCredentials: true });
         toast.success('Supplier updated successfully');
       } else {
-        await axios.post('/api/suppliers', formData, { withCredentials: true });
+        await axios.post('/suppliers', formData, { withCredentials: true });
         toast.success('Supplier created successfully');
       }
       setIsModalOpen(false);
@@ -52,7 +54,7 @@ const SupplierManagement = () => {
 
   const handleViewHistory = async (supplierId) => {
     try {
-      const res = await axios.get(`/api/suppliers/${supplierId}/purchases`, { withCredentials: true });
+      const res = await axios.get(`/suppliers/${supplierId}/purchases`, { withCredentials: true });
       setPurchaseHistory(res.data.data);
       setIsHistoryModalOpen(true);
     } catch (error) {

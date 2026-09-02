@@ -86,7 +86,6 @@ exports.requestSignupOTP = async (req, res, next) => {
       existingUser.otp = otp;
       existingUser.otpExpiry = otpExpiry;
       existingUser.otpAttempts = 0;
-      existingUser.isApproved = false; // Force approval requirement even if it was an old unverified record
       await existingUser.save();
     } else {
       // Create new user (unverified, not approved)
@@ -98,7 +97,6 @@ exports.requestSignupOTP = async (req, res, next) => {
         otp,
         otpExpiry,
         isEmailVerified: false,
-        isApproved: false,
         otpAttempts: 0
       });
     }
@@ -201,11 +199,11 @@ exports.verifySignupOTP = async (req, res, next) => {
       console.error('Welcome email failed:', err)
     );
 
-    // Do NOT auto-login — account needs admin approval first
+    // Do NOT auto-login — require them to login normally
     res.status(201).json({
       success: true,
-      message: 'Signup successful! Your account is pending admin approval.',
-      pendingApproval: true,
+      message: 'Signup successful! You can now log in.',
+      pendingApproval: false,
       data: {
         user: {
           id: user._id,
@@ -255,14 +253,7 @@ exports.requestLoginOTP = async (req, res, next) => {
       });
     }
 
-    // Check if admin has approved the account
-    if (user.isApproved === false) {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-        pendingApproval: true
-      });
-    }
+    // Admin approval no longer blocks login, check removed
 
     // Check if blocked
     if (isOTPBlocked(user.otpBlockedUntil)) {
@@ -365,14 +356,7 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.otpBlockedUntil = undefined;
     await user.save();
 
-    // Check if admin has approved the account
-    if (user.isApproved === false) {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-        pendingApproval: true
-      });
-    }
+    // Admin approval no longer blocks login, check removed
 
     user.lastLogin = Date.now();
     
@@ -404,7 +388,8 @@ exports.verifyLoginOTP = async (req, res, next) => {
           phone: user.phone,
           company: user.company,
           subscriptionPlan: user.subscriptionPlan,
-          lastLogin: user.lastLogin
+          lastLogin: user.lastLogin,
+          whatsappConfig: user.whatsappConfig
         }
       }
     });
@@ -449,14 +434,7 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Check if admin has approved the account
-    if (user.isApproved === false) {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-        pendingApproval: true
-      });
-    }
+    // Admin approval no longer blocks login, check removed
 
     // Check password
     const isPasswordMatch = await user.matchPassword(password);
@@ -493,7 +471,8 @@ exports.login = async (req, res, next) => {
           email: user.email,
           role: user.role,
           avatar: user.avatar,
-          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate
+          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate,
+          whatsappConfig: user.whatsappConfig
         }
       }
     });
@@ -547,15 +526,7 @@ exports.refreshToken = async (req, res, next) => {
       });
     }
 
-    // Block unapproved users from refreshing tokens
-    if (user.isApproved === false) {
-      clearTokenCookies(res);
-      return res.status(403).json({
-        success: false,
-        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-        pendingApproval: true
-      });
-    }
+    // Admin approval no longer blocks login, check removed
 
     // Generate new tokens
     const newAccessToken = user.getSignedJwtToken();
@@ -846,7 +817,21 @@ exports.resetPassword = async (req, res, next) => {
  */
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).lean();
+    
+    if (user) {
+      const Channel = require('../models/Channel');
+      const tenantId = user.tenantId || user._id;
+      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      
+      user.tenantWhatsAppConnected = !!channel;
+
+      // Fix for Employee/Agent Lockout: Give them a mock wabaId if the Admin connected it
+      if (user.tenantWhatsAppConnected) {
+        if (!user.whatsappConfig) user.whatsappConfig = {};
+        user.whatsappConfig.wabaId = user.whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -953,14 +938,7 @@ exports.facebookLogin = async (req, res, next) => {
         return res.status(403).json({ success: false, message: 'Account is deactivated' });
       }
 
-      // Check if admin has approved the account
-      if (user.isApproved === false) {
-        return res.status(403).json({
-          success: false,
-          message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-          pendingApproval: true
-        });
-      }
+      // Admin approval no longer blocks login, check removed
 
       // Ensure Facebook ID is saved if they originally signed up via email
       if (!user.facebookId) {
@@ -974,10 +952,9 @@ exports.facebookLogin = async (req, res, next) => {
         email: userEmail,
         facebookId: id,
         authProvider: 'facebook',
-        avatar: picture?.data?.url,
-        isEmailVerified: true, // Trusted from Facebook
-        isApproved: false, // New users still need admin approval by default
-        role: 'AGENT'
+        password: crypto.randomBytes(20).toString('hex'), // Random password for social logins
+        isEmailVerified: true, // Social emails are pre-verified
+        isActive: true
       });
       
       // Wait for admin approval message
@@ -1133,13 +1110,7 @@ exports.socialLogin = async (req, res, next) => {
       if (!user.isActive) {
         return res.status(403).json({ success: false, message: 'Account is deactivated' });
       }
-      if (user.isApproved === false) {
-        return res.status(403).json({
-          success: false,
-          message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-          pendingApproval: true
-        });
-      }
+      // Admin approval no longer blocks login, check removed
     }
 
     // Generate tokens for login

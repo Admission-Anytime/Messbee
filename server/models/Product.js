@@ -11,7 +11,7 @@ const productSchema = new mongoose.Schema({
     ref: 'User'
   },
   name: { type: String, required: true },
-  sku: { type: String, required: true, unique: true },
+  sku: { type: String, required: true },
   barcode: { type: String },
   category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
   brand: { type: String },
@@ -24,11 +24,14 @@ const productSchema = new mongoose.Schema({
   currentStock: { type: Number, default: 0 },
   minimumStock: { type: Number, default: 10 },
   productImage: { type: String },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' }
+  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  metaProductId: { type: String },
+  metaSyncStatus: { type: String, enum: ['pending', 'synced', 'failed'], default: 'pending' },
+  metaSyncError: { type: String }
 }, { timestamps: true });
 
 // Prevent index errors if sku is empty initially but we require it anyway
-productSchema.index({ tenantId: 1, sku: 1 });
+productSchema.index({ tenantId: 1, sku: 1 }, { unique: true });
 productSchema.index({ tenantId: 1, name: 1 });
 
 module.exports = mongoose.model('Product', productSchema);

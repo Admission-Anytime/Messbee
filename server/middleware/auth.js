@@ -46,14 +46,7 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    // Block unapproved users from accessing any protected route
-    if (req.user.isApproved === false) {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin is reviewing your account. Kindly wait for admin approval.',
-        pendingApproval: true
-      });
-    }
+    // Admin approval no longer blocks API routes
 
     next();
   } catch (error) {

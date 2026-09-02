@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { toast } from 'react-toastify';
 import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
 import { useLocation } from 'react-router-dom';
@@ -13,6 +13,7 @@ const PurchaseModule = () => {
   const [freight, setFreight] = useState(0);
   const [createdBill, setCreatedBill] = useState(null);
   const [isScanning, setIsScanning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const invoiceRef = useRef();
   const location = useLocation();
@@ -20,11 +21,11 @@ const PurchaseModule = () => {
   useEffect(() => {
     // 1. Fetch suppliers and products
     Promise.all([
-      axios.get('/api/suppliers?limit=100', { withCredentials: true }),
-      axios.get('/api/products?status=active&limit=200', { withCredentials: true })
+      axios.get('/suppliers?limit=100', { withCredentials: true }),
+      axios.get('/products?status=active&limit=200', { withCredentials: true })
     ]).then(([supplierRes, productRes]) => {
-      setSuppliers(supplierRes.data.data);
-      setProducts(productRes.data.data);
+      setSuppliers(supplierRes.data?.data || []);
+      setProducts(productRes.data?.data || []);
     }).catch(err => toast.error('Failed to initialize purchase module'));
   }, []);
 
@@ -95,6 +96,7 @@ const PurchaseModule = () => {
     if (cart.length === 0) return toast.error('Add at least one product');
 
     try {
+      setIsSubmitting(true);
       const payload = {
         supplier: selectedSupplier,
         products: cart,
@@ -102,7 +104,7 @@ const PurchaseModule = () => {
         notes,
         grandTotal
       };
-      const res = await axios.post('/api/purchases', payload, { withCredentials: true });
+      const res = await axios.post('/purchases', payload, { withCredentials: true });
       toast.success('Purchase Bill Created! Auto-stock updated. Bill No: ' + res.data.data.invoiceNumber);
       
       const billData = {
@@ -122,6 +124,8 @@ const PurchaseModule = () => {
       setSelectedSupplier('');
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create purchase bill');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -134,7 +138,7 @@ const PurchaseModule = () => {
     formData.append('invoice', file);
 
     try {
-      const res = await axios.post('/api/purchases/scan-invoice', formData, {
+      const res = await axios.post('/purchases/scan-invoice', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         withCredentials: true
       });
@@ -422,8 +426,12 @@ const PurchaseModule = () => {
               <span>₹{grandTotal.toFixed(2)}</span>
             </div>
           </div>
-          <button onClick={handleGenerateBill} className="w-full mt-6 bg-blue-600 text-white p-3 rounded-lg font-bold text-lg hover:bg-blue-700 transition-colors shadow-lg no-print">
-            Save & Print Bill
+          <button 
+            onClick={handleGenerateBill} 
+            disabled={isSubmitting}
+            className={`w-full mt-6 text-white p-3 rounded-lg font-bold text-lg transition-colors shadow-lg no-print ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+          >
+            {isSubmitting ? 'Saving...' : 'Save & Print Bill'}
           </button>
         </div>
       </div>

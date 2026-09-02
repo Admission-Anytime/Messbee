@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useContext } from "react";
 import {
   MagnifyingGlassIcon,
   ChevronRightIcon,
@@ -9,6 +9,7 @@ import {
 import { CheckCircleIcon } from "@heroicons/react/24/solid";
 import chatService from "../../services/chatService";
 import { getPresenceInfo } from "../../utils/presence";
+import { userContext } from "../../context/Context";
 
 const TABS = ["All Chats", "Mine", "Unread", "Active", "Resolved"];
 const CREATED_AT_FILTERS = [
@@ -27,6 +28,7 @@ const LAST_SEEN_FILTERS = [
 ];
 
 const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTab, onCreateChat, onUpdateStatus, onTogglePin, onUpdateLabels, onLoadMore, hasMoreChats, isLoadingMore, statusOptions = [], canAssign = true, canDelete = true }) => {
+  const { user } = useContext(userContext) || {};
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -194,6 +196,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       return chatModifications.teamMembers[chatId] || "Unassigned";
     }
     return (
+      chat?.teamMember ||
       chat?.assignee?.name ||
       chat?.assignedTo?.name ||
       chat?.assignedToName ||
@@ -650,6 +653,16 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
         return false;
       })();
 
+      const isMine = Boolean(
+        c.isMine ||
+        (user?._id && (c.user === user._id || c.user?._id === user._id || String(c.user) === String(user._id))) ||
+        (user?.id && (c.user === user.id || String(c.user) === String(user.id))) ||
+        (user?.name && teamMember && String(teamMember).trim().toLowerCase() === String(user.name).trim().toLowerCase()) ||
+        (user?._id && teamMember && String(teamMember).trim() === String(user._id).trim()) ||
+        (user?.id && teamMember && String(teamMember).trim() === String(user.id).trim()) ||
+        (user?.email && teamMember && String(teamMember).trim().toLowerCase() === String(user.email).trim().toLowerCase())
+      );
+
       const matchesTab =
         normalizedActiveTab === "all chats" ||
         normalizedActiveTab === "all" ||
@@ -660,7 +673,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
             : ["open", "opened", "active"].includes(chatStatus) // other channels: status-based
         )) ||
         (normalizedActiveTab === "resolved" && ["resolved", "closed"].includes(chatStatus)) ||
-        (normalizedActiveTab === "mine" && !!c.isMine);
+        (normalizedActiveTab === "mine" && isMine);
 
       const matchesQuickFilters =
         (!quickFilters.unreadChats || unreadCount > 0) &&

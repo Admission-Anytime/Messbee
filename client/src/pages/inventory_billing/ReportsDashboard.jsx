@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import Chart from 'react-apexcharts';
 
@@ -23,10 +23,10 @@ const ReportsDashboard = () => {
   const fetchDashboardData = async () => {
     try {
       const [statsRes, salesRes, purchaseRes, productsRes] = await Promise.all([
-        axios.get('/api/reports/dashboard', { withCredentials: true }),
-        axios.get('/api/reports/sales', { withCredentials: true }),
-        axios.get('/api/reports/purchases', { withCredentials: true }),
-        axios.get('/api/products?limit=1000', { withCredentials: true }).catch(() => ({ data: { data: [] } }))
+        axios.get('/reports/dashboard', { withCredentials: true }),
+        axios.get('/reports/sales', { withCredentials: true }),
+        axios.get('/reports/purchases', { withCredentials: true }),
+        axios.get('/products?limit=1000', { withCredentials: true }).catch(() => ({ data: { data: [] } }))
       ]);
       setStats(statsRes.data.data);
       setSalesReport(salesRes.data.data);

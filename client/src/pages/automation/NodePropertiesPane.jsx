@@ -894,15 +894,102 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   ? 'Connect this to your WhatsApp Commerce Catalog to display multiple items.' 
                   : 'Select a single specific product from your WhatsApp Catalog.'}
               </p>
-              <div>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Catalog ID (Optional)</label>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Catalog ID (Required)</label>
                 <input type="text" name="catalogId" value={localData.catalogId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="Enter Catalog ID" />
               </div>
+              
+              {localData.catalogType !== 'multi_product' && (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Product Retailer ID (Required)</label>
+                  <input type="text" name="productId" value={localData.productId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="e.g. sku-1234" />
+                </div>
+              )}
             </div>
+
+            {localData.catalogType === 'multi_product' && (
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Header Text (Required)</label>
+                <input type="text" name="headerText" value={localData.headerText || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="Header for your product list" maxLength="60" />
+              </div>
+            )}
+
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Accompanying Text</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Body Text (Required)</label>
               <textarea name="text" value={localData.text || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Write a message to go with your products..." />
             </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Footer Text (Optional)</label>
+              <input type="text" name="footer" value={localData.footer || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="Footer text" maxLength="60" />
+            </div>
+
+            {localData.catalogType === 'multi_product' && (
+              <div style={{ paddingTop: '16px' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#111827', margin: '0 0 12px 0' }}>Product Sections</h3>
+                {(localData.sections || []).map((sec, secIdx) => (
+                  <div key={sec.id || secIdx} style={{ background: '#F8FAFC', padding: '16px', borderRadius: '12px', marginBottom: '16px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <label style={{ fontSize: '11px', fontWeight: '700', color: '#64748B' }}>SECTION {secIdx + 1}</label>
+                      <button onClick={() => {
+                        const newSections = [...(localData.sections || [])];
+                        newSections.splice(secIdx, 1);
+                        setLocalData(prev => ({ ...prev, sections: newSections }));
+                        updateNodeData(id, { sections: newSections });
+                      }} style={{ background: 'none', border: 'none', color: '#EF4444', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>Remove</button>
+                    </div>
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#6B7280', marginBottom: '4px' }}>Section Title</label>
+                      <input type="text" value={sec.title || ''} onChange={(e) => {
+                        const newSections = [...(localData.sections || [])];
+                        newSections[secIdx] = { ...newSections[secIdx], title: e.target.value };
+                        setLocalData(prev => ({ ...prev, sections: newSections }));
+                      }} onBlur={() => updateNodeData(id, { sections: localData.sections })} style={{ ...inputStyle, background: 'white' }} placeholder="e.g. Best Sellers" maxLength="24" />
+                    </div>
+                    <div style={{ borderTop: '1px dashed #CBD5E1', paddingTop: '12px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Product IDs</label>
+                      {(sec.productItems || []).map((item, itemIdx) => (
+                        <div key={itemIdx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                          <input type="text" value={item.productId || ''} onChange={(e) => {
+                            const newSections = [...(localData.sections || [])];
+                            const newItems = [...(newSections[secIdx].productItems || [])];
+                            newItems[itemIdx] = { productId: e.target.value };
+                            newSections[secIdx].productItems = newItems;
+                            setLocalData(prev => ({ ...prev, sections: newSections }));
+                          }} onBlur={() => updateNodeData(id, { sections: localData.sections })} style={inputStyle} placeholder="Product Retailer ID (SKU)" />
+                          <button onClick={() => {
+                            const newSections = [...(localData.sections || [])];
+                            const newItems = [...(newSections[secIdx].productItems || [])];
+                            newItems.splice(itemIdx, 1);
+                            newSections[secIdx].productItems = newItems;
+                            setLocalData(prev => ({ ...prev, sections: newSections }));
+                            updateNodeData(id, { sections: newSections });
+                          }} style={{ background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer' }}><Trash2 size={16} /></button>
+                        </div>
+                      ))}
+                      <button onClick={() => {
+                        const newSections = [...(localData.sections || [])];
+                        const newItems = [...(newSections[secIdx].productItems || []), { productId: '' }];
+                        newSections[secIdx].productItems = newItems;
+                        setLocalData(prev => ({ ...prev, sections: newSections }));
+                        updateNodeData(id, { sections: newSections });
+                      }} style={{ background: 'transparent', color: '#10B981', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                        + Add Product
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {(!localData.sections || localData.sections.length < 10) && (
+                  <button onClick={() => {
+                    const newSections = [...(localData.sections || []), { id: `sec_${Date.now()}`, title: '', productItems: [] }];
+                    setLocalData(prev => ({ ...prev, sections: newSections }));
+                    updateNodeData(id, { sections: newSections });
+                  }} style={{ width: '100%', background: '#F1F5F9', color: '#334155', border: '1px solid #E2E8F0', padding: '10px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                    + Add Section
+                  </button>
+                )}
+              </div>
+            )}
           </>
         )}
 

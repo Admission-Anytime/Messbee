@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Send, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl, resolveMediaUrlForDev } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -20,12 +20,19 @@ const CreateTemplate = () => {
   );
 
   const [templateType, setTemplateType] = useState('CUSTOM');
+  const [authExpirationMinutes, setAuthExpirationMinutes] = useState(10);
+  const [authSecurityRecommendation, setAuthSecurityRecommendation] = useState(true);
   const [buttons, setButtons] = useState([]);
   const editorRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [bodyVariables, setBodyVariables] = useState([]);
   const [bodySamples, setBodySamples] = useState(location.state?.templateData?.bodySamples || {});
+  // eslint-disable-next-line no-unused-vars
+  const [headerVariables, setHeaderVariables] = useState([]);
+  // eslint-disable-next-line no-unused-vars
+  const [headerSamples, setHeaderSamples] = useState({});
+
   const [headerMedia, setHeaderMedia] = useState(
     location.state?.templateData?.headerMediaUrl 
       ? { 
@@ -106,6 +113,23 @@ const CreateTemplate = () => {
     setBodySamples((prev) => ({ ...prev, [variableId]: value }));
   };
 
+  const handleHeaderSampleChange = (variableId, value) => {
+    setHeaderSamples((prev) => ({ ...prev, [variableId]: value }));
+  };
+
+  const handleHeaderTextChange = (text) => {
+    setFormData(prev => ({ ...prev, headerText: text }));
+    const variables = extractBodyVariables(text); // same logic applies
+    setHeaderVariables(variables);
+    setHeaderSamples((prev) => {
+      const next = {};
+      variables.forEach((id) => {
+        next[id] = prev[id] || '';
+      });
+      return next;
+    });
+  };
+
   const applyFormat = (command) => {
     editorRef.current?.focus();
     document.execCommand(command, false, null);
@@ -160,6 +184,8 @@ const CreateTemplate = () => {
     bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
     expirationDate: '24h',
+    catalogButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Catalog',
+    mpmButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Items',
   });
 
   // Prepopulate buttons if editing
@@ -278,11 +304,13 @@ const CreateTemplate = () => {
           toast.success('Media uploaded! (Note: template needs a public URL for Meta)');
         }
       } else {
-        toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+        const errMsg = response?.message || 'Server upload failed.';
+        toast.error(`Media upload failed: ${errMsg}`);
       }
     } catch (uploadErr) {
       console.error('Template media upload error:', uploadErr);
-      toast.warn('Media selected, but server upload failed. A placeholder URL will be used.');
+      const errMsg = uploadErr.response?.data?.message || uploadErr.message || 'Server upload failed.';
+      toast.error(`Upload error: ${errMsg}`);
     } finally {
       setIsUploadingMedia(false);
     }
@@ -401,8 +429,49 @@ const CreateTemplate = () => {
       toast.error("Template name must be at least 4 characters");
       return;
     }
+
+    // ── AUTHENTICATION early-exit: skip body/header validations entirely ──
+    // Authentication templates use a structured OTP payload, not free-form body text.
+    if (formData.category === 'Authentication') {
+      const inputNameRaw = typeof formData.name === 'string' ? formData.name : String(formData.name || '');
+      const waNameAuth = inputNameRaw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+
+      if (!waNameAuth || waNameAuth.length < 4) {
+        toast.error(`Template name "${waNameAuth}" is too short or invalid. Minimum 4 characters using letters, numbers, or underscores.`);
+        return;
+      }
+
+      setIsSubmitting(true);
+      try {
+        const authComponents = [
+          { type: 'BODY', add_security_recommendation: authSecurityRecommendation },
+          { type: 'FOOTER', code_expiration_minutes: Number(authExpirationMinutes) || 10 },
+          { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] }
+        ];
+        const authPayload = {
+          name: waNameAuth,
+          category: 'AUTHENTICATION',
+          language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
+          components: authComponents
+        };
+        await createWhatsAppTemplate(authPayload);
+        navigate('/admin/templates/list', {
+          state: { showSuccessToast: true, toastMessage: 'Authentication OTP template created successfully!' }
+        });
+      } catch (error) {
+        const errMsg =
+          error?.response?.data?.error?.message ||
+          error?.response?.data?.message ||
+          error?.message ||
+          'Failed to create Authentication template. Please try again.';
+        toast.error(errMsg);
+      } finally {
+        setIsSubmitting(false);
+      }
+      return; // Done — skip everything else
+    }
     
-    // Validate body text is complete
+    // Validate body text is complete (non-Authentication templates only)
     if (!formData.bodyText.trim()) {
       toast.error("Template body content is mandatory");
       return;
@@ -472,6 +541,14 @@ const CreateTemplate = () => {
       }
     }
 
+    if (formData.headerType === 'Text' && headerVariables.length > 0) {
+      const hasMissingHeaderSamples = headerVariables.some((id) => !String(headerSamples[id] || '').trim());
+      if (hasMissingHeaderSamples) {
+        toast.error("Please add sample text for all header variables");
+        return;
+      }
+    }
+
     if (strippedBody.length > 1024) {
       toast.error(`Template body is ${strippedBody.length} characters. WhatsApp allows a maximum of 1024 characters.`);
       return;
@@ -529,6 +606,11 @@ const CreateTemplate = () => {
       return;
     }
 
+    if (templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
+      toast.error("A Header is mandatory for Multi-Product Messages. Please add a Text or Media header.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     // Prevent submission if media is still uploading
@@ -540,49 +622,9 @@ const CreateTemplate = () => {
     }
 
     try {
-      // ── AUTHENTICATION (OTP) templates require a special Meta-mandated structure ──
-      // They cannot use a freeform BODY with {{1}} like Marketing/Utility templates.
-      // Meta requires: BODY with add_security_recommendation + BUTTONS with OTP/COPY_CODE.
-      if (formData.category === 'Authentication') {
-        const authComponents = [
-          {
-            type: 'BODY',
-            add_security_recommendation: true
-          },
-          {
-            type: 'FOOTER',
-            code_expiration_minutes: 10
-          },
-          {
-            type: 'BUTTONS',
-            buttons: [
-              {
-                type: 'OTP',
-                otp_type: 'COPY_CODE'
-              }
-            ]
-          }
-        ];
-
-        const authPayload = {
-          name: waName,
-          category: 'AUTHENTICATION',
-          language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
-          components: authComponents
-        };
-
-        const authResponse = await createWhatsAppTemplate(authPayload);
-        navigate('/admin/templates/list', { 
-          state: { 
-            showSuccessToast: true, 
-            toastMessage: 'Authentication template submitted successfully to WhatsApp!' 
-          } 
-        });
-        return; // Done — skip the rest of the normal submit flow
-      }
-
       // ── All other categories (Marketing, Utility) use the normal flow below ──
       const components = [];
+
 
       // Fallback public URLs (only used if no file was uploaded by the user)
       const mediaHeaderFallbacks = {
@@ -601,11 +643,19 @@ const CreateTemplate = () => {
       // Add HEADER component only if valid
       if (formData.headerType && formData.headerType !== 'None') {
         if (formData.headerType === 'Text') {
-          components.push({ 
+          const headerComponent = { 
             type: 'HEADER', 
             format: 'TEXT', 
             text: (formData.headerText || formData.name || '').substring(0, 60)
-          });
+          };
+          
+          if (headerVariables.length > 0) {
+            headerComponent.example = {
+              header_text: headerVariables.map((id) => String(headerSamples[id] || '').trim())
+            };
+          }
+          
+          components.push(headerComponent);
         } else {
           // For IMAGE/VIDEO/DOCUMENT: prefer Meta handle (ngrok-free), fallback to URL
           const format = formData.headerType.toUpperCase();
@@ -636,7 +686,27 @@ const CreateTemplate = () => {
         components.push({ type: 'FOOTER', text: formData.footerText.substring(0, 60) }); // Max 60 chars
       }
 
-      if (buttons && buttons.length > 0) {
+      if (templateType === 'CATALOG') {
+        components.push({
+          type: 'BUTTONS',
+          buttons: [
+            {
+              type: 'CATALOG',
+              text: (formData.catalogButtonText || 'View Catalog').trim().substring(0, 20)
+            }
+          ]
+        });
+      } else if (templateType === 'MPM') {
+        components.push({
+          type: 'BUTTONS',
+          buttons: [
+            {
+              type: 'MPM',
+              text: (formData.mpmButtonText || 'View Items').trim().substring(0, 20)
+            }
+          ]
+        });
+      } else if (buttons && buttons.length > 0) {
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
             return { type: 'URL', text: b.text, url: b.value };
@@ -699,27 +769,6 @@ const CreateTemplate = () => {
         if (isNetworkError) {
           throw primaryError; // propagate immediately
         }
-
-        const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
-        const payloadWithoutHeader = {
-          ...templatePayload,
-          components: templatePayload.components.filter((c) => c.type !== 'HEADER')
-        };
-        const payloadBodyFooterOnly = {
-          ...templatePayload,
-          components: templatePayload.components.filter((c) => c.type === 'BODY' || c.type === 'FOOTER')
-        };
-        const payloadBodyOnlySanitized = {
-          ...templatePayload,
-          components: [{ type: 'BODY', text: strippedBody }]
-        };
-
-        const isInvalidParameterError = (error) =>
-          String(
-            error?.response?.data?.error?.message ||
-            error?.response?.data?.message ||
-            ''
-          ).toLowerCase().includes('invalid parameter');
 
         const isBodyCharacterLimitError = (error) => {
           const subcode =
@@ -982,7 +1031,7 @@ const CreateTemplate = () => {
                                 </div>
                             </div>
                         ) : (
-                            (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
+                            (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'MPM', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
                               <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
                                 <div className="flex items-start gap-4">
                                     {templateType === type ? (
@@ -994,11 +1043,12 @@ const CreateTemplate = () => {
                                     )}
                                     <div className="flex-1">
                                       <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
-                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : 'LIMITED TIME OFFER'}
+                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : type === 'MPM' ? 'MULTI-PRODUCT MESSAGE' : 'LIMITED TIME OFFER'}
                                       </span>
                                       <p className="text-[13px] text-gray-500 leading-relaxed">
                                           {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
                                           : type === 'CATALOG' ? 'Display your entire product catalog'
+                                          : type === 'MPM' ? 'Showcase up to 30 specific products'
                                           : 'Send an offer with a countdown timer to drive urgency'}
                                       </p>
                                     </div>
@@ -1109,8 +1159,63 @@ const CreateTemplate = () => {
                         </div>
                     </div>
                 </div>
+                {formData.category === 'Authentication' && (
+                  <div className="bg-white rounded-xl border border-[#10B981] p-6 md:p-8 shadow-sm mt-5 space-y-6">
+                    <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 bg-green-50 text-[#10B981] rounded-lg flex items-center justify-center border border-[#10B981]/20"><Clock size={16}/></div>
+                        <div>
+                          <h3 className="text-base font-bold text-gray-800">Authentication Setup</h3>
+                          <p className="text-xs text-gray-500">Configure your One-Time Passcode (OTP) settings</p>
+                        </div>
+                    </div>
+                    
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest">Code Expiration (Minutes)</label>
+                          <input 
+                            type="number" 
+                            min="1"
+                            max="90"
+                            value={authExpirationMinutes}
+                            onChange={(e) => setAuthExpirationMinutes(e.target.value)}
+                            className="w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all bg-white" 
+                          />
+                          <p className="text-[10px] text-gray-400">Meta allows an expiration time between 1 and 90 minutes.</p>
+                      </div>
+
+                      <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                        <div>
+                          <p className="text-sm font-bold text-gray-800">Security Recommendation</p>
+                          <p className="text-xs text-gray-500">Adds &quot;For your security, do not share this code.&quot; to the message.</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input type="checkbox" className="sr-only peer" checked={authSecurityRecommendation} onChange={() => setAuthSecurityRecommendation(!authSecurityRecommendation)} />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#10B981]"></div>
+                        </label>
+                      </div>
+
+                      <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                        <p className="text-sm font-bold text-gray-800 mb-1">Copy Code Button</p>
+                        <p className="text-xs text-gray-500">
+                          A &quot;Copy Code&quot; button will be automatically attached to your message. Meta will render this natively in WhatsApp.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {formData.category !== 'Authentication' && (
                 <div className="bg-white rounded-xl border border-gray-200 p-6 md:p-8 shadow-sm mt-5">
+                    {formData.category === 'Utility' && (
+                      <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-3 text-yellow-800">
+                        <Info size={20} className="shrink-0 mt-0.5 text-yellow-600" />
+                        <div className="text-sm">
+                          <p className="font-bold mb-1 text-yellow-700">Strictly No Promotional Content</p>
+                          <p>
+                            Meta strictly prohibits promotional content (offers, discounts, upselling) in Utility templates. Ensure your message is purely transactional (e.g., order updates, account alerts) or it will be rejected.
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="mb-8 border-b border-gray-100 pb-6">
                         <div className="flex flex-col gap-1 mb-3">
                             <h3 className="text-sm md:text-base font-bold text-gray-800">Header <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
@@ -1143,10 +1248,28 @@ const CreateTemplate = () => {
                               type="text" 
                               placeholder="Enter header title..." 
                               value={formData.headerText}
-                              onChange={(e) => setFormData({...formData, headerText: e.target.value})}
+                              onChange={(e) => handleHeaderTextChange(e.target.value)}
                               className="w-full p-4 border border-gray-200 rounded-lg outline-none text-sm font-medium focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
                             />
                             <p className="text-[10px] text-gray-400">Max 60 characters. You can use variables like {"{{1}}"} here.</p>
+                            
+                            {headerVariables.length > 0 && (
+                              <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 space-y-3">
+                                <h4 className="text-xs font-bold text-gray-700">Header Samples</h4>
+                                {headerVariables.map((variableId) => (
+                                  <div key={variableId} className="flex items-center gap-3">
+                                    <label className="w-12 text-xs font-semibold text-gray-600 shrink-0">{`{{${variableId}}}`}</label>
+                                    <input
+                                      type="text"
+                                      value={headerSamples[variableId] || ''}
+                                      onChange={(e) => handleHeaderSampleChange(variableId, e.target.value)}
+                                      placeholder={`Sample for {{${variableId}}}`}
+                                      className="flex-1 p-2 border border-gray-300 rounded text-sm outline-none focus:border-[#10B981]"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1360,6 +1483,70 @@ const CreateTemplate = () => {
                     )}
 
                     <div className="pt-8 border-t border-gray-100 mt-6">
+                        {templateType === 'CATALOG' ? (
+                            <div>
+                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Catalog Button</h3>
+                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
+                                                Open Catalog
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.catalogButtonText || ''} 
+                                                    onChange={(e) => setFormData({...formData, catalogButtonText: e.target.value})}
+                                                    maxLength={20}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                    placeholder="View Catalog"
+                                                />
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
+                                                    {(formData.catalogButtonText || '').length}/20
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">This button will open your WhatsApp Commerce catalog when clicked by the user.</p>
+                            </div>
+                        ) : templateType === 'MPM' ? (
+                            <div>
+                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Multi-Product Button</h3>
+                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
+                                                View Items
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                                <input 
+                                                    type="text" 
+                                                    value={formData.mpmButtonText || ''} 
+                                                    onChange={(e) => setFormData({...formData, mpmButtonText: e.target.value})}
+                                                    maxLength={20}
+                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                    placeholder="View Items"
+                                                />
+                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
+                                                    {(formData.mpmButtonText || '').length}/20
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">This button opens a curated selection of products inside WhatsApp.</p>
+                            </div>
+                        ) : (
+                        <>
                         <div className="flex justify-between items-center mb-4">
                             <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons </h3>
                             <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
@@ -1454,6 +1641,8 @@ const CreateTemplate = () => {
                                 </div>
                             ))}
                         </div>
+                        </>
+                        )}
                     </div>
                 </div>
                 )}
@@ -1488,18 +1677,22 @@ const CreateTemplate = () => {
             </div>
             {/* Scale adjustment for smaller laptop screens */}
             <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
-              <MobilePreview 
-                name={formData.name || 'YOUR_TEMPLATE'} 
-                body={formData.bodyText} 
-                footer={formData.category === 'Authentication' ? '' : formData.footerText} 
-                headerMedia={headerMedia}
-                headerType={formData.headerType}
-                showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
-                offer={formData.offerTitle} 
-                isLimited={templateType === 'LIMITED_TIME_OFFER'}
-                buttons={formData.category === 'Authentication' ? [] : buttons} 
-                isSetupView={view === 'setup'}
-              />
+          <MobilePreview 
+            name={formData.name || 'YOUR_TEMPLATE'} 
+            body={formData.bodyText} 
+            footer={formData.category === 'Authentication' ? '' : formData.footerText} 
+            headerMedia={headerMedia}
+            headerType={formData.headerType}
+            showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
+            offer={formData.offerTitle} 
+            isLimited={templateType === 'LIMITED_TIME_OFFER'}
+            isCatalog={templateType === 'CATALOG'}
+            isMpm={templateType === 'MPM'}
+            catalogButtonText={formData.catalogButtonText}
+            mpmButtonText={formData.mpmButtonText}
+            buttons={formData.category === 'Authentication' ? [] : buttons} 
+            isSetupView={view === 'setup'}
+          />
             </div>
         </div>
       </div>
@@ -1577,7 +1770,7 @@ const CreateTemplate = () => {
   );
 };
 
-const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLimited = false, buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
+const MobilePreview = ({ name, body, footer, showImage = false, isLimited = false, isCatalog = false, isMpm = false, catalogButtonText = "", mpmButtonText = "", buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
   if (isSetupView) {
     return (
       <div className="relative w-[320px] h-[640px] bg-white rounded-[3rem] border-[14px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
@@ -1680,7 +1873,15 @@ const MobilePreview = ({ name, body, footer, showImage = false, offer = "", isLi
                </div>
             </div>
             
-            {buttons && buttons.length > 0 && (
+            {isCatalog || isMpm ? (
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
+                  <div className="w-full py-3 flex items-center justify-center gap-2">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2">
+                       {isCatalog ? (catalogButtonText || 'View Catalog') : (mpmButtonText || 'View Items')}
+                     </span>
+                  </div>
+               </div>
+            ) : buttons && buttons.length > 0 && (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
                      <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">

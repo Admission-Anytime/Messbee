@@ -387,18 +387,57 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     if (!nodeData.catalogId) {
       return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration.' } };
     }
-    return {
-      ...basePayload,
-      type: 'interactive',
-      interactive: {
-        type: nodeData.catalogType === 'single_product' ? 'product' : 'product_list',
+
+    if (nodeData.catalogType === 'multi_product') {
+      const validSections = (nodeData.sections || []).filter(sec => sec.productItems && sec.productItems.length > 0);
+      if (validSections.length === 0) {
+        return { ...basePayload, type: 'text', text: { body: 'Missing product sections configuration.' } };
+      }
+
+      const interactive = {
+        type: 'product_list',
+        header: { type: 'text', text: parseDynamicVariables(nodeData.headerText, contextData) || 'Products' },
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out our products!' },
+        action: {
+          catalog_id: nodeData.catalogId,
+          sections: validSections.map(sec => ({
+            title: parseDynamicVariables(sec.title, contextData) || 'Section',
+            product_items: sec.productItems.slice(0, 30).map(item => ({
+              product_retailer_id: parseDynamicVariables(item.productId, contextData) || 'product_1'
+            }))
+          }))
+        }
+      };
+
+      if (nodeData.footer) {
+        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
+      }
+
+      return {
+        ...basePayload,
+        type: 'interactive',
+        interactive
+      };
+    } else {
+      const interactive = {
+        type: 'product',
+        body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out this product!' },
         action: {
           catalog_id: nodeData.catalogId,
           product_retailer_id: parseDynamicVariables(nodeData.productId, contextData) || 'product_1'
         }
+      };
+
+      if (nodeData.footer) {
+        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
       }
-    };
+
+      return {
+        ...basePayload,
+        type: 'interactive',
+        interactive
+      };
+    }
   }
 
   if (nodeType === 'pollNode') {
@@ -518,8 +557,12 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
 
     if (!channel) {
-      console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
-      return;
+      if (customerPhone.startsWith('SIMULATOR_')) {
+        channel = { _id: channelId, tenantId: '000000000000000000000000', activeWhatsappPhoneNumberId: 'mock_phone' };
+      } else {
+        console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
+        return;
+      }
     }
     const contact = await Contact.findOne({ phone: customerPhone, channelId });
 
@@ -527,6 +570,9 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     let keepRunning = true;
     let steps = 0;
     const MAX_STEPS = 30; // Prevent infinite loops from cyclic graphs
+
+    const { default: TenantSettings } = await import('../models/TenantSettings.js');
+    const tenantSettings = channel.tenantId ? await TenantSettings.findOne({ tenantId: channel.tenantId }).lean() : null;
 
     console.log(`[DEBUG Engine] processSpecificNode started for ${customerPhone} on node ${startNodeId}`);
 
@@ -544,6 +590,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           tags: contact.tags || [],
           ...Object.fromEntries(contact.customFields || new Map())
         } : { phone: customerPhone, id: session._id },
+        tenantSettings: tenantSettings || {},
         ...Object.fromEntries(session.sessionVariables)
       };
       
@@ -689,7 +736,6 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         nextNodeId = randEdge ? randEdge.target : null;
       }
       else if (currentNode.type === 'shopifyNode') {
-        const contextData = { contact: { phone: customerPhone, id: session._id }, ...Object.fromEntries(session.sessionVariables) };
         const status = await executeShopifyNode(session, currentNode, contextData);
         const edge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
@@ -768,13 +814,17 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 /**
  * Evaluates the incoming message against the current active flow or initiates a new one.
  */
-export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null) {
+export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false) {
   try {
     let channel = await Channel.findById(channelId);
 
     if (!channel) {
-      console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
-      return;
+      if (simulatorTargetFlowId || customerPhone.startsWith('SIMULATOR_')) {
+        channel = { _id: channelId, tenantId: '000000000000000000000000', activeWhatsappPhoneNumberId: 'mock_phone' };
+      } else {
+        console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
+        return;
+      }
     }
 
     let session = await CustomerSession.findOne({ phone: customerPhone, channelId, status: 'ACTIVE' });
@@ -863,14 +913,22 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       let matchedFlow = null;
       let matchedTriggerNode = null;
 
-      // 1. AWAY MESSAGE PRIORITY
-      const TenantSettings = (await import('../models/TenantSettings.js')).default;
       const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
       
+      // 0. WELCOME MESSAGE PRIORITY
+      if (isNewContact && settings && settings.welcomeMessage && settings.welcomeMessage.enabled && settings.welcomeMessage.automationId) {
+        const welcomeFlow = await Automation.findById(settings.welcomeMessage.automationId);
+        if (welcomeFlow && welcomeFlow.isActive) {
+          matchedFlow = welcomeFlow;
+          matchedTriggerNode = welcomeFlow.nodes.find(n => n.type === 'triggerNode') || welcomeFlow.nodes[0];
+        }
+      }
+
+      // 1. AWAY MESSAGE PRIORITY
       let isOutOfOffice = false;
       let configuredAwayAutomationId = null;
 
-      if (settings && settings.awayMessage && settings.awayMessage.enabled) {
+      if (!matchedFlow && settings && settings.awayMessage && settings.awayMessage.enabled) {
         configuredAwayAutomationId = settings.awayMessage.automationId;
         
         if (settings.awayMessage.holidayMode) {
@@ -894,26 +952,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             }
           }
         }
-      } else if (!settings || !settings.awayMessage?.enabled) {
-         // Fallback legacy behavior if completely unconfigured?
-         // In MVP, we consider 6 PM to 9 AM (local time) as 'Away'. In production, this would be tenant-configurable.
-         // But since we want it completely dynamic based on UI, if it's disabled, we do NOT trigger away message.
-         isOutOfOffice = false;
       }
       
-      if (isOutOfOffice) {
+      if (isOutOfOffice && !matchedFlow) {
         if (configuredAwayAutomationId) {
-          const awayFlow = allActiveFlows.find(flow => flow._id.toString() === configuredAwayAutomationId.toString());
-          if (awayFlow) {
+          const awayFlow = await Automation.findById(configuredAwayAutomationId);
+          if (awayFlow && awayFlow.isActive) {
             matchedFlow = awayFlow;
             matchedTriggerNode = awayFlow.nodes.find(n => n.type === 'triggerNode') || awayFlow.nodes[0];
-          }
-        } else {
-          // Legacy check for flow with away_message trigger if no specific ID is set in settings
-          const awayFlow = allActiveFlows.find(flow => flow.nodes.some(n => n.type === 'triggerNode' && n.data.triggerType === 'away_message'));
-          if (awayFlow) {
-            matchedFlow = awayFlow;
-            matchedTriggerNode = awayFlow.nodes.find(n => n.type === 'triggerNode' && n.data.triggerType === 'away_message');
           }
         }
       }
@@ -969,15 +1015,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       if (!activeFlow) {
         // Fallback: check dynamic settings first
         if (settings && settings.fallbackMessage && settings.fallbackMessage.enabled && settings.fallbackMessage.automationId) {
-          activeFlow = allActiveFlows.find(flow => flow._id.toString() === settings.fallbackMessage.automationId.toString());
-          if (activeFlow) {
+          activeFlow = await Automation.findById(settings.fallbackMessage.automationId);
+          if (activeFlow && activeFlow.isActive) {
             triggerNode = activeFlow.nodes.find(n => n.type === 'triggerNode') || activeFlow.nodes[0];
-          }
-        } else {
-          // Legacy check for flow with fallback trigger if no dynamic setting is enabled
-          activeFlow = allActiveFlows.find(flow => flow.nodes.some(n => n.type === 'triggerNode' && n.data.triggerType === 'fallback'));
-          if (activeFlow) {
-            triggerNode = activeFlow.nodes.find(n => n.type === 'triggerNode' && n.data.triggerType === 'fallback');
+          } else {
+            activeFlow = null;
           }
         }
       }
@@ -1138,14 +1180,23 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
         nextNodeId = null;
 
-        if (['interactiveNode', 'menuNode', 'catalogNode', 'pollNode', 'commerceNode'].includes(currentNode?.type)) {
+        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode'].includes(currentNode?.type) || 
+                                  (currentNode?.type === 'messageNode' && currentNode?.data?.messageType === 'interactive') || 
+                                  (currentNode?.type === 'interactiveNode');
+
+        if (isInteractiveNode) {
           // For interactive nodes, the reply MUST match a specific button/list ID (sourceHandle)
           console.log(`[DEBUG Engine] Trying to match incomingPayload '${incomingPayload}' on node ${currentNode?.type}`);
           console.log(`[DEBUG Engine] Available edges for ${session.currentNodeId}:`, JSON.stringify(outgoingEdges));
-          let matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload);
+          
+          let matchedEdge = outgoingEdges.find(e => 
+             e.sourceHandle === incomingPayload || 
+             e.sourceHandle === `btn-${incomingPayload}` || 
+             e.sourceHandle === `row-${incomingPayload}`
+          );
           
           if (!matchedEdge && customerPhone.startsWith('SIMULATOR_')) {
-             if (currentNode.type === 'interactiveNode' && currentNode.data?.buttons) {
+             if ((currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode') && currentNode.data?.buttons) {
                  const btnIdx = currentNode.data.buttons.findIndex(b => b.title && b.title.toLowerCase() === incomingPayload.toLowerCase());
                  if (btnIdx !== -1) {
                     const btnId = currentNode.data.buttons[btnIdx].id || btnIdx;
@@ -1162,7 +1213,6 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 }
              }
           }
-          
           
           if (matchedEdge) {
             console.log(`[DEBUG Engine] Matched edge to target: ${matchedEdge.target}`);

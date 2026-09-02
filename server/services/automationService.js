@@ -22,7 +22,9 @@ exports.processAutomationTrigger = async (triggerType, triggerData, channelId) =
         triggerData.message,
         channelId,
         triggerData.referral || null,
-        triggerData.messageId || null
+        triggerData.messageId || null,
+        null, // simulatorTargetFlowId
+        triggerData.isNewContact
       );
     } else if (triggerType === 'event') {
       // CRM event triggers (tag added, field updated, etc.)

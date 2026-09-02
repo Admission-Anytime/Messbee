@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 
 const InventoryLogs = () => {
   const [logs, setLogs] = useState([]);
   
   useEffect(() => {
-    axios.get('/api/inventory/logs', { withCredentials: true })
+    axios.get('/inventory/logs', { withCredentials: true })
       .then(res => setLogs(res.data.data))
       .catch(err => console.error(err));
   }, []);

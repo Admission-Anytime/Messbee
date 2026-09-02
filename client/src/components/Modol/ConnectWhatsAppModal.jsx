@@ -3,46 +3,80 @@ import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import api from "../../context/axios";
 import { toast } from "react-toastify";
 
-const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
+const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) => {
   const overlayRef = useRef();
+  
+  // Check if user is agent/employee (not allowed to connect)
+  const isAgent = user?.role === 'agent' || user?.role === 'AGENT' || user?.role === 'user';
   const [wabaId, setWabaId] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
   const [isFbInitialized, setIsFbInitialized] = useState(false);
 
-  // Load Facebook SDK on mount (must be before any early returns)
+  // Load Facebook SDK on mount
   useEffect(() => {
-    // If it's already loaded and initialized from a previous modal open
-    if (window.FB && window.FB.login) {
-      setIsFbInitialized(true);
-      return;
-    }
+    const appId = import.meta.env.VITE_META_APP_ID || "1401700501230008"; // WhatsApp Embedded Signup App ID
 
-    window.fbAsyncInit = function () {
-      window.FB.init({
-        appId: import.meta.env.VITE_META_APP_ID || "YOUR_META_APP_ID", // Add this to your .env
-        cookie: true,
-        xfbml: true,
-        version: "v20.0", // Use the latest stable version
-      });
-      setIsFbInitialized(true);
+    const initFB = () => {
+      if (window.FB && window.FB.init) {
+        try {
+          window.FB.init({
+            appId: appId,
+            cookie: true,
+            xfbml: true,
+            version: "v20.0",
+          });
+        } catch (err) {
+          console.warn("FB Init warning:", err);
+        }
+        setIsFbInitialized(true);
+      }
     };
 
-    (function (d, s, id) {
-      var js,
-        fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s);
-      js.id = id;
-      js.src = "https://connect.facebook.net/en_US/sdk.js";
-      fjs.parentNode.insertBefore(js, fjs);
-    })(document, "script", "facebook-jssdk");
+    // If FB is already loaded on window, initialize it immediately
+    if (window.FB && window.FB.login) {
+      initFB();
+    } else {
+      const prevAsyncInit = window.fbAsyncInit;
+      window.fbAsyncInit = () => {
+        if (typeof prevAsyncInit === "function") prevAsyncInit();
+        initFB();
+      };
+
+      if (!document.getElementById("facebook-jssdk")) {
+        const js = document.createElement("script");
+        js.id = "facebook-jssdk";
+        js.src = "https://connect.facebook.net/en_US/sdk.js";
+        js.async = true;
+        js.defer = true;
+        js.onload = () => {
+          if (window.FB) initFB();
+        };
+        const fjs = document.getElementsByTagName("script")[0];
+        if (fjs && fjs.parentNode) {
+          fjs.parentNode.insertBefore(js, fjs);
+        } else {
+          document.head.appendChild(js);
+        }
+      }
+    }
+
+    // Safety fallback: Poll every 500ms to ensure FB initialized as soon as loaded
+    const checkInterval = setInterval(() => {
+      if (window.FB && window.FB.login) {
+        initFB();
+        clearInterval(checkInterval);
+      }
+    }, 500);
+
+    return () => clearInterval(checkInterval);
   }, []);
 
   if (!isOpen) return null;
 
   const handleOverlayClick = (e) => {
+    if (isMandatory) return;
     if (overlayRef.current === e.target) {
       onClose();
     }
@@ -50,8 +84,23 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
   // One-click Meta integration (opens Meta popup)
   const handleConnectWhatsApp = (withCatalog) => {
-    if (!isFbInitialized) {
-      alert("Facebook SDK is still loading and initializing. Please wait 2 seconds and click again.");
+    const appId = import.meta.env.VITE_META_APP_ID || "1401700501230008";
+
+    // Dynamic check: If window.FB exists, ensure init is called and proceed immediately
+    if (window.FB && window.FB.init && window.FB.login) {
+      try {
+        window.FB.init({
+          appId: appId,
+          cookie: true,
+          xfbml: true,
+          version: "v20.0",
+        });
+        setIsFbInitialized(true);
+      } catch (e) {
+        console.warn("FB init error during click:", e);
+      }
+    } else if (!isFbInitialized) {
+      toast.info("Facebook SDK is initializing... Please wait a moment and click again.");
       return;
     }
 
@@ -70,12 +119,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
     const sessionInfoListener = (event) => {
       if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
         return;
-      }
+      }  
       try {
         const data = JSON.parse(event.data);
         if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
-          const { phone_number_id, waba_id } = data.data;
-          window.lastMetaSessionInfo = { phone_number_id, waba_id };
+          window.lastMetaSessionInfo = data;
           console.log("Captured Meta Session Info:", window.lastMetaSessionInfo);
         }
       } catch (error) {
@@ -100,15 +148,18 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
               window.removeEventListener("message", sessionInfoListener);
               window.lastMetaSessionInfo = null;
 
-              api.post('/whatsapp/connect-oauth', { 
+              api.post('/whatsapp/embedded-signup-callback', { 
                 code,
-                wabaId: sessionInfo.waba_id,
-                phoneNumberId: sessionInfo.phone_number_id
+                eventData: sessionInfo
               })
                 .then((res) => {
                   if (res.data?.success) {
                     toast.success("WhatsApp Business Account connected successfully!");
-                    onClose();
+                    if (!isMandatory) {
+                      onClose();
+                    } else {
+                      window.location.reload(); // Reload to refresh global state and clear lock
+                    }
                   } else {
                     toast.error(res.data?.message || "Failed to connect WhatsApp account");
                   }
@@ -137,7 +188,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         extras: {
           feature: "whatsapp_embedded_signup",
           version: 2,
-          sessionInfoVersion: 2
+          sessionInfoVersion: "2",
+          setup: {}
         },
         scope: scopes.join(",")
       }
@@ -161,7 +213,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
 
       if (res.data?.success) {
         toast.success("WhatsApp Business Account connected manually!");
-        onClose();
+        if (!isMandatory) {
+          onClose();
+        } else {
+          window.location.reload(); // Reload to refresh global state and clear lock
+        }
       } else {
         toast.error(res.data?.message || "Failed to connect WhatsApp account");
         setError(res.data?.message || "Connection failed");
@@ -191,24 +247,38 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
         <div className="flex items-center justify-between px-8 py-5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/80 to-white">
           <div>
             <h2 className="text-xl font-bold text-slate-900">
-              Connect WhatsApp Business
+              {isMandatory ? "Verify your Meta Business Account" : "Connect WhatsApp Business"}
             </h2>
             <p className="text-sm text-slate-500 mt-0.5">
-              Choose your preferred integration method
+              {isMandatory ? "You must connect your Meta account to access all features." : "Choose your preferred integration method"}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
+          {!isMandatory && (
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+            >
+              <XMarkIcon className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
-        {/* Body — Two Cards */}
+        {/* Body — Conditional Rendering for Agents vs Admins */}
         <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: Recommended — One Click */}
-          <div className="relative border-2 border-emerald-200 rounded-xl p-6 bg-gradient-to-b from-emerald-50/50 to-white hover:shadow-lg transition-shadow group">
+          {isAgent ? (
+            <div className="col-span-1 md:col-span-2 text-center p-12 bg-red-50 rounded-xl border border-red-100">
+              <svg className="w-16 h-16 text-red-400 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              <h3 className="text-xl font-bold text-slate-800">Administrator Access Required</h3>
+              <p className="mt-2 text-slate-600 max-w-md mx-auto">
+                Only the workspace owner or an administrator can connect the WhatsApp Business Account. Please contact your administrator to complete this setup.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Card 1: Recommended — One Click */}
+              <div className="relative border-2 border-emerald-200 rounded-xl p-6 bg-gradient-to-b from-emerald-50/50 to-white hover:shadow-lg transition-shadow group">
             {/* Recommended Badge */}
             <span className="absolute -top-3 left-6 px-3 py-0.5 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider rounded-full shadow-sm">
               Recommended
@@ -344,6 +414,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose }) => {
               </button>
             </div>
           </div>
+          </>
+          )}
         </div>
 
         {/* Footer */}

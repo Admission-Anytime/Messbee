@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { toast } from 'react-toastify';
 
 const CategoryManagement = () => {
@@ -15,9 +15,9 @@ const CategoryManagement = () => {
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const res = await axios.get(`/api/categories?search=${search}&page=${page}`, { withCredentials: true });
-      setCategories(res.data.data);
-      setTotalPages(res.data.pagination.pages);
+      const res = await axios.get(`/categories?search=${search}&page=${page}`, { withCredentials: true });
+      setCategories(res.data?.data || []);
+      setTotalPages(res.data?.pagination?.pages || 1);
     } catch (err) {
       toast.error('Failed to fetch categories');
     }
@@ -32,10 +32,10 @@ const CategoryManagement = () => {
     e.preventDefault();
     try {
       if (editId) {
-        await axios.put(`/api/categories/${editId}`, formData, { withCredentials: true });
+        await axios.put(`/categories/${editId}`, formData, { withCredentials: true });
         toast.success('Category updated successfully');
       } else {
-        await axios.post('/api/categories', formData, { withCredentials: true });
+        await axios.post('/categories', formData, { withCredentials: true });
         toast.success('Category created successfully');
       }
       setIsModalOpen(false);
@@ -50,7 +50,7 @@ const CategoryManagement = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this category?')) {
       try {
-        await axios.delete(`/api/categories/${id}`, { withCredentials: true });
+        await axios.delete(`/categories/${id}`, { withCredentials: true });
         toast.success('Category deleted');
         fetchCategories();
       } catch (err) {

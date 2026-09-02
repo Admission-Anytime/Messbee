@@ -14,7 +14,7 @@ class WhatsAppService {
     this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
     this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
     
     // Initial sync from DB
@@ -47,14 +47,14 @@ class WhatsAppService {
           apiVersion: process.env.WHATSAPP_API_VERSION,
           phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
           accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-          businessAccountId: process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+          businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
         };
         await setting.save();
         
         this.apiVersion = process.env.WHATSAPP_API_VERSION;
         this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
         this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-        this.businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
       } catch (error) {
@@ -663,6 +663,36 @@ class WhatsAppService {
         }
       }
 
+      // ── AUTHENTICATION TEMPLATE OTP INTERCEPTION ──
+      // The Meta API requires the OTP variable to be sent as a URL button parameter, 
+      // AND also requires the body parameter to populate the `{{1}}` in the text body.
+      // Here we duplicate the body parameter to the correct button parameter.
+      if (String(template.category).toUpperCase() === 'AUTHENTICATION') {
+        const bodyCompIndex = components.findIndex(c => String(c.type).toLowerCase() === 'body');
+        
+        if (bodyCompIndex > -1) {
+          const bodyComp = components[bodyCompIndex];
+          if (bodyComp.parameters && bodyComp.parameters.length > 0) {
+            // Extract the OTP code the user entered
+            const otpCode = bodyComp.parameters[0].text;
+            
+            // Add the required URL button component for the COPY_CODE button,
+            // while keeping the body component intact for the `{{1}}` injection.
+            components.push({
+              type: 'button',
+              sub_type: 'url',
+              index: '0',
+              parameters: [
+                {
+                  type: 'text',
+                  text: encodeURIComponent(String(otpCode).trim())
+                }
+              ]
+            });
+          }
+        }
+      }
+
       const payload = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
@@ -935,7 +965,7 @@ class WhatsAppService {
 
       
       const response = await axios.get(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
         {
           params: {
             fields: 'id,name,status,category,language,created_timestamp,rejected_reason,quality_score,components'
@@ -1041,8 +1071,41 @@ class WhatsAppService {
 
       // Validate BODY component exists and has content
       // Note: AUTHENTICATION templates use add_security_recommendation (no text field) — skip text checks for them.
-      const bodyComponent = preparedComponents.find(c => c.type === 'BODY');
+      const bodyComponent = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'BODY');
       const isAuthTemplate = String(category || '').toUpperCase() === 'AUTHENTICATION';
+      const isUtilityTemplate = String(category || '').toUpperCase() === 'UTILITY';
+
+      if (isAuthTemplate) {
+        const footerComp = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'FOOTER');
+        if (footerComp && footerComp.code_expiration_minutes !== undefined) {
+          const expMins = Number(footerComp.code_expiration_minutes);
+          if (isNaN(expMins) || expMins < 1 || expMins > 90) {
+            return {
+              success: false,
+              error: {
+                message: 'Authentication template code expiration must be between 1 and 90 minutes.'
+              }
+            };
+          }
+        }
+      }
+
+      if (isUtilityTemplate) {
+        const promoWords = ['offer', 'discount', 'sale', 'promo', 'coupon', 'free'];
+        const bodyTextLower = (bodyComponent?.text || '').toLowerCase();
+        // Regex to match whole words only to avoid false positives (e.g. "wholesale", "offerings" could be allowed but better safe than sorry, let's just do a basic check)
+        const foundPromo = promoWords.find(word => new RegExp(`\\b${word}\\b`, 'i').test(bodyTextLower));
+        
+        if (foundPromo) {
+          return {
+            success: false,
+            error: {
+              message: `Utility templates strictly prohibit promotional content. Found restricted word: "${foundPromo}". Please remove it to avoid Meta rejection, or change the category to Marketing.`
+            }
+          };
+        }
+      }
+
       if (!isAuthTemplate) {
         if (!bodyComponent || !bodyComponent.text || bodyComponent.text.trim().length < 20) {
           return {
@@ -1140,7 +1203,7 @@ class WhatsAppService {
 
           
           const response = await axios.post(
-            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
             createTemplatePayload(templateName),
             {
               headers: {
@@ -1188,7 +1251,7 @@ class WhatsAppService {
 
       try {
         response = await axios.post(
-          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
           payload,
           {
             headers: {
@@ -1397,7 +1460,7 @@ class WhatsAppService {
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
       const response = await axios.delete(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${process.env.WHATSAPP_BUSINESS_ACCOUNT_ID}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
         {
           params: {
             name: templateName
@@ -1459,3 +1522,4 @@ class WhatsAppService {
 }
 
 module.exports = new WhatsAppService();
+module.exports.WhatsAppService = WhatsAppService;

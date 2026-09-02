@@ -13,6 +13,11 @@ const tenantSettingsSchema = new mongoose.Schema({
     unique: true,
     index: true
   },
+  defaultChannelId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Channel',
+    default: null
+  },
   // Outbound Delivery Rules
   deliveryRules: {
     maxMessagesPerMinute: { type: Number, default: 30 },
@@ -88,6 +93,11 @@ const tenantSettingsSchema = new mongoose.Schema({
     invoicePrefix: { type: String, default: 'INV-' },
     currency: { type: String, default: 'INR' },
     taxPercentage: { type: Number, default: 18 } // Default GST
+  },
+  // Meta Commerce (WhatsApp Catalog Sync)
+  metaCommerce: {
+    catalogId: { type: String, default: '' },
+    systemUserToken: { type: String, default: '' }
   }
 }, {
   timestamps: true

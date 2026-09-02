@@ -113,13 +113,19 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
   }
   
   try {
-    const response = await fetch(parsedEndpoint, {
+    const axiosConfig = {
       method: method || 'GET',
-      headers: parsedHeaders,
-      body: requestBody
-    });
-    
-    const data = await response.json();
+      url: parsedEndpoint,
+      headers: parsedHeaders
+    };
+    if (requestBody) {
+      // Axios parses strings automatically if header is application/json
+      // but it expects the body payload in the `data` property.
+      axiosConfig.data = requestBody;
+    }
+
+    const response = await axios(axiosConfig);
+    const data = response.data;
 
     // Map response fields back to session variables if configured
     if (responseMapping && responseMapping.length > 0) {
@@ -245,10 +251,8 @@ module.exports.executeGoogleSheetsNode = async function executeGoogleSheetsNode(
   });
 
   try {
-    await fetch(parsedWebhook, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    await axios.post(parsedWebhook, payload, {
+      headers: { 'Content-Type': 'application/json' }
     });
     return 'success';
   } catch (error) {
@@ -334,8 +338,7 @@ module.exports.executeShopifyNode = async function executeShopifyNode(session, n
   try {
     const response = await axios.get(`${url}/shop.json`, {
       headers: {
-        // 'X-Shopify-Access-Token': tenantSettings.shopifyAccessToken 
-        'X-Shopify-Access-Token': 'NO_TOKEN_CONFIGURED' // Will fail naturally
+        'X-Shopify-Access-Token': node.data.shopifyAccessToken || contextData?.tenantSettings?.shopifyToken || ''
       }
     });
 

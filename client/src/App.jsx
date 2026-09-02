@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { Suspense, lazy, useState, memo, useEffect } from "react";
+import { Suspense, lazy, useState, memo, useEffect, useContext } from "react";
 import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -15,6 +15,8 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import WhatsAppConfig from "./pages/setting/Wapi";
 import LazyOnboardingModal from "./components/LazyOnboardingModal";
+import ConnectWhatsAppModal from "./components/Modol/ConnectWhatsAppModal";
+import { userContext } from "./context/Context";
 
 // --- UPDATED LOADING UI ---
 const PageLoader = () => <Loading />;
@@ -156,16 +158,30 @@ const AppLayout = memo(() => {
   }, [isPricingPage, isChangePasswordPage]);
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
+  const { user } = useContext(userContext);
+  // --- LIVE PRODUCTION CHECK ---
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
+  
+  // --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
+  // const isWhatsAppConnected = true; 
+
+  const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
+
   return (
-    <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden">
+    <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
       <LazyOnboardingModal />
+      {/* Force WhatsApp connection modal if not connected */}
+      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} user={user} />}
+      
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && (
-        <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        <div className={showWhatsAppLock ? "pointer-events-none opacity-50" : ""} inert={showWhatsAppLock ? "" : undefined}>
+          <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+        </div>
       )}
 
       {/* 2. Main content container (Navbar + Page Content) */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${showWhatsAppLock ? "pointer-events-none opacity-50" : ""}`} inert={showWhatsAppLock ? "" : undefined}>
         
         {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
         {isDashboard && (

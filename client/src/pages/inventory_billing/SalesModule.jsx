@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import axios from '../../context/axios';
 import { toast } from 'react-toastify';
 import { generateInvoicePDF } from '../../utils/generateInvoicePDF';
 
@@ -9,10 +9,17 @@ const SalesModule = () => {
   const [cart, setCart] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState('');
   const [createdInvoice, setCreatedInvoice] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   useEffect(() => {
-    axios.get('/api/customers?limit=100', { withCredentials: true }).then(res => setCustomers(res.data.data));
-    axios.get('/api/products?status=active&limit=200', { withCredentials: true }).then(res => setProducts(res.data.data));
+    // 1. Fetch customers and products
+    Promise.all([
+      axios.get('/customers?limit=100', { withCredentials: true }),
+      axios.get('/products?status=active&limit=200', { withCredentials: true })
+    ]).then(([customerRes, productRes]) => {
+      setCustomers(customerRes.data?.data || []);
+      setProducts(productRes.data?.data || []);
+    }).catch(err => toast.error('Failed to initialize sales module'));
   }, []);
 
   const addProductToCart = (productId) => {
@@ -58,12 +65,13 @@ const SalesModule = () => {
     if (cart.length === 0) return toast.error('Add at least one product');
 
     try {
+      setIsSubmitting(true);
       const payload = {
         customer: selectedCustomer,
         products: cart,
         grandTotal
       };
-      const res = await axios.post('/api/sales', payload, { withCredentials: true });
+      const res = await axios.post('/sales', payload, { withCredentials: true });
       toast.success('Sales Invoice Created! Invoice No: ' + res.data.data.invoiceNumber);
       
       const invoiceData = {
@@ -77,6 +85,8 @@ const SalesModule = () => {
       setCart([]);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create invoice');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -244,7 +254,11 @@ const SalesModule = () => {
             <h2 className="font-semibold mb-4 text-lg">Add Products</h2>
             <select onChange={(e) => { addProductToCart(e.target.value); e.target.value=''; }} className="w-full p-3 border rounded-lg mb-4">
               <option value="">-- Search & Add Product --</option>
-              {products.map(p => <option key={p._id} value={p._id}>{p.name} (Stock: {p.currentStock}) - ₹{p.sellingPrice}</option>)}
+              {products.map(p => (
+                <option key={p._id} value={p._id} disabled={p.currentStock <= 0}>
+                  {p.name} {p.currentStock <= 0 ? '(Out of Stock)' : `(Stock: ${p.currentStock})`} - ₹{p.sellingPrice}
+                </option>
+              ))}
             </select>
 
             <table className="w-full text-left">
@@ -260,17 +274,29 @@ const SalesModule = () => {
                 </tr>
               </thead>
               <tbody>
-                {cart.map((item, i) => (
-                  <tr key={i} className="border-b">
-                    <td className="p-2">{item.name}</td>
-                    <td className="p-2"><input type="number" min="1" value={item.quantity} onChange={(e) => updateCartItem(i, 'quantity', e.target.value)} className="w-full border p-1 rounded" /></td>
-                    <td className="p-2"><input type="number" value={item.sellingPrice} onChange={(e) => updateCartItem(i, 'sellingPrice', e.target.value)} className="w-full border p-1 rounded" /></td>
-                    <td className="p-2"><input type="number" value={item.discount} onChange={(e) => updateCartItem(i, 'discount', e.target.value)} className="w-full border p-1 rounded" /></td>
-                    <td className="p-2">{item.gst}%</td>
-                    <td className="p-2 font-medium">₹{item.total.toFixed(2)}</td>
-                    <td className="p-2"><button onClick={() => removeCartItem(i)} className="text-red-500">X</button></td>
-                  </tr>
-                ))}
+                {cart.map((item, i) => {
+                  const productDetails = products.find(p => p._id === item.product);
+                  return (
+                    <tr key={i} className="border-b">
+                      <td className="p-2">{item.name}</td>
+                      <td className="p-2">
+                        <input 
+                          type="number" 
+                          min="1" 
+                          max={productDetails?.currentStock || 1} 
+                          value={item.quantity} 
+                          onChange={(e) => updateCartItem(i, 'quantity', e.target.value)} 
+                          className="w-full border p-1 rounded" 
+                        />
+                      </td>
+                      <td className="p-2"><input type="number" value={item.sellingPrice} onChange={(e) => updateCartItem(i, 'sellingPrice', e.target.value)} className="w-full border p-1 rounded" /></td>
+                      <td className="p-2"><input type="number" value={item.discount} onChange={(e) => updateCartItem(i, 'discount', e.target.value)} className="w-full border p-1 rounded" /></td>
+                      <td className="p-2">{item.gst}%</td>
+                      <td className="p-2 font-medium">₹{item.total.toFixed(2)}</td>
+                      <td className="p-2"><button onClick={() => removeCartItem(i)} className="text-red-500">X</button></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -288,8 +314,12 @@ const SalesModule = () => {
               <span>₹{grandTotal.toFixed(2)}</span>
             </div>
           </div>
-          <button onClick={handleGenerateInvoice} className="w-full mt-6 bg-blue-600 text-white p-3 rounded-lg font-bold text-lg hover:bg-blue-700">
-            Generate Invoice
+          <button 
+            onClick={handleGenerateInvoice} 
+            disabled={isSubmitting}
+            className={`w-full mt-6 text-white p-3 rounded-lg font-bold text-lg transition-colors ${isSubmitting ? 'bg-slate-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
+          >
+            {isSubmitting ? 'Generating...' : 'Generate Invoice'}
           </button>
         </div>
       </div>
