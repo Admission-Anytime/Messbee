@@ -164,42 +164,64 @@ const Step1 = ({ onNext }) => {
   const submit = (e) => {
     e.preventDefault();
 
-    // Name must contain at least one alphabetic character
+    if (!formData.fullName.trim()) {
+      toast.error("Full Name is required.");
+      return;
+    }
     if (!/[a-zA-Z]/.test(formData.fullName)) {
       toast.error("Full Name must contain at least one alphabetic character.");
       return;
     }
 
-    // Business Name must contain at least one alphabetic character
+    if (!formData.businessName.trim()) {
+      toast.error("Business Name is required.");
+      return;
+    }
     if (!/[a-zA-Z]/.test(formData.businessName)) {
       toast.error("Business Name must contain at least one alphabetic character.");
       return;
     }
 
-    if (formData.password !== formData.confirmPassword) {
-      toast.error("Passwords do not match.");
+    if (!formData.email.trim()) {
+      toast.error("Email address is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      toast.error("Please enter a valid email address.");
       return;
     }
 
-    // Password complexity: min 8 chars, uppercase, lowercase, digit, special char
+    if (!formData.password) {
+      toast.error("Password is required.");
+      return;
+    }
     if (formData.password.length < 8) {
-      toast.error("Password must be at least 8 characters.");
+      toast.error("Password must be at least 8 characters long.");
       return;
     }
     if (!/[A-Z]/.test(formData.password)) {
-      toast.error("Password must contain at least one uppercase letter.");
+      toast.error("Password must contain at least one uppercase letter (A-Z).");
       return;
     }
     if (!/[a-z]/.test(formData.password)) {
-      toast.error("Password must contain at least one lowercase letter.");
+      toast.error("Password must contain at least one lowercase letter (a-z).");
       return;
     }
     if (!/[0-9]/.test(formData.password)) {
-      toast.error("Password must contain at least one numeric digit.");
+      toast.error("Password must contain at least one numeric digit (0-9).");
       return;
     }
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.password)) {
-      toast.error("Password must contain at least one special character.");
+      toast.error("Password must contain at least one special character (!@#$%^&*).");
+      return;
+    }
+
+    if (!formData.confirmPassword) {
+      toast.error("Please confirm your password.");
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
 
@@ -222,7 +244,7 @@ const Step1 = ({ onNext }) => {
           <img src={logoName} alt="MessBee" className="h-4 object-contain" />
         </div>
 
-        <form onSubmit={submit} className="flex-1 flex flex-col px-5 pb-4">
+        <form onSubmit={submit} noValidate className="flex-1 flex flex-col px-5 pb-4">
           {/* Header */}
           <div className="mt-2 mb-2">
             <h1 className="text-[1rem] font-bold text-slate-900 leading-tight mb-0.5">
@@ -359,19 +381,24 @@ const Step1 = ({ onNext }) => {
 // ══════════════════════════════════════════════════════════════
 const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [customCategory, setCustomCategory] = useState("");
   const [selectedType, setSelectedType] = useState("Individual");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [country, setCountry] = useState("");
   const [gst, setGst] = useState("");
   const [website, setWebsite] = useState("");
-  const [phone, setPhone] = useState("");
 
   const submit = (e) => {
     e.preventDefault();
     if (!selectedCategory) { toast.error("Please select a Business Category."); return; }
-    if (!city || !state || !country) { toast.error("Please fill in City, State, and Country."); return; }
-    onSubmit({ selectedCategory, selectedType, city, state, country, gst, website, phone });
+    if (selectedCategory === "other" && !customCategory.trim()) { toast.error("Please enter your custom Business Category."); return; }
+    if (!city.trim()) { toast.error("Please enter your City."); return; }
+    if (!state.trim()) { toast.error("Please enter your State."); return; }
+    if (!country.trim()) { toast.error("Please select your Country."); return; }
+    
+    const finalCategory = selectedCategory === "other" ? customCategory.trim() : selectedCategory;
+    onSubmit({ selectedCategory: finalCategory, selectedType, city, state, country, gst, website });
   };
 
   const LocIcon = () => (
@@ -390,7 +417,7 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
           <img src={logoName} alt="MessBee" className="h-4 object-contain" />
         </div>
 
-        <form onSubmit={submit} className="flex-1 flex flex-col px-5 pb-4">
+        <form onSubmit={submit} noValidate className="flex-1 flex flex-col px-5 pb-4">
           {/* Header */}
           <div className="mt-2 mb-2">
             <h1 className="text-[1rem] font-bold text-slate-900 leading-tight mb-0.5">
@@ -419,6 +446,17 @@ const Step2 = ({ step1Data, onBack, onSubmit, isLoading }) => {
                 </button>
               ))}
             </div>
+            {selectedCategory === "other" && (
+              <div className="mb-2">
+                <Field label="Custom Category">
+                  <IconInput 
+                    icon={<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>}
+                    type="text" placeholder="Enter your business category"
+                    value={customCategory} onChange={(e) => setCustomCategory(e.target.value)} required
+                  />
+                </Field>
+              </div>
+            )}
           </div>
 
           {/* Business Type */}
@@ -553,7 +591,20 @@ const Step3OTP = ({ allData, onBack, onPendingApproval }) => {
         allData.fullName,
         allData.email,
         allData.password,
-        allData.phone || ""
+        allData.phone || "",
+        {
+          businessName: allData.businessName,
+          businessCategory: allData.selectedCategory,
+          businessType: allData.selectedType,
+          city: allData.city,
+          state: allData.state,
+          country: allData.country,
+          gst: allData.gst,
+          website: allData.website,
+          referralCode: allData.referralCode,
+          clientId: allData.clientId,
+          trialId: allData.trialId,
+        }
       );
       if (res.success) {
         toast.success("OTP sent to your email!");

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsappController');
-const { protect } = require('../middleware/auth');
+const { protect, authorize } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 /**
@@ -17,20 +17,20 @@ router.post('/webhook', whatsappController.handleWebhook);
 // Test WhatsApp API connection (Protected route)
 router.get('/test-connection', protect, whatsappController.testConnection);
 
-// Register WhatsApp number (Protected route)
-router.post('/register', protect, whatsappController.registerNumber);
+// Register WhatsApp number (Protected route, Admin only)
+router.post('/register', protect, authorize('ADMIN', 'admin'), whatsappController.registerNumber);
 
-// Connect via OAuth Token (Protected route)
-router.post('/connect-oauth', protect, whatsappController.connectOAuthToken);
+// Connect via OAuth Token (Protected route, Admin only)
+router.post('/connect-oauth', protect, authorize('ADMIN', 'admin'), whatsappController.connectOAuthToken);
 
-// Embedded Signup Callback (Protected route)
-router.post('/embedded-signup-callback', protect, whatsappController.embeddedSignupCallback);
+// Embedded Signup Callback (Protected route, Admin only)
+router.post('/embedded-signup-callback', protect, authorize('ADMIN', 'admin'), whatsappController.embeddedSignupCallback);
 
-// Connect Manually via Tokens (Protected route)
-router.post('/connect-manual', protect, whatsappController.connectManual);
+// Connect Manually via Tokens (Protected route, Admin only)
+router.post('/connect-manual', protect, authorize('ADMIN', 'admin'), whatsappController.connectManual);
 
-// Deregister WhatsApp number (Protected route)
-router.post('/deregister', protect, whatsappController.deregisterNumber);
+// Deregister WhatsApp number (Protected route, Admin only)
+router.post('/deregister', protect, authorize('ADMIN', 'admin'), whatsappController.deregisterNumber);
 
 // Check message delivery status (Protected route)
 router.get('/message-status/:messageId', protect, whatsappController.getMessageStatus);

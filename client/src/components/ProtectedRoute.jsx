@@ -12,8 +12,8 @@ const ProtectedRoute = ({ children }) => {
   const { isLoggedIn, authChecked } = useContext(userContext);
   const location = useLocation();
 
-  // Wait for initial auth check if not immediately logged in
-  if (!isLoggedIn && !authChecked) {
+  // Always wait for the server to confirm auth state on first load to prevent localStorage spoofing
+  if (!authChecked) {
     return <Loading />;
   }
 
