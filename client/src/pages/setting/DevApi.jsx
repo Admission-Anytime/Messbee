@@ -346,11 +346,16 @@ const DevApi = () => {
 
       {/* ── Header ── */}
       <div className="flex items-start justify-between mb-6">
-        <div>
-          <p className="text-xs text-gray-400 mb-1">Settings &rsaquo; <span className="text-green-600 font-semibold">API &amp; Webhooks</span></p>
-          <h1 className="text-2xl font-bold text-gray-900">API Access &amp; Webhooks</h1>
-          <p className="text-sm text-gray-400 mt-0.5">Manage your authentication keys and real-time event notifications.</p>
-        </div>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Settings › <span className="text-green-600 font-semibold">API &amp; Webhooks</span></p>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">API Access &amp; Webhooks</h1>
+              <p className="text-sm text-gray-400 mt-0.5">Manage your authentication keys and real-time event notifications.</p>
+            </div>
+          </div>
         <span className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs font-bold text-green-700">
           <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
           API STATUS: ACTIVE

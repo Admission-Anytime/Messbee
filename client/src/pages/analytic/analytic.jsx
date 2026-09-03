@@ -3,7 +3,7 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { DatePicker } from "@mui/x-date-pickers/DatePicker";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { ToggleButton, ToggleButtonGroup, Box, IconButton } from "@mui/material";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart2 } from "lucide-react";
 import YellowButton from "../../components/button/buttonReg/YellowButton";
 import Analyticbody from "./Analyticbody";
 import dayjs from "dayjs";
@@ -46,9 +46,14 @@ const Analytic = () => {
       {/* HEADER SECTION */}
       <div className="w-full bg-white px-6 py-4 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-6">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Analytics Overview</h2>
-            <p className="text-sm text-slate-500 font-medium">Track your messaging performance and costs</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+              <BarChart2 className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Analytics Overview</h2>
+              <p className="text-sm text-slate-500 font-medium">Track your messaging performance and costs</p>
+            </div>
           </div>
           <div className="hidden lg:block h-10 w-px bg-gray-200"></div>
           <Tab />

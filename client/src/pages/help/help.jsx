@@ -21,9 +21,14 @@ const HelpLayout = () => {
     <div className="flex flex-col h-full bg-gray-50 w-full overflow-hidden font-sans">
       <div className="bg-white border-b border-gray-200 shrink-0 px-6 sm:px-10 z-10 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-6 pb-2">
-          <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">Help & Support</h1>
-            <p className="text-sm text-slate-500 font-medium mt-1">Everything you need to manage your MessBee account.</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+              <LifebuoyIcon className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-extrabold text-slate-900">Help &amp; Support</h1>
+              <p className="text-sm text-slate-500 font-medium mt-1">Everything you need to manage your MessBee account.</p>
+            </div>
           </div>
         </div>
 

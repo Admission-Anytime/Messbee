@@ -65,9 +65,14 @@ const SupplierManagement = () => {
   return (
     <div className="p-4 md:p-6 bg-slate-50 min-h-screen font-['Urbanist',sans-serif]">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-800">Supplier Management</h1>
-          <p className="text-slate-500 text-[13px] mt-1 font-medium">Manage vendor profiles, contact details, and purchase records</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Supplier Management</h1>
+            <p className="text-slate-500 text-[13px] mt-1 font-medium">Manage vendor profiles, contact details, and purchase records</p>
+          </div>
         </div>
         <button 
           onClick={() => { setEditId(null); setFormData({ companyName: '', contactPerson: '', mobile: '', email: '', gstNumber: '', panNumber: '', address: '', city: '', state: '', pincode: '' }); setIsModalOpen(true); }} 

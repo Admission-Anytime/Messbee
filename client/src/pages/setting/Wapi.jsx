@@ -243,15 +243,20 @@ export default function WhatsAppConfig() {
 
         {/* ── HEADER ── */}
         <div className="flex items-start justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">WhatsApp Configuration</h1>
-            <p className="text-sm text-gray-500 mt-0.5">Manage Business API credentials, health diagnostics, and webhooks.</p>
-            {hasChanges && (
-              <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
-                Unsaved changes — click Save to apply
-              </span>
-            )}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">WhatsApp Configuration</h1>
+              <p className="text-sm text-gray-500 mt-0.5">Manage Business API credentials, health diagnostics, and webhooks.</p>
+              {hasChanges && (
+                <span className="inline-flex items-center gap-1 mt-1.5 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />
+                  Unsaved changes — click Save to apply
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex gap-3">
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 shadow-sm transition">

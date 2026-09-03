@@ -3,7 +3,7 @@ import axios from '../../context/axios';
 import { 
   Plus, Type, Image as ImageIcon, 
   Sticker, Music, Video as VideoIcon, FileText, Link, 
-  Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, ChevronDown, Phone, Smile, Paperclip, Send, CheckCheck 
+  Upload, X, Pencil, Trash2, AlertTriangle, ChevronLeft, ChevronDown, Phone, Smile, Paperclip, Send, CheckCheck, Zap 
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import ErrorState from '../../components/ui/ErrorState';
@@ -241,9 +241,14 @@ const QuickReply = () => {
       <div className="flex flex-col xl:flex-row gap-6 max-w-[1800px] mx-auto">
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 leading-tight">Quick Replies</h1>
-              <p className="text-sm text-gray-500 mt-1">Set up shortcut responses to answer common questions faster.</p>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+                <Zap className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">Quick Replies</h1>
+                <p className="text-sm text-gray-500 mt-1">Set up shortcut responses to answer common questions faster.</p>
+              </div>
             </div>
             <div className="flex gap-2.5 flex-wrap items-center">
               <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
