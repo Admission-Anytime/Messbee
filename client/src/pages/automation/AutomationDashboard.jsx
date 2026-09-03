@@ -101,9 +101,14 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#111827', margin: '0 0 4px 0' }}>Automations</h1>
-            <p style={{ color: '#6B7280', margin: 0, fontSize: '14px' }}>Manage and monitor your AI-powered messaging workflows across all channels.</p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '40px', height: '40px', background: '#ecfdf5', border: '1px solid #d1fae5', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <svg width="20" height="20" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><path d="M14 17h6m-3-3v6"/></svg>
+            </div>
+            <div>
+              <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0', letterSpacing: '-0.025em' }}>Automations</h1>
+              <p style={{ color: '#6B7280', margin: 0, fontSize: '14px' }}>Manage and monitor your AI-powered messaging workflows across all channels.</p>
+            </div>
           </div>
         <button 
           onClick={onCreateAutomation}
