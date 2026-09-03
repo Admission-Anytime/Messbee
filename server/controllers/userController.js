@@ -36,8 +36,12 @@ exports.getAccountLimits = async (req, res, next) => {
     const customFieldsCount = await CustomField.countDocuments({ userId: req.user.id });
     const quickRepliesCount = await QuickReply.countDocuments({ user: req.user.id });
     
-    // Assuming single-tenant or global users for now based on existing getUsers logic
-    const teamMembersCount = await User.countDocuments(); 
+    const tenantId = req.user.tenantId || req.user.id;
+    
+    // Count team members scoped to this tenant (including the admin)
+    const teamMembersCount = await User.countDocuments({
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    }); 
     
     let campaignsCount = 0;
     try {
@@ -80,7 +84,13 @@ exports.getAccountLimits = async (req, res, next) => {
 // @access  Private
 exports.getUsers = async (req, res, next) => {
   try {
-    const users = await User.find();
+    const tenantId = req.user.tenantId || req.user.id;
+    
+    // Only return users belonging to this tenant, and the admin themselves
+    const users = await User.find({
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    });
+    
     res.status(200).json({
       success: true,
       data: users
@@ -111,11 +121,14 @@ exports.createUser = async (req, res, next) => {
       finalRole = 'AGENT';
     }
 
+    const tenantId = req.user.tenantId || req.user.id;
+
     const user = await User.create({
       name,
       email,
       role: finalRole,
       password,
+      tenantId: tenantId, // Link agent to the admin's workspace
       isActive: true,
       isApproved: true, // Admin-created users are pre-approved
       isEmailVerified: true // verify immediately so they can just login
@@ -168,14 +181,17 @@ exports.updateUser = async (req, res, next) => {
       updateData.isActive = status === 'Active';
     }
 
-    const user = await User.findByIdAndUpdate(
-      req.params.id,
+    const tenantId = req.user.tenantId || req.user.id;
+
+    // Secure update: Must belong to this tenant
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, $or: [{ tenantId: tenantId }, { _id: tenantId }] },
       updateData,
       { new: true, runValidators: true }
     );
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User not found or you do not have permission' });
     }
 
     res.status(200).json({
@@ -197,10 +213,16 @@ exports.deleteUser = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'You cannot delete your own account' });
     }
 
-    const user = await User.findById(req.params.id);
+    const tenantId = req.user.tenantId || req.user.id;
+
+    // Secure delete: Must belong to this tenant
+    const user = await User.findOne({ 
+      _id: req.params.id, 
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    });
 
     if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
+      return res.status(404).json({ success: false, message: 'User not found or you do not have permission' });
     }
 
     // Hard delete — removes the document entirely from MongoDB
@@ -225,7 +247,13 @@ exports.bulkDeleteUsers = async (req, res, next) => {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ success: false, message: 'No IDs provided' });
     }
-    await User.deleteMany({ _id: { $in: ids } });
+    const tenantId = req.user.tenantId || req.user.id;
+    
+    // Secure bulk delete: Only delete if they belong to this tenant
+    await User.deleteMany({ 
+      _id: { $in: ids },
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    });
     res.status(200).json({
       success: true,
       data: {}

@@ -57,7 +57,11 @@ const clearTokenCookies = (res) => {
  */
 exports.requestSignupOTP = async (req, res, next) => {
   try {
-    const { email, name, password, phone } = req.body;
+    const { 
+      email, name, password, phone,
+      businessName, businessCategory, businessType, city, state, country, gst, website,
+      referralCode, clientId, trialId
+    } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -83,6 +87,17 @@ exports.requestSignupOTP = async (req, res, next) => {
       existingUser.name = name;
       existingUser.password = password;
       existingUser.phone = phone;
+      if (businessName) existingUser.businessName = businessName;
+      if (businessCategory) existingUser.businessCategory = businessCategory;
+      if (businessType) existingUser.businessType = businessType;
+      if (city) existingUser.city = city;
+      if (state) existingUser.state = state;
+      if (country) existingUser.country = country;
+      if (gst !== undefined) existingUser.gst = gst;
+      if (website !== undefined) existingUser.website = website;
+      if (referralCode !== undefined) existingUser.referralCode = referralCode;
+      if (clientId) existingUser.clientId = clientId;
+      if (trialId) existingUser.trialId = trialId;
       existingUser.otp = otp;
       existingUser.otpExpiry = otpExpiry;
       existingUser.otpAttempts = 0;
@@ -93,7 +108,19 @@ exports.requestSignupOTP = async (req, res, next) => {
         email,
         name,
         password,
+        role: 'ADMIN', // New signups are the owners/admins of their workspace
         phone,
+        businessName,
+        businessCategory,
+        businessType,
+        city,
+        state,
+        country,
+        gst,
+        website,
+        referralCode,
+        clientId,
+        trialId,
         otp,
         otpExpiry,
         isEmailVerified: false,
@@ -368,31 +395,47 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
-    // Set tokens as HTTP-only cookies
-    setTokenCookies(res, accessToken, refreshToken);
+        // Calculate WhatsApp connection status on login
+        let tenantWhatsAppConnected = false;
+        let whatsappConfig = user.whatsappConfig;
+        
+        try {
+          const Channel = require('../models/Channel');
+          const tenantId = user.tenantId || user._id;
+          const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+          tenantWhatsAppConnected = !!channel;
 
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      tokens: {
-        accessToken,
-        refreshToken
-      },
-      data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-          phone: user.phone,
-          company: user.company,
-          subscriptionPlan: user.subscriptionPlan,
-          lastLogin: user.lastLogin,
-          whatsappConfig: user.whatsappConfig
+          if (tenantWhatsAppConnected) {
+            if (!whatsappConfig) whatsappConfig = {};
+            whatsappConfig.wabaId = whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+          }
+        } catch(e) {
+          console.error("Error checking WhatsApp status on login", e);
         }
-      }
-    });
+
+        res.status(200).json({
+          success: true,
+          message: 'Login successful',
+          tokens: {
+            accessToken,
+            refreshToken
+          },
+          data: {
+            user: {
+              id: user._id,
+              name: user.name,
+              email: user.email,
+              role: user.role,
+              avatar: user.avatar,
+              phone: user.phone,
+              company: user.company,
+              subscriptionPlan: user.subscriptionPlan,
+              lastLogin: user.lastLogin,
+              whatsappConfig: whatsappConfig,
+              tenantWhatsAppConnected: tenantWhatsAppConnected
+            }
+          }
+        });
   } catch (error) {
     console.error('Verify login OTP error:', error);
     next(error);
@@ -457,6 +500,24 @@ exports.login = async (req, res, next) => {
     // Set tokens as HTTP-only cookies
     setTokenCookies(res, accessToken, refreshToken);
 
+    // Calculate WhatsApp connection status on login
+    let tenantWhatsAppConnected = false;
+    let whatsappConfig = user.whatsappConfig;
+    
+    try {
+      const Channel = require('../models/Channel');
+      const tenantId = user.tenantId || user._id;
+      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      tenantWhatsAppConnected = !!channel;
+
+      if (tenantWhatsAppConnected) {
+        if (!whatsappConfig) whatsappConfig = {};
+        whatsappConfig.wabaId = whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+      }
+    } catch(e) {
+      console.error("Error checking WhatsApp status on login", e);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Login successful',
@@ -472,7 +533,8 @@ exports.login = async (req, res, next) => {
           role: user.role,
           avatar: user.avatar,
           subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate,
-          whatsappConfig: user.whatsappConfig
+          whatsappConfig: whatsappConfig,
+          tenantWhatsAppConnected: tenantWhatsAppConnected
         }
       }
     });
@@ -825,6 +887,8 @@ exports.getMe = async (req, res, next) => {
       const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
       
       user.tenantWhatsAppConnected = !!channel;
+
+      console.log(`[DEBUG getMe] User: ${user.email}, Role: ${user.role}, tenantId: ${tenantId}, channelFound: ${!!channel}, tenantWhatsAppConnected: ${user.tenantWhatsAppConnected}`);
 
       // Fix for Employee/Agent Lockout: Give them a mock wabaId if the Admin connected it
       if (user.tenantWhatsAppConnected) {

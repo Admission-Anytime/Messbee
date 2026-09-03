@@ -159,24 +159,24 @@ const AppLayout = memo(() => {
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
-  // --- LIVE PRODUCTION CHECK ---
-const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-
-// --- LOCAL TESTING BYPASS (Uncomment line below to bypass lock) ---
-// const isWhatsAppConnected = true; 
-
- 
-
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
       <LazyOnboardingModal />
       {/* Force WhatsApp connection modal if not connected */}
-      {showWhatsAppLock && <ConnectWhatsAppModal isOpen={true} isMandatory={true} onClose={() => {}} user={user} />}
+      {showWhatsAppLock && (
+        <ConnectWhatsAppModal
+          isOpen={true}
+          isMandatory={true}
+          onClose={() => {}}
+          user={user}
+        />
+      )}
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
-      {!isChangePasswordPage && (
+      {!isChangePasswordPage && !showWhatsAppLock && (
         <div className={showWhatsAppLock ? "pointer-events-none opacity-50" : ""} inert={showWhatsAppLock ? "" : undefined}>
           <MainSidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
         </div>
@@ -186,7 +186,7 @@ const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
       <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${showWhatsAppLock ? "pointer-events-none opacity-50" : ""}`} inert={showWhatsAppLock ? "" : undefined}>
         
         {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
-        {isDashboard && (
+        {isDashboard && !showWhatsAppLock && (
           <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
             <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
@@ -194,11 +194,17 @@ const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
 
         {/* 4. Page Content area */}
         <div className="flex-1 overflow-y-auto bg-[#f8fafc] relative w-full">
-          <ErrorBoundary>
-            <Suspense fallback={<PageLoader />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
+          {showWhatsAppLock ? (
+            <div className="h-full w-full flex items-center justify-center bg-gray-100/50">
+              {/* Dashboard is completely blocked from rendering in the DOM to prevent bypass */}
+            </div>
+          ) : (
+            <ErrorBoundary>
+              <Suspense fallback={<PageLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
+          )}
         </div>
       </div>
     </div>

@@ -44,18 +44,19 @@ class WhatsAppService {
           // No DB config yet — seed from .env and save
           setting = setting || new Setting({ key: 'whatsapp_config', value: {} });
           setting.value = {
-            apiVersion:         process.env.WHATSAPP_API_VERSION,
-            phoneNumberId:      process.env.WHATSAPP_PHONE_NUMBER_ID,
-            accessToken:        process.env.WHATSAPP_ACCESS_TOKEN,
-            businessAccountId:  process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
+            apiVersion: process.env.WHATSAPP_API_VERSION,
+            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
+            accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
+            businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
           };
           await setting.save();
         }
+        
         // ✅ DB values take priority — only fall back to .env if DB value is missing/empty
-        this.apiVersion         = setting.value.apiVersion         || process.env.WHATSAPP_API_VERSION;
-        this.phoneNumberId      = setting.value.phoneNumberId      || process.env.WHATSAPP_PHONE_NUMBER_ID;
-        this.accessToken        = setting.value.accessToken        || process.env.WHATSAPP_ACCESS_TOKEN;
-        this.businessAccountId  = setting.value.businessAccountId  || (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
+        this.apiVersion = setting.value.apiVersion || process.env.WHATSAPP_API_VERSION;
+        this.phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        this.accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
+        this.businessAccountId = setting.value.businessAccountId || (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
         
         this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
       } catch (error) {
@@ -679,6 +680,8 @@ class WhatsAppService {
             
             // Add the required URL button component for the COPY_CODE button,
             // while keeping the body component intact for the `{{1}}` injection.
+            // Meta enforces a strict 15-character limit for the OTP button parameter,
+            // and it cannot contain spaces because Meta puts it in a URL.
             components.push({
               type: 'button',
               sub_type: 'url',
@@ -686,7 +689,7 @@ class WhatsAppService {
               parameters: [
                 {
                   type: 'text',
-                  text: encodeURIComponent(String(otpCode).trim())
+                  text: String(otpCode).replace(/[^a-zA-Z0-9]/g, '').substring(0, 15)
                 }
               ]
             });

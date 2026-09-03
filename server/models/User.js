@@ -39,6 +39,11 @@ const UserSchema = new mongoose.Schema({
     enum: ['ADMIN', 'MANAGER', 'AGENT', 'user', 'admin'],
     default: 'AGENT'
   },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
+  },
   lastActive: {
     type: Date,
     default: Date.now
@@ -69,6 +74,21 @@ const UserSchema = new mongoose.Schema({
     type: String
   },
   country: {
+    type: String
+  },
+  gst: {
+    type: String
+  },
+  website: {
+    type: String
+  },
+  referralCode: {
+    type: String
+  },
+  clientId: {
+    type: String
+  },
+  trialId: {
     type: String
   },
   isActive: {
@@ -188,7 +208,7 @@ UserSchema.methods.matchPassword = async function(enteredPassword) {
 // Generate JWT Access Token
 UserSchema.methods.getSignedJwtToken = function() {
   return jwt.sign(
-    { id: this._id, email: this.email, role: this.role },
+    { id: this._id, email: this.email, role: this.role, tenantId: this.tenantId || this._id },
     process.env.JWT_SECRET || 'your-secret-key',
     {
       expiresIn: process.env.JWT_EXPIRE || '24h'

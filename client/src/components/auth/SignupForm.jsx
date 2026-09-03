@@ -15,7 +15,6 @@ import { FiEye, FiEyeOff } from "react-icons/fi";
 export const SignupForm = () => {
   const navigate = useNavigate();
   const { loginUser, isLoggedIn } = useContext(userContext);
-  const [number, setNumber] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -56,36 +55,79 @@ export const SignupForm = () => {
     e.preventDefault();
     setErrorMessage("");
 
-    // Name must contain at least one alphabetic character
+    if (!formData.name.trim()) {
+      const msg = "Full Name is required.";
+      toast.error(msg);
+      setErrorMessage(msg);
+      return;
+    }
     if (!/[a-zA-Z]/.test(formData.name)) {
-      setErrorMessage("Name must contain at least one alphabetic character.");
+      const msg = "Full Name must contain at least one alphabetic character.";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
 
-    if (formData.password !== formData.confirm_password) {
-      setErrorMessage("Passwords do not match.");
+    if (!formData.email.trim()) {
+      const msg = "Email address is required.";
+      toast.error(msg);
+      setErrorMessage(msg);
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email.trim())) {
+      const msg = "Please enter a valid email address.";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
 
-    // Password complexity: min 8 chars, uppercase, lowercase, digit, special char
+    if (!formData.password) {
+      const msg = "Password is required.";
+      toast.error(msg);
+      setErrorMessage(msg);
+      return;
+    }
     if (formData.password.length < 8) {
-      setErrorMessage("Password must be at least 8 characters.");
+      const msg = "Password must be at least 8 characters long.";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
     if (!/[A-Z]/.test(formData.password)) {
-      setErrorMessage("Password must contain at least one uppercase letter.");
+      const msg = "Password must contain at least one uppercase letter (A-Z).";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
     if (!/[a-z]/.test(formData.password)) {
-      setErrorMessage("Password must contain at least one lowercase letter.");
+      const msg = "Password must contain at least one lowercase letter (a-z).";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
     if (!/[0-9]/.test(formData.password)) {
-      setErrorMessage("Password must contain at least one numeric digit.");
+      const msg = "Password must contain at least one numeric digit (0-9).";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
     if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?`~]/.test(formData.password)) {
-      setErrorMessage("Password must contain at least one special character.");
+      const msg = "Password must contain at least one special character (!@#$%^&*).";
+      toast.error(msg);
+      setErrorMessage(msg);
+      return;
+    }
+
+    if (!formData.confirm_password) {
+      const msg = "Please confirm your password.";
+      toast.error(msg);
+      setErrorMessage(msg);
+      return;
+    }
+    if (formData.password !== formData.confirm_password) {
+      const msg = "Passwords do not match.";
+      toast.error(msg);
+      setErrorMessage(msg);
       return;
     }
 
@@ -96,7 +138,7 @@ export const SignupForm = () => {
         formData.name,
         formData.email,
         formData.password,
-        number
+        ""
       );
 
       if (response.success) {
@@ -232,21 +274,6 @@ export const SignupForm = () => {
               required
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-900 focus:ring-2 focus:ring-[#00E56A]/20 focus:border-[#00E56A] outline-none transition-all"
             />
-          </div>
-
-          {/* Phone Input */}
-          <div>
-            <label className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">
-              Phone Number (Optional)
-            </label>
-            <div className="focus-within:ring-2 focus-within:ring-[#00E56A]/20 rounded-xl transition-all">
-              <PhoneInput
-                defaultCountry="in"
-                value={number}
-                onChange={setNumber}
-                forceDialCode={true}
-              />
-            </div>
           </div>
 
           {/* Passwords - Side by Side */}

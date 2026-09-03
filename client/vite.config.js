@@ -80,12 +80,12 @@ export default defineConfig({
     proxy: {
       // Proxy all /api/* requests to the backend in development
       '/api': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5002',
         changeOrigin: true,
         secure: false,
       },
       '/uploads': {
-        target: 'http://localhost:5000',
+        target: 'http://localhost:5002',
         changeOrigin: true,
         secure: false,
       },
