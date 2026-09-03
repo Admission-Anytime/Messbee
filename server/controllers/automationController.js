@@ -67,6 +67,13 @@ exports.createAutomation = async (req, res, next) => {
     const automationData = { ...req.body, tenantId };
     const newAutomation = new Automation(automationData);
     const savedAutomation = await newAutomation.save();
+
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('automation_updated', { tenantId, automation: savedAutomation });
+    } catch (_) {}
+
     res.status(201).json(savedAutomation);
   } catch (error) {
     next(error);
@@ -91,6 +98,13 @@ exports.updateAutomation = async (req, res, next) => {
     if (!updatedAutomation) {
       return res.status(404).json({ message: 'Automation not found' });
     }
+
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('automation_updated', { tenantId, automation: updatedAutomation });
+    } catch (_) {}
+
     res.status(200).json(updatedAutomation);
   } catch (error) {
     next(error);
@@ -104,6 +118,13 @@ exports.deleteAutomation = async (req, res, next) => {
     if (!deletedAutomation) {
       return res.status(404).json({ message: 'Automation not found' });
     }
+
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('automation_updated', { tenantId, deletedId: req.params.id });
+    } catch (_) {}
+
     res.status(200).json({ message: 'Automation deleted successfully' });
   } catch (error) {
     next(error);

@@ -41,6 +41,7 @@ class WhatsAppService {
         let setting = await Setting.findOne({ key: 'whatsapp_config' });
         
         if (!setting || !setting.value) {
+          // No DB config yet — seed from .env and save
           setting = setting || new Setting({ key: 'whatsapp_config', value: {} });
           setting.value = {
             apiVersion: process.env.WHATSAPP_API_VERSION,
@@ -51,6 +52,7 @@ class WhatsAppService {
           await setting.save();
         }
         
+        // ✅ DB values take priority — only fall back to .env if DB value is missing/empty
         this.apiVersion = setting.value.apiVersion || process.env.WHATSAPP_API_VERSION;
         this.phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
         this.accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
@@ -61,7 +63,7 @@ class WhatsAppService {
         console.error('❌ Error syncing WhatsApp config from DB:', error.message);
       }
     }
-  
+
   /**
    * Validate configuration
    */

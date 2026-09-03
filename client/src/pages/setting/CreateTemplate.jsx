@@ -1773,14 +1773,14 @@ const CreateTemplate = () => {
 const MobilePreview = ({ name, body, footer, showImage = false, isLimited = false, isCatalog = false, isMpm = false, catalogButtonText = "", mpmButtonText = "", buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
   if (isSetupView) {
     return (
-      <div className="relative w-[320px] h-[640px] bg-white rounded-[3rem] border-[14px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+      <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
         {/* Notch */}
-        <div className="absolute top-0 w-36 h-[28px] bg-[#1e293b] rounded-b-[20px] z-20 flex justify-center">
-           <div className="w-14 h-1.5 bg-white/20 rounded-full mt-2"></div>
+        <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
+           <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
         </div>
         
         {/* Screen Background */}
-        <div className="w-full h-full bg-[#e5ddd5] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+        <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
            {/* Message Bubble Card */}
            <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
               
@@ -1821,14 +1821,14 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
 
   // Dynamic preview for content phase
   return (
-    <div className="relative w-[320px] h-[640px] bg-white rounded-[3rem] border-[14px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+    <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
       {/* Notch */}
-      <div className="absolute top-0 w-36 h-[28px] bg-[#1e293b] rounded-b-[20px] z-20 flex justify-center">
-         <div className="w-14 h-1.5 bg-white/20 rounded-full mt-2"></div>
+      <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
+         <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
       </div>
       
       {/* Screen Background */}
-      <div className="w-full h-full bg-[#e5ddd5] pt-14 pb-6 px-4 overflow-y-auto custom-scrollbar flex flex-col">
+      <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
             {showImage && (

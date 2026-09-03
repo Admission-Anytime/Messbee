@@ -146,6 +146,12 @@ exports.createUser = async (req, res, next) => {
       console.error('Failed to send invite email:', emailErr);
     }
 
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) io.emit('user_created', { user });
+    } catch (_) {}
+
     res.status(201).json({
       success: true,
       data: user,
