@@ -13,7 +13,7 @@ import {
    ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon, ArrowDownTrayIcon,
    UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
 } from "@heroicons/react/24/outline";
-import { Pin } from "lucide-react";
+import { Pin, ChevronLeft, Video, Phone, CheckCheck, Smile, Paperclip, Send, Image as ImageIcon } from "lucide-react";
 import { PaperAirplaneIcon, MegaphoneIcon, DocumentTextIcon, Squares2X2Icon, CheckCircleIcon as SolidCheckCircle, CheckIcon } from "@heroicons/react/24/solid";
 import EmojiPicker from "emoji-picker-react";
 
@@ -1376,42 +1376,86 @@ const selectedTemplate = useMemo(() => {
                         <div className="w-full lg:w-[42%] lg:min-w-[320px] bg-slate-100 flex flex-col items-center justify-start lg:justify-center p-4 overflow-y-auto min-h-[280px] lg:min-h-0">
                            <div className="mb-4 lg:mb-6 text-center">
                               <span className="text-[0.65rem] font-bold text-slate-500 uppercase tracking-[0.2em] block mb-2">Live Preview</span>
-                              <h4 className="text-2xl sm:text-3xl lg:text-[38px] leading-tight font-extrabold text-slate-700 truncate max-w-[320px]">{previewTitle}</h4>
+                              <h4 className="text-xl sm:text-2xl font-bold text-slate-800 tracking-tight leading-normal pb-0.5 truncate max-w-[320px] mx-auto">{previewTitle}</h4>
                            </div>
 
-                           <div className="w-[230px] sm:w-[250px] lg:w-[275px] h-[430px] sm:h-[470px] lg:h-[520px] bg-[#0f1e3a] rounded-[3rem] p-3 shadow-2xl relative border-4 border-[#1d2f4d]">
-                              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-7 bg-[#1d2f4d] rounded-b-2xl z-10 flex items-center justify-center">
-                                 <div className="w-11 h-1.5 bg-[#334a6f] rounded-full" />
-                              </div>
-
-                              <div className="w-full h-full bg-white rounded-[2.25rem] overflow-hidden flex flex-col">
-                                 <div className="h-9 bg-white flex justify-between items-end px-6 pb-1.5">
-                                    <span className="text-[14px] font-extrabold">9:41</span>
-                                    <div className="flex gap-1.5 items-center">
-                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
-                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
-                                       <span className="w-2.5 h-2.5 rounded-full bg-slate-600" />
+                           <div className="relative w-full max-w-[195px] sm:max-w-[220px] aspect-[245/500] mx-auto bg-gradient-to-b from-[#0b1118] via-[#111b24] to-[#0b1118] rounded-[2.25rem] sm:rounded-[2.75rem] border-[7px] sm:border-[9px] border-[#0a0f14] shadow-[0_28px_48px_-16px_rgba(0,0,0,0.45)] overflow-hidden font-sans flex flex-col">
+                              <div className="absolute inset-x-0 top-0 h-6 sm:h-7 bg-gradient-to-b from-black/40 to-transparent z-20 pointer-events-none" />
+                              <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-20 sm:w-24 h-4.5 sm:h-5 bg-black rounded-full z-30 border border-white/10" />
+                              <div className="h-full bg-[#e7ddd1] pt-7 sm:pt-8 relative flex flex-col">
+                                 <div className="absolute inset-0 opacity-[0.22] pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 24px 24px, #c7bbb0 1.2px, transparent 1.2px)', backgroundSize: '22px 22px' }}></div>
+                                 <div className="absolute top-1.5 sm:top-2 inset-x-0 z-40 px-4 sm:px-5 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-[#0b1118] pointer-events-none">
+                                    <span>9:41</span>
+                                    <div className="flex items-center gap-1.5 text-[#1f2937]">
+                                       <span>5G</span>
+                                       <span className="inline-flex items-center gap-[2px]">
+                                          <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+                                          <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+                                          <span className="w-1 h-1 rounded-full bg-[#1f2937]" />
+                                       </span>
                                     </div>
                                  </div>
 
-                                 <div className="flex-1 p-4 bg-slate-100 flex flex-col gap-4 overflow-hidden">
-                                    {previewTemplate && renderTemplateHeaderPreview(previewTemplate)}
-                                    {previewTemplate?.bodyText && (
-                                       <div className="flex items-start gap-2">
-                                          <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-                                             <MegaphoneIcon className="w-4.5 h-4.5 text-emerald-700" />
-                                          </div>
-                                          <div 
-                                             className="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm text-[14px] leading-relaxed text-slate-700 max-w-[85%] border border-slate-200 whitespace-pre-wrap"
-                                             dangerouslySetInnerHTML={{ __html: renderTemplateBodyPreview(previewTemplate) }}
-                                          />
-                                       </div>
-                                    )}
+                                 <div className="relative z-10 bg-[#0b6a61] px-3 sm:px-3.5 py-1.5 sm:py-2 flex items-center gap-2 sm:gap-2.5 shadow-lg shrink-0">
+                                    <button className="text-white/90 text-base leading-none" type="button" aria-label="Back">
+                                       <ChevronLeft size={16} />
+                                    </button>
+                                    <div className="w-8 h-8 sm:w-9 sm:h-9 bg-gradient-to-br from-[#14b8a6] to-[#0f766e] rounded-full flex items-center justify-center border border-white/20 shrink-0">
+                                       <span className="text-white text-[11px] sm:text-xs font-bold">MB</span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                       <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">MessBee Business</p>
+                                       <p className="text-white/80 text-[9px] sm:text-[10px] font-medium">verified business</p>
+                                    </div>
+                                    <div className="flex gap-2.5 text-white/90 text-sm items-center">
+                                       <Video size={14} />
+                                       <Phone size={14} />
+                                    </div>
                                  </div>
 
-                                 <div className="p-3 border-t border-slate-100 bg-white">
-                                    <div className="h-10 rounded-full bg-slate-100 flex items-center px-4">
-                                       <div className="w-2.5 h-5 bg-emerald-500 rounded-full animate-pulse" />
+                                 <div className="relative z-10 p-2.5 sm:p-3 overflow-y-auto flex-1 pb-10 sm:pb-11 no-scrollbar">
+                                    <div className="bg-white rounded-2xl rounded-tl-md shadow-[0_12px_24px_-14px_rgba(15,23,42,0.65)] overflow-hidden max-w-[95%] border border-[#eef1f4]">
+                                       {previewTemplate && renderTemplateHeaderPreview(previewTemplate)}
+                                       <div className="p-2 sm:p-2.5">
+                                          <p className="text-[7.5px] sm:text-[8px] text-gray-400 font-bold mb-1 uppercase tracking-tight opacity-75 break-all leading-tight">
+                                             {previewTemplate?.name || 'TEMPLATE PREVIEW'}
+                                          </p>
+                                          {previewTemplate?.bodyText && (
+                                             <div 
+                                                className="text-[9.5px] sm:text-[10.5px] text-gray-800 font-normal leading-relaxed whitespace-pre-line"
+                                                dangerouslySetInnerHTML={{ __html: renderTemplateBodyPreview(previewTemplate) }}
+                                             />
+                                          )}
+                                          {previewTemplate?.footerText && (
+                                             <p className="text-[8px] sm:text-[8.5px] text-gray-400 font-medium mt-1 leading-tight">{previewTemplate.footerText}</p>
+                                          )}
+                                          <div className="flex items-center justify-end gap-1 mt-1.5">
+                                             <span className="text-[8px] text-gray-400 font-medium">12:30 PM</span>
+                                             <CheckCheck size={11} className="text-[#34b7f1]" />
+                                          </div>
+                                       </div>
+                                       {previewTemplate?.buttons && previewTemplate.buttons.length > 0 && previewTemplate.buttons.map((btn, idx) => (
+                                          <div key={idx} className="bg-gray-50 p-2 border-t border-gray-100">
+                                             <button type="button" className="text-sm text-[#008069] font-bold flex items-center justify-center gap-2 w-full py-2 bg-white rounded-xl shadow-sm border border-gray-100">
+                                                {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <span className="text-[14px]">↗</span> : 
+                                                 btn.type === 'Call phone number' ? <span className="text-[14px]">📞</span> :
+                                                 btn.type === 'Copy offer code' ? <span className="text-[14px]">📋</span> : 
+                                                 <span className="text-[14px]">↩️</span>}
+                                                {btn.text || 'Action Button'}
+                                             </button>
+                                          </div>
+                                       ))}
+                                    </div>
+                                 </div>
+
+                                 <div className="relative z-10 px-2 sm:px-2.5 pb-2 sm:pb-2.5">
+                                    <div className="bg-white/95 backdrop-blur rounded-full border border-white/70 shadow-sm px-3 py-2 min-h-[36px] sm:min-h-[40px] flex items-center gap-2">
+                                       <Smile size={15} className="text-gray-400" />
+                                       <span className="text-[11px] sm:text-[12px] text-gray-400 font-medium flex-1">Type a message</span>
+                                       <Paperclip size={15} className="text-gray-400" />
+                                       <span className="text-white bg-[#00a884] w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full inline-flex items-center justify-center">
+                                          <Send size={11} />
+                                       </span>
                                     </div>
                                  </div>
                               </div>

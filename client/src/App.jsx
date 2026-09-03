@@ -160,8 +160,7 @@ const AppLayout = memo(() => {
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
   const { user } = useContext(userContext);
   const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  const devBypassWhatsAppLock = import.meta.env.VITE_BYPASS_WHATSAPP_LOCK === "true";
-  const showWhatsAppLock = !devBypassWhatsAppLock && !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
+  const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">

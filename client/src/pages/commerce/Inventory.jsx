@@ -517,6 +517,7 @@ const Inventory = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-slate-900">Inventory Management</h1>
+            <p className="text-gray-500 text-[13px] mt-1 font-medium">Track stock levels, variants, and product catalog</p>
           </div>
         </div>
         <div className="flex items-center gap-3">

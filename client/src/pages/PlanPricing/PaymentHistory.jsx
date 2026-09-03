@@ -155,8 +155,8 @@ const PaymentHistory = () => {
                      <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </div>
                   <div>
-                     <h1 className="text-2xl font-bold text-slate-900">Payment History</h1>
-                     <p className="text-sm text-slate-500">Review transactions and download your official invoices.</p>
+                     <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payment History</h1>
+                     <p className="text-gray-500 text-[13px] mt-1 font-medium">Review transactions and download your official invoices</p>
                   </div>
                </div>
                <button
