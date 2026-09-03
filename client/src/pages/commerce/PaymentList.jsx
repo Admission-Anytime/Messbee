@@ -115,9 +115,12 @@ const PaymentList = () => {
           <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
             <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
           </div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payment List</h1>
-            <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900">Payment List</h1>
+              <span className="text-gray-400 cursor-pointer text-lg hover:text-gray-600">ⓘ</span>
+            </div>
+            <p className="text-gray-500 text-[13px] mt-1 font-medium">Track incoming payments, customer transactions, and order statuses</p>
           </div>
         </div>
         <button onClick={exportCSV} className="bg-[#10B981] hover:bg-[#059669] text-white px-4 py-2 rounded-lg font-semibold text-sm flex items-center gap-2 transition-all shadow-sm">
