@@ -210,7 +210,7 @@ exports.sendWelcomeEmail = async ({ email, name }) => {
               padding: 20px;
             }
             .container {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background: linear-gradient(135deg, #10B981 0%, #059669 100%);
               border-radius: 10px;
               padding: 40px;
               color: white;

@@ -256,7 +256,7 @@ const Templates = ({ activeTab }) => {
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
           <div className="flex items-center justify-between mb-6 gap-3">
             <div className="flex items-center gap-2 relative group">
-              <h1 className="text-xl md:text-2xl font-bold tracking-tight text-gray-800">Templates</h1>
+              <h1 className="text-[28px] font-bold tracking-tight text-gray-800">Templates</h1>
               <Info size={18} className="text-gray-400 cursor-pointer hover:text-blue-500 transition-colors" />
               <div className="absolute left-full top-1/2 -translate-y-1/2 ml-3 w-64 p-3 bg-gray-900 text-white text-xs rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50 pointer-events-none">
                 <div className="absolute top-1/2 -left-1 -translate-y-1/2 border-[5px] border-transparent border-r-gray-900"></div>
