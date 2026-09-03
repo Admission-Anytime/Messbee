@@ -1,10 +1,21 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useContext } from "react";
 import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import api from "../../context/axios";
 import { toast } from "react-toastify";
+import { userContext } from "../../context/Context";
 
 const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) => {
   const overlayRef = useRef();
+  const { logoutUser } = useContext(userContext);
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+      window.location.href = "/login";
+    } catch (error) {
+      console.error("Logout error:", error);
+    }
+  };
   
   // Check if user is agent/employee (not allowed to connect)
   const isAgent = user?.role === 'agent' || user?.role === 'AGENT' || user?.role === 'user';
@@ -253,12 +264,19 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
               {isMandatory ? "You must connect your Meta account to access all features." : "Choose your preferred integration method"}
             </p>
           </div>
-          {!isMandatory && (
+          {!isMandatory ? (
             <button
               onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
             >
               <XMarkIcon className="w-5 h-5" />
+            </button>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm font-bold text-slate-500 hover:text-red-600 hover:bg-red-50 border border-slate-200 rounded-lg transition-colors"
+            >
+              Logout
             </button>
           )}
         </div>

@@ -5,12 +5,13 @@ import axios from "../context/axios";
 /**
  * Request OTP for signup
  */
-export const requestSignupOTP = async (name, email, password, phone) => {
+export const requestSignupOTP = async (name, email, password, phone, additionalData = {}) => {
   const { data } = await axios.post("/auth/signup/request-otp", {
     name,
     email,
     password,
     phone,
+    ...additionalData,
   });
   return data;
 };
@@ -162,7 +163,7 @@ export const updatePassword = async (currentPassword, newPassword) => {
  * Get current user
  */
 export const getCurrentUser = async () => {
-  const { data } = await axios.get("/auth/me");
+  const { data } = await axios.get(`/auth/me?t=${new Date().getTime()}`);
   return data;
 };
 

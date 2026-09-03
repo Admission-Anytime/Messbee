@@ -26,6 +26,15 @@ connectDB().then(async () => {
     if (result.modifiedCount > 0) {
       console.log(`✅ Migration: Set isApproved=true for ${result.modifiedCount} existing users`);
     }
+
+    // Role Migration: Set missing tenantId users to ADMIN
+    const roleResult = await mongoose.connection.db.collection('users').updateMany(
+      { tenantId: { $exists: false } },
+      { $set: { role: 'ADMIN' } }
+    );
+    if (roleResult.modifiedCount > 0) {
+      console.log(`✅ Migration: Set role='ADMIN' for ${roleResult.modifiedCount} existing users`);
+    }
   } catch (err) {
     console.error('Migration warning (non-fatal):', err.message);
   }

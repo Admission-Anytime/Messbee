@@ -678,6 +678,8 @@ class WhatsAppService {
             
             // Add the required URL button component for the COPY_CODE button,
             // while keeping the body component intact for the `{{1}}` injection.
+            // Meta enforces a strict 15-character limit for the OTP button parameter,
+            // and it cannot contain spaces because Meta puts it in a URL.
             components.push({
               type: 'button',
               sub_type: 'url',
@@ -685,7 +687,7 @@ class WhatsAppService {
               parameters: [
                 {
                   type: 'text',
-                  text: encodeURIComponent(String(otpCode).trim())
+                  text: String(otpCode).replace(/[^a-zA-Z0-9]/g, '').substring(0, 15)
                 }
               ]
             });

@@ -441,7 +441,12 @@ const Inventory = () => {
   // Stats Data calculated dynamically
   const totalProducts = products.length;
   const outOfStock = products.filter(p => p.stock === 0).length;
-  const revenue = products.reduce((acc, p) => acc + (p.price * (p.goal - p.stock > 0 ? p.goal - p.stock : 0)), 0);
+  const revenue = products.reduce((acc, p) => {
+    const priceVal = typeof p.price === 'string' ? parseFloat(p.price.replace(/[₹,]/g, "") || "0") : (p.price || 0);
+    const goalVal = p.goal || 0;
+    const stockVal = p.stock || 0;
+    return acc + (priceVal * (goalVal - stockVal > 0 ? goalVal - stockVal : 0));
+  }, 0);
 
   const cards = [
     { title: "TOTAL PRODUCTS", value: totalProducts.toLocaleString(), change: "+0%", color: "blue" },
@@ -477,8 +482,8 @@ const Inventory = () => {
     }
   };
 
-  const confirmDelete = (product) => {
-    setProductToDelete(product);
+  const confirmDelete = (productItem) => {
+    setProductToDelete(productItem);
     setIsDeleteModalOpen(true);
   };
 
@@ -721,7 +726,7 @@ const Inventory = () => {
                           </svg>
                         </button>
                         <button
-                          onClick={() => confirmDelete(item.product)}
+                          onClick={() => confirmDelete(item)}
                           className="hover:text-red-500 transition-colors"
                           title="Delete"
                         >
@@ -783,7 +788,7 @@ const Inventory = () => {
             <h3 className="text-[18px] font-bold text-gray-800 mb-2 leading-tight">Delete Product?</h3>
             <p className="text-[13px] font-medium text-gray-500 mb-8 px-2 leading-relaxed">
               {productToDelete ? (
-                <>Are you sure you want to delete <span className="font-bold text-gray-800">{productToDelete.name}</span>? This action cannot be undone.</>
+                <>Are you sure you want to delete <span className="font-bold text-gray-800">{productToDelete.product?.name || productToDelete.name}</span>? This action cannot be undone.</>
               ) : (
                 "This will permanently remove the product. This action cannot be undone."
               )}
