@@ -9,7 +9,10 @@ import {
   verifySignupOTP,
   resendOTP,
   saveAuthData,
+  loginWithSocial,
 } from "../../services/authService";
+import { triggerGoogleLogin } from "../../utils/googleAuth";
+import Google from "../../assets/googlelogo.svg";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import logoIcon from "../../assets/MessBee Logo.png";
 import logoName from "../../assets/MessBee Name.png";
@@ -146,6 +149,9 @@ const genId = (prefix) => {
 // STEP 1 — Basic Personal Details
 // ══════════════════════════════════════════════════════════════
 const Step1 = ({ onNext }) => {
+  const navigate = useNavigate();
+  const { loginUser } = useContext(userContext);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: "",
     businessName: "",
@@ -158,6 +164,42 @@ const Step1 = ({ onNext }) => {
   const [showConfirm, setShowConfirm] = useState(false);
   const clientId = useState(() => genId("CLI"))[0];
   const trialId  = useState(() => genId("TRL"))[0];
+
+  const handleGoogleSignup = async () => {
+    try {
+      setGoogleLoading(true);
+      await triggerGoogleLogin({
+        onSuccess: async (accessToken) => {
+          try {
+            const res = await loginWithSocial("google", accessToken);
+            if (res.success) {
+              toast.success("Successfully signed up with Google!");
+              saveAuthData(res.data);
+              loginUser(res.data.user);
+              navigate("/admin/dashboard");
+            }
+          } catch (error) {
+            const message = error?.response?.data?.message || "Google signup failed";
+            toast.error(message);
+          } finally {
+            setGoogleLoading(false);
+          }
+        },
+        onError: (error) => {
+          console.error("Google Signup Error:", error);
+          toast.error(error?.message || "Google sign in failed.");
+          setGoogleLoading(false);
+        },
+        onCancel: () => {
+          setGoogleLoading(false);
+        }
+      });
+    } catch (error) {
+      console.error("Google trigger error:", error);
+      toast.error("Failed to initialize Google sign in.");
+      setGoogleLoading(false);
+    }
+  };
 
   const handle = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
 
@@ -253,6 +295,31 @@ const Step1 = ({ onNext }) => {
             <p className="text-[10px] text-slate-500">
               Enter your business and account information to continue.
             </p>
+          </div>
+
+          {/* Quick Google Sign up */}
+          <div className="mb-2">
+            <button
+              type="button"
+              onClick={handleGoogleSignup}
+              disabled={googleLoading}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-slate-200 rounded-[8px] hover:bg-slate-50 transition-all text-xs font-semibold text-slate-700 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed cursor-pointer"
+            >
+              {googleLoading ? (
+                <div className="w-4 h-4 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <img src={Google} alt="Google" className="w-4 h-4 shrink-0" />
+                  <span>Sign up with Google</span>
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center my-2">
+              <div className="flex-1 h-px bg-slate-100"></div>
+              <span className="px-3 text-[10px] font-medium text-slate-400">or register with email</span>
+              <div className="flex-1 h-px bg-slate-100"></div>
+            </div>
           </div>
 
           {/* Required Information */}
