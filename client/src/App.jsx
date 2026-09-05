@@ -297,6 +297,8 @@ function App() {
           {/* 6. Campaigns */}
           <Route path="/admin/campaign" element={<Campaign />} />
           <Route path="/admin/campaigns" element={<Campaign />} />
+          <Route path="/admin/campaign/:id" element={<Campaign />} />
+          <Route path="/admin/campaigns/:id" element={<Campaign />} />
           <Route path="/admin/campaign/create" element={<CreateCampaign />} />
           <Route path="/admin/campaign-success" element={<CampaignLaunchSuccess />} />
           <Route
