@@ -517,8 +517,13 @@ const Inventory = () => {
     <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">{/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Inventory Management</h1>
-
+          <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" /></svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Inventory Management</h1>
+            <p className="text-gray-500 text-[13px] mt-1 font-medium">Track stock levels, variants, and product catalog</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 

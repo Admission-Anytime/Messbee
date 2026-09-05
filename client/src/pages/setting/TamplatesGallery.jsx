@@ -1,6 +1,6 @@
 /* eslint-disable react/no-unescaped-entities */
 import { useState, useEffect } from 'react';
-import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send, Loader2 } from 'lucide-react';
+import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send, Loader2, Layers } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 
@@ -83,7 +83,12 @@ const TemplatesGallery = () => {
           {/* Header */}
           <div className="flex flex-wrap items-center justify-between px-4 md:px-10 py-8 bg-[#F8FAFC]">
             <div className="mb-4 lg:mb-0">
-              <h2 className="text-[28px] font-bold text-[#1E293B] tracking-tight">Template Gallery</h2>
+              <div className="flex items-center gap-3 mb-1">
+                <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+                  <Layers className="w-5 h-5 text-emerald-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 tracking-tight">Template Gallery</h2>
+              </div>
               <p className="text-[13px] text-gray-500 mt-1 font-medium">Choose a template to start your campaign</p>
             </div>
 

@@ -201,9 +201,14 @@ const ProductList = () => {
     <div className="p-4 md:p-6 bg-[#F9FAFB] min-h-screen font-sans antialiased text-gray-900">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-800">Product List</h1>
-          <p className="text-gray-500 text-[13px] mt-1 font-medium">Manage your digital catalog & inventory</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+            <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">Product List</h1>
+            <p className="text-gray-500 text-[13px] mt-1 font-medium">Manage your digital catalog &amp; inventory</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button

@@ -16,6 +16,7 @@ import {
   deleteCustomField,
 } from "../../services/CustomfieldApi";
 import { showToast } from "../../utils/showToast";
+import { ListPlus } from 'lucide-react';
 import ErrorState from "../../components/ui/ErrorState";
 import { userContext } from "../../context/Context";
 import { PLAN_LIMITS } from "../../utils/planLimits";
@@ -425,9 +426,14 @@ const CustomFieldsSection = () => {
     <div className="font-sans bg-gradient-to-b from-slate-50 via-[#f8fbf8] to-[#f6faf7] min-h-screen p-4 sm:p-5 xl:p-7 box-border antialiased text-gray-900">
       {/* Header */}
       <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 leading-tight">Custom Fields</h1>
-          <p className="text-sm text-gray-500 mt-1">Create and manage custom data fields for your contacts.</p>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+            <ListPlus className="w-5 h-5 text-emerald-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">Custom Fields</h1>
+            <p className="text-sm text-gray-500 mt-1">Create and manage custom data fields for your contacts.</p>
+          </div>
         </div>
         <div className="flex gap-2.5 flex-wrap items-center">
           <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>

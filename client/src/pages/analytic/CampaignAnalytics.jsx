@@ -328,11 +328,7 @@ const CampaignAnalytics = () => {
                     key={camp.id}
                     className="group hover:bg-slate-50/60 transition-colors cursor-pointer"
                     onClick={() => {
-                      if (String(camp.status).toLowerCase() === 'draft') {
-                        navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
-                      } else {
-                        setSelectedCampaign(camp);
-                      }
+                      setSelectedCampaign(camp);
                     }}
                   >
                     <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">
@@ -373,11 +369,7 @@ const CampaignAnalytics = () => {
                           title="Analytics" hoverColor="hover:text-emerald-500 hover:bg-emerald-50"
                           onClick={(e) => { 
                             e.stopPropagation(); 
-                            if (String(camp.status).toLowerCase() === 'draft') {
-                              navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
-                            } else {
-                              setSelectedCampaign(camp);
-                            }
+                            setSelectedCampaign(camp);
                           }}
                         />
                         <ActionBtn

@@ -202,9 +202,14 @@ const StatusPage = () => {
         
         {/* --- HEADER --- */}
         <div className="flex items-start justify-between mb-4 gap-4 flex-wrap">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 leading-tight">Status</h1>
-            <p className="text-sm text-gray-500 mt-1">Define and manage contact lifecycle statuses.</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">Status</h1>
+              <p className="text-sm text-gray-500 mt-1">Define and manage contact lifecycle statuses.</p>
+            </div>
           </div>
           <div className="flex gap-2.5 flex-wrap items-center">
             <div className={`px-4 py-2 bg-white border rounded-xl text-xs font-bold flex items-center gap-2 shadow-sm transition-colors ${isLimitReached ? 'border-red-200 text-red-600 bg-red-50' : 'border-gray-200 text-slate-600'}`}>
