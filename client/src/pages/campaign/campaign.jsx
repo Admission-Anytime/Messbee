@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useContext, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import CampaignApi from '../../services/CampaignApi';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
 import { toast } from 'react-toastify';
@@ -22,6 +22,7 @@ import {
   UserGroupIcon,
   ArrowTrendingUpIcon,
   ClockIcon,
+  PencilSquareIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import CampaignDetail from '../analytic/CampaignDetail';
@@ -74,13 +75,17 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
     status: mapStatus(camp.status),
     progress: mapProgress(camp),
     createdBy: camp.user?.name || 'User',
-    initials: (camp.user?.name || camp.name || 'U').substring(0, 2).toUpperCase(),
     sentOn: formatDate(camp.createdAt),
     rawCreatedAt: camp.createdAt,
-    count: String((camp.targetAudience || []).length),
+    templateLanguage: camp.templateLanguage || 'en_US',
+    headerMediaUrl: camp.headerMediaUrl,
+    headerType: camp.headerType,
+    audienceFilter: camp.audienceFilter || {},
+    count: String((camp.targetAudience || []).length || camp.stats?.totalTargeted || 0),
     targetAudience: camp.targetAudience || [],
     stats: {
-      total: (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
+      total: (camp.targetAudience || []).length || camp.stats?.totalTargeted || (camp.stats?.sent || 0) + (camp.stats?.failed || 0),
+      totalTargeted: camp.stats?.totalTargeted || (camp.targetAudience || []).length || 0,
       sent: camp.stats?.sent || 0,
       delivered: camp.stats?.delivered || 0,
       read: camp.stats?.read || 0,
@@ -94,6 +99,7 @@ const mapCampaign = (camp, templatePreviewMap = {}) => {
 
 const CampaignDashboard = () => {
   const navigate = useNavigate();
+  const { id: routeCampaignId } = useParams();
   const { user, rolePermissions } = useContext(userContext);
 
   // ── Permission gate for create_campaigns ──────────────────────────────────
@@ -119,6 +125,28 @@ const CampaignDashboard = () => {
   const [filterTemplate, setFilterTemplate] = useState('All');
   const [templateOptions, setTemplateOptions] = useState([]);
   const [templatePreviewMap, setTemplatePreviewMap] = useState({});
+
+  // Sync selectedCampaign with URL parameter
+  useEffect(() => {
+    if (routeCampaignId && campaigns.length > 0) {
+      const found = campaigns.find(
+        (c) => String(c.id) === String(routeCampaignId) || String(c._id) === String(routeCampaignId)
+      );
+      if (found) {
+        setSelectedCampaign(found);
+      } else {
+        CampaignApi.getCampaignById(routeCampaignId)
+          .then((res) => {
+            if (res?.success && res.data) {
+              setSelectedCampaign(mapCampaign(res.data, templatePreviewMap));
+            }
+          })
+          .catch((err) => console.error("Could not fetch campaign by id:", err));
+      }
+    } else if (!routeCampaignId && selectedCampaign) {
+      setSelectedCampaign(null);
+    }
+  }, [routeCampaignId, campaigns, templatePreviewMap]);
 
   // Real-time updates with Socket.io
   useEffect(() => {
@@ -236,9 +264,15 @@ const CampaignDashboard = () => {
   /* ── Actions ── */
   const handleDuplicate = async (camp) => {
     try {
+      const audienceIds = (camp.targetAudience || []).map(c => c._id || c);
       const res = await CampaignApi.createCampaign({
         name: `${camp.title} (Copy)`,
-        messageTemplate: camp.message,
+        messageTemplate: camp.templateName || camp.message,
+        templateLanguage: camp.templateLanguage || 'en_US',
+        headerMediaUrl: camp.headerMediaUrl,
+        headerType: camp.headerType,
+        targetAudience: audienceIds,
+        audienceFilter: camp.audienceFilter || {},
         status: 'draft',
       });
       if (res.success) {
@@ -296,7 +330,15 @@ const CampaignDashboard = () => {
     return (
       <CampaignDetail
         campaign={selectedCampaign}
-        onBack={() => setSelectedCampaign(null)}
+        onBack={() => {
+          setSelectedCampaign(null);
+          navigate('/admin/campaigns');
+        }}
+        onDelete={(deletedId) => {
+          setCampaigns((prev) => prev.filter((c) => c.id !== deletedId));
+          setSelectedCampaign(null);
+          navigate('/admin/campaigns');
+        }}
       />
     );
   }
@@ -449,11 +491,8 @@ const CampaignDashboard = () => {
                     key={camp.id}
                     className={`group transition-colors cursor-pointer ${duplicatedId === camp.id ? 'bg-emerald-50/60' : 'hover:bg-slate-50/60'}`}
                     onClick={() => {
-                      if (String(camp.status).toLowerCase() === 'draft') {
-                        navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
-                      } else {
-                        setSelectedCampaign(camp);
-                      }
+                      setSelectedCampaign(camp);
+                      navigate(`/admin/campaigns/${camp.id}`);
                     }}
                   >
                     <td className="px-5 py-4 text-sm font-semibold text-slate-300 align-middle">{paginatedStart + index + 1}</td>
@@ -491,17 +530,25 @@ const CampaignDashboard = () => {
                     </td>
                     <td className="px-5 py-4 align-middle">
                       <div className="flex justify-end items-center gap-1">
+                        {String(camp.status).toLowerCase() === 'draft' && (
+                          <ActionBtn
+                            icon={<PencilSquareIcon className="w-4 h-4" />}
+                            hoverColor="hover:text-amber-500 hover:bg-amber-50"
+                            title="Edit Draft"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
+                            }}
+                          />
+                        )}
                         <ActionBtn
                           icon={<ChartBarIcon className="w-4 h-4" />}
                           hoverColor="hover:text-emerald-500 hover:bg-emerald-50"
-                          title="Analytics"
+                          title="Details & Analytics"
                           onClick={(e) => { 
                             e.stopPropagation();
-                            if (String(camp.status).toLowerCase() === 'draft') {
-                              navigate('/admin/campaign/create', { state: { draftId: camp.id || camp._id, step: 2 } });
-                            } else {
-                              setSelectedCampaign(camp);
-                            }
+                            setSelectedCampaign(camp);
+                            navigate(`/admin/campaigns/${camp.id}`);
                           }}
                         />
                         <ActionBtn
