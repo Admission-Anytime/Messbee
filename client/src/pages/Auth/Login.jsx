@@ -6,7 +6,8 @@ import Google from "../../assets/googlelogo.svg";
 import Facebook from "../../assets/facebooklogo.svg";
 import FacebookLogin from "@greatsumini/react-facebook-login";
 import { userContext } from "../../context/Context";
-import { loginWithFacebook, saveAuthData } from "../../services/authService";
+import { loginWithFacebook, loginWithSocial, saveAuthData } from "../../services/authService";
+import { triggerGoogleLogin } from "../../utils/googleAuth";
 
 import logoIcon from "../../assets/MessBee Logo.png"; 
 import logoName from "../../assets/MessBee Name.png";
@@ -15,9 +16,47 @@ const Login = () => {
   const navigate = useNavigate();
   const { loginUser } = useContext(userContext);
   const [fbLoading, setFbLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
-  const handleGoogleLogin = () => {
-    toast.info("Google SSO integration coming soon!", { icon: "🚀" });
+  const handleGoogleLogin = async () => {
+    try {
+      setGoogleLoading(true);
+      await triggerGoogleLogin({
+        onSuccess: async (accessToken) => {
+          try {
+            const res = await loginWithSocial("google", accessToken);
+            if (res.success) {
+              toast.success("Successfully logged in with Google!");
+              saveAuthData(res.data);
+              loginUser(res.data.user);
+              navigate("/admin/dashboard");
+            }
+          } catch (error) {
+            const message = error?.response?.data?.message || "Google login failed";
+            const isPending = error?.response?.data?.pendingApproval || false;
+            if (isPending) {
+              toast.info(message, { autoClose: 5000 });
+            } else {
+              toast.error(message);
+            }
+          } finally {
+            setGoogleLoading(false);
+          }
+        },
+        onError: (error) => {
+          console.error("Google Login Error:", error);
+          toast.error(error?.message || "Google sign in failed.");
+          setGoogleLoading(false);
+        },
+        onCancel: () => {
+          setGoogleLoading(false);
+        }
+      });
+    } catch (error) {
+      console.error("Google trigger error:", error);
+      toast.error("Failed to initialize Google login.");
+      setGoogleLoading(false);
+    }
   };
 
   const handleFacebookSuccess = async (response) => {
@@ -154,10 +193,20 @@ const Login = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-3">
-            <button onClick={handleGoogleLogin} type="button"
-              className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-semibold text-slate-700 shadow-sm">
-              <img src={Google} alt="Google" className="w-5 h-5 shrink-0" />
-              <span>Google</span>
+            <button
+              onClick={handleGoogleLogin}
+              type="button"
+              disabled={googleLoading || fbLoading}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 border border-slate-200 rounded-xl hover:bg-slate-50 transition-all text-xs font-semibold text-slate-700 shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+              {googleLoading ? (
+                <div className="w-5 h-5 border-2 border-slate-900/30 border-t-slate-900 rounded-full animate-spin"></div>
+              ) : (
+                <>
+                  <img src={Google} alt="Google" className="w-5 h-5 shrink-0" />
+                  <span>Google</span>
+                </>
+              )}
             </button>
             <FacebookLogin
               appId={import.meta.env.VITE_FB_LOGIN_APP_ID || "921773847630961"}
