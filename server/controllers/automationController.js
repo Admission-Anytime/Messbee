@@ -1,5 +1,7 @@
 const Automation = require('../models/Automation');
 const CustomerSession = require('../models/CustomerSession');
+const User = require('../models/User');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const whatsappService = require('../services/whatsappService');
 const automationService = require('../services/automationService');
 
@@ -59,6 +61,27 @@ exports.getAutomationById = async (req, res, next) => {
 exports.createAutomation = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
+
+    // Plan limits check
+    const user = await User.findById(tenantId);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.free;
+
+    if (limits.chatbots !== -1) {
+      const count = await Automation.countDocuments({ tenantId });
+      if (count >= limits.chatbots) {
+        return res.status(403).json({
+          message: `Your current plan (${userPlan}) allows up to ${limits.chatbots} automation/chatbot. Please upgrade to create more.`
+        });
+      }
+    }
+
+    if (req.body.nodes && limits.chatbotNodes !== -1 && req.body.nodes.length > limits.chatbotNodes) {
+      return res.status(403).json({
+        message: `Your current plan (${userPlan}) allows up to ${limits.chatbotNodes} nodes per automation. Please upgrade your plan.`
+      });
+    }
+
     const existing = await Automation.findOne({ tenantId, name: req.body.name });
     if (existing) {
       return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
