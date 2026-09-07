@@ -9,17 +9,19 @@ import { toast } from 'react-toastify';
 import { userContext } from '../../context/Context';
 import MapFieldsModal from './MapFieldsModal';
 import ReviewSummaryModal from './ReviewSummaryModal';
+import { hasPlanFeature } from '../../utils/planLimits';
 import {
     X, Users, Tag, FileUp, ArrowRight, ChevronDown,
     Search, CheckCircle, Clock, Eye, Smartphone, ChevronLeft,
     Zap, Calendar, Info, Rocket, ExternalLink, User,
-    Filter
+    Filter, Lock
 } from 'lucide-react';
 
 const CreateCampaign = () => {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, updateUser } = useContext(userContext);
+    const canSchedule = hasPlanFeature(user?.subscriptionPlan, 'scheduleCampaign');
     const [currentStep, setCurrentStep] = useState(location.state?.step || 1);
 
     // Dynamic Data State
@@ -887,8 +889,16 @@ const CreateCampaign = () => {
 
                             {/* Option 2: Schedule for later */}
                             <div
-                                onClick={() => setScheduleOption('later')}
-                                className={`p-6 rounded-xl border-2 cursor-pointer transition-all bg-white hover:shadow-sm ${scheduleOption === 'later' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200'
+                                onClick={() => {
+                                    if (!canSchedule) {
+                                        toast.warn("Campaign scheduling requires a Basic plan or higher. Please upgrade your plan to unlock.", {
+                                            onClick: () => navigate("/admin/plan/upgrade")
+                                        });
+                                        return;
+                                    }
+                                    setScheduleOption('later');
+                                }}
+                                className={`p-6 rounded-xl border-2 cursor-pointer transition-all bg-white hover:shadow-sm ${!canSchedule ? 'opacity-70 hover:border-amber-300' : scheduleOption === 'later' ? 'border-emerald-500 ring-1 ring-emerald-500' : 'border-gray-200'
                                     }`}
                             >
                                 <div className="flex items-center justify-between mb-4">
@@ -898,7 +908,14 @@ const CreateCampaign = () => {
                                             {scheduleOption === 'later' && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />}
                                         </div>
                                         <div>
-                                            <h3 className="font-bold text-slate-800">Schedule for later</h3>
+                                            <div className="flex items-center gap-2">
+                                                <h3 className="font-bold text-slate-800">Schedule for later</h3>
+                                                {!canSchedule && (
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                                                        <Lock className="w-2.5 h-2.5" /> Basic+
+                                                    </span>
+                                                )}
+                                            </div>
                                             <p className="text-gray-500 text-xs mt-0.5">Select a specific date and time for delivery</p>
                                         </div>
                                     </div>

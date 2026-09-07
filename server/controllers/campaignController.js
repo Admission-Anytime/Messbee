@@ -1,5 +1,7 @@
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
+const User = require('../models/User');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const { sendBulkMessages } = require('../services/messageService');
 const { createAndEmitNotification } = require('../services/notificationService');
 
@@ -61,6 +63,37 @@ exports.getCampaign = async (req, res, next) => {
 // @access  Private
 exports.createCampaign = async (req, res, next) => {
   try {
+    const user = await User.findById(req.user.id);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.free;
+
+    // Check campaign count limit
+    if (limits.campaigns !== -1) {
+      const existingCampaignCount = await Campaign.countDocuments({ user: req.user.id });
+      if (existingCampaignCount >= limits.campaigns) {
+        return res.status(403).json({
+          success: false,
+          message: `Your current plan (${userPlan}) allows up to ${limits.campaigns} campaign. Please upgrade your plan for unlimited campaigns.`
+        });
+      }
+    }
+
+    // Check schedule feature permission
+    if ((req.body.scheduledAt || req.body.scheduledDate) && !limits.features?.scheduleCampaign) {
+      return res.status(403).json({
+        success: false,
+        message: 'Campaign scheduling requires a Basic plan or higher. Please upgrade your plan.'
+      });
+    }
+
+    // Check recurring campaign feature permission
+    if (req.body.isRecurring && !limits.features?.recurringCampaign) {
+      return res.status(403).json({
+        success: false,
+        message: 'Recurring campaigns require a Professional plan or higher.'
+      });
+    }
+
     req.body.user = req.user.id;
 
     // If audienceFilter is provided, get matching contacts
