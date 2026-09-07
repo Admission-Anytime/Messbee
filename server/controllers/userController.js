@@ -70,7 +70,7 @@ exports.getAccountLimits = async (req, res, next) => {
           webhooks: { active: limits.features?.webhook || false, count: limits.features?.webhook ? 2 : 0 },
         },
         commerceHub: {
-          available: ['professional', 'enterprise'].includes(userPlan)
+          available: limits.features?.commerce || false
         }
       }
     });
@@ -122,6 +122,20 @@ exports.createUser = async (req, res, next) => {
     }
 
     const tenantId = req.user.tenantId || req.user.id;
+
+    // Check plan limits for agents / team members
+    const adminUser = await User.findById(tenantId);
+    const userPlan = (adminUser?.subscriptionPlan || 'free').toLowerCase();
+    const agentLimit = PLAN_LIMITS[userPlan]?.agents ?? PLAN_LIMITS.free.agents;
+    const currentAgentCount = await User.countDocuments({
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    });
+    if (agentLimit !== -1 && currentAgentCount >= agentLimit) {
+      return res.status(403).json({
+        success: false,
+        message: `Your current plan (${userPlan}) allows up to ${agentLimit} team member${agentLimit === 1 ? '' : 's'}. Please upgrade your plan to add more team members.`
+      });
+    }
 
     const user = await User.create({
       name,
@@ -343,11 +357,31 @@ exports.uploadAvatar = async (req, res, next) => {
 // @access  Private
 exports.updateSubscription = async (req, res, next) => {
   try {
-    const { subscriptionPlan, subscriptionEndDate } = req.body;
+    let { subscriptionPlan, subscriptionEndDate } = req.body;
+
+    if (!subscriptionPlan) {
+      return res.status(400).json({ success: false, message: 'subscriptionPlan is required' });
+    }
+
+    const normalizedPlan = subscriptionPlan.toLowerCase();
+
+    // Paid plan upgrades must always go through the verified payment gateway (Razorpay).
+    if (normalizedPlan !== 'free') {
+      return res.status(403).json({
+        success: false,
+        message: 'Upgrades to paid plans must be completed through secure checkout'
+      });
+    }
+
+    if (!subscriptionEndDate) {
+      const futureDate = new Date();
+      futureDate.setDate(futureDate.getDate() + 30);
+      subscriptionEndDate = futureDate;
+    }
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
-      { $set: { subscriptionPlan, subscriptionEndDate } },
+      { $set: { subscriptionPlan: normalizedPlan, subscriptionEndDate } },
       { new: true, runValidators: true }
     );
 

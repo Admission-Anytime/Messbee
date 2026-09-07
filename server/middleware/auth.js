@@ -46,7 +46,28 @@ exports.protect = async (req, res, next) => {
       });
     }
 
-    // Admin approval no longer blocks API routes
+    // Check if subscription/trial has expired
+    if (req.user.subscriptionEndDate && new Date(req.user.subscriptionEndDate) < new Date()) {
+      const allowedPrefixes = [
+        '/api/users/profile',
+        '/api/users/subscription',
+        '/api/users/account-limits',
+        '/api/billing',
+        '/api/auth',
+        '/api/settings'
+      ];
+      const isAllowed = allowedPrefixes.some(prefix => req.originalUrl.startsWith(prefix));
+      if (!isAllowed) {
+        const planName = req.user.subscriptionPlan && req.user.subscriptionPlan.toLowerCase() !== 'free'
+          ? `${req.user.subscriptionPlan.charAt(0).toUpperCase() + req.user.subscriptionPlan.slice(1)} plan`
+          : '30-day Free trial';
+        return res.status(403).json({
+          success: false,
+          planExpired: true,
+          message: `Your ${planName} has expired. Please renew or upgrade your plan to continue using MessBee.`
+        });
+      }
+    }
 
     next();
   } catch (error) {

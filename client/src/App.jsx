@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import { Suspense, lazy, useState, memo, useEffect, useContext } from "react";
-import { Routes, Route, Navigate, useLocation, Outlet } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, Outlet } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ToastContainer } from "react-toastify";
@@ -16,7 +16,9 @@ import PublicRoute from "./components/PublicRoute";
 import WhatsAppConfig from "./pages/setting/Wapi";
 import LazyOnboardingModal from "./components/LazyOnboardingModal";
 import ConnectWhatsAppModal from "./components/Modol/ConnectWhatsAppModal";
+import PlanGuard from "./components/common/PlanGuard";
 import { userContext } from "./context/Context";
+
 
 // --- UPDATED LOADING UI ---
 const PageLoader = () => <Loading />;
@@ -158,9 +160,24 @@ const AppLayout = memo(() => {
   }, [isPricingPage, isChangePasswordPage]);
 
   const isDashboard = location.pathname === "/" || location.pathname === "/admin/dashboard";
-  const { user } = useContext(userContext);
+  const { user, updateUser, refreshUser } = useContext(userContext);
+  const navigate = useNavigate();
+
+  const isPlanExpired = Boolean(
+    user?.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()
+  );
+
+  // When plan is expired, redirect to /admin/plan/upgrade so only upgrade plan is accessible
+  useEffect(() => {
+    if (isPlanExpired && location.pathname !== "/admin/plan/upgrade") {
+      navigate("/admin/plan/upgrade", { replace: true });
+    }
+  }, [isPlanExpired, location.pathname, navigate]);
+
+  const showExpiryLock = isPlanExpired && location.pathname !== "/admin/plan/upgrade";
+
   const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage;
+  const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
@@ -186,7 +203,7 @@ const AppLayout = memo(() => {
       <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${showWhatsAppLock ? "pointer-events-none opacity-50" : ""}`} inert={showWhatsAppLock ? "" : undefined}>
         
         {/* 3. Conditional Rendering: Navbar only shows on Dashboard */}
-        {isDashboard && !showWhatsAppLock && (
+        {isDashboard && !showWhatsAppLock && !showExpiryLock && (
           <div className="h-[70px] shrink-0 z-50 bg-white border-b border-gray-100 shadow-sm relative w-full">
             <MainHeading onMenuClick={() => setIsSidebarOpen(!isSidebarOpen)} />
           </div>
@@ -197,6 +214,37 @@ const AppLayout = memo(() => {
           {showWhatsAppLock ? (
             <div className="h-full w-full flex items-center justify-center bg-gray-100/50">
               {/* Dashboard is completely blocked from rendering in the DOM to prevent bypass */}
+            </div>
+          ) : showExpiryLock ? (
+            <div className="min-h-[80vh] flex items-center justify-center p-6 font-['Urbanist']">
+              <div className="max-w-md w-full bg-white rounded-3xl p-8 text-center border border-amber-200 shadow-xl shadow-amber-900/5 space-y-6">
+                <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center mx-auto text-amber-600">
+                  <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-slate-900 mb-2">
+                    {user?.subscriptionPlan && user.subscriptionPlan.toLowerCase() !== "free"
+                      ? `${user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1)} Plan Expired`
+                      : "Free Trial Expired"}
+                  </h2>
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Your {user?.subscriptionPlan && user.subscriptionPlan.toLowerCase() !== "free"
+                      ? `${user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1)} subscription plan`
+                      : "30-day Free trial"} has expired. To continue using your WhatsApp automations, campaigns, inbox, and tools, please renew or upgrade your plan.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col gap-2.5">
+                  <button
+                    onClick={() => navigate("/admin/plan/upgrade")}
+                    className="w-full py-3.5 px-6 rounded-xl font-bold text-sm text-white bg-[#10B981] hover:bg-[#059669] shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
+                  >
+                    View Upgrade Plans →
+                  </button>
+
+                </div>
+              </div>
             </div>
           ) : (
             <ErrorBoundary>
@@ -305,10 +353,31 @@ function App() {
             path="/admin/campaigns/bulk"
             element={<Placeholder title="Bulk Send" />}
           />
-          {/* 7. Commerce */}
-          <Route path="/admin/commerce/payments" element={<PaymentList />} />
-          <Route path="/admin/commerce/products" element={<ProductList />} />
-          <Route path="/admin/commerce/inventory" element={<Inventory />} />
+          {/* 7. Commerce (Requires Growth plan and above) */}
+          <Route
+            path="/admin/commerce/payments"
+            element={
+              <PlanGuard feature="commerce" title="Commerce & Payments">
+                <PaymentList />
+              </PlanGuard>
+            }
+          />
+          <Route
+            path="/admin/commerce/products"
+            element={
+              <PlanGuard feature="commerce" title="Commerce & Products">
+                <ProductList />
+              </PlanGuard>
+            }
+          />
+          <Route
+            path="/admin/commerce/inventory"
+            element={
+              <PlanGuard feature="commerce" title="Commerce & Inventory">
+                <Inventory />
+              </PlanGuard>
+            }
+          />
           {/* 8. Automation */}
           <Route path="/admin/automation" element={<Automation />} />
           <Route path="/admin/automation/:id" element={<AutomationBuilder />} />
@@ -331,7 +400,11 @@ function App() {
           />
           <Route
             path="/admin/analytic/template"
-            element={<TemplateAnalytics />}
+            element={
+              <PlanGuard feature="templateAnalytics" title="Template Analytics">
+                <TemplateAnalytics />
+              </PlanGuard>
+            }
           />
           <Route
             path="/admin/reports"
@@ -345,13 +418,38 @@ function App() {
             path="/admin/business"
             element={<Placeholder title="Business Management" />}
           />
-          {/* 10. Integrations */}
-          <Route path="/admin/api" element={<DevApi />} />
-          <Route path="/admin/developer/api" element={<DevApi />} />
-          <Route path="/admin/integration/api" element={<DevApi />} />
+          {/* 10. Integrations (API requires Growth+, Apps requires Basic+) */}
+          <Route
+            path="/admin/api"
+            element={
+              <PlanGuard feature="developerApi" title="Developer API">
+                <DevApi />
+              </PlanGuard>
+            }
+          />
+          <Route
+            path="/admin/developer/api"
+            element={
+              <PlanGuard feature="developerApi" title="Developer API">
+                <DevApi />
+              </PlanGuard>
+            }
+          />
+          <Route
+            path="/admin/integration/api"
+            element={
+              <PlanGuard feature="developerApi" title="Developer API">
+                <DevApi />
+              </PlanGuard>
+            }
+          />
           <Route
             path="/admin/integration/apps"
-            element={<AppIntegration />}
+            element={
+              <PlanGuard feature="appsIntegration" title="App Integrations">
+                <AppIntegration />
+              </PlanGuard>
+            }
           />
           {/* 11. Settings */}
           <Route path="/admin/settings/onboarding" element={<SettingsOnboarding />} />
@@ -411,7 +509,14 @@ function App() {
             <Route path="support">
               <Route index element={<Support />} />
               <Route path="get-started" element={<GetStarted />} />
-              <Route path="api-webhooks" element={<ApiWebhooks />} />
+              <Route
+                path="api-webhooks"
+                element={
+                  <PlanGuard feature="webhook" title="Webhooks">
+                    <ApiWebhooks />
+                  </PlanGuard>
+                }
+              />
               <Route path="billing-plans" element={<BillingPlans />} />
               <Route path="campaigns" element={<CampaignsHelp />} />
               <Route path="troubleshooting" element={<Troubleshooting />} />

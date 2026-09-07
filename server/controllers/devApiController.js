@@ -1,5 +1,7 @@
 const ApiKey = require('../models/ApiKey');
 const Webhook = require('../models/Webhook');
+const User = require('../models/User');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 
@@ -30,6 +32,16 @@ exports.getApiKeys = async (req, res) => {
  */
 exports.createApiKey = async (req, res) => {
   try {
+    const user = await User.findById(req.user.id);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const canUseApi = PLAN_LIMITS[userPlan]?.features?.developerApi;
+    if (!canUseApi) {
+      return res.status(403).json({
+        success: false,
+        message: 'Developer API access requires the Growth plan or higher. Please upgrade your plan.'
+      });
+    }
+
     const { name, permission } = req.body;
     
     if (!name) {
@@ -122,6 +134,16 @@ exports.getWebhookConfig = async (req, res) => {
  */
 exports.saveWebhookConfig = async (req, res) => {
   try {
+    const user = await User.findById(req.user.id);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const canUseWebhook = PLAN_LIMITS[userPlan]?.features?.webhook;
+    if (!canUseWebhook) {
+      return res.status(403).json({
+        success: false,
+        message: 'Webhooks require a Professional plan or higher. Please upgrade your plan.'
+      });
+    }
+
     const { callbackUrl, verifyToken } = req.body;
     
     let webhook = await Webhook.findOne({ user: req.user.id });

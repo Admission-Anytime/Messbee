@@ -890,6 +890,13 @@ exports.getMe = async (req, res, next) => {
 
       console.log(`[DEBUG getMe] User: ${user.email}, Role: ${user.role}, tenantId: ${tenantId}, channelFound: ${!!channel}, tenantWhatsAppConnected: ${user.tenantWhatsAppConnected}`);
 
+      // Ensure free plan has subscriptionEndDate (30 days from creation)
+      if ((!user.subscriptionPlan || user.subscriptionPlan.toLowerCase() === 'free') && !user.subscriptionEndDate) {
+        const computedEnd = new Date(new Date(user.createdAt || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000);
+        await User.findByIdAndUpdate(user._id, { subscriptionEndDate: computedEnd });
+        user.subscriptionEndDate = computedEnd;
+      }
+
       // Fix for Employee/Agent Lockout: Give them a mock wabaId if the Admin connected it
       if (user.tenantWhatsAppConnected) {
         if (!user.whatsappConfig) user.whatsappConfig = {};

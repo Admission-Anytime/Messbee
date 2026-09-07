@@ -14,10 +14,12 @@ import {
   ShoppingCart,
   Smartphone,
   FileText,
+  Sparkles,
 } from "lucide-react";
 
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+
 
 /* ═══════════════════════════════════════════
    SAVED CARD ROW
@@ -340,6 +342,7 @@ const CheckoutPaymentPanel = ({ totalDue, onPay, onNavigate }) => {
         <Lock className="w-4 h-4 relative z-10" />
         <span className="relative z-10">Pay &amp; Upgrade Now - ₹{totalDue.toFixed(2)}</span>
       </button>
+
 
       {/* Secured by logos */}
       <div className="mt-5 text-center">
@@ -722,15 +725,16 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
   const [paymentDone, setPaymentDone] = useState(false);
   const { user, updateUser, refreshUser } = useContext(userContext);
 
-  // Price calculation (INR) — plan.price is the BASE monthly price
-  const basePrice = typeof plan.price === "number" ? plan.price : 999;
-  const planAmount = billingCycle === "yearly"
-    ? Math.round(basePrice * 12 * 0.65)   // 35% off yearly total
-    : Math.round(basePrice * 0.75 * 3);   // 25% off × 3 months
+  // Price calculation (INR)
+  const INR_MONTHLY = { basic: 899, growth: 1299, professional: 2500 };
+  const basePrice = INR_MONTHLY[plan.id] || 899;
+  const months = billingCycle === "yearly" ? 12 : billingCycle === "quarterly" ? 3 : 1;
+  const planAmount = basePrice * months;
   const gstRate = 0.18;
   const gstAmount = Math.round(planAmount * gstRate);
   const totalDue = planAmount + gstAmount;
   const fmtINR = (n) => Number(n).toLocaleString("en-IN");
+
 
   const handlePay = async () => {
     try {
@@ -740,7 +744,7 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
       const orderResponse = await axios.post("/billing/razorpay/create-order", {
         scenario: "subscription",
         amount: totalDue,
-        planType: plan.name.toLowerCase(),
+        planType: plan.id,
         billingCycle: billingCycle
       });
 
@@ -797,7 +801,9 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
 
             if (reconcileResponse.data?.success || reconcileResponse.data?.reconciled) {
               toast.success('Payment reconciled successfully');
-              if (refreshUser) await refreshUser();
+              try {
+                if (refreshUser) await refreshUser();
+              } catch (_) {}
               setPaymentDone(true);
             } else {
               const reason = (reconcileResponse.data?.mismatches || []).join('; ') || reconcileResponse.data?.message || 'Reconciliation failed';
@@ -827,10 +833,7 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
       razorpay.open();
     } catch (error) {
       console.error("Payment initialization error:", error);
-      toast.error(
-        error.response?.data?.message ||
-        "Failed to initialize payment. Please try again."
-      );
+      toast.error("Payment gateway unavailable. Please try again later or contact support.");
     }
   };
 
@@ -978,12 +981,16 @@ const CheckoutView = ({ plan, billingCycle, onBack }) => {
    ═══════════════════════════════════════════ */
 const UpgradePlan = () => {
   const navigate = useNavigate();
-  const { user, rolePermissions } = useContext(userContext);
+  const { user, updateUser, refreshUser, rolePermissions } = useContext(userContext);
   const userRole = user?.role ? (user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase()) : "Agent";
   const isAdmin = userRole === "Admin";
 
   // Current plan from user data — used to highlight the active plan card
   const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
+
+  const isExpired = Boolean(
+    user?.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()
+  );
 
   // Check manage_billing permission — reads from rolePermissions for all roles including Admin
   const DEFAULT_BILLING_PERMS = { Admin: true, Manager: false, Agent: false };
@@ -991,9 +998,15 @@ const UpgradePlan = () => {
     ?? DEFAULT_BILLING_PERMS[userRole]
     ?? false;
 
-  // FIX 1: unified billing cycle state (was split into billingCycle + billingPeriod)
-  const [billingCycle, setBillingCycle] = useState("yearly");
+  // Billing cycle & currency state
+  const [billingCycle, setBillingCycle] = useState("monthly");
+  const [currency, setCurrency] = useState("INR");
   const [selectedPlan, setSelectedPlan] = useState(null);
+  const [expandedPlans, setExpandedPlans] = useState({});
+
+  const toggleExpand = (planId) => {
+    setExpandedPlans((prev) => ({ ...prev, [planId]: !prev[planId] }));
+  };
 
   // --- SLIDER STATE ---
   const [marketingCount, setMarketingCount] = useState(1000);
@@ -1004,33 +1017,54 @@ const UpgradePlan = () => {
   const estimatedTotal =
     marketingCount * marketingRate + utilityCount * utilityRate;
 
-  // Pricing logic matching screenshot exactly:
-  // Big number  = total billed for the cycle after discount
-  // Strikethrough = total billed for the cycle WITHOUT discount
-  // Sub-line    = "₹X billed quarterly/yearly (save Y%)"
-  const isYearly = billingCycle === "yearly";
-  const discount = isYearly ? 35 : 25;
-  const billingLabel = isYearly ? "yearly" : "quarterly";
-  const cycleMonths = isYearly ? 12 : 3;
+  // ── PRICING TABLE ──────────────────────────────────────────
+  // USD base monthly prices
+  const USD_MONTHLY = { basic: 12, growth: 18, professional: 35 };
+  // INR base monthly prices
+  const INR_MONTHLY = { basic: 899, growth: 1299, professional: 2500 };
 
-  const originalPrices = { basic: 1537, professional: 2306, enterprise: 3844 };
-
-  // total undiscounted for cycle
-  const getOriginalTotal = (base) => base * cycleMonths;
-  // total discounted for cycle (this is the BIG number shown on card)
-  const getDiscountedTotal = (base) => Math.round(base * cycleMonths * (1 - discount / 100));
-
-  // prices.x.monthly kept for checkout compatibility (discounted monthly equiv)
-  const prices = {
-    basic: { monthly: Math.round(originalPrices.basic * (1 - discount / 100)) },
-    professional: { monthly: Math.round(originalPrices.professional * (1 - discount / 100)) },
-    enterprise: { monthly: Math.round(originalPrices.enterprise * (1 - discount / 100)) },
+  const CYCLE_CONFIG = {
+    monthly:   { months: 1,  label: "month",           billingPrefix: "Billed monthly" },
+    quarterly: { months: 3,  label: "month (quarterly)", billingPrefix: "Billed quarterly" },
+    yearly:    { months: 12, label: "month (annual)",    billingPrefix: "Billed annually" },
   };
 
-  const formatPrice = (n) => Number(n).toLocaleString("en-IN");
+  const cfg = CYCLE_CONFIG[billingCycle];
+
+  const getDisplayPrice = (planKey) => {
+    if (planKey === "free" || planKey === "corporate") return null;
+    const base = currency === "USD" ? USD_MONTHLY[planKey] : INR_MONTHLY[planKey];
+    return base * cfg.months;
+  };
+
+  const getBillingTotal = (planKey) => {
+    return getDisplayPrice(planKey);
+  };
+
+  const formatPrice = (n) =>
+    currency === "USD"
+      ? `$${n}`
+      : `₹${Number(n).toLocaleString("en-IN")}`;
+
+
 
   // --- BUTTON HANDLER ---
-  const handlePlanSelect = (plan) => {
+  const handlePlanSelect = async (plan) => {
+    if (plan.isFree) {
+      if (isExpired && currentPlan === "free") {
+        toast.error("Your 30-day Free trial has expired. Please select a paid plan to continue.");
+        return;
+      }
+      if (currentPlan === "free") {
+        toast.info("You are already on the 30-Day Free Trial.");
+        return;
+      }
+      return;
+    }
+    if (plan.isCustom) {
+      navigate("/admin/help/support");
+      return;
+    }
     setSelectedPlan(plan);
   };
 
@@ -1059,82 +1093,193 @@ const UpgradePlan = () => {
 
   const plans = [
     {
-      name: "Free",
+      id: "free",
+      name: "Free Trial",
       price: 0,
       isFree: true,
-      description: "Forever free",
-      features: [
-        "Free WhatsApp Business API",
-        "300 messages replies per month",
-        "300 contacts",
-        "1 Automation with 3 nodes",
-        "Send campaign to 50/months",
-        "Shared team inbox",
-        "Tags, Custom Fields - 5",
-        "Upload contacts with CRM",
-        "Template Management",
-      ],
-      cta: "Buy Now",
+      description: "30-Day Free Access",
+      cta: (isExpired && currentPlan === "free") ? "Trial Expired" : "Start Now",
       popular: false,
+      features: [
+        { text: "500 message replies/month" },
+        { text: "500 contacts" },
+        { text: "1 automation" },
+        { text: "3 automation nodes" },
+        { text: "1 chatbot" },
+        { text: "3 chatbot nodes" },
+        { text: "1 campaign" },
+        { text: "Basic Team Inbox" },
+        { text: "Multiple Agent Chat" },
+        { text: "Private Notes" },
+        { text: "Contact Management" },
+        { text: "Basic CRM" },
+        { text: "Labels" },
+        { text: "Custom Fields" },
+        { text: "Status Management" },
+        { text: "Quick Replies" },
+        { text: "Template Management" },
+        { text: "Basic Campaign Analytics" },
+        { text: "Basic Automation" },
+        { text: "Welcome Message" },
+        { text: "Away Message" },
+        { text: "CSV Contact Import" },
+      ],
     },
     {
+      id: "basic",
       name: "Basic",
-      price: 1537,
+      price: null,
+      isFree: false,
       description: "Perfect for small teams getting started.",
-      features: [
-        "Send bulk WhatsApp message",
-        "Import CSV & broadcast",
-        "Auto reply on broadcast",
-        "Send welcome messages with multimedia",
-        "Set away message & holidays",
-        "Shared team inbox with collaborative features",
-        "Automation with choice based bots",
-        "Assign Agents & track",
-        "Upload contacts with CRM",
-        "Template Management"
-      ],
-      cta: "Buy Now",
+      cta: "Start Now",
       popular: false,
+      features: [
+        { text: "All Free features, plus:", bold: true },
+        { text: "Bulk WhatsApp Campaigns" },
+        { text: "Unlimited Campaigns" },
+        { text: "CSV Campaign Import" },
+        { text: "Campaign Scheduling" },
+        { text: "Campaign Analytics" },
+        { text: "Marketing Templates" },
+        { text: "Utility Templates" },
+        { text: "Authentication Templates" },
+        { text: "Choice-Based Chatbot" },
+        { text: "Welcome & Away Automation" },
+        { text: "Fallback Automation" },
+        { text: "Button-Based Automation" },
+        { text: "Agent Assignment" },
+        { text: "Agent Tracking" },
+        { text: "CRM Contact Management" },
+        { text: "Increased Labels" },
+        { text: "Increased Custom Fields" },
+        { text: "Increased Quick Replies" },
+        { text: "Template Analytics" },
+        { text: "WhatsApp Number Setup" },
+        { text: "Basic Onboarding & Training" },
+      ],
     },
     {
-      name: "Professional",
-      price: 2306,
-      description: "Advanced tools for growing operations.",
-      features: [
-        "All Starter features +",
-        "Schedule Bulk Message",
-        "Auto assign agents with round robin",
-        "Retarget with smart categorisation",
-        "Send Message with API",
-        "Add contacts, Run campaign APIs",
-        "Ask questions, Assign Agents in chatbot",
-        "Payment, Google Sheet Integration",
-        "Advance analytics",
-        "Export Contacts & Campaign Reports"
-      ],
-      cta: "Buy Now",
+      id: "growth",
+      name: "Growth",
+      price: null,
+      isFree: false,
+      description: "Advanced tools for growing teams.",
+      cta: "Start Now",
       popular: true,
+      features: [
+        { text: "All Basic features, plus:", bold: true },
+        { text: "Scheduled Bulk Messages" },
+        { text: "Advanced Campaign Management" },
+        { text: "Campaign API" },
+        { text: "Contact API" },
+        { text: "REST API" },
+        { text: "API Messaging" },
+        { text: "240 API Calls/minute" },
+        { text: "Add Contacts via API" },
+        { text: "Contact Export" },
+        { text: "Auto Agent Assignment" },
+        { text: "Round-Robin Agent Assignment" },
+        { text: "Smart Retargeting" },
+        { text: "Customer Segmentation" },
+        { text: "Advanced Chatbot" },
+        { text: "Ask Customer Questions" },
+        { text: "Save Customer Responses" },
+        { text: "Multiple Actions on Buttons" },
+        { text: "Chatbot Agent Assignment" },
+        { text: "Marketing Opt-in/Opt-out" },
+        { text: "Update Custom Fields" },
+        { text: "Payment Integration" },
+        { text: "Google Sheets Integration" },
+        { text: "Advanced Analytics" },
+        { text: "Contact Reports" },
+        { text: "Campaign Reports" },
+        { text: "Manual Retry" },
+        { text: "Advanced CRM" },
+        { text: "Template Setup Assistance" },
+        { text: "Campaign Setup Assistance" },
+        { text: "CRM Setup Assistance" },
+        { text: "1-Hour Training" },
+      ],
     },
     {
-      name: "Enterprise",
-      price: 3844,
-      description: "Custom solutions for large scale.",
-      features: [
-        "All featues in Growth +",
-        "Advance chatbot builder",
-        "Recurring Campaigns",
-        "Campaign Automation",
-        "Number masking",
-        "10 Agents",
-        "5 App integrations",
-        "More uses access",
-        "Save billing in marketing message",
-        "Added Support and Services",
-        "Higher uses and longer backup",
-        "Webhook"
-      ],
-      cta: "Talk to us",
+      id: "professional",
+      name: "Professional",
+      price: null,
+      isFree: false,
+      description: "For scaling operations with advanced automation.",
+      cta: "Start Now",
       popular: false,
+      features: [
+        { text: "All Growth features, plus:", bold: true },
+        { text: "Advanced Chatbot Builder" },
+        { text: "Up to 10 Chatbot Nodes" },
+        { text: "Recurring Campaigns" },
+        { text: "Advanced Campaign Automation" },
+        { text: "Smart Auto Retry" },
+        { text: "Marketing Delivery Optimization" },
+        { text: "Number Masking" },
+        { text: "Webhooks" },
+        { text: "600 API Calls/minute" },
+        { text: "Up to 5 App Integrations" },
+        { text: "Up to 10 Agents" },
+        { text: "Advanced Workflow Automation" },
+        { text: "Multi-Step Automation" },
+        { text: "Advanced Agent Assignment" },
+        { text: "Higher Usage Limits" },
+        { text: "Extended Backup" },
+        { text: "Advanced Analytics" },
+        { text: "Advanced Reporting" },
+        { text: "CRM Integration" },
+        { text: "Payment Integration" },
+        { text: "Google Sheets Integration" },
+        { text: "Custom API Integration" },
+        { text: "Contact & CRM Setup" },
+        { text: "Facebook Business Verification Assistance" },
+        { text: "Professional Onboarding" },
+        { text: "Priority Support" },
+      ],
+    },
+    {
+      id: "corporate",
+      name: "Corporate",
+      price: null,
+      isFree: false,
+      isCustom: true,
+      description: "Custom billing cycle",
+      cta: "Contact Sales",
+      popular: false,
+      features: [
+        { text: "All Professional features, plus:", bold: true },
+        { text: "Custom Usage Limits" },
+        { text: "Multiple WhatsApp Numbers" },
+        { text: "Custom Number of Agents" },
+        { text: "Enterprise Team Management" },
+        { text: "Custom Roles & Permissions" },
+        { text: "Department Management" },
+        { text: "Advanced Access Control" },
+        { text: "Enterprise API" },
+        { text: "Custom API Limits" },
+        { text: "Advanced Webhooks" },
+        { text: "CRM Integration" },
+        { text: "ERP Integration" },
+        { text: "Custom Software Integration" },
+        { text: "Custom Automation" },
+        { text: "Custom Chatbot" },
+        { text: "AI Automation" },
+        { text: "Lead Routing" },
+        { text: "Custom Business Rules" },
+        { text: "Custom Triggers" },
+        { text: "Custom Reports" },
+        { text: "Custom Dashboards" },
+        { text: "Advanced Business Analytics" },
+        { text: "Dedicated Account Manager" },
+        { text: "Priority Support" },
+        { text: "Dedicated Onboarding" },
+        { text: "Custom Training" },
+        { text: "Migration Assistance" },
+        { text: "Enterprise Implementation" },
+        { text: "Custom Data Management" },
+      ],
     },
   ];
 
@@ -1156,224 +1301,255 @@ const UpgradePlan = () => {
 
       <div className="max-w-7xl mx-auto space-y-16">
         {/* --- HEADER --- */}
-        <div className="text-center space-y-6">
-          <h1 className="text-3xl md:text-5xl font-bold text-slate-900">
-            Scale your business with WhatsApp
+        <div className="text-center space-y-4">
+          <span style={{ display: "inline-block", background: "#d1fae5", color: "#059669", fontSize: "11px", fontWeight: "800", letterSpacing: "0.1em", textTransform: "uppercase", padding: "4px 16px", borderRadius: "999px", marginBottom: "8px" }}>Plan &amp; Pricing</span>
+          <h1 className="text-3xl md:text-4xl font-bold text-slate-900">
+            Choose the Plan That Fits Your Growth
           </h1>
-          <p className="text-slate-500 text-lg max-w-2xl mx-auto">
-            Choose the plan that grows with your business. From early-stage
-            startups to global enterprises.
-          </p>
+          {isExpired && (
+            <div className="max-w-xl mx-auto mt-3 p-3.5 bg-rose-50 border-2 border-rose-300 rounded-2xl flex items-center justify-center gap-2.5 text-rose-900 shadow-sm text-left">
+              <span className="text-lg shrink-0">⚠️</span>
+              <p className="text-xs sm:text-sm font-bold leading-snug">
+                Your {currentPlan === "free" ? "30-day Free trial" : `${currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} plan`} has expired. Please renew or upgrade your plan below to continue using MessBee.
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="text-center mb-12">
 
-          {/* ── Billing Toggle ── */}
-          <div className="mt-10 flex items-center justify-center">
-            <div style={{ backgroundColor: "#EEF2F7", borderRadius: "999px", padding: "6px", display: "inline-flex", alignItems: "center", gap: "0px" }}>
+
+        <div className="text-center mb-4">
+          {/* ── Currency + Billing Toggle ── */}
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            {/* Currency */}
+            {[{ key: "INR", label: "INR (₹)" }, { key: "USD", label: "USD ($)" }].map(c => (
               <button
-                onClick={() => setBillingCycle("quarterly")}
+                key={c.key}
+                onClick={() => setCurrency(c.key)}
                 style={{
-                  padding: "10px 32px",
+                  padding: "8px 20px",
                   borderRadius: "999px",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: "700",
                   cursor: "pointer",
-                  border: billingCycle === "quarterly" ? "1px solid #E2E8F0" : "1px solid transparent",
-                  backgroundColor: billingCycle === "quarterly" ? "#FFFFFF" : "transparent",
-                  color: billingCycle === "quarterly" ? "#1E293B" : "#94A3B8",
-                  boxShadow: billingCycle === "quarterly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                  border: currency === c.key ? "none" : "1px solid #E2E8F0",
+                  backgroundColor: currency === c.key ? "#10B981" : "#F8FAFC",
+                  color: currency === c.key ? "#fff" : "#64748B",
                   transition: "all 0.2s ease",
-                  whiteSpace: "nowrap",
                 }}
-              >
-                Quarterly - 25%
-              </button>
+              >{c.label}</button>
+            ))}
+            {/* Billing Cycle */}
+            {[{ key: "monthly", label: "Monthly" }, { key: "quarterly", label: "Quarterly" }, { key: "yearly", label: "Yearly / Annual" }].map(b => (
               <button
-                onClick={() => setBillingCycle("yearly")}
+                key={b.key}
+                onClick={() => setBillingCycle(b.key)}
                 style={{
-                  padding: "10px 32px",
+                  padding: "8px 20px",
                   borderRadius: "999px",
-                  fontSize: "14px",
+                  fontSize: "13px",
                   fontWeight: "700",
                   cursor: "pointer",
-                  border: billingCycle === "yearly" ? "1px solid #E2E8F0" : "1px solid transparent",
-                  backgroundColor: billingCycle === "yearly" ? "#FFFFFF" : "transparent",
-                  color: billingCycle === "yearly" ? "#1E293B" : "#94A3B8",
-                  boxShadow: billingCycle === "yearly" ? "0 1px 4px rgba(0,0,0,0.10)" : "none",
+                  border: billingCycle === b.key ? "none" : "1px solid #E2E8F0",
+                  backgroundColor: billingCycle === b.key ? "#10B981" : "#F8FAFC",
+                  color: billingCycle === b.key ? "#fff" : "#64748B",
                   transition: "all 0.2s ease",
-                  whiteSpace: "nowrap",
                 }}
-              >
-                Yearly - 35%
-              </button>
-            </div>
+              >{b.label}</button>
+            ))}
           </div>
         </div>
 
         {/* --- PRICING SECTION --- */}
-        <section className="rounded-3xl" id="pricing">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
+        <section id="pricing">
+          <div className="max-w-7xl mx-auto px-0 sm:px-2">
 
             {/* ── Plan Cards ── */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "16px", alignItems: "stretch" }}>
 
-              {/* Free */}
-              <div className="p-8 rounded-2xl border border-slate-200 flex flex-col hover:shadow-xl transition-all bg-white relative">
-                <div className="text-center mb-6">
-                  <h3 className="font-bold text-xl mb-4 text-slate-900">Free</h3>
-                  <div className="text-4xl font-extrabold text-slate-900 mb-1">Free</div>
-                  <p className="text-sm text-slate-400">Forever free</p>
-                </div>
-                <button
-                  onClick={() => handlePlanSelect(plans[0])}
-                  className="w-full py-3 mb-8 bg-emerald-500 text-white rounded-xl font-bold hover:shadow-lg transition-all cursor-pointer hover:bg-emerald-600"
-                >
-                  Buy Now
-                </button>
-                <ul className="space-y-4 flex-grow">
-                  {[
-                    "Free WhatsApp Business API",
-                    "300 messages replies per month",
-                    "300 contacts",
-                    "1 Automation with 3 nodes",
-                    "Send campaign to 50/months",
-                    "Shared team inbox",
-                    "Tags, Custom Fields - 5",
-                    "Upload contacts with CRM",
-                    "Template Management"
-                  ].map((f) => (
-                    <li key={f} className="flex items-start gap-3 text-sm text-slate-500">
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" /></svg>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              {plans.map((plan, idx) => {
+                const isPopular = plan.popular;
+                const isCurrent = currentPlan === plan.id;
+                const displayPrice = plan.isFree ? 0 : plan.isCustom ? null : getDisplayPrice(plan.id);
+                const billingTotal = plan.isFree || plan.isCustom ? null : getBillingTotal(plan.id);
 
-              {/* Basic */}
-              <div className="p-8 rounded-2xl border border-slate-200 flex flex-col hover:shadow-xl transition-all bg-white relative">
-                <div className="text-center mb-6">
-                  <h3 className="font-bold text-xl mb-4 text-slate-900">Basic</h3>
-                  <div className="text-4xl font-extrabold text-slate-900 mb-1">
-                    ₹{formatPrice(prices.basic.monthly)}
+                return (
+                  <div
+                    key={plan.id}
+                    style={{
+                      background: "#fff",
+                      border: isPopular ? "2px solid #10B981" : "1px solid #E2E8F0",
+                      borderRadius: "16px",
+                      padding: "24px 16px",
+                      display: "flex",
+                      flexDirection: "column",
+                      height: "100%",
+                      position: "relative",
+                      boxShadow: isPopular ? "0 8px 32px rgba(16,185,129,0.13)" : "0 1px 4px rgba(0,0,0,0.04)",
+                      transition: "box-shadow 0.2s",
+                    }}
+                  >
+                    {/* Most Popular badge */}
+                    {isPopular && (
+                      <div style={{
+                        position: "absolute",
+                        top: "-14px",
+                        left: "50%",
+                        transform: "translateX(-50%)",
+                        background: "#10B981",
+                        color: "#fff",
+                        fontSize: "10px",
+                        fontWeight: "800",
+                        letterSpacing: "0.08em",
+                        padding: "4px 14px",
+                        borderRadius: "999px",
+                        whiteSpace: "nowrap",
+                        textTransform: "uppercase",
+                      }}>★ Most Popular</div>
+                    )}
+
+                    {/* Plan Name */}
+                    <h3 style={{ fontSize: "15px", fontWeight: "800", color: "#1E293B", marginBottom: "6px", display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span>{plan.name}</span>
+                      <span style={{ color: "#94A3B8", fontSize: "13px", fontWeight: "400", cursor: "pointer" }} title={plan.name}>ⓘ</span>
+                    </h3>
+
+                    {/* Price */}
+                    <div style={{ height: "42px", display: "flex", alignItems: "baseline", marginBottom: "4px" }}>
+                      {plan.isFree ? (
+                        <>
+                          <span style={{ fontSize: "32px", fontWeight: "900", color: "#1E293B" }}>
+                            {currency === "USD" ? "$0" : "₹0"}
+                          </span>
+                          <span style={{ fontSize: "13px", color: "#94A3B8", marginLeft: "4px" }}>/ 30 Days</span>
+                        </>
+                      ) : plan.isCustom ? (
+                        <span style={{ fontSize: "28px", fontWeight: "900", color: "#1E293B" }}>Custom</span>
+                      ) : (
+                        <>
+                          <span style={{ fontSize: "30px", fontWeight: "900", color: "#1E293B" }}>
+                            {currency === "USD" ? `$${displayPrice}` : `₹${Number(displayPrice).toLocaleString("en-IN")}`}
+                          </span>
+                          <span style={{ fontSize: "12px", color: "#94A3B8", marginLeft: "2px" }}> / {cfg.label}</span>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Billing note */}
+                    <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "14px", minHeight: "28px", display: "flex", alignItems: "center" }}>
+                      {plan.isFree ? "1 month free trial" :
+                       plan.isCustom ? "Custom billing cycle" :
+                       billingCycle === "monthly" ? "Billed monthly" :
+                       `${cfg.billingPrefix} (${currency === "USD" ? "$" : "₹"}${currency === "USD" ? displayPrice : Number(displayPrice).toLocaleString("en-IN")})`
+                      }
+                    </p>
+
+                    {/* CTA Button */}
+                    <button
+                      onClick={() => !plan.isCustom && (!isExpired || !plan.isFree) && handlePlanSelect(plan)}
+                      disabled={isExpired && plan.isFree && currentPlan === "free"}
+                      style={{
+                        width: "100%",
+                        padding: "10px 0",
+                        borderRadius: "10px",
+                        fontWeight: "800",
+                        fontSize: "13px",
+                        cursor: (isExpired && plan.isFree && currentPlan === "free") ? "not-allowed" : "pointer",
+                        marginBottom: "18px",
+                        border: "none",
+                        background: (isExpired && plan.isFree && currentPlan === "free")
+                          ? "#94A3B8"
+                          : (isCurrent && isExpired)
+                          ? "#E11D48"
+                          : isCurrent
+                          ? "#1E293B"
+                          : "#10B981",
+                        color: "#fff",
+                        transition: "background 0.2s, transform 0.1s",
+                      }}
+                      onMouseOver={e => {
+                        if (!(isExpired && plan.isFree && currentPlan === "free")) {
+                          e.currentTarget.style.background = (isCurrent && isExpired) ? "#BE123C" : isCurrent ? "#0F172A" : "#059669";
+                        }
+                      }}
+                      onMouseOut={e => {
+                        if (!(isExpired && plan.isFree && currentPlan === "free")) {
+                          e.currentTarget.style.background = (isCurrent && isExpired) ? "#E11D48" : isCurrent ? "#1E293B" : "#10B981";
+                        }
+                      }}
+                    >
+                      {isCurrent
+                        ? (isExpired ? `Renew ${plan.name} (Expired)` : "Current Plan")
+                        : plan.cta}
+                    </button>
+
+                    {/* Features label */}
+                    <p style={{ fontSize: "10px", fontWeight: "800", color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "12px" }}>
+                      {plan.isFree ? "WHAT YOU GET" : "FEATURES"}
+                    </p>
+
+                    {/* Feature List & Toggle */}
+                    {(() => {
+                      const isExpanded = !!expandedPlans[plan.id];
+                      const visibleFeatures = isExpanded ? plan.features : plan.features.slice(0, 8);
+                      const hasMore = plan.features.length > 8;
+                      const remainingCount = plan.features.length - 8;
+
+                      return (
+                        <div style={{ display: "flex", flexDirection: "column", flex: 1, justifyContent: "space-between" }}>
+                          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: "8px" }}>
+                            {visibleFeatures.map((f, fi) => (
+                              <li key={fi} style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "6px", fontSize: "12px", color: f.bold ? "#1E293B" : "#475569", fontWeight: f.bold ? "700" : "400" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: "6px", minWidth: 0 }}>
+                                  <svg style={{ width: "13px", height: "13px", flexShrink: 0, marginTop: "2px", color: "#10B981" }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" />
+                                  </svg>
+                                  <span style={{ lineHeight: "1.35" }}>{f.text}</span>
+                                </div>
+                                <span style={{ color: "#CBD5E1", fontSize: "12px", flexShrink: 0, cursor: "pointer", marginTop: "1px" }} title={f.text}>ⓘ</span>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {hasMore && (
+                            <div style={{ paddingTop: "14px", marginTop: "auto" }}>
+                              <button
+                                type="button"
+                                onClick={() => toggleExpand(plan.id)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  padding: 0,
+                                  fontSize: "12px",
+                                  fontWeight: "700",
+                                  color: "#10B981",
+                                  cursor: "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "5px",
+                                  textAlign: "left",
+                                }}
+                              >
+                                {isExpanded ? (
+                                  <>
+                                    <span style={{ fontSize: "10px" }}>▲</span>
+                                    <span>Show Less</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span style={{ fontSize: "10px" }}>▼</span>
+                                    <span>+{remainingCount} More Features</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
-                  <p className="text-xs text-slate-400 mb-2">per month</p>
-                  <p className="text-xs text-emerald-600 font-bold">
-                    <span className="line-through text-slate-400 mr-1">₹{formatPrice(originalPrices.basic)}</span>
-                    ₹{formatPrice(prices.basic.monthly)} billed {billingLabel} (save {discount}%)
-                  </p>
-                </div>
-                <button
-                  onClick={() => handlePlanSelect(plans[1])}
-                  className="w-full py-3 mb-8 bg-slate-900 text-white rounded-xl font-bold hover:shadow-lg transition-all cursor-pointer hover:bg-slate-800"
-                >
-                  Buy Now
-                </button>
-                <ul className="space-y-4 flex-grow">
-                  {[
-                    "Send bulk WhatsApp message",
-                    "Import CSV & broadcast",
-                    "Auto reply on broadcast",
-                    "Send welcome messages with multimedia",
-                    "Set away message & holidays",
-                    "Shared team inbox with collaborative features",
-                    "Automation with choice based bots",
-                    "Assign Agents & track",
-                    "Upload contacts with CRM",
-                    "Template Management"
-                  ].map((f) => (
-                    <li key={f} className="flex items-start gap-3 text-sm text-slate-500">
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" /></svg>
-                      <span>{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Professional */}
-              <div className="p-8 rounded-2xl border-2 border-emerald-500 bg-emerald-50/30 flex flex-col hover:shadow-xl transition-all relative">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-emerald-500 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest">Most Popular</div>
-                <div className="text-center mb-6">
-                  <h3 className="font-bold text-xl mb-4 text-emerald-500">Professional</h3>
-                  <div className="text-4xl font-extrabold text-slate-900 mb-1">
-                    ₹{formatPrice(prices.professional.monthly)}
-                  </div>
-                  <p className="text-xs text-slate-400 mb-2">per month</p>
-                  <p className="text-xs text-emerald-600 font-bold">
-                    <span className="line-through text-slate-400 mr-1">₹{formatPrice(originalPrices.professional)}</span>
-                    ₹{formatPrice(prices.professional.monthly)} billed {billingLabel} (save {discount}%)
-                  </p>
-                </div>
-                <button
-                  onClick={() => handlePlanSelect(plans[2])}
-                  className="w-full py-3 mb-8 bg-emerald-500 text-white rounded-xl font-bold hover:shadow-lg transition-all cursor-pointer hover:bg-emerald-600"
-                >
-                  Buy Now
-                </button>
-                <ul className="space-y-4 flex-grow">
-                  {[
-                    { text: "All Starter features +", bold: true },
-                    { text: "Schedule Bulk Message", bold: false },
-                    { text: "Auto assign agents with round robin", bold: false },
-                    { text: "Retarget with smart categorisation", bold: false },
-                    { text: "Send Message with API", bold: false },
-                    { text: "Add contacts, Run campaign APIs", bold: false },
-                    { text: "Ask questions, Assign Agents in chatbot", bold: false },
-                    { text: "Payment, Google Sheet Integration", bold: false },
-                    { text: "Advance analytics", bold: false },
-                    { text: "Export Contacts & Campaign Reports", bold: false },
-                  ].map((f) => (
-                    <li key={f.text} className={`flex items-start gap-3 text-sm ${f.bold ? "font-semibold text-slate-700" : "text-slate-500"}`}>
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" /></svg>
-                      <span>{f.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Enterprise */}
-              <div className="p-8 rounded-2xl border border-slate-200 flex flex-col hover:shadow-xl transition-all bg-white relative">
-                <div className="text-center mb-6">
-                  <h3 className="font-bold text-xl mb-4 text-slate-900">Enterprise</h3>
-                  <div className="text-4xl font-extrabold text-slate-900 mb-1">
-                    ₹{formatPrice(prices.enterprise.monthly)}
-                  </div>
-                  <p className="text-xs text-slate-400 mb-2">per month</p>
-                  <p className="text-xs text-emerald-600 font-bold">
-                    <span className="line-through text-slate-400 mr-1">₹{formatPrice(originalPrices.enterprise)}</span>
-                    ₹{formatPrice(prices.enterprise.monthly)} billed {billingLabel} (save {discount}%)
-                  </p>
-                </div>
-                <button
-                  onClick={() => handlePlanSelect(plans[3])}
-                  className="w-full py-3 mb-8 bg-slate-900 text-white rounded-xl font-bold hover:shadow-lg transition-all cursor-pointer hover:bg-slate-800"
-                >
-                  Buy Now
-                </button>
-                <ul className="space-y-4 flex-grow">
-                  {[
-                    { text: "All featues in Growth +", bold: true },
-                    { text: "Advance chatbot builder", bold: false },
-                    { text: "Recurring Campaigns", bold: false },
-                    { text: "Campaign Automation", bold: false },
-                    { text: "Number masking", bold: false },
-                    { text: "10 Agents", bold: false },
-                    { text: "5 App integrations", bold: false },
-                    { text: "More uses access", bold: false },
-                    { text: "Save billing in marketing message", bold: false },
-                    { text: "Added Support and Services", bold: false },
-                    { text: "Higher uses and longer backup", bold: false },
-                    { text: "Webhook", bold: false },
-                  ].map((f) => (
-                    <li key={f.text} className={`flex items-start gap-3 text-sm ${f.bold ? "font-semibold text-slate-700" : "text-slate-500"}`}>
-                      <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" /></svg>
-                      <span>{f.text}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                );
+              })}
 
             </div>
           </div>
@@ -1456,76 +1632,78 @@ const UpgradePlan = () => {
           </h3>
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
             {/* Header */}
-            <div className="grid grid-cols-5 bg-gray-50/50 p-4 border-b border-gray-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
+            <div className="grid grid-cols-6 bg-gray-50/50 p-4 border-b border-gray-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
               <div className="col-span-1">Feature</div>
               <div className="text-center">Free</div>
               <div className="text-center">Basic</div>
-              <div className="text-center text-emerald-600">Professional</div>
-              <div className="text-center">Enterprise</div>
+              <div className="text-center text-emerald-600">Growth</div>
+              <div className="text-center">Professional</div>
+              <div className="text-center">Corporate</div>
             </div>
 
             {[
-              { name: "Shared Team Chat Inbox", free: true, basic: true, pro: true, ent: true },
-              { name: "Private Note in chat", free: true, basic: true, pro: true, ent: true },
+              { name: "Shared Team Chat Inbox", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Private Note in chat", free: true, basic: true, growth: true, pro: true, corp: true },
               { section: "Team Chat Inbox" },
-              { name: "Multiple Agent chatting Inbox", free: true, basic: true, pro: true, ent: true },
-              { name: "Pin, Archive, Block, Mark unread", free: true, basic: true, pro: true, ent: true },
-              { name: "Open Close chats for support tracking", free: true, basic: true, pro: true, ent: true },
-              { name: "Advance filter of crm and Tags", free: false, basic: true, pro: true, ent: true },
-              { name: "Number Masking", free: false, basic: false, pro: true, ent: true },
+              { name: "Multiple Agent chatting Inbox", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Pin, Archive, Block, Mark unread", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Open Close chats for support tracking", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Advance filter of crm and Tags", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Number Masking", free: false, basic: false, growth: false, pro: true, corp: true },
               { section: "Contacts & CRM" },
-              { name: "Bulk Actions for chats & contacts", free: true, basic: true, pro: true, ent: true },
-              { name: "Labels", free: "5", basic: "20", pro: "50", ent: "100" },
-              { name: "Custom Fields", free: "5", basic: "10", pro: "20", ent: "40" },
-              { name: "Status", free: "5", basic: "10", pro: "20", ent: "20" },
-              { name: "Quick Reply", free: "5", basic: "10", pro: "50", ent: "100" },
-              { name: "Add contact via API", free: false, basic: false, pro: true, ent: true },
-              { name: "Contacts Export in csv", free: false, basic: false, pro: true, ent: true },
-              { name: "Manual Assigning Agents", free: true, basic: true, pro: true, ent: true },
-              { name: "Round robin assignment", free: false, basic: false, pro: true, ent: true },
-              { name: "Import CSV to add contacts", free: true, basic: true, pro: true, ent: true },
-              { name: "Agents", free: "1", basic: "5", pro: "5", ent: "10" },
-              { name: "Quick Reply – Canned Response", free: false, basic: true, pro: true, ent: true },
+              { name: "Bulk Actions for chats & contacts", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Labels", free: "5", basic: "20", growth: "50", pro: "100", corp: "Custom" },
+              { name: "Custom Fields", free: "5", basic: "10", growth: "20", pro: "40", corp: "Custom" },
+              { name: "Status", free: "5", basic: "10", growth: "20", pro: "20", corp: "Custom" },
+              { name: "Quick Reply", free: "5", basic: "10", growth: "50", pro: "100", corp: "Unlimited" },
+              { name: "Add contact via API", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Contacts Export in csv", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Manual Assigning Agents", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Round robin assignment", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Import CSV to add contacts", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Agents", free: "1", basic: "5", growth: "5", pro: "10", corp: "Custom" },
+              { name: "Quick Reply – Canned Response", free: false, basic: true, growth: true, pro: true, corp: true },
               { section: "Broadcast and Campaign" },
-              { name: "Number of Campaign", free: "1", basic: "Unlimited", pro: "Unlimited", ent: "Unlimited" },
-              { name: "Import csv to run campaign", free: true, basic: true, pro: true, ent: true },
-              { name: "Campaign Analytics", free: true, basic: true, pro: true, ent: true },
-              { name: "Schedule Campaign", free: false, basic: true, pro: true, ent: true },
-              { name: "Send Marketing, Utility, Auth template", free: true, basic: true, pro: true, ent: true },
-              { name: "Campaign price estimate", free: true, basic: true, pro: true, ent: true },
-              { name: "Duplicate Campaign", free: false, basic: true, pro: true, ent: true },
-              { name: "Export campaign result", free: false, basic: false, pro: true, ent: true },
-              { name: "Retarget Campaign", free: false, basic: false, pro: true, ent: true },
-              { name: "Recurring Campaign", free: false, basic: false, pro: false, ent: true },
-              { name: "Send campaign via api", free: false, basic: false, pro: false, ent: true },
+              { name: "Number of Campaign", free: "1", basic: "Unlimited", growth: "Unlimited", pro: "Unlimited", corp: "Unlimited" },
+              { name: "Import csv to run campaign", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Campaign Analytics", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Schedule Campaign", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Send Marketing, Utility, Auth template", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Campaign price estimate", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Duplicate Campaign", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Export campaign result", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Retarget Campaign", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Recurring Campaign", free: false, basic: false, growth: false, pro: true, corp: true },
+              { name: "Send campaign via api", free: false, basic: false, growth: true, pro: true, corp: true },
               { section: "Automation & Integration" },
-              { name: "Chatbot Count", free: "1", basic: "3", pro: "5", ent: "5" },
-              { name: "Chatbot Nodes", free: "3", basic: "20", pro: "50", ent: "100" },
-              { name: "Drag & Drop Chatbot builder", free: true, basic: true, pro: true, ent: true },
-              { name: "Set welcome and away message", free: true, basic: true, pro: true, ent: true },
-              { name: "Fallback message automation", free: true, basic: true, pro: true, ent: true },
-              { name: "Ask questions and save response", free: false, basic: false, pro: true, ent: true },
-              { name: "Assign Agent", free: false, basic: false, pro: true, ent: true },
-              { name: "Marketing opt in/out", free: false, basic: false, pro: true, ent: true },
-              { name: "Rest API Calls", free: false, basic: false, pro: true, ent: true },
-              { name: "Apps Integration", free: "0", basic: "1", pro: "2", ent: "5" },
-              { name: "Webhook", free: false, basic: false, pro: false, ent: true },
-              { name: "API calls/minute", free: "0", basic: "0", pro: "240", ent: "600" },
+              { name: "Chatbot Count", free: "1", basic: "3", growth: "5", pro: "5", corp: "Custom" },
+              { name: "Chatbot Nodes", free: "3", basic: "20", growth: "50", pro: "100", corp: "Unlimited" },
+              { name: "Drag & Drop Chatbot builder", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Set welcome and away message", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Fallback message automation", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Ask questions and save response", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Assign Agent", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Marketing opt in/out", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Rest API Calls", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Apps Integration", free: "0", basic: "1", growth: "2", pro: "5", corp: "Custom" },
+              { name: "Webhook", free: false, basic: false, growth: false, pro: true, corp: true },
+              { name: "API calls/minute", free: "0", basic: "0", growth: "240", pro: "600", corp: "Custom" },
               { section: "More Features" },
-              { name: "Template creation and management", free: true, basic: true, pro: true, ent: true },
-              { name: "Template Analytics", free: false, basic: true, pro: true, ent: true },
-              { name: "Message Analytics", free: true, basic: true, pro: true, ent: true },
-              { name: "Multiple WhatsApp Business API Numbers", free: false, basic: true, pro: true, ent: true },
-              { name: "Backup", free: "1 month", basic: "6 months", pro: "12 months", ent: "Subscription period" },
+              { name: "Template creation and management", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Template Analytics", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Message Analytics", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "Multiple WhatsApp Business API Numbers", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Backup", free: "1 month", basic: "6 months", growth: "12 months", pro: "Subscription period", corp: "Custom" },
               { section: "Support" },
-              { name: "Email", free: false, basic: true, pro: true, ent: true },
-              { name: "Help Doc & Video", free: true, basic: true, pro: true, ent: true },
-              { name: "WhatsApp", free: false, basic: false, pro: true, ent: true },
+              { name: "Email", free: false, basic: true, growth: true, pro: true, corp: true },
+              { name: "Help Doc & Video", free: true, basic: true, growth: true, pro: true, corp: true },
+              { name: "WhatsApp", free: false, basic: false, growth: true, pro: true, corp: true },
+              { name: "Dedicated Account Manager", free: false, basic: false, growth: false, pro: false, corp: true },
             ].map((row, idx) => {
               if (row.section) {
                 return (
-                  <div key={idx} className="grid grid-cols-5 bg-slate-50 px-4 py-2.5 border-b border-gray-100">
-                    <div className="col-span-5 text-xs font-bold text-slate-600 uppercase tracking-wider">{row.section}</div>
+                  <div key={idx} className="grid grid-cols-6 bg-slate-50 px-4 py-2.5 border-b border-gray-100">
+                    <div className="col-span-6 text-xs font-bold text-slate-600 uppercase tracking-wider">{row.section}</div>
                   </div>
                 );
               }
@@ -1541,21 +1719,23 @@ const UpgradePlan = () => {
                 </div>
               );
               return (
-                <div key={idx} className="grid grid-cols-5 px-4 py-3.5 border-b border-gray-50 items-center hover:bg-slate-50/30 transition-colors">
+                <div key={idx} className="grid grid-cols-6 px-4 py-3.5 border-b border-gray-50 items-center hover:bg-slate-50/30 transition-colors">
                   <div className="text-sm text-slate-600 pr-4">{row.name}</div>
                   {renderCell(row.free)}
                   {renderCell(row.basic)}
-                  {renderCell(row.pro, true)}
-                  {renderCell(row.ent)}
+                  {renderCell(row.growth, true)}
+                  {renderCell(row.pro)}
+                  {renderCell(row.corp)}
                 </div>
               );
             })}
           </div>
         </div>
 
+
         {/* --- WHATSAPP CONVERSATION CHARGES --- */}
         <div className="flex justify-center">
-          <div className="w-full max-w-3xl bg-emerald-50 rounded-2xl overflow-hidden border border-emerald-100 shadow-sm">
+          <div className="w-full max-w-4xl bg-emerald-50 rounded-2xl overflow-hidden border border-emerald-100 shadow-sm">
             <div className="px-8 py-5 text-center">
               <h3 className="text-base font-bold text-slate-900">
                 WhatsApp Conversation Charges{" "}
@@ -1563,37 +1743,33 @@ const UpgradePlan = () => {
               </h3>
             </div>
             <div className="bg-white mx-4 mb-4 rounded-xl overflow-hidden border border-gray-100">
-              <div className="grid grid-cols-5 border-b border-gray-100 px-5 py-3">
+              <div className="grid grid-cols-6 border-b border-gray-100 px-5 py-3">
                 <div className="text-sm font-semibold text-slate-700">Type</div>
                 <div className="text-sm font-semibold text-slate-700 text-center">Free</div>
                 <div className="text-sm font-semibold text-slate-700 text-center">Basic</div>
-                <div className="text-sm font-semibold text-emerald-600 text-center">Professional</div>
-                <div className="text-sm font-semibold text-slate-700 text-center">Enterprise</div>
+                <div className="text-sm font-semibold text-emerald-600 text-center">Growth</div>
+                <div className="text-sm font-semibold text-slate-700 text-center">Professional</div>
+                <div className="text-sm font-semibold text-slate-700 text-center">Corporate</div>
               </div>
-              <div className="grid grid-cols-5 px-5 py-4 border-b border-gray-50 items-center">
+              <div className="grid grid-cols-6 px-5 py-4 border-b border-gray-50 items-center">
                 <div className="text-sm text-slate-600">Marketing</div>
-                {[...Array(4)].map((_, i) => (
+                {[...Array(5)].map((_, i) => (
                   <div key={i} className={`text-sm text-slate-700 text-center ${i === 2 ? "bg-emerald-50/60 py-1 rounded" : ""}`}>₹0.95</div>
                 ))}
               </div>
-              <div className="grid grid-cols-5 px-5 py-4 border-b border-gray-50 items-center">
+              <div className="grid grid-cols-6 px-5 py-4 border-b border-gray-50 items-center">
                 <div className="text-sm text-slate-600">Utility &amp; Authentication</div>
-                {[...Array(4)].map((_, i) => (
+                {[...Array(5)].map((_, i) => (
                   <div key={i} className={`text-sm text-slate-700 text-center ${i === 2 ? "bg-emerald-50/60 py-1 rounded" : ""}`}>₹0.13</div>
                 ))}
               </div>
-              <div className="grid grid-cols-5 px-5 py-4 items-center">
+              <div className="grid grid-cols-6 px-5 py-4 items-center">
                 <div className="text-sm text-slate-600">Service</div>
-                {[...Array(4)].map((_, i) => (
+                {[...Array(5)].map((_, i) => (
                   <div key={i} className={`text-sm font-bold text-emerald-600 text-center ${i === 2 ? "bg-emerald-50/60 py-1 rounded" : ""}`}>FREE</div>
                 ))}
               </div>
             </div>
-            {/* <div className="text-center pb-5">
-              <a href="#" className="text-sm text-emerald-600 font-medium hover:text-emerald-700 transition-colors">
-                Other country pricing →
-              </a>
-            </div> */}
           </div>
         </div>
 

@@ -130,29 +130,31 @@ const ActivePlan = () => {
                         <span className="bg-emerald-500/40 border border-emerald-400/40 text-emerald-50 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase backdrop-blur-sm shadow-sm">Active</span>
                      </div>
                      <p className="text-xs text-emerald-100 font-medium opacity-90">
-                        {isFreePlan
-                           ? "Free plan — no expiry"
-                           : `Expiry date: ${expiryStr || "—"}`}
+                        {user?.subscriptionEndDate
+                           ? `Expiry date: ${expiryStr || "—"}`
+                           : (isFreePlan ? "30-Day Free Trial" : "—")}
                      </p>
                   </div>
 
                   {/* Days Remaining Box */}
                   <div className="relative z-10 bg-white/10 backdrop-blur-md rounded-2xl p-5 w-full md:w-56 text-center border border-white/20 shadow-lg hover:-translate-y-1 transition-transform duration-300">
-                     {isFreePlan ? (
-                        <>
-                           <div className="text-5xl font-extrabold text-white mb-1 drop-shadow-md">∞</div>
-                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">Unlimited</div>
-                        </>
-                     ) : (
+                     {user?.subscriptionEndDate ? (
                         <>
                            <div className="text-5xl font-extrabold text-white mb-1 drop-shadow-md">{daysRemaining}</div>
-                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">Days Remaining</div>
+                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">
+                              {daysRemaining === 0 ? "Expires Today" : "Days Remaining"}
+                           </div>
                            <div className="w-full h-1.5 bg-white/20 rounded-full overflow-hidden shadow-inner">
                               <div
                                  className="h-full bg-emerald-300 rounded-full transition-all duration-500"
                                  style={{ width: `${progressPct}%` }}
                               ></div>
                            </div>
+                        </>
+                     ) : (
+                        <>
+                           <div className="text-5xl font-extrabold text-white mb-1 drop-shadow-md">30</div>
+                           <div className="text-[10px] font-bold text-emerald-50 uppercase tracking-widest mb-3">Days Trial</div>
                         </>
                      )}
                   </div>

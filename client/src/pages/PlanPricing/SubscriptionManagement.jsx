@@ -45,19 +45,27 @@ function SubscriptionManagement() {
 
     const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
     
+    const effectiveEndDate = user?.subscriptionEndDate
+        ? new Date(user.subscriptionEndDate)
+        : isFreePlan
+            ? (user?.createdAt ? new Date(new Date(user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+            : null;
+
     let daysRemaining = 0;
     let nextInvoiceDate = "N/A";
-    if (user?.subscriptionEndDate) {
-        const endDate = new Date(user.subscriptionEndDate);
-        daysRemaining = getDaysRemaining(endDate);
-        nextInvoiceDate = endDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+    if (effectiveEndDate) {
+        daysRemaining = getDaysRemaining(effectiveEndDate);
+        nextInvoiceDate = effectiveEndDate.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
     }
+    const isExpired = Boolean(effectiveEndDate && daysRemaining <= 0);
 
     const planLimits = {
         free: { messages: 1000, seats: 1, price: 0 },
-        basic: { messages: 10000, seats: 5, price: 1537 },
-        professional: { messages: 50000, seats: 10, price: 2306 },
-        enterprise: { messages: 100000, seats: 20, price: 3844 }
+        basic: { messages: 10000, seats: 5, price: 899 },
+        growth: { messages: 25000, seats: 8, price: 1299 },
+        professional: { messages: 50000, seats: 15, price: 2500 },
+        corporate: { messages: 100000, seats: 25, price: 5000 },
+        enterprise: { messages: 100000, seats: 25, price: 5000 }
     };
 
     const currentPlan = user?.subscriptionPlan?.toLowerCase() || "free";
@@ -83,24 +91,28 @@ function SubscriptionManagement() {
                             <div>
                                 <div className="flex items-center gap-3 mb-1">
                                     <h2 className="text-2xl font-black text-slate-900">
-                                        {(user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1)} Plan
+                                        {isFreePlan ? "Free Trial" : ((user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1) + " Plan")}
                                     </h2>
-                                    <span className={`flex items-center gap-1 text-[10px] font-bold ${daysRemaining > 0 ? "bg-emerald-500 text-white" : "bg-slate-400 text-white"} px-2.5 py-1 rounded-full uppercase tracking-wider`}>
+                                    <span className={`flex items-center gap-1 text-[10px] font-bold ${daysRemaining > 0 ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"} px-2.5 py-1 rounded-full uppercase tracking-wider`}>
                                         {daysRemaining > 0 ? <><CheckCircleIcon className="w-3 h-3" /> Active</> : "Expired"}
                                     </span>
                                 </div>
                                 <p className="text-sm text-slate-400">
-                                    {isFreePlan ? "Free forever plan" : `Subscription plan • Next invoice: ${nextInvoiceDate}`}
+                                    {isFreePlan 
+                                        ? (isExpired ? "30-day Free Trial has expired" : `30-day Free Trial • Expires: ${nextInvoiceDate}`) 
+                                        : (isExpired ? `${(user?.subscriptionPlan || "Subscription").toUpperCase()} plan expired on ${nextInvoiceDate}` : `Subscription plan • Next invoice: ${nextInvoiceDate}`)}
                                 </p>
                             </div>
                             <div className="flex flex-col items-end gap-2">
                                 <button
                                     onClick={() => navigate("/admin/plan/upgrade")}
-                                    className="px-5 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
+                                    className={`px-5 py-2.5 text-white text-sm font-bold rounded-lg transition-colors shadow-sm ${
+                                        isExpired ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-500 hover:bg-emerald-600"
+                                    }`}
                                 >
-                                    {isFreePlan ? "Upgrade Plan" : "Change Plan"}
+                                    {isExpired ? "Renew Plan" : (isFreePlan ? "Upgrade Plan" : "Change Plan")}
                                 </button>
-                                {!isFreePlan && (
+                                {!isFreePlan && !isExpired && (
                                     <button className="flex items-center gap-1.5 text-sm font-semibold text-red-500 hover:text-red-600 transition-colors">
                                         <XCircleIcon className="w-4 h-4" /> Cancel Subscription
                                     </button>
@@ -112,7 +124,7 @@ function SubscriptionManagement() {
                         <div className="grid grid-cols-2 gap-4 mb-6">
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Time Remaining</p>
-                                <p className="text-3xl font-black text-slate-900">{isFreePlan ? "Unlimited" : `${daysRemaining} Days`}</p>
+                                <p className="text-3xl font-black text-slate-900">{isExpired ? "Expired" : `${daysRemaining} Days`}</p>
                             </div>
                             <div className="bg-slate-50 rounded-xl p-4">
                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Billing Amount</p>

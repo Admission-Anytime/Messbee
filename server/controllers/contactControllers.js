@@ -1,4 +1,6 @@
 const Contact  = require('../models/Contact');
+const User     = require('../models/User');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const mongoose = require('mongoose');
 const fs       = require('fs');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
@@ -173,6 +175,17 @@ exports.createContact = async (req, res, next) => {
 
     if (!name || !name.trim())         return sendError(res, 400, 'Name is required');
     if (!whatsapp || !whatsapp.trim()) return sendError(res, 400, 'WhatsApp number is required');
+
+    // Check contact limit for user plan
+    const user = await User.findById(req.user.id);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const contactLimit = PLAN_LIMITS[userPlan]?.contacts ?? PLAN_LIMITS.free.contacts ?? 500;
+    if (contactLimit !== -1) {
+      const currentContactCount = await Contact.countDocuments({ user: req.user.id });
+      if (currentContactCount >= contactLimit) {
+        return sendError(res, 403, `Your current plan (${userPlan}) allows up to ${contactLimit} contacts. Please upgrade your plan to add more contacts.`);
+      }
+    }
 
     const normalizedWhatsapp = normalizePhone(whatsapp);
     if (!normalizedWhatsapp) return sendError(res, 400, 'Invalid WhatsApp number');
@@ -418,6 +431,17 @@ exports.importContacts = async (req, res, next) => {
     cleanupFile();
 
     if (!rows.length) return sendError(res, 400, 'CSV file is empty or has no data rows');
+
+    // Check contact limit for user plan
+    const user = await User.findById(req.user.id);
+    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+    const contactLimit = PLAN_LIMITS[userPlan]?.contacts ?? PLAN_LIMITS.free.contacts ?? 500;
+    if (contactLimit !== -1) {
+      const currentContactCount = await Contact.countDocuments({ user: req.user.id });
+      if (currentContactCount + rows.length > contactLimit) {
+        return sendError(res, 403, `Importing ${rows.length} contacts would exceed your limit of ${contactLimit} contacts for the ${userPlan} plan. Please upgrade your plan.`);
+      }
+    }
 
     // ── Parse the user-defined field mapping from Step 2 (if provided) ──────────
     // Shape: { "CSV Column Header": "crmFieldKey" | "skip" }

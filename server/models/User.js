@@ -109,7 +109,7 @@ const UserSchema = new mongoose.Schema({
   },
   subscriptionPlan: {
     type: String,
-    enum: ['free', 'basic', 'professional', 'premium', 'enterprise', 'custom'],
+    enum: ['free', 'basic', 'growth', 'professional', 'corporate', 'enterprise', 'premium', 'custom'],
     default: 'free'
   },
   planName: {
@@ -121,7 +121,8 @@ const UserSchema = new mongoose.Schema({
     default: 0
   },
   subscriptionEndDate: {
-    type: Date
+    type: Date,
+    default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
   },
   timezone: {
     type: String,

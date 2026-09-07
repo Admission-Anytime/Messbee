@@ -6,6 +6,8 @@ import { Bars3Icon } from "@heroicons/react/24/outline";
 import { userContext } from "../../context/Context";
 import { ChatContext } from "../../context/ChatContext";
 import { getDaysRemaining } from "../../utils/subscription";
+import { hasPlanFeature } from "../../utils/planLimits";
+
 
 // --- LOGO ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png";
@@ -124,7 +126,22 @@ const MENU_ITEMS = [
   },
 ];
 
+const ITEM_PLAN_FEATURES = {
+  "Developer API": "developerApi",
+  "Commerce": "commerce",
+  "App integration": "appsIntegration",
+};
+
+const SUBITEM_PLAN_FEATURES = {
+  "/admin/analytic/template": "templateAnalytics",
+};
+
 const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
+  const { user } = useContext(userContext);
+  const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
+  const planFeature = ITEM_PLAN_FEATURES[item.title];
+  const isPlanLocked = planFeature ? !hasPlanFeature(currentPlan, planFeature) : false;
+
   const isOpen = openSubmenu === item.title || !!item._forceOpen;
   const isFloatingOpen = activeFloating === item.title;
   const isChildActive = item.children?.some((child) => window.location.pathname.includes(child.path));
@@ -140,17 +157,22 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
           <button
             onClick={(e) => { e.stopPropagation(); onFloatingToggle(item.title, e); }}
             className={`w-full flex justify-center items-center py-3 rounded-lg transition-colors cursor-pointer relative ${isChildActive || isFloatingOpen ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`}
-            title={item.title}
+            title={item.title + (isPlanLocked ? " (Upgrade Required)" : "")}
           >
             <Icon icon={item.icon} className="w-5 h-5" />
-            {(isChildActive || isFloatingOpen) && <span className="absolute right-1 top-1 w-1.5 h-1.5 bg-[#10B981] rounded-full"></span>}
+            {isPlanLocked ? (
+              <span className="absolute right-1 top-1 w-2 h-2 bg-amber-500 rounded-full"></span>
+            ) : (
+              (isChildActive || isFloatingOpen) && <span className="absolute right-1 top-1 w-1.5 h-1.5 bg-[#10B981] rounded-full"></span>
+            )}
           </button>
         </div>
       );
     }
     return (
-      <Link to={item.path || "#"} className={`flex justify-center items-center py-3 my-1 mx-2 rounded-lg transition-colors ${active ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`} title={item.title}>
+      <Link to={item.path || "#"} className={`flex justify-center items-center py-3 my-1 mx-2 rounded-lg transition-colors relative ${active ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`} title={item.title + (isPlanLocked ? " (Upgrade Required)" : "")}>
         <Icon icon={item.icon} className="w-5 h-5" />
+        {isPlanLocked && <span className="absolute right-1 top-1 w-2 h-2 bg-amber-500 rounded-full"></span>}
       </Link>
     );
   }
@@ -163,16 +185,26 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
             <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${isChildActive ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
             <span className="truncate text-[14px] font-medium">{item.title}</span>
           </div>
-          <Icon icon="feather:chevron-down" className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+          <div className="flex items-center gap-1.5">
+            {isPlanLocked && <Icon icon="feather:lock" className="w-3.5 h-3.5 text-amber-500" title="Upgrade Plan Required" />}
+            <Icon icon="feather:chevron-down" className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+          </div>
         </div>
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? "max-h-[500px] opacity-100" : "max-h-0 opacity-0"}`}>
           <div className="bg-white py-1 space-y-0.5 border-l border-slate-100 ml-6 pl-2">
-            {item.children.map((sub, idx) => (
-              <Link key={idx} to={sub.path} className={`flex items-center gap-3 px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors ${isActive(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}>
-                <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
-                <span className="truncate">{sub.title}</span>
-              </Link>
-            ))}
+            {item.children.map((sub, idx) => {
+              const subFeature = SUBITEM_PLAN_FEATURES[sub.path];
+              const isSubLocked = subFeature ? !hasPlanFeature(currentPlan, subFeature) : false;
+              return (
+                <Link key={idx} to={sub.path} className={`flex items-center justify-between px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors ${isActive(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}>
+                  <div className="flex items-center gap-3 truncate">
+                    <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
+                    <span className="truncate">{sub.title}</span>
+                  </div>
+                  {isSubLocked && <Icon icon="feather:lock" className="w-3 h-3 text-amber-500 shrink-0 ml-2" title="Upgrade Plan Required" />}
+                </Link>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -188,7 +220,14 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
           <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
           <div className="flex items-center justify-between w-full">
             <span className="truncate text-[14px] font-medium">{item.title}</span>
-            {displayBadge && <span className="bg-[#00B050] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">{displayBadge}</span>}
+            {isPlanLocked ? (
+              <span className="flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200/80 px-1.5 py-0.5 rounded shadow-xs ml-auto shrink-0">
+                <Icon icon="feather:lock" className="w-2.5 h-2.5" />
+                Upgrade
+              </span>
+            ) : (
+              displayBadge && <span className="bg-[#00B050] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">{displayBadge}</span>
+            )}
           </div>
         </div>
       </Link>
@@ -233,7 +272,10 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { logoutUser, user, rolePermissions } = useContext(userContext);
+  const { logoutUser, user, rolePermissions, updateUser, refreshUser } = useContext(userContext);
+  const isExpired = Boolean(
+    user?.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()
+  );
   const handleLogout = async () => { await logoutUser(); navigate("/login"); };
 
   const hasAccessToItem = (itemTitle) => {
@@ -260,6 +302,22 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
   };
 
   const filteredMenuItems = useMemo(() => {
+    // If plan is expired, lock all features and only show Upgrade Plan
+    if (isExpired) {
+      return [
+        {
+          items: [
+            {
+              title: "Upgrade Plan",
+              path: "/admin/plan/upgrade",
+              icon: "feather:arrow-up-circle",
+              badge: "Required"
+            }
+          ]
+        }
+      ];
+    }
+
     const q = searchQuery.toLowerCase();
     return MENU_ITEMS.map((cat) => ({
       ...cat,
@@ -298,7 +356,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
         })
         .filter(Boolean),
     })).filter((cat) => cat.items.length > 0);
-  }, [searchQuery, rolePermissions, user?.role]);
+  }, [isExpired, searchQuery, rolePermissions, user?.role]);
 
   const handleCollapsedSearchClick = () => { setIsOpen(true); setTimeout(() => searchInputRef.current?.focus(), 100); };
 
@@ -339,12 +397,20 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
               <button onClick={() => setActiveFloating(null)} className="text-slate-400 hover:text-red-500"><Icon icon="feather:x" /></button>
             </div>
             <div className="flex flex-col gap-1 max-h-[60vh] overflow-y-auto sidebar-scroll">
-              {MENU_ITEMS[0].items.find((i) => i.title === activeFloating)?.children?.map((sub, idx) => (
-                <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isActive(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
-                  <Icon icon={sub.icon} className={`w-4 h-4 ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400"}`} />
-                  <span className="truncate">{sub.title}</span>
-                </Link>
-              ))}
+              {MENU_ITEMS[0].items.find((i) => i.title === activeFloating)?.children?.map((sub, idx) => {
+                const subFeature = SUBITEM_PLAN_FEATURES[sub.path];
+                const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
+                const isSubLocked = subFeature ? !hasPlanFeature(currentPlan, subFeature) : false;
+                return (
+                  <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isActive(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
+                    <div className="flex items-center gap-3 truncate">
+                      <Icon icon={sub.icon} className={`w-4 h-4 ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400"}`} />
+                      <span className="truncate">{sub.title}</span>
+                    </div>
+                    {isSubLocked && <Icon icon="feather:lock" className="w-3 h-3 text-amber-500 shrink-0 ml-2" title="Upgrade Plan Required" />}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </>
@@ -463,13 +529,29 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
               <div className="flex justify-between items-start">
                 <div className="flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Plan</p>
-                  <h4 className="text-[13px] font-extrabold text-slate-900">{user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free"}</h4>
+                  <div className="flex items-center gap-1.5">
+                    <h4 className="text-[13px] font-extrabold text-slate-900">{user?.subscriptionPlan ? user.subscriptionPlan.charAt(0).toUpperCase() + user.subscriptionPlan.slice(1) : "Free"}</h4>
+                    {isExpired && (
+                      <span className="text-[9px] font-extrabold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                        Expired
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <div className="text-right flex flex-col gap-0.5">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">WCC Credit</p>
                   <span className="text-[13px] font-extrabold text-[#10B981]">₹{(user?.credits || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
+              {isExpired && (
+                <Link
+                  to="/admin/plan/upgrade"
+                  className="mt-2 block text-center py-1.5 px-2 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-[11px] font-bold transition-colors shadow-xs"
+                >
+                  {user?.subscriptionPlan && user.subscriptionPlan.toLowerCase() !== "free" ? "Plan Expired • Renew Now →" : "Trial Ended • Upgrade Now →"}
+                </Link>
+              )}
+
             </div>
           )}
 

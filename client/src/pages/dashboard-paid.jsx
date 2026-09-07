@@ -32,14 +32,20 @@ function Dashboard() {
    };
    const isFreePlan = !user?.subscriptionPlan || user.subscriptionPlan.toLowerCase() === "free";
    
-   // Dynamic calculation for days remaining
+   // Dynamic calculation for days remaining (Free trial defaults to 30 days from user creation)
+   const effectiveEndDate = user?.subscriptionEndDate
+      ? new Date(user.subscriptionEndDate)
+      : isFreePlan
+         ? (user?.createdAt ? new Date(new Date(user.createdAt).getTime() + 30 * 24 * 60 * 60 * 1000) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))
+         : null;
+
    let daysRemaining = 0;
    let nextBillingCycleStr = "N/A";
-   if (user?.subscriptionEndDate) {
-      const endDate = new Date(user.subscriptionEndDate);
-      daysRemaining = getDaysRemaining(endDate);
-      nextBillingCycleStr = endDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+   if (effectiveEndDate) {
+      daysRemaining = getDaysRemaining(effectiveEndDate);
+      nextBillingCycleStr = effectiveEndDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
    }
+   const isExpired = Boolean(effectiveEndDate && daysRemaining <= 0);
 
    // Message Limit Tier Logic
    const getMessageTier = () => {
@@ -205,35 +211,83 @@ function Dashboard() {
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between h-full">
                <div className="flex flex-wrap justify-between items-start mb-4 gap-2">
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider pt-1">Active Subscription</p>
-                  <span className="text-[10px] font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200 whitespace-nowrap">{(user?.subscriptionPlan || "FREE").toUpperCase()} PLAN</span>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded border whitespace-nowrap ${
+                     isExpired
+                        ? "bg-rose-50 text-rose-700 border-rose-200"
+                        : isFreePlan
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-slate-100 text-slate-600 border-slate-200"
+                  }`}>
+                     {isExpired ? "PLAN EXPIRED" : (isFreePlan ? "FREE TRIAL" : `${(user?.subscriptionPlan || "").toUpperCase()} PLAN`)}
+                  </span>
                </div>
                <div className="mb-6">
                   {isFreePlan ? (
                      <>
-                        <h3 className="text-3xl font-black text-slate-900 mb-1">Unlimited <span className="text-lg font-medium text-slate-400">days</span></h3>
-                        <p className="text-xs text-slate-400 mb-4">Free plan is active with basic restrictions.</p>
+                        <h3 className="text-3xl font-black text-slate-900 mb-1">
+                           {isExpired ? (
+                              <span className="text-rose-600">Expired</span>
+                           ) : (
+                              <>{daysRemaining} <span className="text-lg font-medium text-slate-400">days left</span></>
+                           )}
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">
+                           {isExpired
+                              ? "30-day Free Trial ended. Upgrade to continue using features."
+                              : `30-day Free Trial active until ${nextBillingCycleStr}.`}
+                        </p>
                         <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
-                           <div className="h-full bg-emerald-500 w-full rounded-full"></div>
+                           <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                 isExpired ? "bg-rose-500 w-full" : (daysRemaining <= 5 ? "bg-amber-500" : "bg-emerald-500")
+                              }`}
+                              style={{ width: isExpired ? "100%" : `${getSubscriptionProgress(daysRemaining, true)}%` }}
+                              aria-valuemin="0"
+                              aria-valuemax="100"
+                              aria-valuenow={Math.round(getSubscriptionProgress(daysRemaining, true))}
+                              role="progressbar"
+                           ></div>
                         </div>
                      </>
                   ) : (
                      <>
-                        <h3 className="text-3xl font-black text-slate-900 mb-1">{daysRemaining} Days <span className="text-lg font-medium text-slate-400">remaining</span></h3>
-                        <p className="text-xs text-slate-400 mb-4">Next billing cycle starts {nextBillingCycleStr}.</p>
+                        <h3 className="text-3xl font-black text-slate-900 mb-1">
+                           {isExpired ? (
+                              <span className="text-rose-600">Expired</span>
+                           ) : (
+                              <>{daysRemaining} Days <span className="text-lg font-medium text-slate-400">remaining</span></>
+                           )}
+                        </h3>
+                        <p className="text-xs text-slate-400 mb-4">
+                           {isExpired
+                              ? `${(user?.subscriptionPlan || "Current").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Current").slice(1)} plan expired on ${nextBillingCycleStr}. Renew to keep access.`
+                              : `Next billing cycle starts ${nextBillingCycleStr}.`}
+                        </p>
                         <div className="h-1.5 w-full bg-slate-100 rounded-full mb-1 overflow-hidden">
                            <div
-                              className="h-full bg-slate-800 rounded-full transition-all duration-500"
-                              style={{ width: `${getSubscriptionProgress(daysRemaining)}%` }}
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                 isExpired ? "bg-rose-500 w-full" : (daysRemaining <= 5 ? "bg-amber-500" : "bg-slate-800")
+                              }`}
+                              style={{ width: isExpired ? "100%" : `${getSubscriptionProgress(daysRemaining, false)}%` }}
                               aria-valuemin="0"
                               aria-valuemax="100"
-                              aria-valuenow={Math.round(getSubscriptionProgress(daysRemaining))}
+                              aria-valuenow={Math.round(getSubscriptionProgress(daysRemaining, false))}
                               role="progressbar"
                            ></div>
                         </div>
                      </>
                   )}
                </div>
-               <button onClick={() => navigate('/admin/plan/overview')} className="w-full py-2.5 bg-white text-slate-700 border border-slate-200 text-sm font-bold rounded-lg hover:bg-slate-50 transition-colors">Manage Subscription</button>
+               <button
+                  onClick={() => navigate(isFreePlan || isExpired ? '/admin/plan/upgrade' : '/admin/plan/overview')}
+                  className={`w-full py-2.5 text-sm font-bold rounded-lg transition-colors text-center ${
+                     isFreePlan || isExpired
+                        ? "bg-[#1e293b] text-white hover:bg-slate-800 shadow-sm"
+                        : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+                  }`}
+               >
+                  {isExpired ? "Renew Plan Now" : (isFreePlan ? "Upgrade Plan" : "Manage Subscription")}
+               </button>
             </div>
          </div>
 

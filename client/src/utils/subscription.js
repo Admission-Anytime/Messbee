@@ -14,12 +14,13 @@ export const getDaysRemaining = (endDateValue, referenceDate = new Date()) => {
   return Math.max(0, Math.round((endDate - currentDate) / MS_PER_DAY));
 };
 
-export const getSubscriptionCycleDays = (daysRemaining) => {
+export const getSubscriptionCycleDays = (daysRemaining, isFreePlan = false) => {
+  if (isFreePlan || daysRemaining <= 30) return 30;
   return daysRemaining > 100 ? 365 : 90;
 };
 
-export const getSubscriptionProgress = (daysRemaining) => {
-  const cycleDays = getSubscriptionCycleDays(daysRemaining);
+export const getSubscriptionProgress = (daysRemaining, isFreePlan = false) => {
+  const cycleDays = getSubscriptionCycleDays(daysRemaining, isFreePlan);
   if (!cycleDays) return 0;
 
   return Math.min(100, Math.max(0, (daysRemaining / cycleDays) * 100));
