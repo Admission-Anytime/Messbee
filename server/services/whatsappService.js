@@ -10,18 +10,27 @@ const Setting = require('../models/Setting');
  * Handles all interactions with WhatsApp Cloud API
  */
 class WhatsAppService {
-  constructor() {
-    this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
-    this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
-    this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
-    
-    // Initial sync from DB
-    this.syncConfig();
-
-    // Log configuration on initialization
-
+  constructor(options = {}) {
+    if (options.tenantSpecific) {
+      this.apiVersion = options.apiVersion || process.env.WHATSAPP_API_VERSION || 'v20.0';
+      this.phoneNumberId = options.phoneNumberId;
+      this.accessToken = options.accessToken;
+      this.businessAccountId = options.businessAccountId;
+      this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
+      this.isTenantSpecific = true;
+      // Do not sync config for tenant-specific instances
+      this.syncConfig = async () => {}; 
+      this.validateConfig = () => true;
+    } else {
+      this.apiVersion = process.env.WHATSAPP_API_VERSION || 'v20.0';
+      this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      this.accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+      this.businessAccountId = (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID);
+      this.baseURL = `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}`;
+      
+      // Initial sync from DB
+      this.syncConfig();
+    }
   }
 
   /**
@@ -82,26 +91,10 @@ class WhatsAppService {
   /**
    * Normalize template language code used by Graph API.
    */
-  normalizeTemplateLanguage(languageCode = 'en_US') {
-    if (!languageCode) return 'en_US';
+  normalizeTemplateLanguage(languageCode = 'en') {
+    if (!languageCode) return 'en';
 
-    const normalized = String(languageCode).trim();
-    const map = {
-      en: 'en_US',
-      hi: 'hi_IN',
-      es: 'es_ES',
-      pt: 'pt_BR',
-      fr: 'fr_FR',
-      de: 'de_DE',
-      ar: 'ar_AR',
-      it: 'it_IT',
-      ja: 'ja_JP',
-      zh: 'zh_CN',
-      ko: 'ko_KR',
-      ru: 'ru_RU'
-    };
-
-    return map[normalized] || normalized;
+    return String(languageCode).trim();
   }
 
   /**
@@ -969,7 +962,7 @@ class WhatsAppService {
 
       
       const response = await axios.get(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
         {
           params: {
             fields: 'id,name,status,category,language,created_timestamp,rejected_reason,quality_score,components'
@@ -1008,7 +1001,6 @@ class WhatsAppService {
         components = []
       } = templateData;
 
-      const preparedComponents = components.map((component) => ({ ...component }));
       const sanitizeComponents = (inputComponents = []) =>
         inputComponents
           .map((component) => ({ ...component }))
@@ -1031,6 +1023,8 @@ class WhatsAppService {
             }
             return true;
           });
+
+      const preparedComponents = sanitizeComponents(components);
 
 
 
@@ -1188,7 +1182,8 @@ class WhatsAppService {
         name: templateName,
         category,
         language,
-        components: payloadComponents
+        components: payloadComponents,
+        allow_category_change: true
       });
 
       const generateSuggestedTemplateName = (baseName) => {
@@ -1206,9 +1201,12 @@ class WhatsAppService {
         try {
 
           
+          const payload = createTemplatePayload(templateName);
+          console.log('\n🚀 [Service] Sending Template Payload to Meta:\n', JSON.stringify(payload, null, 2));
+          
           const response = await axios.post(
-            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
-            createTemplatePayload(templateName),
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
+            payload,
             {
               headers: {
                 'Authorization': `Bearer ${this.accessToken}`,
@@ -1255,7 +1253,7 @@ class WhatsAppService {
 
       try {
         response = await axios.post(
-          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
           payload,
           {
             headers: {
@@ -1276,7 +1274,7 @@ class WhatsAppService {
             error: {
               message: `A template with the name "${name}" already exists. Please use a different name or edit the existing template.`,
               code: error.response?.data?.error?.code,
-              errorSubcode: isTemplateLanguageAlreadyExists,
+              errorSubcode: 2388024,
               title: 'Template Already Exists',
               originalTemplateName: name
             }
@@ -1307,16 +1305,15 @@ class WhatsAppService {
           console.warn('⚠️  Could not fetch rejected reason for created template:', detailsError.message);
         }
 
+        // Even though it's rejected, the template WAS successfully created on Meta.
+        // We return success: true so the frontend navigates and saves it locally.
         return {
-          success: false,
-          error: {
-            message: `Template was created but immediately rejected by WhatsApp (${rejectedReason}).`,
-            rejectedReason,
-            templateId: response.data?.id,
-            templateName: createdName,
-            usedFallbackName,
-            originalTemplateName: name
-          }
+          success: true,
+          data: response.data,
+          templateName: createdName,
+          usedFallbackName,
+          originalTemplateName: name,
+          warning: `Template was created but immediately rejected by WhatsApp (${rejectedReason}).`
         };
       }
 
@@ -1464,7 +1461,7 @@ class WhatsAppService {
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
       const response = await axios.delete(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${(this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)}/message_templates`,
+        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
         {
           params: {
             name: templateName

@@ -372,7 +372,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         type: 'contacts',
         contacts: [{
           name: { formatted_name: parseDynamicVariables(nodeData.contactName, contextData) || 'Contact' },
-          phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) || '0000000000' }]
+          phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) }]
         }]
       };
     } else if (nodeData.utilityType === 'calendar') {
@@ -558,7 +558,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 
     if (!channel) {
       if (customerPhone.startsWith('SIMULATOR_')) {
-        channel = { _id: channelId, tenantId: '000000000000000000000000', activeWhatsappPhoneNumberId: 'mock_phone' };
+        channel = { _id: channelId, tenantId: activeFlow.tenantId, activeWhatsappPhoneNumberId: 'mock_phone' };
       } else {
         console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
         return;
@@ -820,7 +820,13 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
     if (!channel) {
       if (simulatorTargetFlowId || customerPhone.startsWith('SIMULATOR_')) {
-        channel = { _id: channelId, tenantId: '000000000000000000000000', activeWhatsappPhoneNumberId: 'mock_phone' };
+        let dynamicTenantId = null;
+        if (simulatorTargetFlowId) {
+          const Automation = (await import('../models/Automation.js')).default || require('../models/Automation');
+          const flow = await Automation.findById(simulatorTargetFlowId);
+          dynamicTenantId = flow ? flow.tenantId : null;
+        }
+        channel = { _id: channelId, tenantId: dynamicTenantId, activeWhatsappPhoneNumberId: 'mock_phone' };
       } else {
         console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
         return;

@@ -174,38 +174,44 @@ router.get("/debug/fix-orphans", async (req, res) => {
  * - If allowUnassigned is true (for send-template/message/messages viewing), also allows unassigned chats so agents can claim and respond to them.
  */
 function getChatAccessFilter(user, extra = {}, allowUnassigned = false) {
-  const isAdmin = user && (user.role === 'ADMIN' || user.role === 'admin');
+  const tenantId = user?.tenantId || user?._id || user?.id;
+  const tenantFilter = { user: tenantId };
+  
+  const isAdmin = user && (user.role === 'ADMIN' || user.role === 'admin' || user.role === 'MANAGER');
+  
+  let baseFilter = {};
+  
   if (isAdmin) {
-    return extra;
-  }
+    // Admins and Managers can see all chats in their tenant
+    baseFilter = tenantFilter;
+  } else {
+    // Agents can only see chats assigned to them (or unassigned if allowed)
+    const userIdStr = (user?._id || user?.id || '').toString();
+    const userName = (user?.name || '').trim();
+    const userEmail = (user?.email || '').trim();
 
-  const userIdStr = (user?._id || user?.id || '').toString();
-  const userName = (user?.name || '').trim();
-  const userEmail = (user?.email || '').trim();
-
-  const userConditions = [];
-  if (user?._id || user?.id) {
-    userConditions.push({ user: user._id || user.id });
-    if (userIdStr) {
-      userConditions.push({ teamMember: userIdStr });
+    const agentConditions = [];
+    if (userIdStr) agentConditions.push({ teamMember: userIdStr });
+    if (userName) {
+      agentConditions.push({ teamMember: userName });
+      agentConditions.push({ teamMember: { $regex: new RegExp(`^${userName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
     }
-  }
-  if (userName) {
-    userConditions.push({ teamMember: userName });
-    userConditions.push({ teamMember: { $regex: new RegExp(`^${userName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } });
-  }
-  if (userEmail) {
-    userConditions.push({ teamMember: userEmail });
-  }
+    if (userEmail) agentConditions.push({ teamMember: userEmail });
 
-  if (allowUnassigned) {
-    userConditions.push({ teamMember: 'Unassigned' });
-    userConditions.push({ teamMember: null });
-    userConditions.push({ teamMember: '' });
-    userConditions.push({ teamMember: { $exists: false } });
-  }
+    if (allowUnassigned) {
+      agentConditions.push({ teamMember: 'Unassigned' });
+      agentConditions.push({ teamMember: null });
+      agentConditions.push({ teamMember: '' });
+      agentConditions.push({ teamMember: { $exists: false } });
+    }
 
-  const baseFilter = userConditions.length > 0 ? { $or: userConditions } : { _id: null };
+    baseFilter = {
+      $and: [
+        tenantFilter,
+        agentConditions.length > 0 ? { $or: agentConditions } : { _id: null }
+      ]
+    };
+  }
 
   if (extra && Object.keys(extra).length > 0) {
     return {
@@ -420,6 +426,13 @@ router.post("/message", async (req, res) => {
       let outboundMessageType = media ? normalizedMessageType : 'text';
       let whatsappMediaType = 'document'; // default, overridden below if media present
 
+      const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+      const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+
+      if (!tenantWhatsAppService) {
+        return res.status(403).json({ success: false, error: 'WhatsApp is not connected for this account.' });
+      }
+
       const canSendFreeText = await hasActiveCustomerWindow(chat);
 
       if (!canSendFreeText && (text?.trim() || media)) {
@@ -457,7 +470,7 @@ router.post("/message", async (req, res) => {
                    const determinedMimeType = sanitizeMimeForWhatsApp(rawMimeType);
 
                    
-                   const uploadResult = await whatsappService.uploadMedia(localFilePath, determinedMimeType);
+                   const uploadResult = await tenantWhatsAppService.uploadMedia(localFilePath, determinedMimeType);
                    if (uploadResult.success) {
                       mediaIdToUse = uploadResult.mediaId;
                       // Cache it for next time
@@ -476,7 +489,7 @@ router.post("/message", async (req, res) => {
                    if (fs.existsSync(fallbackPath)) {
 
                       const determinedMimeType = sanitizeMimeForWhatsApp(resolveMimeType(dbMedia.ext || ''));
-                      const uploadResult = await whatsappService.uploadMedia(fallbackPath, determinedMimeType);
+                      const uploadResult = await tenantWhatsAppService.uploadMedia(fallbackPath, determinedMimeType);
                       if (uploadResult.success) {
                          mediaIdToUse = uploadResult.mediaId;
                          dbMedia.whatsappMediaId = mediaIdToUse;
@@ -508,7 +521,7 @@ router.post("/message", async (req, res) => {
         const sidebarText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
         displayText = text || '';
 
-        const result = await whatsappService.sendMediaMessage(
+        const result = await tenantWhatsAppService.sendMediaMessage(
           whatsappRecipient,
           whatsappMediaType,
           mediaIdToUse,
@@ -524,7 +537,7 @@ router.post("/message", async (req, res) => {
 
       } else if (text && text.trim()) {
         // Send text message via WhatsApp
-        const result = await whatsappService.sendTextMessage(whatsappRecipient, text);
+        const result = await tenantWhatsAppService.sendTextMessage(whatsappRecipient, text);
         if (result.success) {
           whatsappResult = result;
 
@@ -814,7 +827,14 @@ router.post("/send-template", async (req, res) => {
       });
     }
 
-    const result = await whatsappService.sendTemplateMessage(
+    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ error: 'WhatsApp is not connected for this account.' });
+    }
+
+    const result = await tenantWhatsAppService.sendTemplateMessage(
       chat.whatsappId,
       templateName,
       languageCode || 'en',
@@ -886,7 +906,7 @@ router.post("/send-template", async (req, res) => {
         whatsappMessageId: result.messageId,
         messageType: 'template',
         templateName: result.templateName || templateName,
-        templateLanguage: result.templateLanguage || (languageCode || 'en_US'),
+        templateLanguage: result.templateLanguage || (languageCode || 'en'),
         mediaUrl,
         mediaType,
         fileName,

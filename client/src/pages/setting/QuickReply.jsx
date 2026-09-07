@@ -688,7 +688,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
             <span className="text-white text-[11px] sm:text-xs font-bold">MB</span>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">MessBee Business</p>
+            <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">Your Business</p>
             <p className="text-white/80 text-[9px] sm:text-[10px] font-medium">verified business</p>
           </div>
           <div className="flex gap-2.5 text-white/90 text-sm items-center">
