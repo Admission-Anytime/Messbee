@@ -229,16 +229,42 @@ exports.connectOAuthToken = async (req, res, next) => {
         const User = require('../models/User');
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
-        
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -407,16 +433,42 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         const User = require('../models/User');
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
-        
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -519,15 +571,42 @@ exports.connectManual = async (req, res, next) => {
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
         
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -823,8 +902,9 @@ async function handleIncomingMessage(data) {
 
     if (!chat) {
       isNewContact = true;
-      // Try to find if this contact belongs to any user in the CRM (Contact model)
+      // Try to find if this contact belongs to any user within THIS tenant in the CRM (Contact model)
       const crmContact = await Contact.findOne({ 
+        user: resolvedTenantId,
         $or: [
           { whatsapp: normalizedFrom },
           { phone: normalizedFrom },
@@ -845,7 +925,7 @@ async function handleIncomingMessage(data) {
         whatsappId: normalizedFrom,
         source: 'whatsapp',
         lastActivity: new Date(),
-        user: assignedUserId // Link to the user who owns the contact in CRM or the channel tenant
+        user: assignedUserId // Link strictly to the channel tenant
       });
       
       // Emit chat_created event
@@ -857,18 +937,9 @@ async function handleIncomingMessage(data) {
       } catch (socketError) {
       }
     } else {
-      // If found chat has NO user assigned, but we find a CRM contact with a user, assign it
+      // If found chat has NO user assigned, ensure it is assigned to this tenant
       if (!chat.user) {
-        const crmContact = await Contact.findOne({ 
-          $or: [
-            { whatsapp: normalizedFrom },
-            { phone: normalizedFrom }
-          ]
-        }).sort({ updatedAt: -1 });
-        
-        if (crmContact) {
-          chat.user = crmContact.user;
-        }
+        chat.user = resolvedTenantId;
       }
 
       
@@ -1473,7 +1544,9 @@ exports.sendTemplateMessage = async (req, res, next) => {
         });
       }
 
+      const effectiveTenantId = req.user?.tenantId || req.user?._id || req.user?.id;
       chat = await Chat.findOne({
+        user: effectiveTenantId,
         $or: [
           { phone: recipientPhone },
           { whatsappId: recipientPhone }
@@ -1488,11 +1561,11 @@ exports.sendTemplateMessage = async (req, res, next) => {
           status: 'active',
           chatStatus: 'open',
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
-          teamMember: req.user?.name || req.user?.id || 'Unassigned',
+          teamMember: req.user?.name || 'Unassigned',
           whatsappId: recipientPhone,
           source: 'whatsapp',
           lastActivity: new Date(),
-          user: req.user?.id || null
+          user: effectiveTenantId
         });
       }
     }

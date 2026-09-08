@@ -816,7 +816,8 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
  */
 export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false) {
   try {
-    let channel = await Channel.findById(channelId);
+    // IMPORTANT: metaAccessToken has `select: false` in schema — must explicitly select it
+    let channel = await Channel.findById(channelId).select('+metaAccessToken');
 
     if (!channel) {
       if (simulatorTargetFlowId || customerPhone.startsWith('SIMULATOR_')) {

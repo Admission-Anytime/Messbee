@@ -22,9 +22,10 @@ const SOCKET_URL =
 const isChatAccessibleForUser = (chat, currentUser) => {
   if (!chat || !currentUser) return false;
   const role = (currentUser.role || '').toUpperCase();
-  if (role === 'ADMIN') return true;
+  if (role === 'ADMIN' || role === 'MANAGER') return true;
 
   const currentUserId = (currentUser._id || currentUser.id || '').toString();
+  const currentTenantId = (currentUser.tenantId || currentUserId).toString();
   const currentUserName = (currentUser.name || '').trim().toLowerCase();
   const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
 
@@ -32,7 +33,18 @@ const isChatAccessibleForUser = (chat, currentUser) => {
   const chatTeamMember = (chat.teamMember || '').trim();
   const chatTeamMemberLower = chatTeamMember.toLowerCase();
 
-  if (chatUserId && currentUserId && chatUserId === currentUserId) return true;
+  // If chat belongs to the user or tenant
+  if (chatUserId && (chatUserId === currentUserId || chatUserId === currentTenantId)) {
+    // If user is owner or manager, they can access
+    if (chatUserId === currentUserId) return true;
+    // If assigned to this user
+    if (currentUserName && chatTeamMemberLower === currentUserName) return true;
+    if (currentUserId && chatTeamMember === currentUserId) return true;
+    if (currentUserEmail && chatTeamMemberLower === currentUserEmail) return true;
+    // If unassigned within the tenant, agents can view
+    if (!chatTeamMember || chatTeamMemberLower === 'unassigned') return true;
+  }
+
   if (currentUserName && chatTeamMemberLower === currentUserName) return true;
   if (currentUserId && chatTeamMember === currentUserId) return true;
   if (currentUserEmail && chatTeamMemberLower === currentUserEmail) return true;
@@ -533,13 +545,12 @@ const Chat = () => {
 
   const handleCreateChat = async (name, phone) => {
     try {
-      setLoading(true);
       const result = await chatService.createChat(name, phone, 'whatsapp');
 
-      if (result.success) {
+      if (result.success && result.data) {
         // Add to chat list if not already there
         setChats((prevChats) => {
-          const exists = prevChats.find(c => c._id === result.data._id);
+          const exists = prevChats.find(c => (c._id || c.id) === (result.data._id || result.data.id));
           if (exists) {
             return prevChats;
           }
@@ -547,18 +558,15 @@ const Chat = () => {
         });
 
         // Select the new chat
-        setActiveChatId(result.data._id);
+        setActiveChatId(result.data._id || result.data.id);
         setShowProfile(false);
-        setLoading(false);
 
         return { success: true, data: result.data };
       } else {
-        setLoading(false);
-        return { success: false, error: result.error };
+        return { success: false, error: result.error || "Failed to create chat" };
       }
     } catch (error) {
       console.error('Error creating chat:', error);
-      setLoading(false);
       return { success: false, error: error.message };
     }
   };

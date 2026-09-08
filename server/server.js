@@ -35,6 +35,18 @@ connectDB().then(async () => {
     if (roleResult.modifiedCount > 0) {
       console.log(`✅ Migration: Set role='ADMIN' for ${roleResult.modifiedCount} existing users`);
     }
+
+    // Multi-tenant Chat Index Migration: ensure legacy global unique index 'phone_1' on chats is removed
+    try {
+      const chatIndexes = await mongoose.connection.db.collection('chats').indexes();
+      const legacyPhoneIdx = chatIndexes.find(i => i.name === 'phone_1' && i.unique);
+      if (legacyPhoneIdx) {
+        await mongoose.connection.db.collection('chats').dropIndex('phone_1');
+        console.log('✅ Migration: Dropped legacy global unique phone_1 index from chats collection');
+      }
+    } catch (idxErr) {
+      // index already dropped or non-existent
+    }
   } catch (err) {
     console.error('Migration warning (non-fatal):', err.message);
   }
