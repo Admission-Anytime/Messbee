@@ -277,48 +277,48 @@ router.post("/", async (req, res) => {
 
     // Normalize phone numbers
     const normalizedPhone = normalizePhoneNumber(phone || whatsappId);
+    const last10 = normalizedPhone.slice(-10);
+    const phoneRegex = last10.length >= 10 ? new RegExp(`${last10}$`) : null;
 
+    // Check if chat already exists for THIS tenant
+    const effectiveTenantId = req.user.tenantId || req.user._id || req.user.id;
+    const tenantIdStr = (effectiveTenantId || '').toString();
+    const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+    const userTenantFilter = tenantIdObj ? { $in: [effectiveTenantId, tenantIdStr, tenantIdObj] } : effectiveTenantId;
 
+    const searchConditions = [
+      { phone: normalizedPhone },
+      { whatsappId: normalizedPhone },
+      { phone: phone || whatsappId },
+      { whatsappId: whatsappId || phone }
+    ];
+    if (phoneRegex) {
+      searchConditions.push({ phone: phoneRegex });
+      searchConditions.push({ whatsappId: phoneRegex });
+    }
 
-    // Check if chat already exists for THIS user OR is a shared WhatsApp chat
-    const existingChat = await Chat.findOne({
-      $and: [
-        {
-          $or: [
-            { user: req.user.id },
-            { source: 'whatsapp' }
-          ]
-        },
-        {
-          $or: [
-            { phone: normalizedPhone },
-            { whatsappId: normalizedPhone },
-            { phone: phone || whatsappId },
-            { whatsappId: whatsappId || phone }
-          ]
-        }
-      ]
+    let existingChat = await Chat.findOne({
+      user: userTenantFilter,
+      $or: searchConditions
     });
 
     if (existingChat) {
-
-
       // Update the chat with normalized phone if needed
       if (existingChat.phone !== normalizedPhone) {
         existingChat.phone = normalizedPhone;
         existingChat.whatsappId = normalizedPhone;
         await existingChat.save();
-
       }
 
       return res.json({
         success: true,
         data: existingChat,
+        alreadyExists: true,
         message: "Chat already exists"
       });
     }
 
-    // Create new chat with normalized phone and current userId
+    // Create new chat with normalized phone and current tenant's ID
     const newChat = await Chat.create({
       name: name || normalizedPhone,
       phone: normalizedPhone,
@@ -332,17 +332,14 @@ router.post("/", async (req, res) => {
       lastMsg: "",
       lastMsgTime: "",
       lastActivity: new Date(),
-      user: req.user.id
+      user: effectiveTenantId
     });
-
-
 
     // Emit socket event for new chat
     try {
       const io = getIO();
       if (io) {
         io.emit("chat_created", newChat);
-
       }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
@@ -357,6 +354,44 @@ router.post("/", async (req, res) => {
 
     // Handle Mongoose duplicate key error (11000)
     if (error.code === 11000) {
+      try {
+        const effectiveTenantId = req.user?.tenantId || req.user?._id || req.user?.id;
+        const tenantIdStr = (effectiveTenantId || '').toString();
+        const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+        const userTenantFilter = tenantIdObj ? { $in: [effectiveTenantId, tenantIdStr, tenantIdObj] } : effectiveTenantId;
+
+        const raw = req.body.phone || req.body.whatsappId || '';
+        const norm = normalizePhoneNumber(raw);
+        const l10 = norm.slice(-10);
+        const reg = l10.length >= 10 ? new RegExp(`${l10}$`) : null;
+        
+        const fallbackConditions = [
+          { phone: norm },
+          { whatsappId: norm },
+          { phone: raw }
+        ];
+        if (reg) {
+          fallbackConditions.push({ phone: reg });
+          fallbackConditions.push({ whatsappId: reg });
+        }
+
+        const foundExisting = await Chat.findOne({
+          user: userTenantFilter,
+          $or: fallbackConditions
+        });
+
+        if (foundExisting) {
+          return res.json({
+            success: true,
+            data: foundExisting,
+            alreadyExists: true,
+            message: "Chat already exists"
+          });
+        }
+      } catch (findErr) {
+        console.error("Error finding duplicate chat:", findErr);
+      }
+
       return res.status(400).json({
         success: false,
         error: "A contact with this phone number already exists in your list.",

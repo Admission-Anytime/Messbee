@@ -74,6 +74,7 @@ const findOrCreateChatForContact = async (contact) => {
   }
 
   let chat = await Chat.findOne({
+    user: contact.user,
     $or: [{ phone: normalizedPhone }, { whatsappId: normalizedPhone }]
   });
 
@@ -90,7 +91,8 @@ const findOrCreateChatForContact = async (contact) => {
       unread: 0,
       lastMsg: '',
       lastMsgTime: '',
-      lastActivity: new Date()
+      lastActivity: new Date(),
+      user: contact.user
     });
   }
 

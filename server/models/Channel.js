@@ -22,6 +22,10 @@ const channelSchema = new mongoose.Schema({
     required: true,
     select: false // Exclude from normal queries for security
   },
+  // Display fields (what shows in the Assign WhatsApp Number modal)
+  name: { type: String, default: 'WhatsApp Business' },
+  phoneNumber: { type: String, default: '' }, // Actual WhatsApp number e.g. +916203459821
+
   metadata: {
     name: { type: String, default: 'Default WhatsApp Channel' },
     qualityRating: { type: String, default: 'UNKNOWN' },

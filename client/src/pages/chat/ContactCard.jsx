@@ -1141,36 +1141,47 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
     });
   };
 
+  const matchedExistingChat = useMemo(() => {
+    let clean = (newChatPhone || "").replace(/\D/g, "");
+    if (clean.length === 12 && clean.startsWith("91")) clean = clean.slice(2);
+    else if (clean.length === 11 && clean.startsWith("0")) clean = clean.slice(1);
+    if (clean.length !== 10) return null;
+
+    const fullPhone = `91${clean}`;
+    return normalizedChats.find((c) => {
+      const chatPhone = String(c.phone || c.phoneNumber || c.whatsappId || "").replace(/\D/g, "");
+      return (
+        chatPhone === fullPhone ||
+        chatPhone === clean ||
+        chatPhone.endsWith(clean)
+      );
+    });
+  }, [newChatPhone, normalizedChats]);
+
   const handleCreateNewChat = async () => {
+    // If contact already exists in chat list, navigate directly to it
+    if (matchedExistingChat) {
+      onChatSelect(matchedExistingChat._id || matchedExistingChat.id);
+      handleCloseModal();
+      return;
+    }
+
+    // Clean all non-digits from input
+    let clean = (newChatPhone || "").replace(/\D/g, "");
+    // If user pasted 12 digits starting with 91, or 11 digits starting with 0, normalize to 10 digits
+    if (clean.length === 12 && clean.startsWith("91")) {
+      clean = clean.slice(2);
+    } else if (clean.length === 11 && clean.startsWith("0")) {
+      clean = clean.slice(1);
+    }
+
     // Validate phone number
-    if (!newChatPhone || newChatPhone.length !== 10) {
+    if (clean.length !== 10) {
       setCreateError("Please enter a valid 10-digit phone number");
       return;
     }
 
-    const fullPhone = `91${newChatPhone}`; // Add country code
-
-    // ── Client-side duplicate check ──────────────────────────────────────────
-    const duplicate = normalizedChats.find((c) => {
-      const chatPhone = String(c.phone || c.phoneNumber || "").replace(/\D/g, "");
-      const enteredPhone = fullPhone.replace(/\D/g, "");
-      return (
-        chatPhone === enteredPhone ||
-        chatPhone === newChatPhone ||          // without country code
-        chatPhone.endsWith(newChatPhone)       // e.g. stored as +91XXXXXXXXXX
-      );
-    });
-
-    if (duplicate) {
-      // Navigate directly to the existing chat and close the modal
-      onChatSelect(duplicate._id || duplicate.id);
-      setIsNewChatModalOpen(false);
-      setNewChatName("");
-      setNewChatPhone("");
-      setCreateError("");
-      return;
-    }
-    // ─────────────────────────────────────────────────────────────────────────
+    const fullPhone = `91${clean}`; // Add country code
 
     setIsCreating(true);
     setCreateError("");
@@ -1179,44 +1190,23 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
     const result = await onCreateChat(name, fullPhone);
 
-    if (result.success) {
-      // Close modal and reset fields
-      setIsNewChatModalOpen(false);
-      setNewChatName("");
-      setNewChatPhone("");
-      setCreateError("");
+    if (result.success && result.data) {
+      // Select the created or returned chat and close modal
+      onChatSelect(result.data._id || result.data.id);
+      handleCloseModal();
     } else {
-      // Check if the server is reporting a duplicate — if so, navigate to that chat
       const errMsg = result.error || "Failed to create chat. Please try again.";
-      const isDuplicateErr =
-        /already exists/i.test(errMsg) || /duplicate/i.test(errMsg);
-
-      if (isDuplicateErr) {
-        // Try to find the existing chat by phone
-        const serverDuplicate = normalizedChats.find((c) => {
-          const chatPhone = String(c.phone || c.phoneNumber || "").replace(/\D/g, "");
-          return (
-            chatPhone === fullPhone ||
-            chatPhone === newChatPhone ||
-            chatPhone.endsWith(newChatPhone)
-          );
-        });
-        if (serverDuplicate) {
-          onChatSelect(serverDuplicate._id || serverDuplicate.id);
-          setIsNewChatModalOpen(false);
-          setNewChatName("");
-          setNewChatPhone("");
-          setCreateError("");
-          setIsCreating(false);
-          return;
-        }
+      // If error indicates duplicate, try to find the duplicate in normalizedChats
+      const dup = normalizedChats.find((c) => {
+        const chatPhone = String(c.phone || c.phoneNumber || c.whatsappId || "").replace(/\D/g, "");
+        return chatPhone === fullPhone || chatPhone === clean || chatPhone.endsWith(clean);
+      });
+      if (dup) {
+        onChatSelect(dup._id || dup.id);
+        handleCloseModal();
+        return;
       }
-
-      setCreateError(
-        isDuplicateErr
-          ? `A chat with this number already exists. Please check your chat list.`
-          : errMsg
-      );
+      setCreateError(errMsg);
     }
 
     setIsCreating(false);
@@ -2045,8 +2035,20 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
 
               {/* Error Message */}
               {createError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                  {createError}
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm flex items-center justify-between gap-3">
+                  <span>{createError}</span>
+                  {matchedExistingChat && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChatSelect(matchedExistingChat._id || matchedExistingChat.id);
+                        handleCloseModal();
+                      }}
+                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg shrink-0 cursor-pointer"
+                    >
+                      Go to Chat
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -2073,14 +2075,45 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
                     type="text"
                     placeholder="9876543210"
                     value={newChatPhone}
-                    onChange={(e) => setNewChatPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    onChange={(e) => {
+                      let val = e.target.value.replace(/\D/g, '');
+                      if (val.length === 12 && val.startsWith('91')) val = val.slice(2);
+                      else if (val.length === 11 && val.startsWith('0')) val = val.slice(1);
+                      setNewChatPhone(val.slice(0, 10));
+                    }}
                     className="flex-1 min-w-0 block w-full px-4 py-3 rounded-r-xl border border-slate-200 text-sm font-medium text-slate-900 outline-none"
                     autoFocus
                     disabled={isCreating}
-                    maxLength={10}
+                    maxLength={14}
                   />
                 </div>
-                <p className="mt-1 text-xs text-slate-500">Enter the 10-digit WhatsApp number without country code</p>
+                {matchedExistingChat ? (
+                  <div className="mt-2.5 bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-2xl flex items-center justify-between gap-3 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-xs shrink-0">
+                        {(matchedExistingChat.name || matchedExistingChat.phone || "?").slice(0, 2).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-emerald-950 truncate">
+                          {matchedExistingChat.name || matchedExistingChat.phone}
+                        </p>
+                        <p className="text-[11px] text-emerald-700 font-medium">Already exists in your chat list</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onChatSelect(matchedExistingChat._id || matchedExistingChat.id);
+                        handleCloseModal();
+                      }}
+                      className="px-3.5 py-1.5 bg-[#22C55E] hover:bg-green-600 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1 shrink-0 cursor-pointer"
+                    >
+                      Go to Chat <ChevronRightIcon className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-slate-500">Enter the 10-digit WhatsApp number without country code</p>
+                )}
               </div>
 
               {/* Info Box */}
@@ -2102,10 +2135,18 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
               </button>
               <button
                 onClick={handleCreateNewChat}
-                className="px-6 py-2.5 text-sm font-bold text-white bg-[#22C55E] rounded-xl hover:bg-green-500 flex items-center gap-2 shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={isCreating || !newChatPhone || newChatPhone.length !== 10}
+                className={`px-6 py-2.5 text-sm font-bold text-white rounded-xl flex items-center gap-2 shadow-sm transition-colors ${
+                  matchedExistingChat
+                    ? "bg-[#22C55E] hover:bg-green-600 cursor-pointer"
+                    : "bg-[#22C55E] hover:bg-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                }`}
+                disabled={!matchedExistingChat && (isCreating || !newChatPhone || newChatPhone.replace(/\D/g, '').slice(-10).length !== 10)}
               >
-                {isCreating ? (
+                {matchedExistingChat ? (
+                  <>
+                    Go to Chat <ChevronRightIcon className="w-4 h-4" />
+                  </>
+                ) : isCreating ? (
                   <>
                     <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>

@@ -103,7 +103,8 @@ export const handleIncomingMessage = async (req, res) => {
             console.log(`Received message from ${customerPhone}: ${incomingPayload}`);
 
             // Find the channel internally based on the Meta Phone Number ID
-            const channel = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
+            // IMPORTANT: metaAccessToken is `select: false` — must explicitly select it for sending messages
+            const channel = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId }).select('+metaAccessToken');
             
             if (channel) {
               let profileName = 'Unknown';
@@ -208,7 +209,8 @@ export const handleApiEventTrigger = async (req, res) => {
       return res.status(400).json({ message: 'channelId, phone, and eventName are required.' });
     }
 
-    const channel = await Channel.findById(channelId);
+    // IMPORTANT: metaAccessToken is `select: false` — must explicitly select it
+    const channel = await Channel.findById(channelId).select('+metaAccessToken');
     if (!channel) {
       return res.status(404).json({ message: 'Channel not found' });
     }
