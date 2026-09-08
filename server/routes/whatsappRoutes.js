@@ -123,17 +123,6 @@ router.get('/channels', protect, async (req, res) => {
     const tenantId = req.user.tenantId || req.user._id;
     const channels = await Channel.find({ tenantId });
     
-    // Agar real channel nahi hai aur hum live (production) pe nahi hain, tabhi mock return karo
-    if (channels.length === 0 && process.env.NODE_ENV !== 'production') {
-      return res.status(200).json([
-        { 
-          _id: '609b55b6c00d4334b07e7821', 
-          name: 'Local Test Business', 
-          phoneNumber: process.env.WHATSAPP_PHONE_NUMBER || '+919217742081' 
-        }
-      ]);
-    }
-
     res.status(200).json(channels);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching channels' });

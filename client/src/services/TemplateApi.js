@@ -280,7 +280,7 @@ export const saveTemplateHeaderPreview = (templateName, previewData) => {
 export const deleteWhatsAppTemplate = async (templateId, templateName) => {
   try {
     const { data } = await axios.delete(`/whatsapp/templates/${templateId}`, {
-      data: {
+      params: {
         templateName
       }
     });

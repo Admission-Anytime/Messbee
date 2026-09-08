@@ -147,10 +147,10 @@ function Dashboard() {
                   </div>
                   <div>
                      <h2 className="text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
-                        {user?.businessName || "Admission Anytime"}
+                        {performanceData?.wabaConfig?.verifiedName || user?.businessName || "Your Business"}
                         <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">Official API</span>
                      </h2>
-                     <p className="text-sm text-slate-500 font-medium">{user?.phoneNumber || "+91 1202611111"}</p>
+                     <p className="text-sm text-slate-500 font-medium">{performanceData?.wabaConfig?.displayPhoneNumber || user?.phoneNumber || "Connect WhatsApp to display number"}</p>
                   </div>
                </div>
 
@@ -174,15 +174,27 @@ function Dashboard() {
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
-                  <p className="text-xl font-bold text-emerald-500 flex items-center gap-2">
-                     {user?.qualityScore || "High"} <span className={`w-2.5 h-2.5 rounded-full ${user?.qualityScore === 'Medium' ? 'bg-amber-500' : user?.qualityScore === 'Low' ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
-                  </p>
+                  {(() => {
+                     const qs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
+                     const qsColor = qs === 'Medium' ? 'text-amber-500' : (qs === 'Low' ? 'text-red-500' : (qs === 'Pending' ? 'text-slate-400' : 'text-emerald-500'));
+                     const dotColor = qs === 'Medium' ? 'bg-amber-500' : (qs === 'Low' ? 'bg-red-500' : (qs === 'Pending' ? 'bg-slate-400' : 'bg-emerald-500'));
+                     return (
+                        <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
+                           {qs} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
+                        </p>
+                     );
+                  })()}
                </div>
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
-                  <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                     {user?.whatsappConnected !== false ? "Connected" : "Disconnected"} {user?.whatsappConnected !== false ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
-                  </p>
+                  {(() => {
+                     const isConnected = !!performanceData?.wabaConfig?.phoneNumberId || user?.whatsappConnected;
+                     return (
+                        <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                           {isConnected ? "Connected" : "Disconnected"} {isConnected ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+                        </p>
+                     );
+                  })()}
                </div>
             </div>
          </div>

@@ -898,6 +898,9 @@ const CreateTemplate = () => {
             errorDetails.toLowerCase().includes('newline') || 
             errorDetails.toLowerCase().includes('consecutive')) {
           toast.error(errorDetails);
+        } else {
+          // If it's another formatting error, still show it!
+          toast.error(errorDetails || errorMessage || "Template format is invalid.");
         }
       } else {
         toast.error(errorMessage);

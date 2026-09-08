@@ -8,10 +8,10 @@ const axios = require('axios');
 // In a multi-tenant setup, each user can have their own WABA config stored in DB.
 const getWABAConfig = (user) => {
   return {
-    phoneNumberId: user?.whatsappPhoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID,
-    accessToken:   user?.whatsappAccessToken   || process.env.WHATSAPP_ACCESS_TOKEN,
-    wabaId:        user?.whatsappBusinessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-    appId:         user?.whatsappAppId         || process.env.WHATSAPP_APP_ID,
+    phoneNumberId: user?.whatsappPhoneNumberId || null,
+    accessToken:   user?.whatsappAccessToken   || null,
+    wabaId:        user?.whatsappBusinessAccountId || null,
+    appId:         user?.whatsappAppId         || null,
     apiVersion:    process.env.WHATSAPP_API_VERSION || 'v18.0',
   };
 };
@@ -96,6 +96,8 @@ exports.getPerformanceOverview = async (req, res) => {
     // ── 9. Optionally fetch phone number quality from Meta API ─────────────────
     let phoneQuality = null;
     let messagingLimit = null;
+    let verifiedName = null;
+    let displayPhoneNumber = null;
     try {
       if (wabaConfig.phoneNumberId && wabaConfig.accessToken) {
         const metaRes = await axios.get(
@@ -109,8 +111,10 @@ exports.getPerformanceOverview = async (req, res) => {
           }
         );
         if (metaRes.data) {
-          phoneQuality    = metaRes.data.quality_rating || null;
-          messagingLimit  = metaRes.data.messaging_limit_tier || null;
+          phoneQuality       = metaRes.data.quality_rating || null;
+          messagingLimit     = metaRes.data.messaging_limit_tier || null;
+          verifiedName       = metaRes.data.verified_name || null;
+          displayPhoneNumber = metaRes.data.display_phone_number || null;
         }
       }
     } catch (metaErr) {
@@ -166,6 +170,8 @@ exports.getPerformanceOverview = async (req, res) => {
           // Live data from Meta API
           phoneQuality,
           messagingLimit,
+          verifiedName,
+          displayPhoneNumber,
         }
       }
     });

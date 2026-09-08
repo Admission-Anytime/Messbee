@@ -36,8 +36,7 @@ import { IconButton } from "@mui/material";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "") ||
-  "http://localhost:5002";
+  (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "");
 
 // ─── Custom Calendar Header ───────────────────────────────────────────────────
 const CustomDatePickerHeader = ({ currentMonth, onMonthChange, view, onViewChange }) => {

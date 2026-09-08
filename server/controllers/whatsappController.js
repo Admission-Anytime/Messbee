@@ -14,15 +14,27 @@ const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
 const automationService = require('../services/automationService');
 
+// Helper to get all IDs associated with a user (user._id, user.id, user.tenantId)
+const getUserScope = (req) => {
+  const ids = [];
+  if (req.user?._id) ids.push(req.user._id);
+  if (req.user?.id && !ids.some(id => id.toString() === req.user.id.toString())) ids.push(req.user.id);
+  if (req.user?.tenantId && !ids.some(id => id.toString() === req.user.tenantId.toString())) {
+    ids.push(req.user.tenantId);
+  }
+  return ids;
+};
+
 // --- MULTI-TENANT & HYBRID SERVICE HELPER ---
 const getTenantWhatsAppService = async (tenantId) => {
-  let accessToken = null;
-  let phoneNumberId = null;
-  let businessAccountId = null;
+  let accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  let businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 
-  // 1. Try Channel (Multi-tenant DB record)
-  if (tenantId) {
+  // Optional: Try DB if not in .env, but prioritize .env for local testing
+  if (!accessToken && tenantId) {
     try {
+      const Channel = require('../models/Channel');
       const channel = await Channel.findOne({ 
         tenantId, 
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
@@ -31,63 +43,34 @@ const getTenantWhatsAppService = async (tenantId) => {
       if (channel && channel.metaAccessToken && channel.activeWhatsappPhoneNumberId) {
         accessToken = channel.metaAccessToken;
         phoneNumberId = channel.activeWhatsappPhoneNumberId;
-        businessAccountId = channel.metadata?.wabaId;
+        businessAccountId = channel.metadata?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
       }
-    } catch (e) {
-      console.warn("Channel lookup warning in getTenantWhatsAppService:", e.message);
-    }
+    } catch (e) {}
   }
 
-  // 2. Try User model configuration (user.whatsappConfig)
   if (!accessToken && tenantId) {
     try {
       const User = require('../models/User');
       const user = await User.findById(tenantId);
       if (user && user.whatsappConfig && user.whatsappConfig.accessToken) {
         accessToken = user.whatsappConfig.accessToken;
-        phoneNumberId = user.whatsappConfig.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+        phoneNumberId = user.whatsappConfig.phoneNumberId;
         businessAccountId = user.whatsappConfig.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
       }
-    } catch (e) {
-      console.warn("User lookup warning in getTenantWhatsAppService:", e.message);
-    }
-  }
-
-  // 3. Try Setting model (key: 'whatsapp_config')
-  if (!accessToken) {
-    try {
-      const Setting = require('../models/Setting');
-      const setting = await Setting.findOne({ key: 'whatsapp_config' });
-      if (setting && setting.value && (setting.value.accessToken || setting.value.phoneNumberId)) {
-        accessToken = setting.value.accessToken || process.env.WHATSAPP_ACCESS_TOKEN;
-        phoneNumberId = setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
-        businessAccountId = setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-      }
-    } catch (e) {
-      console.warn("Setting lookup warning in getTenantWhatsAppService:", e.message);
-    }
-  }
-
-  // 4. Try Global .env Fallback
-  if (!accessToken) {
-    accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-    phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-    businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+    } catch (e) {}
   }
 
   if (!accessToken || !phoneNumberId) {
     return null;
   }
 
-  const service = new WhatsAppService();
-  service.accessToken = accessToken;
-  service.phoneNumberId = phoneNumberId;
-  service.businessAccountId = businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-  service.baseURL = `https://graph.facebook.com/${service.apiVersion || 'v20.0'}/${service.phoneNumberId}`;
+  const service = new WhatsAppService({
+    tenantSpecific: true,
+    accessToken,
+    phoneNumberId,
+    businessAccountId: businessAccountId || null
+  });
   
-  // Override syncConfig to prevent it from resetting tokens to global .env/Setting
-  service.syncConfig = async () => {}; 
-  service.validateConfig = () => true; 
   return service;
 };
 
@@ -216,8 +199,8 @@ exports.connectOAuthToken = async (req, res, next) => {
     setting.value = {
         ...setting.value,
         accessToken: accessToken,
-        businessAccountId: wabaId || setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
+        businessAccountId: wabaId || setting.value.businessAccountId || null,
+        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || null
     };
     
     await setting.save();
@@ -237,10 +220,10 @@ exports.connectOAuthToken = async (req, res, next) => {
     }
     
     // Sync to Channel for automation engine (Multi-Tenant)
-    if (req.user && (phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID)) {
+    if (req.user && phoneNumberId) {
       const Channel = require('../models/Channel');
       const tenantId = req.user.tenantId || req.user._id;
-      const finalPhoneNumberId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const finalPhoneNumberId = phoneNumberId;
       
       try {
         const User = require('../models/User');
@@ -254,7 +237,7 @@ exports.connectOAuthToken = async (req, res, next) => {
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
             'metadata.name': channelName,
-            'metadata.wabaId': wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+            'metadata.wabaId': wabaId || null,
             'metadata.status': 'CONNECTED'
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -394,8 +377,8 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     setting.value = {
         ...setting.value,
         accessToken: accessToken,
-        businessAccountId: wabaId || setting.value.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
-        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID
+        businessAccountId: wabaId || setting.value.businessAccountId || null,
+        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || null
     };
     
     await setting.save();
@@ -415,10 +398,10 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     }
     
     // Sync to Channel for automation engine (Multi-Tenant)
-    if (req.user && (phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID)) {
+    if (req.user && phoneNumberId) {
       const Channel = require('../models/Channel');
       const tenantId = req.user.tenantId || req.user._id;
-      const finalPhoneNumberId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const finalPhoneNumberId = phoneNumberId;
       
       try {
         const User = require('../models/User');
@@ -432,7 +415,7 @@ exports.embeddedSignupCallback = async (req, res, next) => {
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
             'metadata.name': channelName,
-            'metadata.wabaId': wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+            'metadata.wabaId': wabaId || null,
             'metadata.status': 'CONNECTED'
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -526,10 +509,10 @@ exports.connectManual = async (req, res, next) => {
     }
     
     // Sync to Channel for automation engine (Multi-Tenant)
-    if (req.user && (phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID)) {
+    if (req.user && phoneNumberId) {
       const Channel = require('../models/Channel');
       const tenantId = req.user.tenantId || req.user._id;
-      const finalPhoneNumberId = phoneNumberId || process.env.WHATSAPP_PHONE_NUMBER_ID;
+      const finalPhoneNumberId = phoneNumberId;
       
       try {
         const User = require('../models/User');
@@ -543,7 +526,7 @@ exports.connectManual = async (req, res, next) => {
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
             'metadata.name': channelName,
-            'metadata.wabaId': wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID,
+            'metadata.wabaId': wabaId || null,
             'metadata.status': 'CONNECTED'
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
@@ -805,11 +788,13 @@ async function handleIncomingMessage(data) {
 
     // Resolve Channel ID
     let resolvedChannelId = null;
+    let resolvedTenantId = null;
     if (phoneNumberId) {
       const Channel = require('../models/Channel');
       const channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
       if (channelRecord) {
         resolvedChannelId = channelRecord._id.toString();
+        resolvedTenantId = channelRecord.tenantId;
       }
     }
 
@@ -824,8 +809,10 @@ async function handleIncomingMessage(data) {
 
     // Find or create chat (check both phone and whatsappId with normalized number)
     // We sort by 'user' desc to prefer chats that already have an owner assigned
+    // Ensure we only find chats belonging to this tenant!
     let isNewContact = false;
     let chat = await Chat.findOne({ 
+      user: resolvedTenantId,
       $or: [
         { phone: normalizedFrom },
         { whatsappId: normalizedFrom },
@@ -846,7 +833,7 @@ async function handleIncomingMessage(data) {
         ]
       }).sort({ updatedAt: -1 });
 
-      const assignedUserId = crmContact ? crmContact.user : null;
+      const assignedUserId = crmContact ? crmContact.user : resolvedTenantId;
 
       chat = await Chat.create({
         name: contactName,
@@ -858,7 +845,7 @@ async function handleIncomingMessage(data) {
         whatsappId: normalizedFrom,
         source: 'whatsapp',
         lastActivity: new Date(),
-        user: assignedUserId // Link to the user who owns the contact in CRM
+        user: assignedUserId // Link to the user who owns the contact in CRM or the channel tenant
       });
       
       // Emit chat_created event
@@ -1691,7 +1678,7 @@ exports.getTemplates = async (req, res, next) => {
 
     let allTemplates = Array.isArray(data?.data) ? data.data : [];
     
-    // Get templates owned by this user from our DB
+    // Get templates owned by this user from our DB (use user ID - always reliable)
     const userTemplates = await Template.find({ user: req.user.id });
     
     // If Meta API returned 0 or failed, use local templates
@@ -1710,11 +1697,23 @@ exports.getTemplates = async (req, res, next) => {
       userTemplatesMap[String(t.name).trim()] = t;
     });
 
+    console.log('[DEBUG] userTemplatesMap Keys:', Object.keys(userTemplatesMap));
+    Object.keys(userTemplatesMap).forEach(key => {
+      if (userTemplatesMap[key].status === 'DELETED') {
+        console.log(`[DEBUG] FOUND DELETED MARKER IN DB for: ${key}`);
+      }
+    });
+
     // Merge Graph API templates with local metadata (to restore media URLs)
     const filteredTemplates = allTemplates
       .map(t => {
-        const localTemplate = userTemplatesMap[String(t.name).trim()] || {};
+        const templateNameTrimmed = String(t.name).trim();
+        const localTemplate = userTemplatesMap[templateNameTrimmed] || {};
         
+        if (localTemplate.status === 'DELETED') {
+           console.log(`[DEBUG] Mapping Meta template ${templateNameTrimmed} to DELETED status!`);
+        }
+
         // Deep merge components to restore 'example' fields that Meta often strips after approval
         const mergedComponents = (t.components || []).map(apiComp => {
           const localComp = (localTemplate.components || []).find(lc => lc.type === apiComp.type);
@@ -1963,14 +1962,15 @@ exports.deleteTemplate = async (req, res, next) => {
       try {
         metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
       } catch (err) {
-        console.warn('⚠️ [Controller] Meta delete warning:', err.message);
+        console.warn('⚠️ [Controller] Meta delete warning (suppressed):', err.message);
+        // We suppress this error so the user can delete it from their local DB and UI successfully
       }
     }
 
-    // Always delete or soft-delete from local DB
     try {
       const userScope = getUserScope(req);
       if (templateName) {
+        // Step 1: Delete ALL records for this template name (including any old DELETED markers)
         await Template.deleteMany({
           name: templateName,
           $or: [
@@ -1978,18 +1978,21 @@ exports.deleteTemplate = async (req, res, next) => {
             { tenantId: { $in: userScope } }
           ]
         });
-        await Template.findOneAndUpdate(
-          { name: templateName, user: req.user.id },
-          { status: 'DELETED', name: templateName, user: req.user.id },
-          { new: true, upsert: true }
-        );
+        // Step 2: Create a fresh DELETED marker using user ID (always reliable)
+        await Template.create({
+          name: templateName,
+          status: 'DELETED',
+          user: req.user.id,
+          category: 'MARKETING',
+          language: 'en'
+        });
       }
       if (/^[0-9a-fA-F]{24}$/.test(templateId)) {
         await Template.deleteOne({ _id: templateId });
       }
-      console.log('✅ [Controller] Template removed from local view:', templateName || templateId);
+      console.log('✅ [Controller] Template DELETED marker saved for:', templateName || templateId);
     } catch (dbError) {
-      console.warn('⚠️ [Controller] Local DB delete warning:', dbError.message);
+      console.error('❌ [Controller] Local DB delete FAILED:', dbError.message, dbError.code);
     }
 
     try {
@@ -2356,4 +2359,4 @@ exports.getRecentAPILogs = async (req, res, next) => {
 };
 
 module.exports = exports;
-
+exports.getTenantWhatsAppService = getTenantWhatsAppService;

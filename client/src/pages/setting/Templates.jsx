@@ -102,6 +102,18 @@ const Templates = ({ activeTab }) => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState('All');
 
+  // Track locally deleted template names in localStorage so they don't reappear after refresh
+  const DELETED_KEY = 'messbee_deleted_templates';
+  const getDeletedNames = () => {
+    try { return JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'); } catch { return []; }
+  };
+  const addDeletedName = (name) => {
+    const existing = getDeletedNames();
+    if (!existing.includes(name)) {
+      localStorage.setItem(DELETED_KEY, JSON.stringify([...existing, name]));
+    }
+  };
+
   // Fetch templates from WhatsApp API only
   // silent=true suppresses the success toast (used after delete to avoid double-toast)
   const loadTemplates = useCallback(async (silent = false) => {
@@ -110,10 +122,15 @@ const Templates = ({ activeTab }) => {
       const whatsappTemplates = await fetchWhatsAppTemplates();
       const templatesArray = whatsappTemplates.data?.data || [];
       const formatted = mergeTemplates(templatesArray, []);
-      setTemplates(formatted);
       
-      if (formatted.length > 0) {
-        setSelectedTemplate((prev) => prev || formatted[0]);
+      // Filter out locally deleted templates
+      const deletedNames = getDeletedNames();
+      const visibleTemplates = formatted.filter(t => !deletedNames.includes(t.name));
+      
+      setTemplates(visibleTemplates);
+      
+      if (visibleTemplates.length > 0) {
+        setSelectedTemplate((prev) => prev || visibleTemplates[0]);
       }
       
       if (!silent) {
@@ -179,9 +196,15 @@ const Templates = ({ activeTab }) => {
     setDeleteModal(prev => ({ ...prev, isDeleting: true }));
 
     try {
-      const result = await deleteWhatsAppTemplate(id, templateToDelete.name);
-      const updatedTemplates = templates.filter(t => t.id !== id);
+      await deleteWhatsAppTemplate(id, templateToDelete.name);
+      
+      // Save to localStorage so it stays hidden after page refresh too
+      addDeletedName(templateToDelete.name);
+      
+      // Remove from local state immediately
+      const updatedTemplates = templates.filter(t => t.id !== id && t.name !== templateToDelete.name);
       setTemplates(updatedTemplates);
+      setFilteredTemplates(prev => prev.filter(t => t.id !== id && t.name !== templateToDelete.name));
       
       if (selectedTemplate?.id === id) {
         setSelectedTemplate(updatedTemplates.length > 0 ? updatedTemplates[0] : null);
@@ -189,10 +212,6 @@ const Templates = ({ activeTab }) => {
       
       setDeleteModal({ isOpen: false, templateId: null, isDeleting: false });
       toast.success("Template deleted successfully");
-      
-      setTimeout(() => {
-        loadTemplates(true); // silent — don't show sync toast after delete
-      }, 1000);
     } catch (error) {
       console.error('❌ Error deleting template:', error);
       toast.error(error?.response?.data?.message || "Failed to delete template. Please try again.");
@@ -482,7 +501,7 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
           <span className="text-white text-[11px] sm:text-xs font-bold">MB</span>
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">MessBee Business</p>
+          <p className="text-white text-[11px] sm:text-[12px] font-bold leading-tight truncate">Your Business</p>
           <p className="text-white/80 text-[9px] sm:text-[10px] font-medium">verified business</p>
         </div>
         <div className="flex gap-2.5 text-white/90 text-sm items-center">
