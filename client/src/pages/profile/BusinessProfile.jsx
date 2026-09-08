@@ -4,6 +4,16 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
 
+const STANDARD_CATEGORIES = [
+  "Technology & Software",
+  "E-commerce & Retail",
+  "Healthcare",
+  "Education",
+  "Finance & Banking",
+  "Real Estate",
+  "Travel & Hospitality",
+];
+
 const BusinessProfile = () => {
   const navigate = useNavigate();
   const [activeEdit, setActiveEdit] = useState(null);
@@ -11,6 +21,8 @@ const BusinessProfile = () => {
   const fileInputRef = useRef(null);
   const [logoPreview, setLogoPreview] = useState(defaultLogo);
   const [savedLogo, setSavedLogo] = useState(defaultLogo);
+  const [isOtherCategory, setIsOtherCategory] = useState(false);
+  const [customCategory, setCustomCategory] = useState("");
 
   // Form state
   const [formData, setFormData] = useState({
@@ -41,16 +53,23 @@ const BusinessProfile = () => {
   const [errors, setErrors] = useState({});
 
   const handleEditToggle = (section) => {
-  if (activeEdit === section) {
-    setActiveEdit(null);
-    setErrors({});
-    if (section === "identity") {
-      setLogoPreview(savedLogo);
+    if (activeEdit === section) {
+      setActiveEdit(null);
+      setErrors({});
+      if (section === "identity") {
+        setLogoPreview(savedLogo);
+      }
+    } else {
+      setActiveEdit(section);
+      if (section === "business") {
+        const isCustom = Boolean(formData.businessCategory && !STANDARD_CATEGORIES.includes(formData.businessCategory));
+        setIsOtherCategory(isCustom);
+        if (isCustom) {
+          setCustomCategory(formData.businessCategory);
+        }
+      }
     }
-  } else {
-    setActiveEdit(section);
-  }
-};
+  };
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -58,6 +77,24 @@ const BusinessProfile = () => {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+  };
+
+  const handleCategoryChange = (e) => {
+    const selected = e.target.value;
+    if (selected === "Others") {
+      setIsOtherCategory(true);
+      const valToSet = customCategory.trim() || "";
+      setFormData(prev => ({ ...prev, businessCategory: valToSet }));
+    } else {
+      setIsOtherCategory(false);
+      setFormData(prev => ({ ...prev, businessCategory: selected }));
+    }
+  };
+
+  const handleCustomCategoryChange = (e) => {
+    const val = e.target.value;
+    setCustomCategory(val);
+    setFormData(prev => ({ ...prev, businessCategory: val }));
   };
 
   const validateForm = (section) => {
@@ -108,6 +145,12 @@ const BusinessProfile = () => {
       // Save logo when identity section is saved
       if (section === 'identity') {
         setSavedLogo(logoPreview);
+      }
+
+      if (section === 'business') {
+        if (isOtherCategory && !formData.businessCategory?.trim()) {
+          setFormData(prev => ({ ...prev, businessCategory: "Others" }));
+        }
       }
       
       toast.success("Section updated successfully!", {
@@ -402,21 +445,35 @@ const BusinessProfile = () => {
           <div className="flex flex-col gap-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Business Category</label>
             {activeEdit === "business" ? (
-              <select 
-                value={formData.businessCategory}
-                onChange={(e) => handleInputChange('businessCategory', e.target.value)}
-                className="w-full px-4 py-3 bg-[#fafafa] border border-gray-200 rounded-xl text-[14px] text-gray-800 appearance-none focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%20%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px_20px] bg-[position:right_1rem_center] bg-no-repeat pr-10 hover:bg-[#f3f4f6] transition-colors cursor-pointer"
-              >
-                <option>Technology & Software</option>
-                <option>E-commerce & Retail</option>
-                <option>Healthcare</option>
-                <option>Education</option>
-                <option>Finance & Banking</option>
-                <option>Real Estate</option>
-                <option>Travel & Hospitality</option>
-              </select>
+              <div className="flex flex-col gap-2">
+                <select 
+                  value={isOtherCategory || (formData.businessCategory && !STANDARD_CATEGORIES.includes(formData.businessCategory)) ? "Others" : formData.businessCategory}
+                  onChange={handleCategoryChange}
+                  className="w-full px-4 py-3 bg-[#fafafa] border border-gray-200 rounded-xl text-[14px] text-gray-800 appearance-none focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 bg-[url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20width%3D%2220%22%20height%3D%2220%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath%20d%3D%22M5%207.5L10%2012.5L15%207.5%22%20stroke%3D%22%236B7280%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[length:20px_20px] bg-[position:right_1rem_center] bg-no-repeat pr-10 hover:bg-[#f3f4f6] transition-colors cursor-pointer"
+                >
+                  <option value="Technology & Software">Technology & Software</option>
+                  <option value="E-commerce & Retail">E-commerce & Retail</option>
+                  <option value="Healthcare">Healthcare</option>
+                  <option value="Education">Education</option>
+                  <option value="Finance & Banking">Finance & Banking</option>
+                  <option value="Real Estate">Real Estate</option>
+                  <option value="Travel & Hospitality">Travel & Hospitality</option>
+                  <option value="Others">Others</option>
+                </select>
+
+                {(isOtherCategory || (formData.businessCategory && !STANDARD_CATEGORIES.includes(formData.businessCategory))) && (
+                  <input 
+                    type="text" 
+                    value={customCategory || (!STANDARD_CATEGORIES.includes(formData.businessCategory) ? formData.businessCategory : '')}
+                    onChange={handleCustomCategoryChange}
+                    placeholder="Enter custom business category"
+                    className="w-full px-4 py-3 bg-[#fafafa] border border-gray-200 rounded-xl text-[14px] text-gray-800 focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 transition-all duration-200"
+                    autoFocus
+                  />
+                )}
+              </div>
             ) : (
-              <p className="text-base text-gray-900 py-2 font-medium">{formData.businessCategory}</p>
+              <p className="text-base text-gray-900 py-2 font-medium">{formData.businessCategory || 'Not set'}</p>
             )}
           </div>
 
