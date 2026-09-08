@@ -23,6 +23,14 @@ import { userContext } from "./context/Context";
 // --- UPDATED LOADING UI ---
 const PageLoader = () => <Loading />;
 
+// Lightweight spinner used as the Suspense fallback inside the app layout
+// so navigating between pages doesn't show a jarring full-screen loader
+const PageSpinner = () => (
+  <div className="flex items-center justify-center w-full h-full min-h-[40vh]">
+    <div className="h-8 w-8 rounded-full border-[3px] border-gray-200 border-t-emerald-500 animate-spin" />
+  </div>
+);
+
 // --- LAZY LOADED MAIN PAGES (with prefetch hints) ---
 const Dashboard = lazy(() => import(/* webpackPrefetch: true */ "./pages/dashboard-paid"));
 const NotificationPage = lazy(() => import("./pages/Notification/NotificationPage"));
@@ -40,6 +48,7 @@ const CampaignAnalytics = lazy(() => import("./pages/analytic/CampaignAnalytics"
 
 // --- LAZY LOADED PLAN & PRICING PAGES ---
 const UpgradePlan = lazy(() => import("./pages/PlanPricing/UpgradePlan"));
+const ContactSales = lazy(() => import("./pages/PlanPricing/ContactSales"));
 const AddonsWCC = lazy(() => import("./pages/PlanPricing/AddonsWCC"));
 const ActivePlan = lazy(() => import("./pages/PlanPricing/ActivePlan"));
 const PaymentHistory = lazy(() => import("./pages/PlanPricing/PaymentHistory"));
@@ -148,7 +157,7 @@ const AppLayout = memo(() => {
   const location = useLocation();
   
   // Collapse sidebar by default on specific pages
-  const isPricingPage = location.pathname === "/admin/plan/upgrade";
+  const isPricingPage = location.pathname === "/admin/plan/upgrade" || location.pathname === "/admin/plan/contact-sales" || location.pathname === "/admin/contact-sales";
   const isChangePasswordPage = location.pathname === "/admin/profile/change-password";
   const [isSidebarOpen, setIsSidebarOpen] = useState(!(isPricingPage || isChangePasswordPage));
 
@@ -167,14 +176,16 @@ const AppLayout = memo(() => {
     user?.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()
   );
 
+  const isPlanAllowedRoute = location.pathname === "/admin/plan/upgrade" || location.pathname.startsWith("/admin/help") || location.pathname === "/admin/plan/contact-sales" || location.pathname === "/admin/contact-sales";
+
   // When plan is expired, redirect to /admin/plan/upgrade so only upgrade plan is accessible
   useEffect(() => {
-    if (isPlanExpired && location.pathname !== "/admin/plan/upgrade") {
+    if (isPlanExpired && !isPlanAllowedRoute) {
       navigate("/admin/plan/upgrade", { replace: true });
     }
-  }, [isPlanExpired, location.pathname, navigate]);
+  }, [isPlanExpired, location.pathname, isPlanAllowedRoute, navigate]);
 
-  const showExpiryLock = isPlanExpired && location.pathname !== "/admin/plan/upgrade";
+  const showExpiryLock = isPlanExpired && !isPlanAllowedRoute;
 
   const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
   const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
@@ -248,7 +259,7 @@ const AppLayout = memo(() => {
             </div>
           ) : (
             <ErrorBoundary>
-              <Suspense fallback={<PageLoader />}>
+              <Suspense fallback={<PageSpinner />}>
                 <Outlet />
               </Suspense>
             </ErrorBoundary>
@@ -470,6 +481,8 @@ function App() {
 
           {/* 12. Plan & Pricing */}
           <Route path="/admin/plan/upgrade" element={<UpgradePlan />} />
+          <Route path="/admin/plan/contact-sales" element={<ContactSales />} />
+          <Route path="/admin/contact-sales" element={<ContactSales />} />
           <Route path="/admin/plan/addons" element={<AddonsWCC />} />
           <Route path="/admin/plan/active" element={<ActivePlan />} />
           <Route path="/admin/plan/history" element={<PaymentHistory />} />

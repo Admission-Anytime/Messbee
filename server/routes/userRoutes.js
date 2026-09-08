@@ -10,7 +10,8 @@ const {
   deleteUser,
   bulkDeleteUsers,
   getPendingUsers,
-  approveUser
+  approveUser,
+  contactSales
 } = require('../controllers/userController');
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -22,6 +23,8 @@ router.route('/')
   .post(protect, createUser);
 
 router.post('/bulk-delete', protect, bulkDeleteUsers);
+
+router.post('/contact-sales', protect, contactSales);
 
 router.get('/account-limits', protect, require('../controllers/userController').getAccountLimits);
 

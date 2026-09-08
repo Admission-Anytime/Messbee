@@ -84,13 +84,19 @@ const Templates = ({ activeTab }) => {
     }
   }, [activeTab]);
 
+
   useEffect(() => {
     if (location.state?.showSuccessToast) {
-      toast.success(location.state.toastMessage || 'Operation successful!');
-      // Clear the state so it doesn't show again on refresh
+      // Use toastId so it won't duplicate if the toast was already shown from CreateTemplate
+      toast.success(location.state.toastMessage || 'Operation successful!', {
+        toastId: 'tpl-save-success',
+        autoClose: 5000,
+      });
+      // Clear state so it doesn't re-show on refresh
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location, navigate]);
+  }, [location.key, navigate]); // use location.key so it only fires on actual navigation
+
 
   // --- TEMPLATE DATA ---
   const [templates, setTemplates] = useState([]);

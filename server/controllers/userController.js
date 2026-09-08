@@ -441,3 +441,66 @@ exports.approveUser = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Submit Contact Sales / Enterprise inquiry
+// @route   POST /api/users/contact-sales
+// @access  Private
+exports.contactSales = async (req, res, next) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      company,
+      companySize,
+      messageVolume,
+      agentsNeeded,
+      selectedFeatures,
+      message,
+      inquiryId
+    } = req.body;
+
+    const Notification = require('../models/Notification');
+
+    // Create notification for user/system
+    try {
+      await Notification.create({
+        userId: req.user.id,
+        type: 'lead',
+        title: `Sales Inquiry: ${company || fullName}`,
+        message: `${fullName} (${email}) requested corporate sales consultation. Company size: ${companySize || 'N/A'}, Expected Volume: ${messageVolume || 'N/A'}.`,
+        meta: [
+          { label: 'Inquiry ID', value: String(inquiryId || 'N/A') },
+          { label: 'Company', value: String(company || 'N/A') },
+          { label: 'Phone', value: String(phone || 'N/A') },
+          { label: 'Agents Needed', value: String(agentsNeeded || 'N/A') }
+        ],
+        data: {
+          fullName,
+          email,
+          phone,
+          company,
+          companySize,
+          messageVolume,
+          agentsNeeded,
+          selectedFeatures,
+          message,
+          inquiryId
+        }
+      });
+    } catch (notifErr) {
+      console.warn('Could not create notification for sales inquiry:', notifErr.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Inquiry received successfully. Our sales team will reach out shortly.',
+      data: {
+        inquiryId,
+        submittedAt: new Date()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};

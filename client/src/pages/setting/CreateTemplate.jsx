@@ -455,9 +455,8 @@ const CreateTemplate = () => {
           components: authComponents
         };
         await createWhatsAppTemplate(authPayload);
-        navigate('/admin/templates/list', {
-          state: { showSuccessToast: true, toastMessage: 'Authentication OTP template created successfully!' }
-        });
+        toast.success('Authentication OTP template created successfully!', { autoClose: 4000, toastId: 'tpl-auth-success' });
+        navigate('/admin/templates/list', { replace: true, state: { showSuccessToast: true, toastMessage: 'Authentication OTP template created successfully!' } });
       } catch (error) {
         const errMsg =
           error?.response?.data?.error?.message ||
@@ -738,18 +737,11 @@ const CreateTemplate = () => {
       
       const submitTemplate = async (payload) => {
         if (isEditing && templateData?.id) {
-          // Check if template is approved - WhatsApp doesn't allow editing approved templates
-          if (templateData?.status?.toUpperCase() === 'APPROVED') {
-            throw new Error(
-              'This template has been approved by Meta and cannot be edited. '
-              + 'To make changes, please duplicate this template to create a new version. '
-              + 'Once the new template is approved, you can use it for sending messages.'
-            );
-          }
           console.log(`Updating existing template: ${originalName} (ID: ${templateData.id})`);
-          return await updateWhatsAppTemplate(templateData.id, { 
-            components: payload.components,
-            category: payload.category
+          // Meta's API only accepts 'components' on update — sending 'category' causes "Invalid parameter"
+          // Note: editing an APPROVED template will revert it to PENDING for Meta re-review
+          return await updateWhatsAppTemplate(templateData.id, {
+            components: payload.components
           });
         }
         
@@ -823,13 +815,11 @@ const CreateTemplate = () => {
       }
       
       // Template saved/updated successfully
-      const successMessage = isEditing ? "Template updated successfully!" : "Template submitted successfully to WhatsApp!";
-      navigate('/admin/templates/list', { 
-        state: { 
-          showSuccessToast: true, 
-          toastMessage: successMessage 
-        } 
-      });
+      const successMessage = isEditing
+        ? 'Template updated successfully! Meta may take a moment to reflect the changes.'
+        : 'Template submitted to WhatsApp! Awaiting Meta\'s review.';
+      toast.success(successMessage, { autoClose: 5000, toastId: 'tpl-save-success' });
+      navigate('/admin/templates/list', { replace: true, state: { showSuccessToast: true, toastMessage: successMessage } });
 
     } catch (error) {
       console.error("Template Creation Error:", error?.response?.data || error);
@@ -853,19 +843,10 @@ const CreateTemplate = () => {
         error?.message ||
         "Failed to create template on WhatsApp. Please try again.";
       
-      // Handle specific user-facing errors (like approved template edit attempts)
+      // Handle specific user-facing errors
       if (!error?.response && (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND') || error?.message?.includes('getaddrinfo'))) {
         // Network error — server can't reach graph.facebook.com
         errorMessage = 'Cannot reach WhatsApp servers. Please check that the server has a working internet connection and try again.';
-        toast.error(errorMessage);
-      } else if (error?.message?.includes('This template has been approved by Meta')) {
-        errorMessage = 'Approved Template - Cannot Edit\n\n' +
-          'WhatsApp does not allow editing templates that have been approved by Meta. ' +
-          'To make changes:\n\n' +
-          '1. Duplicate this template to create a new version\n' +
-          '2. Make your changes in the new template\n' +
-          '3. Submit for Meta approval\n' +
-          '4. Once approved, use the new template for sending messages';
         toast.error(errorMessage);
       } else if (errorSubcode === 2388023) {
         errorMessage = `WhatsApp is currently deleting this template language variant. During this 30-day lock period, you cannot add English (US) back to the same name. Please use a new name now.`;
