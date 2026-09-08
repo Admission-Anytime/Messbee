@@ -26,8 +26,7 @@ import AnalyticsApi from "../../services/AnalyticsApi";
 
 const SOCKET_URL =
   import.meta.env.VITE_SOCKET_URL ||
-  (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "") ||
-  "http://localhost:5002";
+  (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") : "");
 
 // ─── Health Indicator Bar ─────────────────────────────────────────────────────
 const HealthBar = ({ label, value, color, badge }) => {

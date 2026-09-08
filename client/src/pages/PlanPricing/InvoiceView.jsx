@@ -63,7 +63,7 @@ function InvoiceView() {
     const desc = transaction ? transaction.desc : "WhatsApp Conversation Credits (WCC) Top-up";
     const subDesc = transaction?.desc.includes("Plan Renewal") ? "Subscription renewal charges" : "Usage-based messaging credits";
     
-    const clientName = user?.company || user?.name || "ATRI ADMISSION ANYTIME PVT LTD";
+    const clientName = user?.company || user?.businessName || user?.name || "Your Business Name";
 
     return (
         <div className="min-h-screen bg-[#F0F2F5] font-['Urbanist']">
