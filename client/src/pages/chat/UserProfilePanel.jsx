@@ -221,21 +221,26 @@ const UserProfilePanel = ({ data, onClose, onViewHistory, availableLabels = [], 
              <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Labels</h4>
              <div className="flex flex-wrap gap-2 items-center relative">
                  {currentLabels.length === 0 && <p className="text-[10px] text-slate-400 italic">No labels applied</p>}
-                 {currentLabels.map(label => (
-                    <span key={label._id || label.id} className="px-3 py-1.5 text-xs font-bold rounded-lg border shadow-sm group relative" style={{
-                       backgroundColor: label.color + '15',
-                       color: label.color,
-                       borderColor: label.color + '30'
-                    }}>
-                      {label.name}
-                      <button 
-                        onClick={() => handleToggleLabel(label.name)}
-                        className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-100"
-                      >
-                        <XMarkIcon className="w-3 h-3 text-red-500" />
-                      </button>
-                    </span>
-                 ))}
+                  {currentLabels.map(label => {
+                    const c = label.color || '#3b82f6';
+                    return (
+                     <span key={label._id || label.id} className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-bold rounded-full border shadow-sm group relative" style={{
+                        backgroundColor: `${c}15`,
+                        color: c,
+                        borderColor: `${c}35`,
+                        background: `linear-gradient(135deg, ${c}20 0%, ${c}0A 100%)`
+                     }}>
+                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: c, boxShadow: `0 0 4px ${c}80` }} />
+                       {label.name}
+                       <button 
+                         onClick={() => handleToggleLabel(label.name)}
+                         className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity border border-slate-100"
+                       >
+                         <XMarkIcon className="w-3 h-3 text-red-500" />
+                       </button>
+                     </span>
+                    );
+                  })}
                  <div className="relative">
                     <button 
                       onClick={() => setShowLabelPicker(!showLabelPicker)}
