@@ -108,7 +108,7 @@ const Templates = ({ activeTab }) => {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [statusFilter, setStatusFilter] = useState('All');
 
-  // Track locally deleted template names in localStorage so they don't reappear after refresh
+  // Track locally deleted template names so they don't reappear after refresh
   const DELETED_KEY = 'messbee_deleted_templates';
   const getDeletedNames = () => {
     try { return JSON.parse(localStorage.getItem(DELETED_KEY) || '[]'); } catch { return []; }
@@ -120,8 +120,8 @@ const Templates = ({ activeTab }) => {
     }
   };
 
-  // Fetch templates from WhatsApp API only
-  // silent=true suppresses the success toast (used after delete to avoid double-toast)
+  // Fetch templates from WhatsApp API
+  // silent=true suppresses the success toast (used after delete or background sync to avoid double-toast)
   const loadTemplates = useCallback(async (silent = false) => {
     setLoading(true);
     try {
@@ -204,9 +204,9 @@ const Templates = ({ activeTab }) => {
     try {
       await deleteWhatsAppTemplate(id, templateToDelete.name);
       
-      // Save to localStorage so it stays hidden after page refresh too
+      // Save locally so it stays hidden on reloads
       addDeletedName(templateToDelete.name);
-      
+
       // Remove from local state immediately
       const updatedTemplates = templates.filter(t => t.id !== id && t.name !== templateToDelete.name);
       setTemplates(updatedTemplates);

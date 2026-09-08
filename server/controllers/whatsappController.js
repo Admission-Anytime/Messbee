@@ -1677,9 +1677,14 @@ exports.getTemplates = async (req, res, next) => {
     }
 
     let allTemplates = Array.isArray(data?.data) ? data.data : [];
-    
-    // Get templates owned by this user from our DB (use user ID - always reliable)
-    const userTemplates = await Template.find({ user: req.user.id });
+    // Get templates owned by this user from our DB
+    const userScope = getUserScope(req);
+    const userTemplates = await Template.find({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
+    });
     
     // If Meta API returned 0 or failed, use local templates
     if (allTemplates.length === 0 && userTemplates.length > 0) {
@@ -1694,26 +1699,15 @@ exports.getTemplates = async (req, res, next) => {
     }
     const userTemplatesMap = {};
     userTemplates.forEach(t => {
-      userTemplatesMap[String(t.name).trim()] = t;
-    });
-
-    console.log('[DEBUG] userTemplatesMap Keys:', Object.keys(userTemplatesMap));
-    Object.keys(userTemplatesMap).forEach(key => {
-      if (userTemplatesMap[key].status === 'DELETED') {
-        console.log(`[DEBUG] FOUND DELETED MARKER IN DB for: ${key}`);
-      }
+      userTemplatesMap[String(t.name).trim().toLowerCase()] = t;
     });
 
     // Merge Graph API templates with local metadata (to restore media URLs)
     const filteredTemplates = allTemplates
       .map(t => {
-        const templateNameTrimmed = String(t.name).trim();
-        const localTemplate = userTemplatesMap[templateNameTrimmed] || {};
+        const templateNameKey = String(t.name).trim().toLowerCase();
+        const localTemplate = userTemplatesMap[templateNameKey] || {};
         
-        if (localTemplate.status === 'DELETED') {
-           console.log(`[DEBUG] Mapping Meta template ${templateNameTrimmed} to DELETED status!`);
-        }
-
         // Deep merge components to restore 'example' fields that Meta often strips after approval
         const mergedComponents = (t.components || []).map(apiComp => {
           const localComp = (localTemplate.components || []).find(lc => lc.type === apiComp.type);
@@ -1933,7 +1927,7 @@ exports.deleteTemplate = async (req, res, next) => {
   try {
     const tenantId = req.user?.tenantId || req.user?._id;
     const { templateId } = req.params;
-    let { templateName } = req.body || {};
+    let templateName = req.body?.templateName || req.query?.templateName;
 
     if (!templateId) {
       return res.status(400).json({
@@ -1954,45 +1948,81 @@ exports.deleteTemplate = async (req, res, next) => {
       } catch (_) {}
     }
 
-    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
-    let metaResult = { success: false };
+    const tenantWhatsAppService = (await getTenantWhatsAppService(tenantId)) || whatsappService;
 
-    if (tenantWhatsAppService && templateName) {
-      console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
+    // If templateName is still missing, lookup by templateId from WhatsApp API list
+    if (!templateName && tenantWhatsAppService) {
       try {
-        metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
-      } catch (err) {
-        console.warn('⚠️ [Controller] Meta delete warning (suppressed):', err.message);
-        // We suppress this error so the user can delete it from their local DB and UI successfully
-      }
+        const tplList = await tenantWhatsAppService.getTemplates();
+        const found = (tplList?.data || []).find(t => String(t.id) === String(templateId));
+        if (found) {
+          templateName = found.name;
+        }
+      } catch (_) {}
     }
 
+    if (!templateName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name is required to delete a template'
+      });
+    }
+
+    console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
+    let metaResult = null;
+    try {
+      metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+    } catch (err) {
+      console.warn('⚠️ [Controller] Meta delete warning:', err.message);
+    }
+
+    const isMetaSuccess = !!(metaResult && metaResult.success);
+    const metaErrorCode = metaResult?.error?.code;
+    const metaErrorMsg = metaResult?.error?.message || '';
+    const isPermissionRestriction = metaErrorCode === 100 || metaErrorMsg.includes('Need permission');
+
+    // If Meta returned a failure that is NOT a permission restriction, return 400
+    if (!isMetaSuccess && !isPermissionRestriction) {
+      console.error('❌ [Controller] Meta delete failed:', metaResult?.error);
+      return res.status(400).json({
+        success: false,
+        message: metaResult?.error?.message || metaResult?.error?.error_user_msg || 'Failed to delete template from WhatsApp',
+        error: metaResult?.error
+      });
+    }
+
+    // Clean up / soft-delete from local MongoDB
     try {
       const userScope = getUserScope(req);
-      if (templateName) {
-        // Step 1: Delete ALL records for this template name (including any old DELETED markers)
-        await Template.deleteMany({
-          name: templateName,
-          $or: [
-            { user: { $in: userScope } },
-            { tenantId: { $in: userScope } }
-          ]
-        });
-        // Step 2: Create a fresh DELETED marker using user ID (always reliable)
-        await Template.create({
-          name: templateName,
-          status: 'DELETED',
-          user: req.user.id,
-          category: 'MARKETING',
-          language: 'en'
-        });
-      }
+      const userId = req.user?._id || req.user?.id;
+
+      await Template.deleteMany({
+        name: templateName,
+        $or: [
+          { user: { $in: userScope } },
+          { tenantId: { $in: userScope } }
+        ]
+      });
+
       if (/^[0-9a-fA-F]{24}$/.test(templateId)) {
         await Template.deleteOne({ _id: templateId });
       }
-      console.log('✅ [Controller] Template DELETED marker saved for:', templateName || templateId);
+
+      // If Meta didn't delete on Cloud API due to WABA ownership permissions, store DELETED marker so it stays hidden
+      if (isPermissionRestriction) {
+        await Template.create({
+          name: templateName,
+          status: 'DELETED',
+          user: userId,
+          category: 'MARKETING',
+          language: 'en'
+        });
+        console.log('✅ [Controller] Template soft-deleted locally (Meta permission restriction):', templateName);
+      } else {
+        console.log('✅ [Controller] Template permanently deleted from Meta and DB:', templateName);
+      }
     } catch (dbError) {
-      console.error('❌ [Controller] Local DB delete FAILED:', dbError.message, dbError.code);
+      console.warn('⚠️ [Controller] Local DB delete warning:', dbError.message);
     }
 
     try {

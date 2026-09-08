@@ -1460,8 +1460,37 @@ class WhatsAppService {
       await this.syncConfig();
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
+      const apiVersion = this.apiVersion || process.env.WHATSAPP_API_VERSION || 'v20.0';
+      let wabaId = this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+      if (!wabaId && this.phoneNumberId) {
+        try {
+          const phoneRes = await axios.get(
+            `https://graph.facebook.com/${apiVersion}/${this.phoneNumberId}?fields=whatsapp_business_account`,
+            { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
+          );
+          wabaId = phoneRes.data?.whatsapp_business_account?.id;
+          if (wabaId) {
+            this.businessAccountId = wabaId;
+          }
+        } catch (phoneErr) {
+          console.warn('⚠️ [Service] Could not resolve WABA ID from phone number:', phoneErr.message);
+        }
+      }
+
+      if (!wabaId) {
+        throw new Error('WhatsApp Business Account ID (WABA ID) is required to delete a template');
+      }
+
+      console.log('🗑️ [Service] Deleting template from WhatsApp:', {
+        templateId,
+        templateName,
+        wabaId,
+        apiVersion
+      });
+
       const response = await axios.delete(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
+        `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`,
         {
           params: {
             name: templateName

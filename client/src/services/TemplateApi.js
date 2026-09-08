@@ -279,11 +279,16 @@ export const saveTemplateHeaderPreview = (templateName, previewData) => {
  */
 export const deleteWhatsAppTemplate = async (templateId, templateName) => {
   try {
+    console.log('🗑️ [TemplateApi] Deleting WhatsApp template:', { templateId, templateName });
     const { data } = await axios.delete(`/whatsapp/templates/${templateId}`, {
       params: {
         templateName
+      },
+      data: {
+        templateName
       }
     });
+    console.log('✅ [TemplateApi] Template deleted successfully:', data);
     return data;
   } catch (error) {
     console.error("❌ [TemplateApi] Error deleting WhatsApp template:", error.response?.data || error.message);
