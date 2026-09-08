@@ -1418,15 +1418,15 @@ const AppIntegration = () => {
       )}
 
       {/* ── Featured Banner ── */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0b132b] via-[#1c2541] to-[#0b132b] p-8 md:p-10 shadow-xl mb-8">
-        <div className="absolute -top-20 -right-20 w-80 h-80 bg-orange-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#10B981] to-[#059669] p-8 md:p-10 shadow-xl mb-8 text-white">
+        <div className="absolute -top-20 -right-20 w-80 h-80 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 -left-20 w-80 h-80 bg-teal-300/20 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex-1">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 mb-4">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-white/90 text-xs font-semibold tracking-wide">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 mb-4">
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+              <span className="text-white text-xs font-semibold tracking-wide">
                 Featured Integration
               </span>
             </div>
@@ -1434,21 +1434,21 @@ const AppIntegration = () => {
             <h1 className="text-2xl md:text-3xl font-black text-white leading-tight mb-3">
               Connect Zapier &amp; Automate your Workflows
             </h1>
-            <p className="text-slate-300 text-xs md:text-sm max-w-lg leading-relaxed mb-6 font-medium">
+            <p className="text-white/90 text-xs md:text-sm max-w-lg leading-relaxed mb-6 font-medium">
               Send automated WhatsApp messages triggered by 5,000+ apps in your Zapier ecosystem. No coding required.
             </p>
 
             <div className="flex items-center gap-3 flex-wrap">
               <button
                 onClick={() => setShowZapierConnect(true)}
-                className="px-5 py-2.5 rounded-full bg-blue-600 text-white font-bold text-xs hover:bg-blue-700 transition-all shadow-md shadow-blue-600/30 cursor-pointer flex items-center gap-2"
+                className="px-5 py-2.5 rounded-full bg-white text-emerald-800 font-extrabold text-xs hover:bg-emerald-50 transition-all shadow-md shadow-black/10 cursor-pointer flex items-center gap-2 active:scale-95"
               >
-                <Link2 className="w-4 h-4" />
+                <Link2 className="w-4 h-4 text-emerald-700" />
                 Install Zapier
               </button>
               <button
                 onClick={() => setShowZapierTutorial(true)}
-                className="px-5 py-2.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-white font-bold text-xs hover:bg-white/20 transition-all cursor-pointer flex items-center gap-2"
+                className="px-5 py-2.5 rounded-full bg-white/15 backdrop-blur-sm border border-white/30 text-white font-bold text-xs hover:bg-white/25 transition-all cursor-pointer flex items-center gap-2 active:scale-95"
               >
                 <PlayCircle className="w-4 h-4" />
                 View Tutorial
@@ -1457,8 +1457,8 @@ const AppIntegration = () => {
           </div>
 
           <div className="hidden md:flex items-center justify-center">
-            <div className="w-36 h-36 rounded-3xl bg-[#1e293b]/60 backdrop-blur-md border border-white/10 flex items-center justify-center shadow-2xl">
-              <div className="w-20 h-20 rounded-2xl bg-[#FF4A00] flex items-center justify-center shadow-lg shadow-[#FF4A00]/40">
+            <div className="w-36 h-36 rounded-3xl bg-white/15 backdrop-blur-md border border-white/25 flex items-center justify-center shadow-2xl">
+              <div className="w-20 h-20 rounded-2xl bg-[#FF4A00] flex items-center justify-center shadow-lg shadow-black/20">
                 <svg width="44" height="44" viewBox="0 0 24 24" fill="none">
                   <path d="M12 3V21M3 12H21M5.636 5.636L18.364 18.364M5.636 18.364L18.364 5.636" stroke="white" strokeWidth="3.5" strokeLinecap="round" />
                 </svg>

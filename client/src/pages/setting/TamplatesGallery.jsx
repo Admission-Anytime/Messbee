@@ -186,9 +186,9 @@ const TemplatesGallery = () => {
                     navigate('/admin/templates/create', { state: { fromGallery: true } });
                   }
                 }}
-                className="w-full bg-[#0F172A] text-white py-3.5 rounded-2xl flex items-center justify-center gap-3 text-[13px] font-extrabold hover:bg-black transition-all shadow-xl shadow-slate-200"
+                className="w-full bg-gradient-to-r from-[#10B981] to-[#059669] text-white py-3.5 rounded-2xl flex items-center justify-center gap-3 text-[13px] font-extrabold hover:from-[#0ea372] hover:to-[#047857] transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98] cursor-pointer"
               >
-                Use this template <Check className="w-3.5 h-3.5 bg-[#10B981] text-white rounded-full p-0.5" />
+                Use this template <Check className="w-4 h-4 bg-white text-[#059669] rounded-full p-0.5" />
               </button>
             </div>
           </div>

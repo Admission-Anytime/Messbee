@@ -5,16 +5,16 @@ const Introduction = () => {
     <div className="max-w-5xl mx-auto p-6 md:p-10 font-['Urbanist'] text-slate-800">
       
       {/* Hero Section */}
-      <div className="relative bg-gradient-to-br from-slate-900 via-slate-800 to-emerald-900 rounded-3xl p-10 md:p-16 mb-12 overflow-hidden shadow-2xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500 opacity-20 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-500 opacity-20 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
+      <div className="relative bg-gradient-to-r from-[#10B981] to-[#059669] rounded-3xl p-10 md:p-16 mb-12 overflow-hidden shadow-xl text-white">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl translate-x-1/2 -translate-y-1/2"></div>
+        <div className="absolute bottom-0 left-0 w-48 h-48 bg-teal-300 opacity-20 rounded-full blur-3xl -translate-x-1/2 translate-y-1/2"></div>
         
         <div className="relative z-10">
-          <span className="bg-emerald-500/20 text-emerald-300 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-widest border border-emerald-400/30">Help & Support</span>
-          <h1 className="text-4xl md:text-5xl font-extrabold text-white mt-4 mb-6 leading-tight">
-            Welcome to <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">Messbee Business</span>
+          <span className="bg-white/20 text-white text-xs font-bold px-3.5 py-1.5 rounded-full uppercase tracking-widest border border-white/30 backdrop-blur-sm shadow-sm inline-block">Help &amp; Support</span>
+          <h1 className="text-4xl md:text-5xl font-extrabold text-white mt-4 mb-4 leading-tight drop-shadow-sm">
+            Welcome to <span className="text-emerald-100">Messbee Business</span>
           </h1>
-          <p className="text-lg md:text-xl text-slate-300 max-w-2xl leading-relaxed">
+          <p className="text-lg md:text-xl text-white/90 max-w-2xl leading-relaxed font-medium">
             Your all-in-one platform for scaling WhatsApp communication. Discover how to automate, manage, and analyze your customer interactions effortlessly.
           </p>
         </div>
