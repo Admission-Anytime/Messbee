@@ -174,8 +174,8 @@ export const SignupForm = () => {
           // Do NOT login the user
         } else {
           toast.success("Account created successfully!");
-          saveAuthData(response.data);
-          loginUser(response.data.user);
+          saveAuthData(response);
+          loginUser(response.data?.user || response.user || response.data);
           navigate("/admin/dashboard");
         }
       } else {

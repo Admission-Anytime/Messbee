@@ -27,8 +27,8 @@ const Login = () => {
             const res = await loginWithSocial("google", accessToken);
             if (res.success) {
               toast.success("Successfully logged in with Google!");
-              saveAuthData(res.data);
-              loginUser(res.data.user);
+              saveAuthData(res);
+              loginUser(res.data?.user || res.user || res.data);
               navigate("/admin/dashboard");
             }
           } catch (error) {
@@ -71,8 +71,8 @@ const Login = () => {
       
       if (res.success) {
         toast.success("Successfully logged in with Facebook!");
-        saveAuthData(res.data);
-        loginUser(res.data.user);
+        saveAuthData(res);
+        loginUser(res.data?.user || res.user || res.data);
         navigate("/admin/dashboard");
       }
     } catch (error) {

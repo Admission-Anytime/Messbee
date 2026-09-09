@@ -11,10 +11,30 @@ const instance = axios.create({
   withCredentials: true, // CRITICAL: Send cookies with every request
 });
 
-// 3. RESPONSE INTERCEPTOR (For automatic token refresh):
+// 3. REQUEST INTERCEPTOR (Attach Bearer token from localStorage):
+instance.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      if (typeof config.headers?.set === "function") {
+        if (!config.headers.get("Authorization") && !config.headers.get("authorization")) {
+          config.headers.set("Authorization", `Bearer ${token}`);
+        }
+      } else {
+        config.headers = config.headers || {};
+        if (!config.headers.Authorization && !config.headers.authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      }
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// 4. RESPONSE INTERCEPTOR (For automatic token refresh):
 instance.interceptors.response.use(
   (response) => {
-    // Tokens are automatically stored in HTTP-only cookies by the server
     return response;
   },
   async (error) => {
@@ -23,6 +43,8 @@ instance.interceptors.response.use(
     // If account is pending admin approval (403), force logout immediately
     if (error.response?.status === 403 && error.response?.data?.pendingApproval) {
       localStorage.removeItem("user");
+      localStorage.removeItem("token");
+      localStorage.removeItem("refreshToken");
       const currentPath = window.location.pathname;
       if (!currentPath.startsWith('/login') && !currentPath.startsWith('/signup')) {
         window.location.href = "/login";
@@ -32,25 +54,41 @@ instance.interceptors.response.use(
 
     // If error is 401 and we haven't retried yet, try to refresh token
     // BUT skip refresh for login/signup endpoints (they should return 401 normally)
-    const isAuthEndpoint = originalRequest.url?.includes('/auth/login') ||
-      originalRequest.url?.includes('/auth/signup') ||
-      originalRequest.url?.includes('/auth/refresh-token');
+    const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/signup') ||
+      originalRequest?.url?.includes('/auth/refresh-token');
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    if (error.response?.status === 401 && !originalRequest?._retry && !isAuthEndpoint) {
       originalRequest._retry = true;
 
       try {
-        // Try to refresh the token using the refresh token cookie
-        const { data } = await instance.post('/auth/refresh-token');
+        const storedRefreshToken = localStorage.getItem("refreshToken");
+        // Try to refresh the token using stored refresh token or cookie
+        const { data } = await instance.post('/auth/refresh-token', {
+          refreshToken: storedRefreshToken
+        });
 
         if (data.success) {
-          // New tokens are automatically set as cookies by the server
-          // Retry the original request
+          const newAccess = data.tokens?.accessToken || data.accessToken || data.data?.accessToken || data.data?.tokens?.accessToken;
+          const newRefresh = data.tokens?.refreshToken || data.refreshToken || data.data?.refreshToken || data.data?.tokens?.refreshToken;
+          if (newAccess) localStorage.setItem("token", newAccess);
+          if (newRefresh) localStorage.setItem("refreshToken", newRefresh);
+          
+          if (newAccess) {
+            if (typeof originalRequest.headers?.set === "function") {
+              originalRequest.headers.set("Authorization", `Bearer ${newAccess}`);
+            } else {
+              originalRequest.headers = originalRequest.headers || {};
+              originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+            }
+          }
           return instance(originalRequest);
         }
       } catch (refreshError) {
         // Refresh failed, clear user data and redirect to login
         localStorage.removeItem("user");
+        localStorage.removeItem("token");
+        localStorage.removeItem("refreshToken");
 
         // Only redirect if not already on auth pages
         const currentPath = window.location.pathname;
