@@ -16,6 +16,7 @@ const UserProfile = () => {
   const [step, setStep] = useState(1);
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [smsStep, setSmsStep] = useState(1);
+  const [show2FAHelp, setShow2FAHelp] = useState(false);
 
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(user?.avatar || null);
@@ -518,12 +519,66 @@ useEffect(() => {
               <p className="font-semibold text-gray-800">MessBee</p>
             </div>
 
-            {/* Help Icon */}
-            <button className="text-gray-400 hover:text-black">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M18 10A8 8 0 11.001 10 8 8 0 0118 10zm-8-3a2 2 0 00-2 2h2a1 1 0 112 0c0 .552-.448 1-1 1h-1v2h1a3 3 0 000-6zm-1 8h2v-2H9v2z"/>
-              </svg>
-            </button>
+            {/* Help Icon with Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShow2FAHelp((prev) => !prev)}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  show2FAHelp
+                    ? "text-black bg-gray-100"
+                    : "text-gray-400 hover:text-black hover:bg-gray-100"
+                }`}
+                title="What is 2FA?"
+                aria-label="2FA Information"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M18 10A8 8 0 11.001 10 8 8 0 0118 10zm-8-3a2 2 0 00-2 2h2a1 1 0 112 0c0 .552-.448 1-1 1h-1v2h1a3 3 0 000-6zm-1 8h2v-2H9v2z" />
+                </svg>
+              </button>
+
+              {/* Help Popover */}
+              {show2FAHelp && (
+                <>
+                  {/* Click-outside backdrop */}
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setShow2FAHelp(false)}
+                  />
+                  <div className="absolute right-0 top-8 z-30 w-72 bg-white rounded-2xl shadow-xl border border-gray-200 p-4 text-left">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">🛡️</span>
+                        <h4 className="text-xs font-bold text-gray-900">Why enable 2FA?</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShow2FAHelp(false)}
+                        className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs transition cursor-pointer"
+                        aria-label="Close help"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-gray-600 leading-relaxed mb-3">
+                      Two-Factor Authentication (2FA) adds an extra defense layer. Even if your password is stolen, your workspace remains protected.
+                    </p>
+
+                    <div className="space-y-2 border-t border-gray-100 pt-2.5 text-[11px] text-gray-600">
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-green-500 font-bold">✓</span>
+                        <span><strong>Extra protection:</strong> Requires a temporary 6-digit code from your device to sign in.</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-green-500 font-bold">✓</span>
+                        <span><strong>Supported apps:</strong> Google Authenticator, Authy, or Microsoft Authenticator.</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Title */}
