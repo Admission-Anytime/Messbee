@@ -3,16 +3,73 @@ const Message = require('../models/Message');
 const User = require('../models/User');
 const axios = require('axios');
 
-// ─── Global WhatsApp Config (per user from .env or user profile) ──────────────
-// These are the Meta API credentials — stored globally for easy access.
-// In a multi-tenant setup, each user can have their own WABA config stored in DB.
-const getWABAConfig = (user) => {
+const Channel = require('../models/Channel');
+const Setting = require('../models/Setting');
+
+// ─── Resolve WhatsApp Config (per user/tenant from User, Channel, Setting or .env) ──────────────
+const getWABAConfig = async (user) => {
+  let phoneNumberId = user?.whatsappConfig?.phoneNumberId || user?.whatsappPhoneNumberId || null;
+  let accessToken = user?.whatsappConfig?.accessToken || user?.whatsappAccessToken || null;
+  let wabaId = user?.whatsappConfig?.wabaId || user?.whatsappBusinessAccountId || null;
+  let appId = user?.whatsappAppId || process.env.WHATSAPP_APP_ID || null;
+  let verifiedName = null;
+  let displayPhoneNumber = null;
+
+  // Check Channel collection first for this tenant (authoritative multi-tenant config)
+  if (user) {
+    try {
+      const tenantId = user.tenantId || user._id;
+      const channel = await Channel.findOne({
+        tenantId,
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      }).select('+metaAccessToken').lean();
+
+      if (channel) {
+        phoneNumberId = channel.activeWhatsappPhoneNumberId || phoneNumberId;
+        accessToken = channel.metaAccessToken || accessToken;
+        wabaId = channel.metadata?.wabaId || wabaId;
+        if (channel.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
+          verifiedName = channel.name;
+        }
+        if (channel.phoneNumber) {
+          displayPhoneNumber = channel.phoneNumber;
+        }
+      }
+    } catch (chanErr) {
+      console.warn('Channel lookup in getWABAConfig failed:', chanErr.message);
+    }
+  }
+
+  // Fallback to user.businessName and user.phone if channel name/phone missing
+  if (!verifiedName && user?.businessName && user.businessName !== 'Your Business') {
+    verifiedName = user.businessName;
+  }
+  if (!displayPhoneNumber && (user?.phoneNumber || user?.phone)) {
+    displayPhoneNumber = user.phoneNumber || user.phone;
+  }
+
+  // Fallback to global setting if still missing
+  if (!phoneNumberId || !accessToken) {
+    try {
+      const setting = await Setting.findOne({ key: 'whatsapp_config' }).lean();
+      if (setting && setting.value) {
+        if (!phoneNumberId) phoneNumberId = setting.value.phoneNumberId || null;
+        if (!accessToken) accessToken = setting.value.accessToken || null;
+        if (!wabaId) wabaId = setting.value.businessAccountId || null;
+      }
+    } catch (setErr) {
+      console.warn('Setting lookup in getWABAConfig failed:', setErr.message);
+    }
+  }
+
   return {
-    phoneNumberId: user?.whatsappPhoneNumberId || null,
-    accessToken:   user?.whatsappAccessToken   || null,
-    wabaId:        user?.whatsappBusinessAccountId || null,
-    appId:         user?.whatsappAppId         || null,
-    apiVersion:    process.env.WHATSAPP_API_VERSION || 'v18.0',
+    phoneNumberId,
+    accessToken,
+    wabaId,
+    appId,
+    verifiedName,
+    displayPhoneNumber,
+    apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
   };
 };
 
@@ -91,13 +148,13 @@ exports.getPerformanceOverview = async (req, res) => {
     const unreadChange = calcChange(unreadChats, prevUnread);
 
     // ── 8. WhatsApp Business API Config (global config snapshot) ───────────────
-    const wabaConfig = getWABAConfig(req.user);
+    const wabaConfig = await getWABAConfig(req.user);
 
     // ── 9. Optionally fetch phone number quality from Meta API ─────────────────
     let phoneQuality = null;
     let messagingLimit = null;
-    let verifiedName = null;
-    let displayPhoneNumber = null;
+    let verifiedName = wabaConfig.verifiedName || null;
+    let displayPhoneNumber = wabaConfig.displayPhoneNumber || null;
     try {
       if (wabaConfig.phoneNumberId && wabaConfig.accessToken) {
         const metaRes = await axios.get(
@@ -113,8 +170,8 @@ exports.getPerformanceOverview = async (req, res) => {
         if (metaRes.data) {
           phoneQuality       = metaRes.data.quality_rating || null;
           messagingLimit     = metaRes.data.messaging_limit_tier || null;
-          verifiedName       = metaRes.data.verified_name || null;
-          displayPhoneNumber = metaRes.data.display_phone_number || null;
+          if (metaRes.data.verified_name) verifiedName = metaRes.data.verified_name;
+          if (metaRes.data.display_phone_number) displayPhoneNumber = metaRes.data.display_phone_number;
         }
       }
     } catch (metaErr) {
@@ -188,7 +245,7 @@ exports.getPerformanceOverview = async (req, res) => {
 // @access Private
 exports.getWABAConfigDetails = async (req, res) => {
   try {
-    const wabaConfig = getWABAConfig(req.user);
+    const wabaConfig = await getWABAConfig(req.user);
 
     // Try to fetch live phone number details from Meta
     let liveData = null;
@@ -208,6 +265,15 @@ exports.getWABAConfigDetails = async (req, res) => {
       }
     } catch (err) {
       console.warn('⚠️  Meta config fetch skipped:', err?.response?.data?.error?.message || err.message);
+    }
+
+    // Fallback if Meta API is unreachable but channel has verified info
+    if (!liveData && (wabaConfig.verifiedName || wabaConfig.displayPhoneNumber)) {
+      liveData = {
+        verified_name: wabaConfig.verifiedName || null,
+        display_phone_number: wabaConfig.displayPhoneNumber || null,
+        status: 'CONNECTED'
+      };
     }
 
     res.status(200).json({

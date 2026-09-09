@@ -233,6 +233,7 @@ exports.connectOAuthToken = async (req, res, next) => {
         let actualPhoneNumber = finalPhoneNumberId; // fallback
         let metaQuality       = 'UNKNOWN';
         let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
         try {
           const axios = require('axios');
           const metaRes = await axios.get(
@@ -246,11 +247,30 @@ exports.connectOAuthToken = async (req, res, next) => {
             }
           );
           if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
-          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
           if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
           if (metaRes.data.status)               metaStatus        = metaRes.data.status;
         } catch (metaErr) {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
         }
 
         await Channel.findOneAndUpdate(
@@ -437,6 +457,7 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         let actualPhoneNumber = finalPhoneNumberId; // fallback
         let metaQuality       = 'UNKNOWN';
         let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
         try {
           const axios = require('axios');
           const metaRes = await axios.get(
@@ -450,11 +471,30 @@ exports.embeddedSignupCallback = async (req, res, next) => {
             }
           );
           if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
-          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
           if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
           if (metaRes.data.status)               metaStatus        = metaRes.data.status;
         } catch (metaErr) {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
         }
 
         await Channel.findOneAndUpdate(
@@ -575,6 +615,7 @@ exports.connectManual = async (req, res, next) => {
         let actualPhoneNumber = finalPhoneNumberId; // fallback
         let metaQuality       = 'UNKNOWN';
         let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
         try {
           const axios = require('axios');
           const metaRes = await axios.get(
@@ -588,11 +629,30 @@ exports.connectManual = async (req, res, next) => {
             }
           );
           if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
-          if (metaRes.data.verified_name)        channelName       = metaRes.data.verified_name;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
           if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
           if (metaRes.data.status)               metaStatus        = metaRes.data.status;
         } catch (metaErr) {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
         }
 
         await Channel.findOneAndUpdate(

@@ -47,6 +47,45 @@ connectDB().then(async () => {
     } catch (idxErr) {
       // index already dropped or non-existent
     }
+
+    // Auto-Sync Migration: Sync connected WhatsApp channels (verified name, phone, token) to User profiles
+    try {
+      const channels = await mongoose.connection.db.collection('channels').find({
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      }).toArray();
+
+      for (const ch of channels) {
+        if (!ch.tenantId) continue;
+        const verifiedName = ch.name && ch.name !== 'WhatsApp Business' && ch.name !== 'Default WhatsApp Channel' && ch.name !== 'Test Channel' && ch.name !== 'Node Test Channel' ? ch.name : null;
+        const updateObj = {};
+
+        if (verifiedName) {
+          updateObj.businessName = verifiedName;
+        }
+        if (ch.phoneNumber) {
+          updateObj.phone = ch.phoneNumber;
+        }
+        if (ch.activeWhatsappPhoneNumberId) {
+          updateObj['whatsappConfig.phoneNumberId'] = ch.activeWhatsappPhoneNumberId;
+        }
+        if (ch.metaAccessToken) {
+          updateObj['whatsappConfig.accessToken'] = ch.metaAccessToken;
+        }
+        if (ch.metadata?.wabaId) {
+          updateObj['whatsappConfig.wabaId'] = ch.metadata.wabaId;
+        }
+
+        if (Object.keys(updateObj).length > 0) {
+          await mongoose.connection.db.collection('users').updateOne(
+            { _id: ch.tenantId },
+            { $set: updateObj }
+          );
+        }
+      }
+      console.log(`✅ Migration: Auto-synced WhatsApp channels to user profiles (${channels.length} channels checked)`);
+    } catch (syncErr) {
+      console.warn('Channel to User auto-sync warning:', syncErr.message);
+    }
   } catch (err) {
     console.error('Migration warning (non-fatal):', err.message);
   }
