@@ -395,6 +395,9 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    // Set tokens as HTTP-only cookies
+    setTokenCookies(res, accessToken, refreshToken);
+
         // Calculate WhatsApp connection status on login
         let tenantWhatsAppConnected = false;
         let whatsappConfig = user.whatsappConfig;

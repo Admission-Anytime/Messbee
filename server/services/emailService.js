@@ -77,7 +77,7 @@ exports.sendOTPEmail = async ({ email, name, otp, purpose = 'verification' }) =>
               padding: 20px;
             }
             .container {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              background: linear-gradient(135deg, #10B981 0%, #059669 100%);
               border-radius: 10px;
               padding: 30px;
               color: white;
@@ -94,8 +94,9 @@ exports.sendOTPEmail = async ({ email, name, otp, purpose = 'verification' }) =>
               font-size: 32px;
               font-weight: bold;
               letter-spacing: 8px;
-              color: #667eea;
-              background: #f3f4f6;
+              color: #059669;
+              background: #ecfdf5;
+              border: 1px solid #a7f3d0;
               padding: 20px;
               border-radius: 8px;
               margin: 20px 0;
@@ -272,7 +273,7 @@ exports.sendPasswordResetEmail = async ({ email, name, resetUrl }) => {
           <h2>Password Reset Request</h2>
           <p>Hello ${name},</p>
           <p>You requested to reset your password. Click the link below to reset it:</p>
-          <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: #667eea; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0;">Reset Password</a>
+          <a href="${resetUrl}" style="display: inline-block; padding: 12px 24px; background: #10B981; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; font-weight: bold;">Reset Password</a>
           <p>This link will expire in 10 minutes.</p>
           <p>If you didn't request this, please ignore this email.</p>
           <p>Best regards,<br>Messbee Team</p>

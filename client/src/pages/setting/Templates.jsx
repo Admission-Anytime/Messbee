@@ -1,7 +1,6 @@
-/* eslint-disable react/prop-types */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, ChevronRight, ChevronDown, Phone, Video, Smile, Paperclip, Send, CheckCheck, Info, X, Split } from 'lucide-react';
+import { Search, Plus, RotateCw, Image as ImageIcon, Trash2, RefreshCw, Pencil, Copy, ChevronLeft, ChevronRight, ChevronDown, Phone, Video, Smile, Paperclip, Send, CheckCheck, CheckCircle, Info, X, Split } from 'lucide-react';
 
 const ROWS_OPTIONS = [10, 25, 50, 100];
 
@@ -85,17 +84,54 @@ const Templates = ({ activeTab }) => {
   }, [activeTab]);
 
 
+  // Success message banner after editing or creating template
+  const [successBanner, setSuccessBanner] = useState(() => {
+    if (location.state?.showSuccessToast) {
+      return {
+        message: location.state.toastMessage || 'Template updated successfully!',
+        isEditing: location.state.isEditing,
+        templateName: location.state.templateName
+      };
+    }
+    return null;
+  });
+
+  const lastToastKeyRef = useRef(null);
+
   useEffect(() => {
     if (location.state?.showSuccessToast) {
-      // Use toastId so it won't duplicate if the toast was already shown from CreateTemplate
-      toast.success(location.state.toastMessage || 'Operation successful!', {
-        toastId: 'tpl-save-success',
+      const stateKey = `${location.key}-${location.state.toastMessage}`;
+      if (lastToastKeyRef.current === stateKey) {
+        return;
+      }
+      lastToastKeyRef.current = stateKey;
+
+      const msg = location.state.toastMessage || 'Template updated successfully!';
+      setSuccessBanner({
+        message: msg,
+        isEditing: location.state.isEditing,
+        templateName: location.state.templateName
+      });
+
+      toast.success(msg, {
+        toastId: 'template-saved-success',
         autoClose: 5000,
       });
-      // Clear state so it doesn't re-show on refresh
-      navigate(location.pathname, { replace: true, state: {} });
+
+      // Clear history state without triggering a disruptive secondary router navigation
+      try {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        // ignore
+      }
+
+      const timer = setTimeout(() => {
+        setSuccessBanner(null);
+      }, 7000);
+
+      return () => clearTimeout(timer);
     }
-  }, [location.key, navigate]); // use location.key so it only fires on actual navigation
+  }, [location.key]);
 
 
   // --- TEMPLATE DATA ---
@@ -313,7 +349,38 @@ const Templates = ({ activeTab }) => {
               </button>
             </div>
           </div>
-          
+
+          {/* In-page Success Notification Banner */}
+          {successBanner && (
+            <div className="mb-5 p-4 bg-emerald-50/90 border border-emerald-200/90 rounded-2xl flex items-center justify-between text-emerald-900 shadow-sm animate-fadeIn">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm shadow-emerald-200">
+                  <CheckCircle className="w-5 h-5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="font-bold text-sm text-slate-800 flex items-center gap-2 flex-wrap">
+                    <span>{successBanner.isEditing ? 'Template Updated Successfully' : 'Template Submitted Successfully'}</span>
+                    {successBanner.templateName && (
+                      <span className="text-xs px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 font-mono font-medium">
+                        {successBanner.templateName}
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                    {successBanner.message}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSuccessBanner(null)}
+                className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-emerald-100/60 transition cursor-pointer ml-3 shrink-0"
+                title="Dismiss"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          )}
+
           <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between min-h-[420px] overflow-hidden">
             {/* Filter bar */}
             <div className="sticky top-0 z-20 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 flex items-center justify-between px-4 sm:px-5 py-3.5 border-b border-gray-100 gap-3 flex-wrap rounded-t-2xl">

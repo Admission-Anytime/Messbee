@@ -448,6 +448,28 @@ const CreateTemplate = () => {
           { type: 'FOOTER', code_expiration_minutes: Number(authExpirationMinutes) || 10 },
           { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] }
         ];
+
+        const originalName = typeof templateData?.name === 'string' ? templateData.name : '';
+
+        // If editing existing Authentication template, update it instead of creating
+        if (isEditing && templateData?.id) {
+          console.log(`Updating existing Authentication template: ${originalName} (ID: ${templateData.id})`);
+          await updateWhatsAppTemplate(templateData.id, {
+            components: authComponents
+          });
+          const successMessage = 'Template updated successfully! Meta may take a moment to reflect the changes.';
+          navigate('/admin/templates/list', {
+            replace: true,
+            state: {
+              showSuccessToast: true,
+              toastMessage: successMessage,
+              isEditing: true,
+              templateName: originalName || waNameAuth
+            }
+          });
+          return;
+        }
+
         const authPayload = {
           name: waNameAuth,
           category: 'AUTHENTICATION',
@@ -455,14 +477,25 @@ const CreateTemplate = () => {
           components: authComponents
         };
         await createWhatsAppTemplate(authPayload);
-        toast.success('Authentication OTP template created successfully!', { autoClose: 4000, toastId: 'tpl-auth-success' });
-        navigate('/admin/templates/list', { replace: true, state: { showSuccessToast: true, toastMessage: 'Authentication OTP template created successfully!' } });
+        const successMessage = 'Authentication OTP template created successfully!';
+        navigate('/admin/templates/list', {
+          replace: true,
+          state: {
+            showSuccessToast: true,
+            toastMessage: successMessage,
+            isEditing: false,
+            templateName: waNameAuth
+          }
+        });
       } catch (error) {
+        const waError = error?.response?.data?.error || {};
+        const nestedWaError = waError?.error || {};
         const errMsg =
-          error?.response?.data?.error?.message ||
+          nestedWaError?.message ||
+          waError?.message ||
           error?.response?.data?.message ||
           error?.message ||
-          'Failed to create Authentication template. Please try again.';
+          (isEditing ? 'Failed to update Authentication template. Please try again.' : 'Failed to create Authentication template. Please try again.');
         toast.error(errMsg);
       } finally {
         setIsSubmitting(false);
@@ -818,8 +851,15 @@ const CreateTemplate = () => {
       const successMessage = isEditing
         ? 'Template updated successfully! Meta may take a moment to reflect the changes.'
         : 'Template submitted to WhatsApp! Awaiting Meta\'s review.';
-      toast.success(successMessage, { autoClose: 5000, toastId: 'tpl-save-success' });
-      navigate('/admin/templates/list', { replace: true, state: { showSuccessToast: true, toastMessage: successMessage } });
+      navigate('/admin/templates/list', {
+        replace: true,
+        state: {
+          showSuccessToast: true,
+          toastMessage: successMessage,
+          isEditing: Boolean(isEditing),
+          templateName: originalName || waName
+        }
+      });
 
     } catch (error) {
       console.error("Template Creation Error:", error?.response?.data || error);
