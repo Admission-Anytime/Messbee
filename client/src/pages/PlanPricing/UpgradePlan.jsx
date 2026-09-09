@@ -1062,7 +1062,7 @@ const UpgradePlan = () => {
       return;
     }
     if (plan.isCustom) {
-      navigate("/admin/help/support");
+      navigate("/admin/plan/contact-sales");
       return;
     }
     setSelectedPlan(plan);
