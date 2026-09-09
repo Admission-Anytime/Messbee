@@ -406,7 +406,10 @@ function Dashboard() {
                </div>
                <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Browse Docs <span className="ml-2">→</span></div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group h-full">
+            <div 
+               onClick={() => window.open('https://www.youtube.com', '_blank', 'noopener,noreferrer')} 
+               className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group h-full"
+            >
                <div>
                   <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><PlayCircleIcon className="w-6 h-6" /></div>
                   <h4 className="font-bold text-slate-800 mb-2">Video Tutorials</h4>
