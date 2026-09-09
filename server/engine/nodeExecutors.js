@@ -15,6 +15,22 @@ function deepGet(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
 }
 
+function safeSetSessionVariable(session, key, value) {
+  if (!session) return;
+  if (!session.sessionVariables || typeof session.sessionVariables.set !== 'function') {
+    session.sessionVariables = new Map(Object.entries(session.sessionVariables || {}));
+  }
+  session.sessionVariables.set(key, value);
+}
+
+function safeGetSessionVariable(session, key) {
+  if (!session || !session.sessionVariables) return undefined;
+  if (typeof session.sessionVariables.get === 'function') {
+    return session.sessionVariables.get(key);
+  }
+  return session.sessionVariables[key];
+}
+
 /**
  * Utility to replace {{variables}} with actual data from context
  * Supports fallback syntax: {{contact.name|there}}
@@ -65,7 +81,7 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
   // Upgrade: Fallback to session variables if not found in context (which now contains CRM data like contact.tags)
   let userValue = deepGet(contextData, variable);
   if (userValue === undefined) {
-    userValue = session.sessionVariables.get(variable);
+    userValue = safeGetSessionVariable(session, variable);
   }
   
   let result = false;
@@ -133,7 +149,7 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
         // Advanced Extraction: Supports nested JSON paths like 'user.profile.email'
         const extractedValue = deepGet(data, mapping.responseField);
         if (extractedValue !== undefined) {
-          session.sessionVariables.set(mapping.sessionVariable, extractedValue);
+          safeSetSessionVariable(session, mapping.sessionVariable, extractedValue);
         }
       });
     }
@@ -204,13 +220,13 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   if (actionType === 'update_field' || actionType === 'update_contact') {
     if (node.data.fieldKey && node.data.fieldValue !== undefined) {
       const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
-      session.sessionVariables.set(node.data.fieldKey, parsedValue);
+      safeSetSessionVariable(session, node.data.fieldKey, parsedValue);
     }
     return 'success';
   }
 
   if (actionType === 'opt_in') {
-    session.sessionVariables.set('marketing_opt_in', 'true');
+    safeSetSessionVariable(session, 'marketing_opt_in', 'true');
     if (contextData?.contact?.phone) {
       await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: false });
     }
@@ -218,7 +234,7 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   }
 
   if (actionType === 'opt_out') {
-    session.sessionVariables.set('marketing_opt_in', 'false');
+    safeSetSessionVariable(session, 'marketing_opt_in', 'false');
     if (contextData?.contact?.phone) {
       await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: true });
     }
@@ -289,7 +305,7 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
     const aiResponse = response.data.choices[0].message.content;
 
     if (saveVariableAs) {
-      session.sessionVariables.set(saveVariableAs, aiResponse);
+      safeSetSessionVariable(session, saveVariableAs, aiResponse);
     }
     
     // We can also store the direct AI response in contextData for immediate use in the next node
@@ -300,7 +316,7 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
     console.error('AI Node Execution Failed:', error?.response?.data || error.message);
     
     if (saveVariableAs) {
-      session.sessionVariables.set(saveVariableAs, "I'm sorry, I cannot process your request right now.");
+      safeSetSessionVariable(session, saveVariableAs, "I'm sorry, I cannot process your request right now.");
     }
     return 'failure'; // Note: In flowRunner, 'failure' doesn't necessarily break the flow, it just moves on
   }
@@ -343,7 +359,7 @@ module.exports.executeShopifyNode = async function executeShopifyNode(session, n
     });
 
     if (shopifyAction === 'get_customer') {
-      session.sessionVariables.set('shopify.customerName', response.data?.shop?.name || contextData.contact?.name);
+      safeSetSessionVariable(session, 'shopify.customerName', response.data?.shop?.name || contextData.contact?.name);
     }
     return 'success';
   } catch (error) {
