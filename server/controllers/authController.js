@@ -940,6 +940,16 @@ exports.getMe = async (req, res, next) => {
       if (user.tenantWhatsAppConnected) {
         if (!user.whatsappConfig) user.whatsappConfig = {};
         user.whatsappConfig.wabaId = user.whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+        if (channel?.activeWhatsappPhoneNumberId && !user.whatsappConfig.phoneNumberId) {
+          user.whatsappConfig.phoneNumberId = channel.activeWhatsappPhoneNumberId;
+        }
+        // Fallback businessName and phone from channel if missing on user
+        if (!user.businessName && channel?.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
+          user.businessName = channel.name;
+        }
+        if (!user.phoneNumber && channel?.phoneNumber) {
+          user.phoneNumber = channel.phoneNumber;
+        }
       }
     }
 
@@ -1116,6 +1126,7 @@ exports.facebookLogin = async (req, res, next) => {
           avatar: user.avatar,
           phone: user.phone,
           company: user.company,
+          businessName: user.businessName,
           subscriptionPlan: user.subscriptionPlan,
           credits: user.credits,
           subscriptionEndDate: user.subscriptionEndDate,
@@ -1271,6 +1282,13 @@ exports.socialLogin = async (req, res, next) => {
       if (!user.tenantId) {
         user.tenantId = user._id;
       }
+      // If user had generic fallback name and Facebook/Google now provides actual name
+      if (regdata.name && (!user.name || user.name === 'Facebook User' || user.name === 'Google User' || user.name === 'User')) {
+        user.name = regdata.name;
+      }
+      if (regdata.picture && !user.avatar) {
+        user.avatar = regdata.picture;
+      }
     }
 
     // Generate tokens for login
@@ -1326,6 +1344,7 @@ exports.socialLogin = async (req, res, next) => {
           avatar: user.avatar,
           phone: user.phone,
           company: user.company,
+          businessName: user.businessName,
           subscriptionPlan: user.subscriptionPlan,
           credits: user.credits,
           subscriptionEndDate: user.subscriptionEndDate,
