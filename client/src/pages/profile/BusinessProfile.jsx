@@ -1,8 +1,10 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
+import api from '../../context/axios';
+import { userContext } from '../../context/Context';
 
 const STANDARD_CATEGORIES = [
   "Technology & Software",
@@ -14,8 +16,20 @@ const STANDARD_CATEGORIES = [
   "Travel & Hospitality",
 ];
 
+const getBackendFileUrl = (path) => {
+  if (!path) return defaultLogo;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
+    return path;
+  }
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+  const backendRoot = apiUrl.replace(/\/api\/?$/i, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${backendRoot}${cleanPath}`;
+};
+
 const BusinessProfile = () => {
   const navigate = useNavigate();
+  const { user, updateUser } = useContext(userContext);
   const [activeEdit, setActiveEdit] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef(null);
@@ -35,8 +49,8 @@ const BusinessProfile = () => {
     state: "",
     zipcode: "",
     country: "",
-    currency: "",
-    timezone: "",
+    currency: "INR",
+    timezone: "(GMT+05:30) India Standard Time",
     taxId: "",
     billingName: "",
     billingAddress: "",
@@ -51,6 +65,52 @@ const BusinessProfile = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  // Fetch real profile data from backend on mount
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/users/profile');
+        if (response.data && response.data.success) {
+          const u = response.data.data;
+          setFormData({
+            organizationName: u.businessName || u.name || "",
+            websiteUrl: (u.website || "").replace(/^https?:\/\//i, ''),
+            businessCategory: u.businessCategory || "",
+            businessDescription: u.businessDescription || "",
+            address: u.address || "",
+            city: u.city || "",
+            state: u.state || "",
+            zipcode: u.zipcode || "",
+            country: u.country || "",
+            currency: u.currency || "INR",
+            timezone: u.timezone || "(GMT+05:30) India Standard Time",
+            taxId: u.gst || u.billingTaxId || "",
+            billingName: u.billingName || u.businessName || u.name || "",
+            billingAddress: u.billingAddress || u.address || "",
+            billingCountry: u.billingCountry || u.country || "",
+            billingState: u.billingState || u.state || "",
+            billingCity: u.billingCity || u.city || "",
+            billingZipcode: u.billingZipcode || u.zipcode || "",
+            mobileNumber: u.mobileNumber || u.phone || "",
+            emailId: u.emailId || u.email || "",
+            taxType: u.taxType || "GST",
+            billingTaxId: u.billingTaxId || u.gst || ""
+          });
+
+          if (u.avatar) {
+            const fullAvatar = getBackendFileUrl(u.avatar);
+            setLogoPreview(fullAvatar);
+            setSavedLogo(fullAvatar);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch organization profile:", err);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleEditToggle = (section) => {
     if (activeEdit === section) {
@@ -140,36 +200,66 @@ const BusinessProfile = () => {
 
     setIsSaving(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      // Save logo when identity section is saved
+    try {
+      const payload = {};
       if (section === 'identity') {
-        setSavedLogo(logoPreview);
+        payload.businessName = formData.organizationName;
+        payload.website = formData.websiteUrl ? `https://${formData.websiteUrl.replace(/^https?:\/\//i, '')}` : "";
+      } else if (section === 'business') {
+        const cat = isOtherCategory && customCategory.trim() ? customCategory.trim() : formData.businessCategory;
+        payload.businessCategory = cat;
+        payload.businessDescription = formData.businessDescription;
+        payload.address = formData.address;
+        payload.city = formData.city;
+        payload.state = formData.state;
+        payload.zipcode = formData.zipcode;
+        payload.country = formData.country;
+      } else if (section === 'regional') {
+        payload.currency = formData.currency;
+        payload.timezone = formData.timezone;
+        payload.gst = formData.taxId;
+        payload.billingTaxId = formData.taxId;
+      } else if (section === 'billing') {
+        payload.billingName = formData.billingName;
+        payload.billingAddress = formData.billingAddress;
+        payload.billingCountry = formData.billingCountry;
+        payload.billingState = formData.billingState;
+        payload.billingCity = formData.billingCity;
+        payload.billingZipcode = formData.billingZipcode;
+        payload.mobileNumber = formData.mobileNumber;
+        payload.emailId = formData.emailId;
+        payload.taxType = formData.taxType;
+        payload.billingTaxId = formData.billingTaxId;
       }
 
-      if (section === 'business') {
-        if (isOtherCategory && !formData.businessCategory?.trim()) {
-          setFormData(prev => ({ ...prev, businessCategory: "Others" }));
+      const response = await api.put('/users/profile', payload);
+      if (response.data && response.data.success) {
+        updateUser(response.data.data);
+        if (section === 'identity') {
+          setSavedLogo(logoPreview);
         }
+        toast.success("Section updated successfully!", {
+          position: "top-right",
+          autoClose: 3000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+          theme: "light",
+        });
+        handleEditToggle(section);
       }
-      
-      toast.success("Section updated successfully!", {
-        position: "top-right",
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        theme: "light",
-      });
+    } catch (err) {
+      console.error("Save error:", err);
+      toast.error(err.response?.data?.message || "Failed to update section");
+    } finally {
       setIsSaving(false);
-      handleEditToggle(section);
-    }, 800);
+    }
   };
 
   const triggerImageUpload = () => fileInputRef.current?.click();
 
-  const handleImageUpload = (e) => {
+  const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (file) {
       // Validate file size (max 5MB)
@@ -190,16 +280,29 @@ const BusinessProfile = () => {
         return;
       }
 
-      // Create preview
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setLogoPreview(reader.result);
-        toast.success("Logo uploaded successfully!", {
-          position: "top-right",
-          autoClose: 2000,
+      const imgFormData = new FormData();
+      imgFormData.append("avatar", file);
+
+      try {
+        const response = await api.post("/users/avatar", imgFormData, {
+          headers: { "Content-Type": "multipart/form-data" },
         });
-      };
-      reader.readAsDataURL(file);
+
+        if (response.data && response.data.success) {
+          const avatarUrl = response.data.data.avatar;
+          const fullAvatar = getBackendFileUrl(avatarUrl);
+          setLogoPreview(fullAvatar);
+          setSavedLogo(fullAvatar);
+          updateUser(response.data.data.user);
+          toast.success("Logo uploaded successfully!", {
+            position: "top-right",
+            autoClose: 2000,
+          });
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        toast.error(err.response?.data?.message || "Failed to upload logo");
+      }
     }
   };
 
@@ -283,6 +386,10 @@ const BusinessProfile = () => {
                       src={logoPreview} 
                       alt="Organization Logo" 
                       className="w-full h-full object-contain p-4"
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = defaultLogo;
+                      }}
                     />
                     {activeEdit === "identity" &&  (
                       <div className="absolute inset-0 bg-black opacity-0 group-hover:opacity-20 transition-opacity duration-300 flex items-center justify-center">

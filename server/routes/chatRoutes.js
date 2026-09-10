@@ -3,7 +3,6 @@ const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const Media = require("../models/Media");
 const mongoose = require("mongoose");
-const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -462,7 +461,8 @@ router.post("/message", async (req, res) => {
       let whatsappMediaType = 'document'; // default, overridden below if media present
 
       const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-      const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+      const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+      const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
       if (!tenantWhatsAppService) {
         return res.status(403).json({ success: false, error: 'WhatsApp is not connected for this account.' });
@@ -754,8 +754,17 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
 
 
 
-    // Upload to WhatsApp servers with sanitized MIME type
-    const result = await whatsappService.uploadMedia(filePath, mimeType);
+    // Upload to WhatsApp servers with sanitized MIME type using this tenant's own WhatsApp connection
+    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const targetTenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+
+    if (!tenantWhatsAppService) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return res.status(403).json({ error: "WhatsApp is not connected for this account. Cannot upload media." });
+    }
+
+    const result = await tenantWhatsAppService.uploadMedia(filePath, mimeType);
 
     if (!result.success) {
       // Clean up local file on failure
@@ -823,7 +832,15 @@ router.post("/upload-media", async (req, res) => {
       });
     }
 
-    const result = await whatsappService.uploadMediaFromUrl(fileUrl, mimeType);
+    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const targetTenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ error: "WhatsApp is not connected for this account." });
+    }
+
+    const result = await tenantWhatsAppService.uploadMediaFromUrl(fileUrl, mimeType);
 
     if (!result.success) {
       return res.status(500).json({
@@ -863,7 +880,8 @@ router.post("/send-template", async (req, res) => {
     }
 
     const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-    const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+    const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
     if (!tenantWhatsAppService) {
       return res.status(403).json({ error: 'WhatsApp is not connected for this account.' });

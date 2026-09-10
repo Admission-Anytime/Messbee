@@ -44,11 +44,18 @@ router.post('/send-template', protect, whatsappController.sendTemplateMessage);
 // Debug: Test send to a number and return full WhatsApp API error (Protected route)
 router.post('/debug-send', protect, async (req, res) => {
   const { to, message = 'Test message from Messbee debug' } = req.body;
-  const whatsappService = require('../services/whatsappService');
+  const { getTenantWhatsAppService } = require('../controllers/whatsappController');
   const { normalizePhoneNumber } = require('../utils/phoneHelper');
   const normalized = normalizePhoneNumber(to);
   console.log(`🔍 DEBUG SEND: Original="${to}" → Normalized="${normalized}"`);
-  const result = await whatsappService.sendTextMessage(normalized, message);
+  
+  const tenantId = req.user?.tenantId || req.user?._id;
+  const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+  if (!tenantWhatsAppService) {
+    return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
+  }
+
+  const result = await tenantWhatsAppService.sendTextMessage(normalized, message);
   console.log('🔍 DEBUG SEND RESULT:', JSON.stringify(result, null, 2));
   res.json({
     input: to,

@@ -12,10 +12,22 @@ const emailService = require('../services/emailService');
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const Channel = require('../models/Channel');
+    const tenantId = user.tenantId || user._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = user.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
 
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     next(error);
@@ -286,7 +298,13 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const fieldsToUpdate = {};
-    const allowed = ['name', 'email', 'phone', 'businessName', 'businessCategory', 'businessType', 'city', 'state', 'country', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'];
+    const allowed = [
+      'name', 'email', 'phone', 'businessName', 'businessCategory', 'businessType',
+      'city', 'state', 'country', 'address', 'zipcode', 'currency', 'businessDescription',
+      'billingName', 'billingAddress', 'billingCountry', 'billingState', 'billingCity',
+      'billingZipcode', 'mobileNumber', 'emailId', 'taxType', 'billingTaxId', 'gst',
+      'website', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'
+    ];
     
     allowed.forEach(key => {
       if (req.body[key] !== undefined) {
@@ -311,9 +329,20 @@ exports.updateProfile = async (req, res, next) => {
       }
     );
 
+    const Channel = require('../models/Channel');
+    const tenantId = updatedUser.tenantId || updatedUser._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = updatedUser.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
+
     res.status(200).json({
       success: true,
-      data: updatedUser
+      data: userObj
     });
   } catch (error) {
     next(error);
@@ -340,11 +369,22 @@ exports.uploadAvatar = async (req, res, next) => {
       { new: true }
     );
 
+    const Channel = require('../models/Channel');
+    const tenantId = user.tenantId || user._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = user.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
+
     res.status(200).json({
       success: true,
       data: {
         avatar: avatarUrl,
-        user
+        user: userObj
       }
     });
   } catch (error) {

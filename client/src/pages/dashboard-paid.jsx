@@ -175,15 +175,39 @@ function Dashboard() {
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
                   {(() => {
-                     const qs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
-                     const qsColor = qs === 'Medium' ? 'text-amber-500' : (qs === 'Low' ? 'text-red-500' : (qs === 'Pending' ? 'text-slate-400' : 'text-emerald-500'));
-                     const dotColor = qs === 'Medium' ? 'bg-amber-500' : (qs === 'Low' ? 'bg-red-500' : (qs === 'Pending' ? 'bg-slate-400' : 'bg-emerald-500'));
-                     return (
-                        <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
-                           {qs} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
-                        </p>
-                     );
-                  })()}
+                      const rawQs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
+                      const qsUpper = String(rawQs).toUpperCase();
+                      
+                      let displayLabel = rawQs;
+                      let qsColor = 'text-emerald-500';
+                      let dotColor = 'bg-emerald-500';
+
+                      if (qsUpper === 'GREEN' || qsUpper === 'HIGH') {
+                         displayLabel = 'Green';
+                         qsColor = 'text-emerald-500';
+                         dotColor = 'bg-emerald-500';
+                      } else if (qsUpper === 'YELLOW' || qsUpper === 'MEDIUM') {
+                         displayLabel = 'Medium';
+                         qsColor = 'text-amber-500';
+                         dotColor = 'bg-amber-500';
+                      } else if (qsUpper === 'RED' || qsUpper === 'LOW') {
+                         displayLabel = 'Low';
+                         qsColor = 'text-red-500';
+                         dotColor = 'bg-red-500';
+                      } else if (qsUpper === 'UNKNOWN' || qsUpper === 'PENDING') {
+                         displayLabel = 'Unknown';
+                         qsColor = 'text-slate-400';
+                         dotColor = 'bg-slate-400';
+                      } else {
+                         displayLabel = rawQs;
+                      }
+
+                      return (
+                         <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
+                            {displayLabel} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
+                         </p>
+                      );
+                   })()}
                </div>
                 <div>
                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>

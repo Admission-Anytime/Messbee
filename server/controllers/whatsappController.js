@@ -27,40 +27,70 @@ const getUserScope = (req) => {
 
 // --- MULTI-TENANT & HYBRID SERVICE HELPER ---
 const getTenantWhatsAppService = async (tenantId) => {
-  let accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  let businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  let accessToken = null;
+  let phoneNumberId = null;
+  let businessAccountId = null;
 
-  // Optional: Try DB if not in .env, but prioritize .env for local testing
-  if (!accessToken && tenantId) {
+  // 1. First priority: Check DB (Channel and User models for this tenant / user)
+  if (tenantId) {
     try {
+      const User = require('../models/User');
       const Channel = require('../models/Channel');
-      const channel = await Channel.findOne({ 
-        tenantId, 
+
+      // Resolve effective tenant ID (if an agent or sub-user is passed, get their tenantId)
+      let effectiveTenantId = tenantId;
+      const userDoc = await User.findById(tenantId).select('tenantId whatsappConfig');
+      if (userDoc && userDoc.tenantId) {
+        effectiveTenantId = userDoc.tenantId;
+      }
+
+      // Check Channel collection for this tenant or user
+      let channel = await Channel.findOne({ 
+        tenantId: effectiveTenantId, 
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
       }).select('+metaAccessToken');
+
+      // If not found by tenantId, try searching channel by the raw tenantId/user ID
+      if (!channel && effectiveTenantId !== tenantId) {
+        channel = await Channel.findOne({ 
+          tenantId: tenantId, 
+          activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
+        }).select('+metaAccessToken');
+      }
 
       if (channel && channel.metaAccessToken && channel.activeWhatsappPhoneNumberId) {
         accessToken = channel.metaAccessToken;
         phoneNumberId = channel.activeWhatsappPhoneNumberId;
-        businessAccountId = channel.metadata?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        businessAccountId = channel.metadata?.wabaId || null;
       }
-    } catch (e) {}
+
+      // If not found in Channel, check User's whatsappConfig
+      if (!accessToken || !phoneNumberId) {
+        if (userDoc && userDoc.whatsappConfig && userDoc.whatsappConfig.accessToken && userDoc.whatsappConfig.phoneNumberId) {
+          accessToken = userDoc.whatsappConfig.accessToken;
+          phoneNumberId = userDoc.whatsappConfig.phoneNumberId;
+          businessAccountId = userDoc.whatsappConfig.wabaId || null;
+        } else if (effectiveTenantId && effectiveTenantId.toString() !== tenantId.toString()) {
+          const tenantOwner = await User.findById(effectiveTenantId).select('whatsappConfig');
+          if (tenantOwner && tenantOwner.whatsappConfig && tenantOwner.whatsappConfig.accessToken && tenantOwner.whatsappConfig.phoneNumberId) {
+            accessToken = tenantOwner.whatsappConfig.accessToken;
+            phoneNumberId = tenantOwner.whatsappConfig.phoneNumberId;
+            businessAccountId = tenantOwner.whatsappConfig.wabaId || null;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[getTenantWhatsAppService] Error fetching tenant config from DB:', e.message);
+    }
   }
 
-  if (!accessToken && tenantId) {
-    try {
-      const User = require('../models/User');
-      const user = await User.findById(tenantId);
-      if (user && user.whatsappConfig && user.whatsappConfig.accessToken) {
-        accessToken = user.whatsappConfig.accessToken;
-        phoneNumberId = user.whatsappConfig.phoneNumberId;
-        businessAccountId = user.whatsappConfig.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-      }
-    } catch (e) {}
-  }
+  console.log(`[getTenantWhatsAppService] TargetTenant: ${tenantId} | Found: ${!!phoneNumberId} | PhoneNumberId: ${phoneNumberId || 'NOT_CONNECTED'}`);
 
+  // STRICT MULTI-TENANT ISOLATION:
+  // If this business/user has not connected a WhatsApp number in their account,
+  // do NOT leak or fallback to another user's or global MessBee number!
   if (!accessToken || !phoneNumberId) {
+    console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected for tenant ${tenantId}. Message will not be sent.`);
     return null;
   }
 
@@ -70,6 +100,7 @@ const getTenantWhatsAppService = async (tenantId) => {
     phoneNumberId,
     businessAccountId: businessAccountId || null
   });
+  service.configSource = 'DB_TENANT';
   
   return service;
 };
@@ -95,6 +126,7 @@ exports.testConnection = async (req, res, next) => {
       success: true,
       message: 'WhatsApp API configuration is valid',
       config: {
+        source: tenantWhatsAppService.configSource || 'DB_TENANT',
         phoneNumberId: tenantWhatsAppService.phoneNumberId,
         hasAccessToken: !!tenantWhatsAppService.accessToken,
         businessAccountId: tenantWhatsAppService.businessAccountId,
@@ -946,6 +978,9 @@ async function handleIncomingMessage(data) {
     const normalizedFrom = normalizePhoneNumber(from);
     const contactName = contact?.name || contact?.profile?.name || normalizedFrom;
 
+    // Get tenant-specific service for fetching media URL with proper tenant credentials
+    const inboundTenantService = await getTenantWhatsAppService(resolvedTenantId);
+
     // Find or create chat (check both phone and whatsappId with normalized number)
     // We sort by 'user' desc to prefer chats that already have an owner assigned
     // Ensure we only find chats belonging to this tenant!
@@ -1047,7 +1082,8 @@ async function handleIncomingMessage(data) {
         
         // Optionally download and store media locally
         if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+          const mediaService = inboundTenantService || whatsappService;
+          const mediaInfo = await mediaService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -1062,7 +1098,8 @@ async function handleIncomingMessage(data) {
         mediaTypeStr = message.mimeType;
         
         if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+          const mediaService = inboundTenantService || whatsappService;
+          const mediaInfo = await mediaService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -1076,7 +1113,8 @@ async function handleIncomingMessage(data) {
         mediaTypeStr = message.mimeType;
         
         if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+          const mediaService = inboundTenantService || whatsappService;
+          const mediaInfo = await mediaService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -1092,7 +1130,8 @@ async function handleIncomingMessage(data) {
         mediaTypeStr = message.mimeType;
         
         if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+          const mediaService = inboundTenantService || whatsappService;
+          const mediaInfo = await mediaService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -2579,8 +2618,14 @@ exports.testTempPath = async (req, res, next) => {
     const normalized = normalizePhoneNumber(testNumber);
     console.log(`🔬 TEST-TEMP-PATH: testNumber="${testNumber}" → Normalized="${normalized}"`);
 
+    const tenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
+    }
+
     // Send the test message
-    const result = await whatsappService.sendTextMessage(normalized, testMessage);
+    const result = await tenantWhatsAppService.sendTextMessage(normalized, testMessage);
 
     // Log the response
     logAPICall({
