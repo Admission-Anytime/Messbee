@@ -233,6 +233,48 @@ app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/reports', require('./routes/reportsRoutes'));
 
+// ================== TEMP DEV FIX (REMOVE AFTER USE) ==================
+// Fixes isEmailVerified + password for a user — local dev only
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/dev/fix-user/:email', async (req, res) => {
+    try {
+      const bcrypt = require('bcryptjs');
+      const mongoose = require('mongoose');
+      const email = decodeURIComponent(req.params.email);
+      const newPassword = req.query.pw || 'Rahul123@';
+
+      const user = await mongoose.connection.db.collection('users').findOne({ email });
+      if (!user) return res.json({ success: false, message: 'User not found: ' + email });
+
+      const before = {
+        isEmailVerified: user.isEmailVerified,
+        isActive: user.isActive,
+        isApproved: user.isApproved,
+        role: user.role
+      };
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      await mongoose.connection.db.collection('users').updateOne(
+        { email },
+        { $set: { isEmailVerified: true, isActive: true, isApproved: true, password: hashedPassword } }
+      );
+
+      res.json({
+        success: true,
+        message: `Fixed user: ${email}`,
+        before,
+        after: { isEmailVerified: true, isActive: true, isApproved: true },
+        newPassword,
+        note: 'REMOVE THIS ENDPOINT AFTER USE!'
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+}
+
 // ================== HEALTH CHECK ==================
 
 

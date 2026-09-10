@@ -869,9 +869,27 @@ router.post("/send-template", async (req, res) => {
       return res.status(403).json({ error: 'WhatsApp is not connected for this account.' });
     }
 
+    let metaTemplateName = templateName;
+    try {
+      const Template = require('../models/Template');
+      const dbTpl = await Template.findOne({
+        $or: [
+          { user: chat.user },
+          { tenantId: chat.tenantId || chat.user }
+        ],
+        $or: [
+          { name: templateName },
+          { whatsappTemplateName: templateName }
+        ]
+      });
+      if (dbTpl && dbTpl.whatsappTemplateName) {
+        metaTemplateName = dbTpl.whatsappTemplateName;
+      }
+    } catch (_) {}
+
     const result = await tenantWhatsAppService.sendTemplateMessage(
       chat.whatsappId,
-      templateName,
+      metaTemplateName,
       languageCode || 'en',
       components || []
     );
