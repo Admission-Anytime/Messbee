@@ -5,8 +5,15 @@ const templateSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  templateId: {
+    type: String,
+  },
   whatsappTemplateId: {
     type: String,
+  },
+  whatsappTemplateName: {
+    type: String,
+    index: true
   },
   category: {
     type: String,
@@ -27,6 +34,11 @@ const templateSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    index: true
   }
 }, {
   timestamps: true

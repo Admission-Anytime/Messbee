@@ -1810,7 +1810,7 @@ exports.getTemplates = async (req, res, next) => {
     }
 
     let allTemplates = Array.isArray(data?.data) ? data.data : [];
-    // Get templates owned by this user from our DB
+    // Get templates owned by this user/tenant from our DB
     const userScope = getUserScope(req);
     const userTemplates = await Template.find({
       $or: [
@@ -1819,28 +1819,47 @@ exports.getTemplates = async (req, res, next) => {
       ]
     });
     
-    // If Meta API returned 0 or failed, use local templates
-    if (allTemplates.length === 0 && userTemplates.length > 0) {
-      allTemplates = userTemplates.map(t => ({
-        id: t.whatsappTemplateId || t._id,
-        name: t.name,
-        category: t.category,
-        language: t.language,
-        status: t.status || 'APPROVED',
-        components: t.components || []
-      }));
-    }
-    const userTemplatesMap = {};
+    // Map userTemplates by lowercase trimmed name, by whatsappTemplateName, and by whatsappTemplateId
+    const userTemplatesByName = {};
+    const userTemplatesById = {};
+    const userTemplatesByMetaName = {};
     userTemplates.forEach(t => {
-      userTemplatesMap[String(t.name).trim().toLowerCase()] = t;
+      const nameKey = String(t.name).trim().toLowerCase();
+      userTemplatesByName[nameKey] = t;
+      if (t.whatsappTemplateName) {
+        userTemplatesByMetaName[String(t.whatsappTemplateName).trim().toLowerCase()] = t;
+      }
+      if (t.whatsappTemplateId) {
+        userTemplatesById[String(t.whatsappTemplateId).trim()] = t;
+      }
     });
 
-    // Merge Graph API templates with local metadata (to restore media URLs)
-    const filteredTemplates = allTemplates
+    // ONLY SHOW TEMPLATES CREATED BY THIS LOGGED-IN USER / TENANT:
+    // Filter Meta API templates to strictly those that match templates created by this user
+    const matchedMetaTemplates = allTemplates.filter(t => {
+      const metaNameKey = String(t.name).trim().toLowerCase();
+      const idKey = t.id ? String(t.id).trim() : null;
+      return Boolean(
+        userTemplatesByMetaName[metaNameKey] ||
+        (idKey && userTemplatesById[idKey]) ||
+        (userTemplatesByName[metaNameKey] && (!userTemplatesByName[metaNameKey].whatsappTemplateName || userTemplatesByName[metaNameKey].whatsappTemplateName === t.name))
+      );
+    });
+
+    const processedTemplateNames = new Set();
+
+    // Deep merge Meta API templates with local metadata (to restore media URLs and examples)
+    const filteredTemplates = matchedMetaTemplates
       .map(t => {
-        const templateNameKey = String(t.name).trim().toLowerCase();
-        const localTemplate = userTemplatesMap[templateNameKey] || {};
+        const metaNameKey = String(t.name).trim().toLowerCase();
+        const idKey = t.id ? String(t.id).trim() : null;
+        const localTemplate = userTemplatesByMetaName[metaNameKey] || (idKey && userTemplatesById[idKey]) || userTemplatesByName[metaNameKey] || {};
         
+        const displayName = localTemplate.name || t.name;
+        processedTemplateNames.add(metaNameKey);
+        processedTemplateNames.add(String(displayName).trim().toLowerCase());
+        if (idKey) processedTemplateNames.add(idKey);
+
         // Deep merge components to restore 'example' fields that Meta often strips after approval
         const mergedComponents = (t.components || []).map(apiComp => {
           const localComp = (localTemplate.components || []).find(lc => lc.type === apiComp.type);
@@ -1853,12 +1872,33 @@ exports.getTemplates = async (req, res, next) => {
 
         return {
           ...t,
+          name: displayName,
+          whatsappTemplateName: localTemplate.whatsappTemplateName || t.name,
+          metaTemplateName: t.name,
           components: mergedComponents,
           // Persist our local status if API status is missing, but force DELETED if soft-deleted locally
           status: localTemplate.status === 'DELETED' ? 'DELETED' : (t.status || localTemplate.status)
         };
       })
       .filter(t => t.status !== 'DELETED');
+
+    // Also include any templates created by this user in MongoDB that Meta hasn't returned yet (or if Meta API was offline)
+    userTemplates.forEach(t => {
+      const nameKey = String(t.name).trim().toLowerCase();
+      const metaKey = t.whatsappTemplateName ? String(t.whatsappTemplateName).trim().toLowerCase() : null;
+      const idKey = t.whatsappTemplateId ? String(t.whatsappTemplateId).trim() : null;
+      if (!processedTemplateNames.has(nameKey) && (!metaKey || !processedTemplateNames.has(metaKey)) && (!idKey || !processedTemplateNames.has(idKey)) && t.status !== 'DELETED') {
+        filteredTemplates.push({
+          id: t.whatsappTemplateId || t._id,
+          name: t.name,
+          whatsappTemplateName: t.whatsappTemplateName || t.name,
+          category: t.category,
+          language: t.language,
+          status: t.status || 'PENDING',
+          components: t.components || []
+        });
+      }
+    });
 
     const approvedTemplates = filteredTemplates.filter((template) => template.status === 'APPROVED');
     const nonApprovedTemplates = filteredTemplates.filter((template) => template.status !== 'APPROVED');
@@ -1925,12 +1965,63 @@ exports.createTemplate = async (req, res, next) => {
       });
     }
 
-    const result = await tenantWhatsAppService.createTemplate({
-      name,
+    const userScope = getUserScope(req);
+    const userId = req.user?._id || req.user?.id;
+    const userTenantId = req.user?.tenantId || tenantId || userId;
+
+    // Check if THIS user already has a template with this name and language
+    const existingForUser = await Template.findOne({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ],
+      name: name.toLowerCase().trim(),
+      language: language || 'en_US',
+      status: { $ne: 'DELETED' }
+    });
+
+    if (existingForUser) {
+      return res.status(400).json({
+        success: false,
+        message: `You already have a template named "${name}". Please choose a different name.`,
+        error: {
+          error_subcode: 2388024,
+          message: `You already have a template named "${name}". Please choose a different name.`
+        }
+      });
+    }
+
+    let metaTemplateName = name;
+    let result = await tenantWhatsAppService.createTemplate({
+      name: metaTemplateName,
       category: category || 'MARKETING',
       language: language || 'en_US',
       components: components || []
     });
+
+    // If Meta rejected because the template name already exists in this WABA (created by another user/account):
+    const isConflict = !result.success && (
+      result?.error?.errorSubcode === 2388024 ||
+      result?.error?.error?.error_subcode === 2388024 ||
+      result?.error?.error_subcode === 2388024 ||
+      (result?.error?.code === 100 && String(result?.error?.message || '').toLowerCase().includes('already exists'))
+    );
+
+    if (isConflict) {
+      // Generate a unique Meta template name so this user is NOT blocked by other accounts!
+      const shortUser = String(userId || 'usr').slice(-4);
+      const randStr = Math.random().toString(36).substring(2, 6);
+      metaTemplateName = `${name}_${shortUser}_${randStr}`.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60);
+
+      console.log(`[Multi-User Isolation] Template name "${name}" taken on Meta. Retrying with unique Meta name "${metaTemplateName}" for user ${userId}`);
+
+      result = await tenantWhatsAppService.createTemplate({
+        name: metaTemplateName,
+        category: category || 'MARKETING',
+        language: language || 'en_US',
+        components: components || []
+      });
+    }
 
     if (!result.success) {
       const detailedMessage =
@@ -1948,17 +2039,25 @@ exports.createTemplate = async (req, res, next) => {
       });
     }
 
-    // Save template ownership to our DB
-    const templateName = result.templateName || name;
-    const createdLocal = await Template.create({
-      name: templateName,
-      whatsappTemplateId: result.data?.id,
-      category: category || 'MARKETING',
-      language: language || 'en_US',
-      components: components || [],
-      user: req.user.id,
-      status: 'PENDING'
-    });
+    // Save template ownership to our DB with user's clean display name and Meta's registered name
+    const createdLocal = await Template.findOneAndUpdate(
+      { name: name, user: userId },
+      {
+        $set: {
+          name: name,
+          whatsappTemplateName: metaTemplateName,
+          whatsappTemplateId: result.data?.id,
+          templateId: result.data?.id,
+          category: category || 'MARKETING',
+          language: language || 'en_US',
+          components: components || [],
+          user: userId,
+          tenantId: userTenantId,
+          status: result.data?.status || 'PENDING'
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     try {
       const { getIO } = require('../config/socket');
@@ -1970,9 +2069,10 @@ exports.createTemplate = async (req, res, next) => {
       success: true,
       message: 'Template created successfully',
       data: result.data,
-      templateName: templateName,
-      originalTemplateName: result.originalTemplateName || name,
-      usedFallbackName: !!result.usedFallbackName
+      templateName: name,
+      whatsappTemplateName: metaTemplateName,
+      originalTemplateName: name,
+      usedFallbackName: metaTemplateName !== name
     });
   } catch (error) {
     next(error);
@@ -2027,9 +2127,16 @@ exports.testSendTemplate = async (req, res, next) => {
       });
     }
 
+    const userScope = getUserScope(req);
+    const localTpl = await Template.findOne({
+      $or: [{ user: { $in: userScope } }, { tenantId: { $in: userScope } }],
+      $or: [{ name: templateName }, { whatsappTemplateName: templateName }]
+    });
+    const metaTemplateName = localTpl?.whatsappTemplateName || templateName;
+
     const result = await tenantWhatsAppService.testSendTemplate(
       phoneNumber,
-      templateName,
+      metaTemplateName,
       languageCode || 'en_US',
       testData || {}
     );
@@ -2069,42 +2176,47 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
-    // Look up templateName if missing
-    if (!templateName) {
-      try {
-        const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
-        const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
-        const localDoc = await Template.findOne(query);
-        if (localDoc) {
-          templateName = localDoc.name;
-        }
-      } catch (_) {}
-    }
+    const userScope = getUserScope(req);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
+    const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
+
+    // Look up local template document to find true registered Meta template name
+    let localDoc = null;
+    try {
+      localDoc = await Template.findOne({
+        $and: [
+          { $or: [{ user: { $in: userScope } }, { tenantId: { $in: userScope } }] },
+          { $or: [query, { name: templateName || '' }, { whatsappTemplateName: templateName || '' }] }
+        ]
+      }) || await Template.findOne(query);
+    } catch (_) {}
+
+    let actualMetaName = localDoc?.whatsappTemplateName || localDoc?.name || templateName;
 
     const tenantWhatsAppService = (await getTenantWhatsAppService(tenantId)) || whatsappService;
 
     // If templateName is still missing, lookup by templateId from WhatsApp API list
-    if (!templateName && tenantWhatsAppService) {
+    if (!actualMetaName && tenantWhatsAppService) {
       try {
         const tplList = await tenantWhatsAppService.getTemplates();
         const found = (tplList?.data || []).find(t => String(t.id) === String(templateId));
         if (found) {
-          templateName = found.name;
+          actualMetaName = found.name;
         }
       } catch (_) {}
     }
 
-    if (!templateName) {
+    if (!actualMetaName) {
       return res.status(400).json({
         success: false,
         message: 'Template name is required to delete a template'
       });
     }
 
-    console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
+    console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, actualMetaName });
     let metaResult = null;
     try {
-      metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
+      metaResult = await tenantWhatsAppService.deleteTemplate(templateId, actualMetaName);
     } catch (err) {
       console.warn('⚠️ [Controller] Meta delete warning:', err.message);
     }
@@ -2126,11 +2238,15 @@ exports.deleteTemplate = async (req, res, next) => {
 
     // Clean up / soft-delete from local MongoDB
     try {
-      const userScope = getUserScope(req);
       const userId = req.user?._id || req.user?.id;
 
       await Template.deleteMany({
-        name: templateName,
+        $or: [
+          { name: templateName || localDoc?.name },
+          { whatsappTemplateName: actualMetaName },
+          { whatsappTemplateId: templateId },
+          ...(isMongoId ? [{ _id: templateId }] : [])
+        ],
         $or: [
           { user: { $in: userScope } },
           { tenantId: { $in: userScope } }
@@ -2196,6 +2312,30 @@ exports.updateTemplate = async (req, res, next) => {
         message: 'Failed to update template',
         error: result.error
       });
+    }
+
+    if (result.success && updateData.components) {
+      try {
+        const userScope = getUserScope(req);
+        await Template.updateOne(
+          {
+            $or: [
+              { whatsappTemplateId: templateId },
+              { _id: /^[0-9a-fA-F]{24}$/.test(templateId) ? templateId : null }
+            ],
+            $or: [
+              { user: { $in: userScope } },
+              { tenantId: { $in: userScope } }
+            ]
+          },
+          {
+            $set: {
+              components: updateData.components,
+              status: 'PENDING'
+            }
+          }
+        );
+      } catch (_) {}
     }
 
     res.status(200).json({

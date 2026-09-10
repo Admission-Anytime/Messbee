@@ -82,13 +82,28 @@ class CampaignQueueMock {
         text: parseDynamicVariables(mapping.value, contextData)
       }));
 
+      let metaTemplateName = campaign.templateName;
+      try {
+        const Template = require('../models/Template');
+        const dbTpl = await Template.findOne({
+          tenantId: campaign.tenantId,
+          $or: [
+            { name: campaign.templateName },
+            { whatsappTemplateName: campaign.templateName }
+          ]
+        });
+        if (dbTpl && dbTpl.whatsappTemplateName) {
+          metaTemplateName = dbTpl.whatsappTemplateName;
+        }
+      } catch (_) {}
+
       const payload = {
         messaging_product: 'whatsapp',
         recipient_type: 'individual',
         to: contact.phone,
         type: 'template',
         template: {
-          name: campaign.templateName,
+          name: metaTemplateName,
           language: { code: campaign.templateLanguage || 'en_US' },
           components: parameters.length > 0 ? [{ type: 'body', parameters }] : []
         }
