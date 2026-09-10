@@ -12,8 +12,7 @@ const getWABAConfig = async (user) => {
   let accessToken = user?.whatsappConfig?.accessToken || user?.whatsappAccessToken || null;
   let wabaId = user?.whatsappConfig?.wabaId || user?.whatsappBusinessAccountId || null;
   let appId = user?.whatsappAppId || process.env.WHATSAPP_APP_ID || null;
-  let verifiedName = null;
-  let displayPhoneNumber = null;
+  let qualityRating = null;
 
   // Check Channel collection first for this tenant (authoritative multi-tenant config)
   if (user) {
@@ -28,6 +27,7 @@ const getWABAConfig = async (user) => {
         phoneNumberId = channel.activeWhatsappPhoneNumberId || phoneNumberId;
         accessToken = channel.metaAccessToken || accessToken;
         wabaId = channel.metadata?.wabaId || wabaId;
+        qualityRating = channel.metadata?.qualityRating || null;
         if (channel.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
           verifiedName = channel.name;
         }
@@ -69,6 +69,7 @@ const getWABAConfig = async (user) => {
     appId,
     verifiedName,
     displayPhoneNumber,
+    qualityRating,
     apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
   };
 };
@@ -151,7 +152,7 @@ exports.getPerformanceOverview = async (req, res) => {
     const wabaConfig = await getWABAConfig(req.user);
 
     // ── 9. Optionally fetch phone number quality from Meta API ─────────────────
-    let phoneQuality = null;
+    let phoneQuality = wabaConfig.qualityRating || null;
     let messagingLimit = null;
     let verifiedName = wabaConfig.verifiedName || null;
     let displayPhoneNumber = wabaConfig.displayPhoneNumber || null;
@@ -168,14 +169,14 @@ exports.getPerformanceOverview = async (req, res) => {
           }
         );
         if (metaRes.data) {
-          phoneQuality       = metaRes.data.quality_rating || null;
+          if (metaRes.data.quality_rating) phoneQuality = metaRes.data.quality_rating;
           messagingLimit     = metaRes.data.messaging_limit_tier || null;
           if (metaRes.data.verified_name) verifiedName = metaRes.data.verified_name;
           if (metaRes.data.display_phone_number) displayPhoneNumber = metaRes.data.display_phone_number;
         }
       }
     } catch (metaErr) {
-      // Meta API call failed — non-blocking, just use null
+      // Meta API call failed — non-blocking, use channel DB fallback
       console.warn('⚠️  Meta API fetch skipped:', metaErr?.response?.data?.error?.message || metaErr.message);
     }
 

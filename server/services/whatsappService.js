@@ -935,9 +935,35 @@ class WhatsAppService {
         return {
           contacts: message.contacts
         };
+      case 'interactive': {
+        const interactive = message.interactive;
+        if (interactive?.button_reply) {
+          return {
+            text: interactive.button_reply.id || interactive.button_reply.title,
+            buttonId: interactive.button_reply.id,
+            buttonTitle: interactive.button_reply.title
+          };
+        }
+        if (interactive?.list_reply) {
+          return {
+            text: interactive.list_reply.id || interactive.list_reply.title,
+            listId: interactive.list_reply.id,
+            listTitle: interactive.list_reply.title
+          };
+        }
+        return { text: 'Interactive selection' };
+      }
+      case 'button': {
+        const btn = message.button;
+        return {
+          text: btn?.payload || btn?.text || 'Button reply',
+          buttonPayload: btn?.payload,
+          buttonText: btn?.text
+        };
+      }
       default:
         return {
-          text: 'Unsupported message type'
+          text: message[message.type]?.body || message[message.type]?.text || 'Unsupported message type'
         };
     }
   }

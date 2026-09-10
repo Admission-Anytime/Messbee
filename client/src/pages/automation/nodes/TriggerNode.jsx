@@ -8,8 +8,13 @@ export default function TriggerNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
   
-  const isValid = data.triggerType === 'tag_added' ? !!data.keyword : !!data.text;
+  const hasKeyword = !['media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'welcome_message', 'away_message', 'fallback'].includes(data.triggerType);
+  const isValid = hasKeyword ? !!(data.keyword && data.keyword.trim()) : true;
   const borderColor = isValid ? '#8b5cf6' : '#ef4444';
+
+  const keywordList = data.keyword 
+    ? data.keyword.split(',').map(k => k.trim()).filter(Boolean)
+    : [];
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
@@ -78,8 +83,38 @@ export default function TriggerNode({ id, data, selected }) {
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {!['media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'welcome_message', 'away_message', 'fallback'].includes(data.triggerType) && (
-                    <div style={{ fontSize: '13px', color: data.keyword ? '#1f2937' : '#6b7280', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-                      {data.keyword || 'No keyword set'}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '600', color: '#9CA3AF' }}>
+                        {keywordList.length > 1 ? 'TRIGGER KEYWORDS' : 'TRIGGER KEYWORD'}
+                      </div>
+                      {keywordList.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {keywordList.map((kw, idx) => (
+                            <span 
+                              key={idx} 
+                              style={{ 
+                                background: '#434C5E', 
+                                color: '#ECEFF4', 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '12px', 
+                                fontWeight: '500',
+                                border: '1px solid #4C566A',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <span style={{ color: '#A3BE8C', fontWeight: 'bold' }}>#</span>
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontStyle: 'italic' }}>
+                          No keyword set
+                        </div>
+                      )}
                     </div>
                   )}
 

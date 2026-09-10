@@ -1,17 +1,25 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
-import { Copy, Trash2, LayoutTemplate, AlertTriangle } from 'lucide-react';
+import { Copy, Trash2, LayoutTemplate, AlertTriangle, Play } from 'lucide-react';
 import useCanvasStore from '../../../store/useCanvasStore';
 
 export default function TemplateNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
+  const edges = useCanvasStore(state => state.edges || []);
+  const hasIncoming = edges.some(e => e.target === id);
   const isValid = !!data.templateName;
   const borderColor = isValid ? '#10b981' : '#ef4444';
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
+      {!hasIncoming && (
+        <div style={{ position: 'absolute', top: '-24px', left: '16px', display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontSize: '11px', fontWeight: '600' }}>
+          <Play size={10} fill="currentColor" /> Start with Template
+        </div>
+      )}
+
       <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
@@ -32,9 +40,14 @@ export default function TemplateNode({ id, data, selected }) {
             {data.label || 'Template Message'}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
           </div>
-          <div style={{ display: 'flex', gap: '4px' }}>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
             <button onClick={(e) => { e.stopPropagation(); duplicateNode(id); }} style={iconBtnStyle} title="Duplicate"><Copy size={14} /></button>
             <button onClick={(e) => { e.stopPropagation(); removeNode(id); }} style={iconBtnStyleHoverRed} title="Delete"><Trash2 size={14} /></button>
+            {!hasIncoming && (
+              <div style={{ background: '#dcfce7', color: '#10b981', padding: '3px 6px', borderRadius: '4px', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '3px', marginLeft: '4px' }}>
+                <Play size={9} fill="currentColor" /> ROOT
+              </div>
+            )}
           </div>
         </div>
 
@@ -85,34 +98,44 @@ export default function TemplateNode({ id, data, selected }) {
             {/* Template Interactive Buttons */}
             {(data.buttons && data.buttons.length > 0) && (
               <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px', borderTop: '1px solid #4C566A', paddingTop: '12px' }}>
-                <div style={{ fontSize: '11px', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>Template Buttons</div>
-                {data.buttons.map((btn, idx) => (
-                  <div key={btn.id || idx} style={{ position: 'relative' }}>
-                    <div style={{ 
-                      background: '#4F46E5', 
-                      padding: '8px 12px', 
-                      borderRadius: '6px', 
-                      fontSize: '12px', 
-                      color: '#FFFFFF', 
-                      fontWeight: '500',
-                      border: 'none', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center', 
-                      gap: '8px',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                    }}>
-                      {btn.type === 'url' ? '🔗' : '📞'} {btn.text || btn.title || 'Button'}
+                <div style={{ fontSize: '11px', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Template Buttons</span>
+                  <span style={{ fontSize: '10px', color: '#10B981' }}>Drag to connect</span>
+                </div>
+                {data.buttons.map((btn, idx) => {
+                  const isUrl = btn.type === 'url';
+                  const isPhone = btn.type === 'phone_number' || btn.type === 'phone';
+                  const isQuickReply = !isUrl && !isPhone;
+                  const buttonHandleId = `btn-${btn.id || idx}`;
+
+                  return (
+                    <div key={btn.id || idx} style={{ position: 'relative' }}>
+                      <div style={{ 
+                        background: isQuickReply ? '#4F46E5' : '#374151', 
+                        padding: '8px 12px', 
+                        borderRadius: '6px', 
+                        fontSize: '12px', 
+                        color: '#FFFFFF', 
+                        fontWeight: '500',
+                        border: isQuickReply ? 'none' : '1px solid #4B5563', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center', 
+                        gap: '6px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                      }}>
+                        {isUrl ? '🔗' : isPhone ? '📞' : '⚡'} {btn.text || btn.title || `Button ${idx + 1}`}
+                      </div>
+                      <Handle 
+                        type="source" 
+                        position={Position.Right} 
+                        id={buttonHandleId}
+                        className="custom-handle" 
+                        style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+                      />
                     </div>
-                    <Handle 
-                      type="source" 
-                      position={Position.Right} 
-                      id={`btn-${idx}`}
-                      className="custom-handle" 
-                      style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

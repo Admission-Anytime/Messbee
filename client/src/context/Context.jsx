@@ -105,8 +105,15 @@ const Context = (props) => {
 
   // Update user data
   const updateUser = (userData) => {
-    setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
+    setUser(prev => {
+      const merged = { ...prev, ...userData };
+      // Ensure tenantWhatsAppConnected is preserved if not explicitly present in update response
+      if (prev?.tenantWhatsAppConnected !== undefined && merged.tenantWhatsAppConnected === undefined) {
+        merged.tenantWhatsAppConnected = prev.tenantWhatsAppConnected;
+      }
+      localStorage.setItem("user", JSON.stringify(merged));
+      return merged;
+    });
   };
 
   // Re-fetch latest user data from server (call after actions like plan upgrade)

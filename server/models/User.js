@@ -76,6 +76,49 @@ const UserSchema = new mongoose.Schema({
   country: {
     type: String
   },
+  address: {
+    type: String
+  },
+  zipcode: {
+    type: String
+  },
+  currency: {
+    type: String,
+    default: 'INR'
+  },
+  businessDescription: {
+    type: String
+  },
+  billingName: {
+    type: String
+  },
+  billingAddress: {
+    type: String
+  },
+  billingCountry: {
+    type: String
+  },
+  billingState: {
+    type: String
+  },
+  billingCity: {
+    type: String
+  },
+  billingZipcode: {
+    type: String
+  },
+  mobileNumber: {
+    type: String
+  },
+  emailId: {
+    type: String
+  },
+  taxType: {
+    type: String
+  },
+  billingTaxId: {
+    type: String
+  },
   gst: {
     type: String
   },

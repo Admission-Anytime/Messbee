@@ -253,11 +253,12 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     to: phone,
   };
 
-  const { messageType, text, mediaUrl, interactiveButtons, buttons, headerType, headerText } = nodeData;
-  const parsedText = parseDynamicVariables(text, contextData);
+  const { messageType, text, question, mediaUrl, interactiveButtons, buttons, headerType, headerText } = nodeData;
+  const rawText = text || question || '';
+  const parsedText = parseDynamicVariables(rawText, contextData);
   const btns = buttons || interactiveButtons || [];
 
-  if (messageType === 'text') {
+  if (messageType === 'text' || nodeType === 'messageNode') {
     return {
       ...basePayload,
       type: 'text',
@@ -330,11 +331,11 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     };
   }
 
-  if (messageType === 'input') {
+  if (messageType === 'input' || nodeType === 'inputNode') {
     return {
       ...basePayload,
       type: 'text',
-      text: { body: parsedText }
+      text: { body: parsedText || 'Please reply:' }
     };
   }
 
@@ -725,6 +726,14 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
                   payload._sim_template_image = imgUrl;
                 }
               }
+
+              const buttonsComponent = tmpl.components.find(c => c.type === 'BUTTONS');
+              if (buttonsComponent && buttonsComponent.buttons) {
+                payload._sim_template_buttons = buttonsComponent.buttons;
+              }
+            }
+            if (!payload._sim_template_buttons && currentNode.data?.buttons) {
+              payload._sim_template_buttons = currentNode.data.buttons;
             }
           } catch (e) {
             console.error('Failed to inject simulator template data:', e);
@@ -755,6 +764,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           currentNode.type === 'catalogNode' ||
           currentNode.type === 'pollNode' ||
           currentNode.type === 'carouselNode' ||
+          (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-')))) ||
           (currentNode.type === 'commerceNode' && currentNode.data?.commerceType === 'payment') ||
           (currentNode.type === 'messageNode' && currentNode.data?.messageType === 'interactive') ||
           currentNode.data?.messageType === 'interactive' ||
@@ -1043,8 +1053,10 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      // If user typed an escape word or a valid flow trigger keyword, complete current session so new flow can run
-      if (isEscapeWord || matchesAnyFlow) {
+      // If the session is WAITING_FOR_INPUT, only break out if the user types an explicit ESCAPE keyword (e.g. restart, cancel, exit)
+      // Do NOT break out on general text matching other flows, because user is answering the input question (e.g. NEET score, name, etc.)
+      const isWaitingInput = session.status === 'WAITING_FOR_INPUT';
+      if (isEscapeWord || (!isWaitingInput && matchesAnyFlow)) {
         console.log(`[FlowRunner] Interruption detected for user ${customerPhone} (keyword: "${incomingPayload}"). Completing existing session.`);
         await markSessionCompleted(session, customerPhone, channelId);
         session = null;
@@ -1112,10 +1124,16 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       // 2. NORMAL TRIGGERS
       if (!matchedFlow) {
         for (const flow of allActiveFlows) {
-          const tNode = flow.nodes.find(n => n.type === 'triggerNode');
+          const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
           if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
             matchedFlow = flow;
             matchedTriggerNode = tNode;
+            break;
+          } else if (!tNode && simulatorTargetFlowId && flow._id.toString() === simulatorTargetFlowId.toString()) {
+            // In simulator testing for a flow that starts directly with a templateNode (no triggerNode)
+            const rootNode = flow.nodes.find(n => !flow.edges.some(e => e.target === n.id)) || flow.nodes[0];
+            matchedFlow = flow;
+            matchedTriggerNode = rootNode;
             break;
           }
         }
@@ -1152,9 +1170,15 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         return;
       }
 
-      // Follow the trigger node's outgoing edge
-      const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
-      nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      // If triggerNode is an actual trigger (triggerNode/eventTriggerNode), follow outgoing edge.
+      // If it is a direct root node (like templateNode), start directly on that node!
+      const isTriggerType = ['triggerNode', 'eventTriggerNode'].includes(triggerNode.type);
+      if (isTriggerType) {
+        const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
+        nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      } else {
+        nextNodeId = triggerNode.id;
+      }
 
       if (!nextNodeId) return;
 
@@ -1264,11 +1288,36 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
 
         // Process input answer safely
-        const varName = session.saveVariableAs || 'custom_field';
+        const rawVarName = session.saveVariableAs || 'custom_field';
         if (!session.sessionVariables || typeof session.sessionVariables.set !== 'function') {
           session.sessionVariables = new Map(Object.entries(session.sessionVariables || {}));
         }
-        session.sessionVariables.set(varName, incomingPayload);
+        
+        // Save both with and without prefix so {{neet_score}} and {{contact.neet_score}} both work!
+        session.sessionVariables.set(rawVarName, incomingPayload);
+        if (rawVarName.startsWith('contact.')) {
+          const shortName = rawVarName.replace('contact.', '');
+          session.sessionVariables.set(shortName, incomingPayload);
+          
+          // Also persist directly to Contact in database
+          try {
+            const dbContact = await Contact.findOne({ phone: customerPhone, channelId });
+            if (dbContact) {
+              if (['name', 'email'].includes(shortName)) {
+                dbContact[shortName] = incomingPayload;
+              } else {
+                if (!dbContact.customFields) dbContact.customFields = new Map();
+                dbContact.customFields.set(shortName, incomingPayload);
+              }
+              await dbContact.save();
+            }
+          } catch (e) {
+            console.error('Failed to sync contact field from inputNode:', e);
+          }
+        } else {
+          session.sessionVariables.set(`contact.${rawVarName}`, incomingPayload);
+        }
+
         session.status = 'ACTIVE';
         session.expectedValidation = null;
         session.saveVariableAs = null;
@@ -1297,7 +1346,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode'].includes(currentNode?.type) || 
                                   (currentNode?.type === 'messageNode' && currentNode?.data?.messageType === 'interactive') || 
-                                  (currentNode?.type === 'interactiveNode');
+                                  (currentNode?.type === 'interactiveNode') ||
+                                  (currentNode?.type === 'templateNode' && (currentNode?.data?.buttons?.length > 0 || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
 
         if (isInteractiveNode) {
           // If the interactive node has no outgoing edges, it's terminal. Complete the session!
@@ -1320,10 +1370,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           // Match by title/label case-insensitively (for both Simulator and WhatsApp)
           if (!matchedEdge) {
              const lowerIncoming = (incomingPayload || '').trim().toLowerCase();
-             if ((currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode') && currentNode.data?.buttons) {
+             if ((currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode') && currentNode.data?.buttons) {
                  const btnIdx = currentNode.data.buttons.findIndex((b, idx) => 
+                   (b.text && b.text.toLowerCase() === lowerIncoming) ||
                    (b.title && b.title.toLowerCase() === lowerIncoming) || 
                    (b.id && b.id.toString().toLowerCase() === lowerIncoming) ||
+                   (b.payload && b.payload.toString().toLowerCase() === lowerIncoming) ||
                    idx.toString() === lowerIncoming
                  );
                  if (btnIdx !== -1) {
@@ -1427,19 +1479,32 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
       return;
     }
 
-    // Find the trigger node or the first node in the flow
-    const triggerNode = activeFlow.nodes.find(n => n.type === 'triggerNode') || activeFlow.nodes[0];
-    if (!triggerNode) {
+    // Find root node: prioritize triggerNode/eventTriggerNode if present, otherwise find node with no incoming edges (e.g. templateNode)
+    let rootNode = activeFlow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+    if (!rootNode) {
+      // Find node with no incoming edges
+      rootNode = activeFlow.nodes.find(n => !activeFlow.edges.some(e => e.target === n.id)) || activeFlow.nodes[0];
+    }
+
+    if (!rootNode) {
       console.warn(`Flow ${flowId} has no nodes.`);
       return;
     }
 
-    const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
-    const nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+    const isTriggerType = ['triggerNode', 'eventTriggerNode'].includes(rootNode.type);
+    let startNodeId = null;
 
-    if (!nextNodeId) {
-      console.warn(`Flow ${flowId} trigger node is not connected to anything.`);
-      return;
+    if (isTriggerType) {
+      // For trigger nodes, start from their outgoing target node
+      const outgoingEdges = activeFlow.edges.filter(e => e.source === rootNode.id);
+      startNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      if (!startNodeId) {
+        console.warn(`Flow ${flowId} trigger node is not connected to anything.`);
+        return;
+      }
+    } else {
+      // For non-trigger root nodes (e.g. templateNode when starting with template), execute rootNode directly!
+      startNodeId = rootNode.id;
     }
 
     // Terminate any existing active/waiting session for this user to restart them in the new flow
@@ -1453,13 +1518,13 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
       phone: customerPhone,
       channelId,
       activeFlowId: activeFlow._id,
-      currentNodeId: triggerNode.id,
+      currentNodeId: rootNode.id,
       sessionVariables: eventData
     });
     await session.save();
 
     // Begin execution
-    await processSpecificNode(customerPhone, channelId, nextNodeId);
+    await processSpecificNode(customerPhone, channelId, startNodeId);
 
   } catch (error) {
     console.error('Error in startFlowManually:', error);

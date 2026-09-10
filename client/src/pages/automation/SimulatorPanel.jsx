@@ -135,6 +135,42 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
               {templateText}
             </div>
           )}
+          {payload._sim_template_buttons && payload._sim_template_buttons.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+              {payload._sim_template_buttons.map((b, i) => {
+                const btnTitle = b.text || b.title || `Button ${i + 1}`;
+                const isUrl = b.type === 'URL' || b.type === 'url';
+                const isPhone = b.type === 'PHONE_NUMBER' || b.type === 'phone';
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (!isUrl && !isPhone) {
+                        sendSimulatedReply(b.payload || btnTitle);
+                      }
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      background: isUrl || isPhone ? '#f1f5f9' : '#e0e7ff',
+                      color: isUrl || isPhone ? '#475569' : '#4338ca',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: isUrl || isPhone ? 'default' : 'pointer',
+                      border: '1px solid rgba(0,0,0,0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {isUrl ? '🔗' : isPhone ? '📞' : '⚡'} {btnTitle}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }

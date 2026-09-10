@@ -553,6 +553,14 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
                 {!['fallback', 'welcome_message', 'away_message', 'media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger'].includes(localData.triggerType) && (
                   <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                        Trigger Keywords
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#64748B' }}>
+                        Comma separated
+                      </span>
+                    </div>
                     <input
                       type="text"
                       name="keyword"
@@ -560,8 +568,34 @@ export default function NodePropertiesPane({ currentChannelId }) {
                       onChange={handleLocalChange}
                       onBlur={handleBlur}
                       style={{ ...inputStyle, background: 'white' }}
-                      placeholder="hello"
+                      placeholder="e.g. hi, hello, start, menu"
                     />
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: '1.4' }}>
+                      Add multiple keywords separated by commas (e.g. <code style={{ background: '#E2E8F0', padding: '1px 4px', borderRadius: '4px' }}>hi, hello, hey</code>). Any of these will trigger this automation.
+                    </div>
+                    {localData.keyword && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                        {localData.keyword.split(',').map(k => k.trim()).filter(Boolean).map((kw, i) => (
+                          <span 
+                            key={i} 
+                            style={{ 
+                              background: '#EFF6FF', 
+                              color: '#2563EB', 
+                              fontSize: '12px', 
+                              fontWeight: '500', 
+                              padding: '2px 8px', 
+                              borderRadius: '12px', 
+                              border: '1px solid #BFDBFE',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>#</span> {kw}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

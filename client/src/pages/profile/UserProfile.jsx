@@ -5,6 +5,17 @@ import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
 import "react-toastify/dist/ReactToastify.css";
 
+const getBackendFileUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
+    return path;
+  }
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
+  const backendRoot = apiUrl.replace(/\/api\/?$/i, '');
+  const cleanPath = path.startsWith('/') ? path : `/${path}`;
+  return `${backendRoot}${cleanPath}`;
+};
+
 const UserProfile = () => {
   const { user, updateUser } = useContext(userContext);
   const navigate = useNavigate();
@@ -49,18 +60,33 @@ const handleKeyDown = (e, index) => {
   }
 };
 
-
-
   const [formData, setFormData] = useState({
-    name: user?.name || "Alex Rivera",
-    email: user?.email || "alex.rivera@messbee.com",
-    phone: user?.phone || "No Contact", // Default phone if missing
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: "",
   });
 
   const [preferences, setPreferences] = useState({
     timezone: user?.timezone || "(GMT+05:30) India Standard Time",
     language: user?.language || "English (United States)",
   });
+
+  // Fetch latest profile from server on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLatestProfile = async () => {
+      try {
+        const res = await axios.get("/users/profile");
+        if (isMounted && res.data?.success && res.data?.data) {
+          updateUser(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to load latest user profile:", err);
+      }
+    };
+    fetchLatestProfile();
+    return () => { isMounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update formData when user changes
   useEffect(() => {
@@ -70,7 +96,7 @@ const handleKeyDown = (e, index) => {
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        phone: sanitizedPhone || "No Contact",
+        phone: sanitizedPhone,
       });
       setProfileImage(user.avatar || null);
       setPreferences({
@@ -189,10 +215,12 @@ useEffect(() => {
                 <img
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  src={profileImage.startsWith('blob:') ? profileImage : profileImage}
+                  src={getBackendFileUrl(profileImage)}
                   onError={(e) => {
                     e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
+                    if (e.target.nextSibling) {
+                      e.target.nextSibling.style.display = 'flex';
+                    }
                   }}
                 />
               ) : null}
@@ -235,16 +263,40 @@ useEffect(() => {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={() => {
-                  const newEditingState = !isEditing;
-                  setIsEditing(newEditingState);
-                  setIsPrefEditing(newEditingState);
-                }}
-                className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
-              >
-                {isEditing ? "Cancel Edit" : "Edit Profile"}
-              </button>
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setIsPrefEditing(false);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleSaveProfile();
+                      if (isPrefEditing) {
+                        await handleSavePreferences();
+                      }
+                    }}
+                    className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
+                  >
+                    Save Changes
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsEditing(true);
+                    setIsPrefEditing(true);
+                  }}
+                  className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
+                >
+                  Edit Profile
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -691,7 +743,7 @@ useEffect(() => {
             onClick={() => setShow2FA(false)}
             className="text-center text-sm text-black mt-4 cursor-pointer"
           >
-            I'll do this later
+            I&apos;ll do this later
           </p>
 
           {/* PROGRESS */}
@@ -763,7 +815,7 @@ useEffect(() => {
 
     {/* Manual entry */}
     <p className="text-center text-sm text-green-600 mb-6 cursor-pointer">
-      Can't scan? Enter code manually
+      Can&apos;t scan? Enter code manually
     </p>
 
     {/* Verify Button */}
@@ -959,7 +1011,7 @@ useEffect(() => {
 
     {/* SUBTEXT */}
     <p className="text-sm text-gray-500 text-center mt-2 mb-5">
-      We've sent a 6-digit security code to your registered phone number{" "}
+      We&apos;ve sent a 6-digit security code to your registered phone number{" "}
       <span className="font-medium text-gray-700">+91 •••• 4412</span>
     </p>
 
