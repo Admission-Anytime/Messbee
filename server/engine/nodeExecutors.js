@@ -102,9 +102,10 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
  * @param {object} contextData - Context for parsing variables
  */
 module.exports.executeApiCallNode = async function executeApiCallNode(session, node, contextData) {
-  const { endpoint, method, headers, responseMapping, bodyParams } = node.data;
+  const { endpoint, url: nodeUrl, method, headers, responseMapping, bodyParams, body } = node.data || {};
+  const rawUrl = endpoint || nodeUrl || '';
   
-  const parsedEndpoint = parseDynamicVariables(endpoint, contextData);
+  const parsedEndpoint = parseDynamicVariables(rawUrl, contextData);
   let parsedHeaders = {};
   if (headers) {
     try {
@@ -116,9 +117,10 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
   }
 
   let requestBody = undefined;
-  if (bodyParams && (method === 'POST' || method === 'PUT')) {
+  const rawBody = bodyParams || body;
+  if (rawBody && (method === 'POST' || method === 'PUT')) {
     try {
-      const parsedB = typeof bodyParams === 'string' ? JSON.parse(bodyParams) : bodyParams;
+      const parsedB = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
       const finalBody = {};
       for (const [key, val] of Object.entries(parsedB)) {
         finalBody[key] = parseDynamicVariables(val, contextData);
@@ -218,9 +220,45 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   }
 
   if (actionType === 'update_field' || actionType === 'update_contact') {
-    if (node.data.fieldKey && node.data.fieldValue !== undefined) {
-      const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
-      safeSetSessionVariable(session, node.data.fieldKey, parsedValue);
+    const targetKey = node.data.fieldKey || node.data.updateField;
+    const rawVal = node.data.fieldValue !== undefined ? node.data.fieldValue : node.data.updateValue;
+    if (targetKey && rawVal !== undefined) {
+      const parsedValue = parseDynamicVariables(rawVal, contextData);
+      safeSetSessionVariable(session, targetKey, parsedValue);
+      safeSetSessionVariable(session, `contact.${targetKey.replace(/^contact\./, '')}`, parsedValue);
+
+      if (contextData?.contact?.phone) {
+        try {
+          const rawKey = targetKey.replace(/^contact\./, '');
+          const dbContact = await Contact.findOne({ phone: contextData.contact.phone });
+          if (dbContact) {
+            if (['name', 'email'].includes(rawKey)) {
+              dbContact[rawKey] = parsedValue;
+            } else {
+              if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
+                dbContact.customFields = {};
+              }
+              if (dbContact.customFields instanceof Map) {
+                dbContact.customFields.set(rawKey, parsedValue);
+              } else if (Array.isArray(dbContact.customFields)) {
+                const existingIdx = dbContact.customFields.findIndex(f => f.key === rawKey || f.name === rawKey);
+                if (existingIdx !== -1) {
+                  dbContact.customFields[existingIdx].value = parsedValue;
+                } else {
+                  dbContact.customFields.push({ key: rawKey, name: rawKey, value: parsedValue });
+                }
+                dbContact.markModified('customFields');
+              } else {
+                dbContact.customFields[rawKey] = parsedValue;
+                dbContact.markModified('customFields');
+              }
+            }
+            await dbContact.save();
+          }
+        } catch (e) {
+          console.error('Failed to sync contact field from actionNode:', e);
+        }
+      }
     }
     return 'success';
   }
@@ -281,12 +319,13 @@ module.exports.executeGoogleSheetsNode = async function executeGoogleSheetsNode(
  * Executes an AI Node using OpenAI (ChatGPT)
  */
 module.exports.executeAiNode = async function executeAiNode(session, node, contextData) {
-  const { systemPrompt, userMessage, saveVariableAs } = node.data;
+  const { systemPrompt, userMessage, saveVariable, saveVariableAs } = node.data;
+  const targetVarName = saveVariable || saveVariableAs;
   
-  if (!userMessage) return 'failure';
+  const rawUserMsg = userMessage || contextData?.lastIncomingMessage || contextData?.message || session.lastIncomingMessage || 'Hello';
 
   const parsedSystem = parseDynamicVariables(systemPrompt || 'You are a helpful assistant.', contextData);
-  const parsedUser = parseDynamicVariables(userMessage, contextData);
+  const parsedUser = parseDynamicVariables(rawUserMsg, contextData);
 
   try {
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -304,8 +343,9 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
 
     const aiResponse = response.data.choices[0].message.content;
 
-    if (saveVariableAs) {
-      safeSetSessionVariable(session, saveVariableAs, aiResponse);
+    if (targetVarName) {
+      safeSetSessionVariable(session, targetVarName, aiResponse);
+      safeSetSessionVariable(session, `contact.${targetVarName.replace(/^contact\./, '')}`, aiResponse);
     }
     
     // We can also store the direct AI response in contextData for immediate use in the next node

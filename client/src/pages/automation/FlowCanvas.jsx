@@ -114,7 +114,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if ((stepItem.id && stepItem.id.startsWith('ask_')) || stepItem.id === 'wait_input') {
       type = 'inputNode';
       messageType = 'input';
-      const validation = stepItem.id === 'wait_input' ? 'anything' : stepItem.id.replace('ask_', '');
+      let validation = (stepItem.id === 'wait_input' || stepItem.id === 'ask_anything') ? 'text' : stepItem.id.replace('ask_', '');
       dataPayload = { validationType: validation, variableName: `contact.${validation}` };
     } else if (['image_msg', 'video_msg', 'audio_msg', 'doc_msg', 'sticker_msg', 'gif_msg', 'voice_msg'].includes(stepItem.id)) {
       type = 'mediaNode';

@@ -171,10 +171,10 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
                 </thead>
                 <tbody>
                   {isLoading ? (
-                    <tr><td colSpan="6" style={{ padding: '48px', textAlign: 'center', color: '#9CA3AF' }}>Loading your automations...</td></tr>
+                    <tr><td colSpan="7" style={{ padding: '48px', textAlign: 'center', color: '#9CA3AF' }}>Loading your automations...</td></tr>
                   ) : filtered.length === 0 ? (
                     <tr>
-                      <td colSpan="6" style={{ padding: '64px', textAlign: 'center', color: '#6B7280' }}>
+                      <td colSpan="7" style={{ padding: '64px', textAlign: 'center', color: '#6B7280' }}>
                         No automations found. Create your first one to get started.
                       </td>
                     </tr>

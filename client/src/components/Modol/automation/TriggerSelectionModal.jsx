@@ -95,7 +95,9 @@ export default function TriggerSelectionModal({ onClose, onSelectTrigger }) {
             <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: '13px' }}>Select how the automation will start and end</p>
           </div>
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <button style={{
+            <button 
+              onClick={() => onSelectTrigger('specific_message')}
+              style={{
               background: '#10b981', color: 'white', border: 'none', padding: '10px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s'
             }}
             onMouseOver={(e) => e.currentTarget.style.background = '#059669'}
