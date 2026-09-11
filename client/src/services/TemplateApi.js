@@ -381,9 +381,10 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
 
     const mappedButtons = Array.isArray(buttonComponent?.buttons)
       ? buttonComponent.buttons.map((btn, idx) => {
-          let type = 'Quick Reply';
+          let type = 'Custom';
           if (btn?.type === 'URL') type = 'Visit Website';
           if (btn?.type === 'PHONE_NUMBER') type = 'Call phone number';
+          if (btn?.type === 'QUICK_REPLY') type = 'Custom';
 
           return {
             id: idx + 1,
@@ -490,7 +491,8 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         headerMediaUrl: resolvedHeaderMediaUrl,
         headerMediaUrlPreview: headerMediaUrlPreview,
         buttons: componentData.buttons,
-        bodySamples: componentData.bodySamples
+        bodySamples: componentData.bodySamples,
+        rejectedReason: template.rejected_reason || template.rejectedReason || null
       };
     });
 

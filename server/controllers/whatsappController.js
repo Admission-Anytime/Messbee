@@ -10,6 +10,7 @@ const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const Template = require('../models/Template');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
 const automationService = require('../services/automationService');
@@ -86,12 +87,16 @@ const getTenantWhatsAppService = async (tenantId) => {
 
   console.log(`[getTenantWhatsAppService] TargetTenant: ${tenantId} | Found: ${!!phoneNumberId} | PhoneNumberId: ${phoneNumberId || 'NOT_CONNECTED'}`);
 
-  // STRICT MULTI-TENANT ISOLATION:
-  // If this business/user has not connected a WhatsApp number in their account,
-  // do NOT leak or fallback to another user's or global MessBee number!
+  // If not configured in DB, fall back to environment variables (for local dev)
   if (!accessToken || !phoneNumberId) {
-    console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected for tenant ${tenantId}. Message will not be sent.`);
-    return null;
+    if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
+      accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+      phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+      businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null;
+    } else {
+      console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected for tenant ${tenantId}.`);
+      return null;
+    }
   }
 
   const service = new WhatsAppService({
@@ -100,7 +105,7 @@ const getTenantWhatsAppService = async (tenantId) => {
     phoneNumberId,
     businessAccountId: businessAccountId || null
   });
-  service.configSource = 'DB_TENANT';
+  service.configSource = (accessToken === process.env.WHATSAPP_ACCESS_TOKEN) ? 'ENV_FALLBACK' : 'DB_TENANT';
   
   return service;
 };
@@ -1832,20 +1837,19 @@ exports.getTemplates = async (req, res, next) => {
     const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
     console.log('[DEBUG] getTenantWhatsAppService result:', !!tenantWhatsAppService);
     
-    if (!tenantWhatsAppService) {
-      console.log('[DEBUG] Sending 403 because tenantWhatsAppService is null');
-      return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
-    }
-    
     let data = { data: [] };
-    try {
-      console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
-      data = await tenantWhatsAppService.getTemplates();
-      console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
-    } catch (err) {
-      console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
-      // Don't crash or return 401 — fall back to local MongoDB templates
-      data = { data: [] };
+    if (tenantWhatsAppService) {
+      try {
+        console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
+        data = await tenantWhatsAppService.getTemplates();
+        console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
+      } catch (err) {
+        console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
+        // Don't crash or return 401 — fall back to local MongoDB templates
+        data = { data: [] };
+      }
+    } else {
+      console.log('[DEBUG] tenantWhatsAppService is not connected, loading local templates from DB');
     }
 
     let allTemplates = Array.isArray(data?.data) ? data.data : [];
@@ -1875,7 +1879,7 @@ exports.getTemplates = async (req, res, next) => {
 
     // ONLY SHOW TEMPLATES CREATED BY THIS LOGGED-IN USER / TENANT:
     // Filter Meta API templates to strictly those that match templates created by this user
-    const matchedMetaTemplates = allTemplates.filter(t => {
+    let matchedMetaTemplates = allTemplates.filter(t => {
       const metaNameKey = String(t.name).trim().toLowerCase();
       const idKey = t.id ? String(t.id).trim() : null;
       return Boolean(
@@ -1884,6 +1888,11 @@ exports.getTemplates = async (req, res, next) => {
         (userTemplatesByName[metaNameKey] && (!userTemplatesByName[metaNameKey].whatsappTemplateName || userTemplatesByName[metaNameKey].whatsappTemplateName === t.name))
       );
     });
+
+    // If no templates match local DB yet (e.g. initial load or local development), display all available WABA templates
+    if (matchedMetaTemplates.length === 0 && allTemplates.length > 0) {
+      matchedMetaTemplates = allTemplates;
+    }
 
     const processedTemplateNames = new Set();
 
@@ -1934,7 +1943,8 @@ exports.getTemplates = async (req, res, next) => {
           category: t.category,
           language: t.language,
           status: t.status || 'PENDING',
-          components: t.components || []
+          components: t.components || [],
+          rejected_reason: t.rejectedReason || null
         });
       }
     });
@@ -2028,6 +2038,26 @@ exports.createTemplate = async (req, res, next) => {
           message: `You already have a template named "${name}". Please choose a different name.`
         }
       });
+    }
+
+    // Check plan template limit
+    const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+    const templateLimit = PLAN_LIMITS[userPlan]?.templates ?? PLAN_LIMITS.free.templates ?? 3;
+    if (templateLimit !== -1) {
+      const templateCount = await Template.countDocuments({
+        $or: [
+          { user: { $in: userScope } },
+          { tenantId: { $in: userScope } }
+        ],
+        status: { $ne: 'DELETED' }
+      });
+      if (templateCount >= templateLimit) {
+        return res.status(403).json({
+          success: false,
+          message: `Template limit reached. Your ${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} plan allows up to ${templateLimit} templates. Please upgrade your plan to create more.`,
+          limitReached: true
+        });
+      }
     }
 
     let metaTemplateName = name;
