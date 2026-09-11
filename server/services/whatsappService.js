@@ -1037,12 +1037,20 @@ class WhatsAppService {
               const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
               const sanitizedButtons = buttons
                 .map((btn) => ({ ...btn }))
-                .filter((btn) => String(btn?.text || '').trim().length > 0)
+                .filter((btn) => {
+                  const btnType = String(btn?.type || '').toUpperCase();
+                  if (btnType === 'OTP') return true;
+                  return String(btn?.text || '').trim().length > 0;
+                })
                 .filter((btn) => {
                   const btnType = String(btn?.type || '').toUpperCase();
                   if (btnType === 'URL') return /^https?:\/\//i.test(String(btn?.url || '').trim());
                   if (btnType === 'PHONE_NUMBER') return String(btn?.phone_number || '').trim().length > 0;
-                  return btnType === 'QUICK_REPLY';
+                  if (btnType === 'QUICK_REPLY') return true;
+                  if (btnType === 'MPM') return true;
+                  if (btnType === 'CATALOG') return true;
+                  if (btnType === 'OTP') return true;
+                  return false;
                 });
               component.buttons = sanitizedButtons;
               return sanitizedButtons.length > 0;

@@ -1,11 +1,20 @@
 /* eslint-disable react/no-unescaped-entities */
-import { useState, useEffect } from 'react';
-import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send, Loader2, Layers } from 'lucide-react';
+import { useState, useEffect, useContext } from 'react';
+import { Eye, ChevronDown, Check, ChevronLeft, Video, Phone, Image as ImageIcon, CheckCheck, Smile, Paperclip, Send, Loader2, Layers, Lock, Sparkles, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchWhatsAppTemplates, mergeTemplates } from '../../services/TemplateApi';
+import { userContext } from '../../context/Context';
+import { getPlanLimit } from '../../utils/planLimits';
 
 const TemplatesGallery = () => {
   const navigate = useNavigate();
+  const { user } = useContext(userContext);
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const currentPlanCapitalized = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+  const templateLimit = getPlanLimit(currentPlan, 'templates');
+  const [userTemplateCount, setUserTemplateCount] = useState(0);
+  const [upgradeModal, setUpgradeModal] = useState({ isOpen: false, featureName: 'Templates', message: '' });
+
   const [showCategories, setShowCategories] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('All Templates');
   const [loading, setLoading] = useState(true);
@@ -20,6 +29,7 @@ const TemplatesGallery = () => {
       try {
         const whatsappTemplates = await fetchWhatsAppTemplates();
         const templatesArray = whatsappTemplates.data?.data || [];
+        setUserTemplateCount(templatesArray.length);
         const formatted = mergeTemplates(templatesArray, []);
         
         // Filter approved templates
@@ -69,12 +79,78 @@ const TemplatesGallery = () => {
     loadTemplates();
   }, []);
 
+  const isLimitReached = templateLimit !== -1 && userTemplateCount >= templateLimit;
+
+  const handleUseTemplate = (tpl) => {
+    if (isLimitReached) {
+      setUpgradeModal({
+        isOpen: true,
+        featureName: 'Templates',
+        message: `You have reached your limit of ${templateLimit} templates on the ${currentPlanCapitalized} plan. Upgrade to create and use more templates!`
+      });
+      return;
+    }
+    if (tpl) {
+      navigate('/admin/templates/create', { state: { fromGallery: true, isDuplicate: true, templateData: tpl.originalData } });
+    } else {
+      navigate('/admin/templates/create', { state: { fromGallery: true } });
+    }
+  };
+
   const filteredTemplates = selectedCategory === 'All Templates' 
     ? templates 
     : templates.filter(t => t.tag === selectedCategory);
 
   return (
-    <div className="flex flex-col h-screen bg-[#F8FAFC] font-sans antialiased text-[#334155]">
+    <div className="flex flex-col h-screen bg-[#F8FAFC] font-sans antialiased text-[#334155] relative">
+      {/* UPGRADE PLAN MODAL */}
+      {upgradeModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl scale-in-center border border-slate-100 text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-teal-500" />
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-5 text-emerald-600 shadow-sm">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold mb-3">
+              <span>Current: {currentPlanCapitalized} Plan</span>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Upgrade to Use More Templates</h3>
+            <p className="text-slate-500 text-xs sm:text-sm mb-6 leading-relaxed">
+              {upgradeModal.message || `You have reached the template limit for the ${currentPlanCapitalized} plan. Upgrade to unlock higher limits and premium features.`}
+            </p>
+            <div className="bg-slate-50 rounded-xl p-3.5 text-left border border-slate-100 mb-6 space-y-1.5 text-xs">
+              <div className="flex items-center gap-2 font-bold text-slate-700">
+                <Sparkles className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <span>Template limits by plan:</span>
+              </div>
+              <p className="text-slate-500 leading-relaxed pl-6 space-y-0.5">
+                • <strong>Free Trial:</strong> 3 templates<br/>
+                • <strong>Basic:</strong> 15 templates & Template Gallery<br/>
+                • <strong>Growth:</strong> 50 templates & Analytics<br/>
+                • <strong>Professional:</strong> Unlimited templates
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' })}
+                className="flex-1 py-2.5 px-4 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' });
+                  navigate('/admin/plan/upgrade');
+                }}
+                className="flex-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Upgrade Plan</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="flex flex-1 overflow-hidden">
         
         {/* LEFT CONTENT */}
@@ -118,11 +194,29 @@ const TemplatesGallery = () => {
                 )}
               </div>
 
-              <button 
-                onClick={() => navigate('/admin/templates/create', { state: { fromGallery: true } })}
-                className="bg-[#10B981] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] flex items-center gap-2 hover:bg-[#059669] transition-all shadow-lg shadow-emerald-100"
+              {/* Plan quota indicator */}
+              <div
+                title={`${userTemplateCount} of ${templateLimit === -1 ? 'unlimited' : templateLimit} templates used`}
+                className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border ${
+                  isLimitReached 
+                    ? 'bg-amber-50 text-amber-800 border-amber-200' 
+                    : 'bg-white text-slate-700 border-gray-200'
+                }`}
               >
-                <span className="text-lg">+</span> Create Template
+                <span>{userTemplateCount} / {templateLimit === -1 ? '∞' : templateLimit} Templates</span>
+                {isLimitReached && <Lock className="w-3.5 h-3.5 text-amber-600" />}
+              </div>
+
+              <button 
+                onClick={() => handleUseTemplate(null)}
+                className={`px-6 py-2.5 rounded-xl font-bold text-[13px] flex items-center gap-2 transition-all shadow-lg cursor-pointer ${
+                  isLimitReached 
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-100' 
+                    : 'bg-[#10B981] hover:bg-[#059669] text-white shadow-emerald-100'
+                }`}
+              >
+                {isLimitReached ? <Lock size={15} /> : <span className="text-lg">+</span>}
+                <span>{isLimitReached ? 'Upgrade Plan' : 'Create Template'}</span>
               </button>
             </div>
           </div>
@@ -155,8 +249,18 @@ const TemplatesGallery = () => {
                     "{tpl.content?.substring(0, 110)}"
                    </p>
                   
-                  <button className={`w-full py-3 rounded-2xl font-bold text-[13px] transition-all duration-300 ${selectedTemplate?.id === tpl.id ? 'bg-[#10B981] text-white' : 'bg-[#F8FAFC] text-[#64748B]'}`}>
-                    {selectedTemplate?.id === tpl.id ? 'Selected' : 'Use Template'}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleUseTemplate(tpl);
+                    }}
+                    className={`w-full py-3 rounded-2xl font-bold text-[13px] transition-all duration-300 cursor-pointer ${
+                      selectedTemplate?.id === tpl.id 
+                        ? 'bg-[#10B981] text-white' 
+                        : 'bg-[#F8FAFC] text-[#64748B] hover:bg-emerald-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    Use Template
                   </button>
                 </div>
               ))}
@@ -179,13 +283,7 @@ const TemplatesGallery = () => {
             
             <div className="mt-8">
               <button 
-                onClick={() => {
-                  if (selectedTemplate) {
-                    navigate('/admin/templates/create', { state: { fromGallery: true, isDuplicate: true, templateData: selectedTemplate.originalData } });
-                  } else {
-                    navigate('/admin/templates/create', { state: { fromGallery: true } });
-                  }
-                }}
+                onClick={() => handleUseTemplate(selectedTemplate)}
                 className="w-full bg-gradient-to-r from-[#10B981] to-[#059669] text-white py-3.5 rounded-2xl flex items-center justify-center gap-3 text-[13px] font-extrabold hover:from-[#0ea372] hover:to-[#047857] transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98] cursor-pointer"
               >
                 Use this template <Check className="w-4 h-4 bg-white text-[#059669] rounded-full p-0.5" />
