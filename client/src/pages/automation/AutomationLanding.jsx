@@ -215,7 +215,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     {
       title: "Welcome New Users", activeStatusName: 'Welcome message', toggleName: 'Welcome message',
       triggerIcon: UserPlus, triggerText: "When user signs up", actionIcon: Mail, actionText: "Send welcome email",
-      buttonText: "Send Message", onButtonClick: () => onNavigateWelcomeMessage?.()
+      buttonText: "Configure settings", onButtonClick: () => onNavigateWelcomeMessage?.()
     },
     {
       title: "Order Confirmation", activeStatusName: 'Order Confirmation', toggleName: 'Order Confirmation',
@@ -225,7 +225,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     {
       title: "Away message", activeStatusName: 'Away message', toggleName: 'Away message',
       triggerIcon: Zap, triggerText: "Reply automatically when you are away", actionIcon: ArrowRight, actionText: "Send reminder notification",
-      buttonText: "Send Message", onButtonClick: () => onNavigateAwayMessage?.()
+      buttonText: "Configure settings", onButtonClick: () => onNavigateAwayMessage?.()
     },
     {
       title: "Weekly Reports", activeStatusName: 'Weekly Reports', toggleName: 'Weekly Reports',

@@ -31,13 +31,39 @@ async function markSessionCompleted(session, customerPhone, channelId) {
   try {
     const contact = await Contact.findOne({ phone: customerPhone, channelId });
     if (contact && session.sessionVariables) {
+      if (!contact.customFields || typeof contact.customFields !== 'object') {
+        contact.customFields = {};
+      }
+
+      const syncKeyVal = (rawKey, val) => {
+        const cleanKey = rawKey.replace(/^contact\./, '');
+        if (['name', 'email'].includes(cleanKey)) {
+          contact[cleanKey] = val;
+          return;
+        }
+        if (contact.customFields instanceof Map) {
+          contact.customFields.set(cleanKey, val);
+        } else if (Array.isArray(contact.customFields)) {
+          const idx = contact.customFields.findIndex(f => f.key === cleanKey || f.name === cleanKey);
+          if (idx !== -1) {
+            contact.customFields[idx].value = val;
+          } else {
+            contact.customFields.push({ key: cleanKey, name: cleanKey, value: val });
+          }
+          contact.markModified('customFields');
+        } else {
+          contact.customFields[cleanKey] = val;
+          contact.markModified('customFields');
+        }
+      };
+
       if (typeof session.sessionVariables.entries === 'function') {
         for (let [key, value] of session.sessionVariables.entries()) {
-          contact.customFields.set(key, value);
+          syncKeyVal(key, value);
         }
       } else if (typeof session.sessionVariables === 'object') {
         for (let [key, value] of Object.entries(session.sessionVariables)) {
-          contact.customFields.set(key, value);
+          syncKeyVal(key, value);
         }
       }
       
@@ -59,12 +85,25 @@ async function markSessionCompleted(session, customerPhone, channelId) {
           const sessionVarsObj = typeof session.sessionVariables.entries === 'function'
             ? Object.fromEntries(session.sessionVariables)
             : (session.sessionVariables || {});
+          let cFieldsObj = {};
+          if (contact.customFields) {
+            if (typeof contact.customFields.entries === 'function') {
+              cFieldsObj = Object.fromEntries(contact.customFields);
+            } else if (Array.isArray(contact.customFields)) {
+              contact.customFields.forEach(f => {
+                const k = f.key || f.name;
+                if (k) cFieldsObj[k] = f.value;
+              });
+            } else if (typeof contact.customFields === 'object') {
+              cFieldsObj = contact.customFields;
+            }
+          }
           const payload = {
             event: 'flow_completed',
             phone: contact.phone,
             name: contact.name,
             tags: contact.tags,
-            customFields: Object.fromEntries(contact.customFields),
+            customFields: cFieldsObj,
             sessionVariables: sessionVarsObj
           };
           await axios.post(settings.crmSync.webhookUrl, payload, { timeout: 5000 }).catch(e => console.error('CRM Webhook Post error:', e.message));
@@ -86,7 +125,7 @@ function isFlowTriggerMatch(tNode, payloadText) {
   const matchType = tNode.data.triggerType || 'exact_match';
   const kw = (tNode.data.keyword || '').toLowerCase();
   
-  if (matchType === 'exact_match' && kw !== '') {
+  if (['exact_match', 'qr_link', 'whatsapp_ad', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim());
     return keywords.includes(payloadText);
   } else if (matchType === 'contains' && kw !== '') {
@@ -98,14 +137,15 @@ function isFlowTriggerMatch(tNode, payloadText) {
   } else if (matchType === 'ends_with' && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim());
     return keywords.some(k => payloadText.endsWith(k));
-  } else if (matchType === 'image_received' && payloadText === '[__media_image__]') return true;
+  } else if (matchType === 'any_message' && payloadText && !payloadText.startsWith('[__media_')) return true;
+  else if (matchType === 'image_received' && payloadText === '[__media_image__]') return true;
   else if (matchType === 'video_received' && payloadText === '[__media_video__]') return true;
   else if (matchType === 'document_received' && payloadText === '[__media_document__]') return true;
   else if (matchType === 'voice_received' && payloadText === '[__media_audio__]') return true;
   else if (matchType === 'location_received' && payloadText === '[__media_location__]') return true;
   else if (matchType === 'contact_shared' && payloadText === '[__media_contact__]') return true;
   else if (matchType === 'reaction' && payloadText === '[__reaction__]') return true;
-  else if (matchType === 'media_any' && ['[__media_image__]', '[__media_video__]', '[__media_document__]', '[__media_audio__]'].includes(payloadText)) return true;
+  else if (['media_any', 'media_received'].includes(matchType) && ['[__media_image__]', '[__media_video__]', '[__media_document__]', '[__media_audio__]'].includes(payloadText)) return true;
   return false;
 }
 
@@ -635,6 +675,11 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       if (contact && contact.customFields) {
         if (contact.customFields instanceof Map || typeof contact.customFields.entries === 'function') {
           contactFields = Object.fromEntries(contact.customFields);
+        } else if (Array.isArray(contact.customFields)) {
+          contact.customFields.forEach(f => {
+            const k = f.key || f.name;
+            if (k) contactFields[k] = f.value;
+          });
         } else if (typeof contact.customFields === 'object') {
           contactFields = contact.customFields;
         }
@@ -803,8 +848,11 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       } 
       else if (currentNode.type === 'conditionNode') {
         const handle = await executeConditionNode(session, currentNode, contextData);
-        // Find the specific edge that matches the condition result (true_path or false_path)
-        const conditionEdge = outgoingEdges.find(e => e.sourceHandle === handle);
+        // Find the specific edge that matches the condition result (supports 'true' / 'true_path' and 'false' / 'false_path')
+        const isTrue = handle === 'true' || handle === 'true_path';
+        const conditionEdge = outgoingEdges.find(e => 
+          isTrue ? (e.sourceHandle === 'true' || e.sourceHandle === 'true_path') : (e.sourceHandle === 'false' || e.sourceHandle === 'false_path')
+        ) || outgoingEdges[0];
         nextNodeId = conditionEdge ? conditionEdge.target : null;
       }
       else if (currentNode.type === 'apiNode') {
@@ -829,7 +877,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           }
         }
         
-        const edge = outgoingEdges.find(e => e.sourceHandle === `ai-${result}`) || outgoingEdges[0];
+        const edge = outgoingEdges.find(e => e.sourceHandle === `ai-${result}` || e.sourceHandle === 'main-handle') || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'googleSheetsNode') {
@@ -1306,8 +1354,23 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               if (['name', 'email'].includes(shortName)) {
                 dbContact[shortName] = incomingPayload;
               } else {
-                if (!dbContact.customFields) dbContact.customFields = new Map();
-                dbContact.customFields.set(shortName, incomingPayload);
+                if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
+                  dbContact.customFields = {};
+                }
+                if (dbContact.customFields instanceof Map) {
+                  dbContact.customFields.set(shortName, incomingPayload);
+                } else if (Array.isArray(dbContact.customFields)) {
+                  const existingIdx = dbContact.customFields.findIndex(f => f.key === shortName || f.name === shortName);
+                  if (existingIdx !== -1) {
+                    dbContact.customFields[existingIdx].value = incomingPayload;
+                  } else {
+                    dbContact.customFields.push({ key: shortName, name: shortName, value: incomingPayload });
+                  }
+                  dbContact.markModified('customFields');
+                } else {
+                  dbContact.customFields[shortName] = incomingPayload;
+                  dbContact.markModified('customFields');
+                }
               }
               await dbContact.save();
             }
@@ -1316,6 +1379,37 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           }
         } else {
           session.sessionVariables.set(`contact.${rawVarName}`, incomingPayload);
+          
+          // Also persist non-prefixed variable name into Contact customFields
+          try {
+            const dbContact = await Contact.findOne({ phone: customerPhone, channelId });
+            if (dbContact) {
+              if (['name', 'email'].includes(rawVarName)) {
+                dbContact[rawVarName] = incomingPayload;
+              } else {
+                if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
+                  dbContact.customFields = {};
+                }
+                if (dbContact.customFields instanceof Map) {
+                  dbContact.customFields.set(rawVarName, incomingPayload);
+                } else if (Array.isArray(dbContact.customFields)) {
+                  const existingIdx = dbContact.customFields.findIndex(f => f.key === rawVarName || f.name === rawVarName);
+                  if (existingIdx !== -1) {
+                    dbContact.customFields[existingIdx].value = incomingPayload;
+                  } else {
+                    dbContact.customFields.push({ key: rawVarName, name: rawVarName, value: incomingPayload });
+                  }
+                  dbContact.markModified('customFields');
+                } else {
+                  dbContact.customFields[rawVarName] = incomingPayload;
+                  dbContact.markModified('customFields');
+                }
+              }
+              await dbContact.save();
+            }
+          } catch (e) {
+            console.error('Failed to sync non-prefixed contact field from inputNode:', e);
+          }
         }
 
         session.status = 'ACTIVE';
@@ -1407,7 +1501,27 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       break;
                    }
                 }
+             } else if (currentNode.type === 'pollNode' && currentNode.data?.options) {
+                const optIdx = currentNode.data.options.findIndex((opt, idx) => 
+                  (opt.text && opt.text.toLowerCase() === lowerIncoming) ||
+                  (opt.id && opt.id.toString().toLowerCase() === lowerIncoming) ||
+                  idx.toString() === lowerIncoming
+                );
+                if (optIdx !== -1) {
+                  matchedEdge = outgoingEdges.find(e => 
+                    e.sourceHandle === `opt-${optIdx}` || 
+                    e.sourceHandle === `${optIdx}`
+                  );
+                }
+             } else if (['catalogNode', 'commerceNode'].includes(currentNode?.type)) {
+                // If customer responds after viewing catalog or payment link, advance via main-handle
+                matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
              }
+          }
+          
+          if (!matchedEdge) {
+            // Check if flow designer connected to the 'main-handle' (Next step fallback)
+            matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
           }
           
           if (matchedEdge) {
@@ -1565,9 +1679,33 @@ export async function triggerAutomationFromEvent(contact, triggerType, triggerVa
     // Seed variables from CRM
     const eventData = {};
     if (contact.customFields) {
-      for (const [key, val] of contact.customFields.entries()) {
-        eventData[key] = val;
+      if (typeof contact.customFields.entries === 'function') {
+        for (const [key, val] of contact.customFields.entries()) {
+          eventData[key] = val;
+          eventData[`contact.${key}`] = val;
+        }
+      } else if (Array.isArray(contact.customFields)) {
+        for (const field of contact.customFields) {
+          const k = field.key || field.name;
+          if (k) {
+            eventData[k] = field.value;
+            eventData[`contact.${k}`] = field.value;
+          }
+        }
+      } else if (typeof contact.customFields === 'object') {
+        for (const [key, val] of Object.entries(contact.customFields)) {
+          eventData[key] = val;
+          eventData[`contact.${key}`] = val;
+        }
       }
+    }
+    if (contact.name) {
+      eventData['name'] = contact.name;
+      eventData['contact.name'] = contact.name;
+    }
+    if (contact.phone) {
+      eventData['phone'] = contact.phone;
+      eventData['contact.phone'] = contact.phone;
     }
 
     await startFlowManually(contact.phone, contact.channelId, activeFlow._id, eventData);

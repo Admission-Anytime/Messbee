@@ -184,7 +184,7 @@ export const handleIncomingMessage = async (req, res) => {
                 console.error('Error clearing pending delayed jobs:', e);
               }
 
-              enqueueWebhookPayload(customerPhone, incomingPayload, channel._id, referral, message.id);
+              enqueueWebhookPayload(customerPhone, incomingPayload, channel._id, referral, message.id, null, Boolean(contact?._isNewContact));
             } else {
               console.warn(`No registered channel found for Phone Number ID: ${phoneNumberId}`);
             }

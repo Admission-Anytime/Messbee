@@ -96,7 +96,17 @@ export default function AutomationBuilder() {
         }
       } else {
         setChannelId(defaultChannelId);
-        const triggerType = location.state?.triggerType || 'exact_match';
+        const rawTriggerType = location.state?.triggerType || 'exact_match';
+        // Map modal trigger IDs to flow trigger types
+        const triggerMap = {
+          'specific_message': 'exact_match',
+          'webhook': 'api_webhook',
+          'crm': 'crm_event',
+          'manual': 'manual_trigger',
+          'media_received': 'media_any'
+        };
+        const triggerType = triggerMap[rawTriggerType] || rawTriggerType;
+
         setFlowData([
           {
             id: 'trigger_1',
@@ -135,16 +145,25 @@ export default function AutomationBuilder() {
 
     setInvalidNodeId(null);
     // Pre-save validation
+    const NON_KEYWORD_TRIGGERS = [
+      'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 
+      'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call',
+      'any_message', 'new_subscriber', 'api_webhook', 'webhook', 'crm_event', 'crm',
+      'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual',
+      'welcome_message', 'away_message', 'fallback'
+    ];
+
     for (const node of nodes) {
       if (node.type === 'triggerNode') {
         const tType = node.data?.triggerType || '';
-        if (!node.data?.keyword && tType !== 'media_any' && !tType.includes('_received') && tType !== 'away_message' && tType !== 'fallback') {
+        const isNonKeyword = NON_KEYWORD_TRIGGERS.includes(tType) || tType.includes('_received');
+        if (!isNonKeyword && !node.data?.keyword) {
           toast.error(`Trigger node is missing a keyword`);
           setInvalidNodeId(node.id);
           return;
         }
       }
-      if (node.type === 'apiNode' && !node.data?.endpoint) {
+      if (node.type === 'apiNode' && (!node.data?.endpoint && !node.data?.url)) {
         toast.error(`API node is missing an endpoint URL`);
         setInvalidNodeId(node.id);
         return;

@@ -73,7 +73,10 @@ export const upsertContactInternal = async (tenantId, channelId, phone, name = '
 
     // If the contact did not exist before, it's a NEW_CONTACT
     if (!existingContact) {
+      contact._isNewContact = true;
       triggerAutomationFromEvent(contact, 'NEW_CONTACT', null).catch(console.error);
+    } else {
+      contact._isNewContact = false;
     }
 
     return contact;

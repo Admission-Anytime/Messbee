@@ -398,9 +398,29 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'triggerNode' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>New incoming conversation</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>
+                {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
+                 localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
+                 localData.triggerType === 'interactive_template' ? 'Template Quick Reply' :
+                 localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
+                 localData.triggerType === 'welcome_message' ? 'Welcome Message' :
+                 localData.triggerType === 'away_message' ? 'Away Message' :
+                 localData.triggerType === 'fallback' ? 'Default Fallback' :
+                 localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
+                 localData.triggerType === 'api_webhook' ? 'API Webhook Trigger' :
+                 localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
+                 'Conversation Trigger'}
+              </h2>
               <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                Starts when a contact writes to you for the first time.
+                {localData.triggerType === 'qr_link' ? 'Generates a QR code and custom wa.me link for customers to start this automation.' :
+                 localData.triggerType === 'whatsapp_ad' ? 'Starts this automation when customers click on your Meta WhatsApp ad.' :
+                 localData.triggerType === 'interactive_template' ? 'Starts when customer taps a Quick Reply or Call-to-Action button on a template.' :
+                 localData.triggerType === 'any_message' ? 'Starts whenever any incoming message is received from a contact.' :
+                 localData.triggerType === 'welcome_message' ? 'Starts when a new contact writes to your WhatsApp number for the first time.' :
+                 localData.triggerType === 'away_message' ? 'Replies automatically when a contact writes outside of business hours.' :
+                 localData.triggerType === 'fallback' ? 'Executes when no keywords or other automations match customer message.' :
+                 localData.triggerType === 'tag_added' ? 'Runs automatically when a specific tag is attached to a contact profile.' :
+                 'Configure when and how this automated workflow starts.'}
               </p>
             </div>
             
@@ -551,7 +571,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   </select>
                 </div>
 
-                {!['fallback', 'welcome_message', 'away_message', 'media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger'].includes(localData.triggerType) && (
+                {!['fallback', 'welcome_message', 'away_message', 'any_message', 'new_subscriber', 'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call', 'api_webhook', 'webhook', 'crm_event', 'crm', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual'].includes(localData.triggerType) && (
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                       <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
@@ -1375,11 +1395,33 @@ export default function NodePropertiesPane({ currentChannelId }) {
               <>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Field to Update</label>
-                  <input type="text" name="updateField" value={localData.updateField || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. status" />
+                  <input 
+                    type="text" 
+                    name="updateField" 
+                    value={localData.updateField || localData.fieldKey || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, updateField: e.target.value, fieldKey: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { updateField: localData.updateField || localData.fieldKey, fieldKey: localData.updateField || localData.fieldKey })} 
+                    style={inputStyle} 
+                    placeholder="e.g. status or city" 
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>New Value</label>
-                  <input type="text" name="updateValue" value={localData.updateValue || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. qualified_lead" />
+                  <input 
+                    type="text" 
+                    name="updateValue" 
+                    value={localData.updateValue || localData.fieldValue || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, updateValue: e.target.value, fieldValue: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { updateValue: localData.updateValue || localData.fieldValue, fieldValue: localData.updateValue || localData.fieldValue })} 
+                    style={inputStyle} 
+                    placeholder="e.g. qualified_lead or {{city}}" 
+                  />
                 </div>
               </>
             )}

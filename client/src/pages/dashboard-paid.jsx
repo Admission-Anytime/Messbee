@@ -51,15 +51,19 @@ function Dashboard() {
    const getMessageTier = () => {
       const metaLimit = performanceData?.wabaConfig?.messagingLimit;
       if (metaLimit) {
-         // Meta returns raw API strings like "TIER_50K" or "TIER_UNLIMITED"
-         // This cleans it up dynamically without any manual hardcoding
+         // Meta returns raw API strings like "TIER_250", "TIER_1K", "TIER_10K", "TIER_50K", "TIER_UNLIMITED"
          let displayLimit = metaLimit.replace('TIER_', '');
          if (displayLimit === 'UNLIMITED') return 'Unlimited';
-         // Adds ",000" if it's a K value (e.g., "50K" -> "50,000")
          return displayLimit.replace('K', ',000');
       }
 
       if (user?.messageLimitTier) return user.messageLimitTier;
+
+      // Dynamic fallback: agar Meta connected hai ya phone number configured hai par Meta se tier assign nahi hua hai, to official default 250 dikhega
+      if (performanceData?.wabaConfig?.displayPhoneNumber || performanceData?.wabaConfig?.phoneNumberId || user?.phoneNumber || user?.phone) {
+         return "250";
+      }
+
       return "Pending Meta";
    };
 

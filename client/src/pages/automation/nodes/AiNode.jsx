@@ -6,7 +6,7 @@ import useCanvasStore from '../../../store/useCanvasStore';
 export default function AiNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
-  const isValid = !!data.systemPrompt && !!data.saveVariable;
+  const isValid = !!data.systemPrompt && (!!data.saveVariable || !!data.saveVariableAs);
   const borderColor = isValid ? '#10b981' : '#ef4444';
   
   return (
@@ -44,7 +44,7 @@ export default function AiNode({ id, data, selected }) {
               "{data.systemPrompt || 'You are a helpful assistant...'}"
             </div>
             <div style={{ marginTop: '8px', fontSize: '11px', color: '#9CA3AF', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '4px' }}>
-              Save response to: <strong style={{ color: '#ECEFF4' }}>{data.saveVariable || 'N/A'}</strong>
+              Save response to: <strong style={{ color: '#ECEFF4' }}>{data.saveVariable || data.saveVariableAs || 'N/A'}</strong>
             </div>
           </div>
         </div>
