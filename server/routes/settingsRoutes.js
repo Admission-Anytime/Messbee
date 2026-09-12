@@ -73,19 +73,16 @@ router.get("/:key", async (req, res) => {
       const businessAccountId = channel?.metadata?.wabaId
         || userDoc?.whatsappConfig?.wabaId
         || settingVal.businessAccountId
-        || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID
         || "";
 
       const phoneNumberId = channel?.activeWhatsappPhoneNumberId
         || userDoc?.whatsappConfig?.phoneNumberId
         || settingVal.phoneNumberId
-        || process.env.WHATSAPP_PHONE_NUMBER_ID
         || "";
 
       const accessToken = channel?.metaAccessToken
         || userDoc?.whatsappConfig?.accessToken
         || settingVal.accessToken
-        || process.env.WHATSAPP_ACCESS_TOKEN
         || "";
 
       const verifyToken = settingVal.verifyToken

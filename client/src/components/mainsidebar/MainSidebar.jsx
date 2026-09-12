@@ -7,6 +7,7 @@ import { userContext } from "../../context/Context";
 import { ChatContext } from "../../context/ChatContext";
 import { getDaysRemaining } from "../../utils/subscription";
 import { hasPlanFeature } from "../../utils/planLimits";
+import { getBackendFileUrl } from "../../utils/urlHelper";
 
 
 // --- LOGO ASSETS ---
@@ -627,7 +628,15 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="relative shrink-0">
                 <div className="w-10 h-10 rounded-full bg-[#E2E8F0] flex items-center justify-center border-2 border-white shadow-sm overflow-hidden">
-                   <img src={user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`} alt="Avatar" className="w-full h-full object-cover" />
+                    <img 
+                      src={getBackendFileUrl(user?.avatar) || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`} 
+                      alt="Avatar" 
+                      className="w-full h-full object-cover" 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`;
+                      }}
+                    />
                 </div>
                 <span className="absolute bottom-0.5 right-0.5 w-3 h-3 bg-[#10B981] border-2 border-white rounded-full"></span>
               </div>

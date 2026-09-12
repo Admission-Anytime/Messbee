@@ -1,4 +1,5 @@
 import axios from "../context/axios";
+import { getBackendBaseUrl } from "../utils/urlHelper";
 
 const TEMPLATE_HEADER_PREVIEW_CACHE_KEY = 'templateHeaderPreviewCache';
 const runtimeHeaderPreviewCache = {};
@@ -55,10 +56,12 @@ export const resolveMediaUrlForDev = (url) => {
   }
   
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
-  
-  const backendBase = import.meta.env.VITE_API_URL 
-    ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") 
-    : "http://localhost:5002";
+  const backendBase = getBackendBaseUrl();
+
+  // If relative path like /uploads/..., resolve dynamically
+  if (url.startsWith('/uploads') || url.startsWith('uploads/')) {
+    return `${backendBase}${url.startsWith('/') ? url : `/${url}`}`;
+  }
 
   if (isLocalhost) {
     if (url.includes('documents.messbee.com') || url.includes('messbee.com/uploads')) {

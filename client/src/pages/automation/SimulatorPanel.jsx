@@ -3,6 +3,7 @@ import { X, Send, Play, Bot, User, Phone, CheckCircle2, RotateCcw } from 'lucide
 import api from '../../context/axios';
 import io from 'socket.io-client';
 import { showToast } from '../../utils/showToast';
+import { getBackendBaseUrl } from '../../utils/urlHelper';
 
 export default function SimulatorPanel({ automationId, channelId, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
@@ -15,7 +16,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   useEffect(() => {
     if (isOpen && channelId) {
       // Connect to Socket.IO — strip /api suffix since Socket.IO runs at the root
-      const socketUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '') || 'http://localhost:5002';
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || getBackendBaseUrl();
       const newSocket = io(socketUrl, {
         withCredentials: true,
         transports: ['websocket', 'polling']
