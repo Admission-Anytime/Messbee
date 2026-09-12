@@ -144,22 +144,36 @@ const handleKeyDown = (e, index) => {
   };
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const formData = new FormData();
-      formData.append("avatar", file);
-      try {
-        const response = await axios.post("/users/avatar", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (response.data.success) {
-          updateUser(response.data.data.user);
-          setProfileImage(URL.createObjectURL(file));
-          toast.success("Profile photo updated");
-        }
-      } catch (error) {
-        toast.error("Failed to upload avatar");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    // Validate type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const response = await axios.post("/users/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data && response.data.success) {
+        const returnedUser = response.data.data.user;
+        updateUser(returnedUser);
+        setProfileImage(response.data.data.avatar || returnedUser.avatar);
+        toast.success("Profile photo updated");
       }
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      toast.error(error.response?.data?.message || "Failed to upload avatar");
     }
   };
   useEffect(() => {
