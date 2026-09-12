@@ -725,7 +725,7 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
         {contact.labels?.length > 0 && (
           <div className="flex flex-wrap justify-center gap-1.5 mt-2">
             {contact.labels.map(l => (
-              <LabelBadge key={typeof l === 'string' ? l : l.name} label={l} labelConfig={labelConfig || labels} />
+              <LabelBadge key={typeof l === 'string' ? l : l.name} label={l} labelConfig={labels} />
             ))}
           </div>
         )}
@@ -1456,16 +1456,13 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [], labelConfig = [], canDelete = true }) {
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, onExport, labels = [], statuses = [], labelConfig = [], canDelete = true, canExport = true }) {
   const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | 'more' | null
-  const [showOptions, setShowOptions] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState([]);
   const menuRef = useRef(null);
-  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!activeMenu) {
-      setShowOptions(false);
       setSelectedLabels([]);
     }
   }, [activeMenu]);
@@ -1474,9 +1471,6 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenu(null);
-      }
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowOptions(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1601,7 +1595,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
       {activeMenu === 'more' && (
         <div className="absolute bottom-[calc(100%+10px)] right-0 w-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300 py-2">
           {[
-            { label: 'Export Selected', icon: ArrowUpTrayIcon, color: 'text-slate-600', action: () => { setActiveMenu(null); } },
+            ...(canExport ? [{ label: 'Export Selected (CSV)', icon: ArrowUpTrayIcon, color: 'text-slate-600', action: () => { if (onExport) onExport(); setActiveMenu(null); } }] : []),
             { label: 'Send Campaign', icon: MegaphoneIcon, color: 'text-slate-600', action: () => { onCampaign(); setActiveMenu(null); } },
             { divider: true },
             { label: 'Delete Contacts', icon: UserMinusIcon, color: 'text-red-500', action: () => { onDelete(); setActiveMenu(null); } },
@@ -1681,7 +1675,7 @@ export default function ContactsCRM() {
   const navigate = useNavigate();
 
   // ── CRM permission flags from role context ──────────────────────────────────
-  const { user, rolePermissions } = useContext(userContext);
+  const { user, rolePermissions, checkPlanAccess } = useContext(userContext);
   const _roleKey = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
   const _perms = rolePermissions && _roleKey ? rolePermissions[_roleKey] : null;
   const canImportContacts = !_perms || _perms.import_contacts !== false;
@@ -1906,6 +1900,35 @@ export default function ContactsCRM() {
         source: "contacts_bulk_action"
       }
     });
+  };
+
+  const handleBulkExport = () => {
+    if (checkPlanAccess && !checkPlanAccess('exportContactsCsv', 'Export Contacts CSV')) {
+      return;
+    }
+    const selectedData = contacts.filter(c => selectedRows.includes(c._id));
+    if (!selectedData.length) {
+      toast.info("No contacts selected to export");
+      return;
+    }
+    const headers = ["Name", "Phone", "Email", "Status", "Labels", "Created At"];
+    const rows = selectedData.map(c => [
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      `"${(c.phone || c.phoneNumber || '').replace(/"/g, '""')}"`,
+      `"${(c.email || '').replace(/"/g, '""')}"`,
+      `"${(c.status || '').replace(/"/g, '""')}"`,
+      `"${(c.labels ? c.labels.join(", ") : '').replace(/"/g, '""')}"`,
+      `"${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `contacts_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedData.length} contacts successfully!`);
   };
 
   /* ── Row click → profile ── */
@@ -2303,6 +2326,8 @@ export default function ContactsCRM() {
         onRemoveLabel={handleBulkRemoveLabel}
         onStatus={handleBulkStatus}
         onCampaign={handleSendCampaign}
+        onExport={handleBulkExport}
+        canExport={canExportData}
         labels={[...new Set([...allLabels, ...contacts.filter(c => selectedRows.includes(c._id)).flatMap(c => c.labels || [])])]}
         statuses={allStatuses}
         labelConfig={labelConfig}

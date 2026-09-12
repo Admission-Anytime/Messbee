@@ -4,16 +4,7 @@ import react from '@vitejs/plugin-react'
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [
-    react({
-      // Enable Fast Refresh
-      fastRefresh: true,
-      // Optimize babel transforms
-      babel: {
-        plugins: [
-          // Add babel plugins if needed
-        ]
-      }
-    }),
+    react(),
   ],
   
   resolve: {

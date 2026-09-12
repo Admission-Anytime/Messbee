@@ -1,10 +1,12 @@
-import React, { useState } from "react";
+import React, { useState, useContext } from "react";
+import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
 import { 
   CreditCardIcon, 
   PlusIcon, 
   EllipsisVerticalIcon, 
   TrashIcon, 
-  CheckCircleIcon,
+  CheckCircleIcon, 
   ShieldCheckIcon,
   BuildingOfficeIcon,
   DocumentDuplicateIcon,
@@ -17,11 +19,13 @@ import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const PaymentMethods = () => {
+  const navigate = useNavigate();
+  const { user } = useContext(userContext);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("card"); // 'card' or 'upi'
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // Mock Data
+  // Local state for methods
   const [methods, setMethods] = useState([
     { id: 1, type: "card", brand: "Visa", last4: "4242", expiry: "12/2026", isDefault: true },
     { id: 2, type: "card", brand: "Mastercard", last4: "8831", expiry: "08/2025", isDefault: false },
@@ -29,8 +33,17 @@ const PaymentMethods = () => {
   ]);
 
   const [upiMethods, setUpiMethods] = useState([
-    { id: 1, vpa: "acme@okaxis", bank: "Unified Payments Interface", isDefault: false }
+    { id: 1, vpa: user?.email ? `${user.email.split('@')[0]}@okaxis` : "business@okaxis", bank: "Unified Payments Interface", isDefault: false }
   ]);
+
+  // Dynamic user billing fields
+  const billingName = user?.businessName || user?.name || "MessBee Business";
+  const billingAddress = user?.billingAddress || user?.address || "Hitech City, Hyderabad, Telangana";
+  const billingCity = user?.billingCity || user?.city || "";
+  const billingState = user?.billingState || user?.state || "";
+  const billingZipcode = user?.billingZipcode || user?.zipcode || "";
+  const billingCountry = user?.billingCountry || user?.country || "India";
+  const gstNumber = user?.billingTaxId || "36AAACA1234A1Z5";
 
   // --- ACTIONS ---
   const handleAddMethod = (e) => {
@@ -42,17 +55,16 @@ const PaymentMethods = () => {
       setIsProcessing(false);
       setIsModalOpen(false);
       toast.success("Payment method added successfully!");
-    }, 2000);
+    }, 1500);
   };
 
   const handleSetDefault = (id, type) => {
       toast.info("Updating default payment method...");
       setTimeout(() => {
-          // Logic to update state (mock)
           const updatedMethods = methods.map(m => ({ ...m, isDefault: m.id === id }));
           setMethods(updatedMethods);
           toast.success("Default payment method updated!");
-      }, 1000);
+      }, 800);
   };
 
   const handleRemove = (id) => {
@@ -63,12 +75,12 @@ const PaymentMethods = () => {
   };
 
   const handleCopyGST = () => {
-      navigator.clipboard.writeText("36AAACA1234A1Z5");
+      navigator.clipboard.writeText(gstNumber);
       toast.success("GST ID copied to clipboard!");
   };
 
   const handleEditBilling = () => {
-      toast.info("Billing address edit mode enabled (Simulated)");
+      navigate("/admin/plan/billing-address");
   };
 
   return (
@@ -182,17 +194,17 @@ const PaymentMethods = () => {
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Billing Address</label>
                        <p className="text-sm font-medium text-slate-700 leading-relaxed">
-                          Acme Solutions Pvt Ltd<br/>
-                          12th Floor, Cyber Plaza<br/>
-                          Hitech City, Hyderabad<br/>
-                          Telangana - 500081, India
+                          <strong className="text-slate-900">{billingName}</strong><br/>
+                          {billingAddress}<br/>
+                          {billingCity && `${billingCity}, `}{billingState && `${billingState}`}<br/>
+                          {billingZipcode && `${billingZipcode}, `}{billingCountry}
                        </p>
                     </div>
                     
                     <div>
                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">GST / Tax ID</label>
                        <div className="flex items-center gap-2">
-                          <code className="bg-slate-50 px-2 py-1 rounded text-sm text-slate-600 border border-slate-100">36AAACA1234A1Z5</code>
+                          <code className="bg-slate-50 px-2 py-1 rounded text-sm text-slate-600 border border-slate-100">{gstNumber}</code>
                           <button onClick={handleCopyGST} className="text-slate-400 hover:text-slate-600 cursor-pointer" title="Copy GST"><DocumentDuplicateIcon className="w-4 h-4" /></button>
                        </div>
                     </div>

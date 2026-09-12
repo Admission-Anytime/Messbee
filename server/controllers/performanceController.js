@@ -181,10 +181,14 @@ exports.getPerformanceOverview = async (req, res) => {
     }
 
     // ── Response ───────────────────────────────────────────────────────────────
+    // Get fresh user credits
+    const currentUser = await User.findById(userId).select('credits').lean();
+
     res.status(200).json({
       success: true,
       data: {
         date: targetDate.toISOString().split('T')[0],
+        credits: currentUser?.credits != null ? currentUser.credits : 0,
         metrics: {
           totalChats: {
             value:  totalChats,

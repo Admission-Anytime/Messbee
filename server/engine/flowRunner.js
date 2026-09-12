@@ -156,11 +156,15 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       console.log(`[SIMULATOR] Intercepted outbound message to ${toPhone}`);
       const io = getIO();
       if (io) {
-        io.to(channel._id.toString()).emit('simulator_message', { 
+        const msgId = `sim_msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+        const simMsg = { 
+          msgId,
           direction: 'OUTBOUND', 
           payload,
           timestamp: new Date()
-        });
+        };
+        // Emit once globally to avoid duplicate packet reception
+        io.emit('simulator_message', simMsg);
       }
       return null;
     }
@@ -298,14 +302,6 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   const parsedText = parseDynamicVariables(rawText, contextData);
   const btns = buttons || interactiveButtons || [];
 
-  if (messageType === 'text' || nodeType === 'messageNode') {
-    return {
-      ...basePayload,
-      type: 'text',
-      text: { body: parsedText || ' ' }
-    };
-  }
-
   if (messageType === 'interactive' || nodeType === 'interactiveNode') {
     if (btns.length === 0) {
       return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure buttons.' } };
@@ -318,7 +314,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
           type: 'reply',
           reply: { 
             id: parseDynamicVariables(btn.id, contextData) || btn.id || 'btn', 
-            title: parseDynamicVariables(btn.title, contextData) || 'Button'
+            title: parseDynamicVariables(btn.title || btn.text, contextData) || 'Button'
           }
         }))
       }
@@ -340,6 +336,14 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       ...basePayload,
       type: 'interactive',
       interactive
+    };
+  }
+
+  if (messageType === 'text' || nodeType === 'messageNode') {
+    return {
+      ...basePayload,
+      type: 'text',
+      text: { body: parsedText || ' ' }
     };
   }
 
@@ -749,39 +753,64 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
         const payload = buildMessagePayload(customerPhone, currentNode.type, currentNode.data, contextData);
         
-        // Inject full template text for Simulator UI if it's a template node
+        // Inject full template text and buttons for Simulator UI if it's a template node
         if (customerPhone.startsWith('SIMULATOR_') && currentNode.type === 'templateNode') {
           try {
+            // First check if currentNode.data has buttons directly configured
+            if (currentNode.data?.buttons && Array.isArray(currentNode.data.buttons) && currentNode.data.buttons.length > 0) {
+              payload._sim_template_buttons = currentNode.data.buttons;
+            }
+
             const { default: Template } = await import('../models/Template.js');
-            const tmpl = await Template.findOne({ name: currentNode.data.templateName });
+            const tmplName = currentNode.data?.templateName;
+            let tmpl = null;
+            if (tmplName) {
+              tmpl = await Template.findOne({
+                $or: [
+                  { name: tmplName },
+                  { name: new RegExp(`^${tmplName}$`, 'i') },
+                  { whatsappTemplateName: tmplName }
+                ]
+              });
+            }
+
             if (tmpl) {
-              const bodyComponent = tmpl.components.find(c => c.type === 'BODY');
+              const bodyComponent = tmpl.components?.find(c => c.type === 'BODY' || c.type === 'body');
               if (bodyComponent && bodyComponent.text) {
                 payload._sim_template_text = bodyComponent.text;
               }
               
-              const headerComponent = tmpl.components.find(c => c.type === 'HEADER');
-              if (headerComponent && headerComponent.format === 'IMAGE') {
+              const headerComponent = tmpl.components?.find(c => c.type === 'HEADER' || c.type === 'header');
+              if (headerComponent && (headerComponent.format === 'IMAGE' || headerComponent.type === 'IMAGE')) {
                 let imgUrl = headerComponent.example?.header_url?.[0] || headerComponent.example?.header_handle?.[0];
-                // If it's a Meta handle (not starting with http), provide a nice placeholder image for the simulator
                 if (imgUrl && !imgUrl.startsWith('http')) {
-                  imgUrl = 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&h=400&fit=crop'; // University / Generic aesthetic image
+                  imgUrl = 'https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=600&h=400&fit=crop';
                 }
                 if (imgUrl) {
                   payload._sim_template_image = imgUrl;
                 }
               }
 
-              const buttonsComponent = tmpl.components.find(c => c.type === 'BUTTONS');
-              if (buttonsComponent && buttonsComponent.buttons) {
+              const buttonsComponent = tmpl.components?.find(c => c.type === 'BUTTONS' || c.type === 'buttons');
+              if (buttonsComponent && buttonsComponent.buttons && buttonsComponent.buttons.length > 0) {
                 payload._sim_template_buttons = buttonsComponent.buttons;
               }
             }
+
+            // If template text still not found from DB, fallback to node text or placeholder
+            if (!payload._sim_template_text) {
+              payload._sim_template_text = currentNode.data?.text || currentNode.data?.headline || `Template: ${tmplName}`;
+            }
+
+            // Always ensure buttons from node are present if DB didn't provide any
             if (!payload._sim_template_buttons && currentNode.data?.buttons) {
               payload._sim_template_buttons = currentNode.data.buttons;
             }
           } catch (e) {
             console.error('Failed to inject simulator template data:', e);
+            if (currentNode.data?.buttons) {
+              payload._sim_template_buttons = currentNode.data.buttons;
+            }
           }
         }
         
@@ -1121,11 +1150,22 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
       
       // 0. WELCOME MESSAGE PRIORITY
-      if (isNewContact && settings && settings.welcomeMessage && settings.welcomeMessage.enabled && settings.welcomeMessage.automationId) {
-        const welcomeFlow = await Automation.findById(settings.welcomeMessage.automationId);
-        if (welcomeFlow && welcomeFlow.isActive) {
-          matchedFlow = welcomeFlow;
-          matchedTriggerNode = welcomeFlow.nodes.find(n => n.type === 'triggerNode') || welcomeFlow.nodes[0];
+      // Triggers if contact is new OR if customer explicitly greets ('hi', 'hello', 'hey', 'start')
+      const isGreetingWord = ['hi', 'hello', 'hey', 'start', 'namaste'].includes(payloadText);
+      if ((isNewContact || isGreetingWord) && settings && settings.welcomeMessage && settings.welcomeMessage.enabled) {
+        if (settings.welcomeMessage.automationId) {
+          const welcomeFlow = await Automation.findById(settings.welcomeMessage.automationId);
+          if (welcomeFlow && welcomeFlow.isActive) {
+            matchedFlow = welcomeFlow;
+            matchedTriggerNode = welcomeFlow.nodes.find(n => n.type === 'triggerNode') || welcomeFlow.nodes[0];
+          }
+        }
+        // Fallback to default welcome text message if no flow is attached or flow is inactive
+        if (!matchedFlow) {
+          const welcomeText = settings.welcomeMessage.textMessage || 'Welcome! How can we help you today?';
+          const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: welcomeText } };
+          await sendWhatsAppMessage(customerPhone, payload, channel);
+          return;
         }
       }
 
@@ -1146,7 +1186,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           const dayName = parts[0].toLowerCase(); // e.g. "monday"
           const timeStr = parts[1]; // e.g. "14:30"
 
-          const dayConfig = settings.awayMessage.workingHours?.get(dayName);
+          const dayConfig = settings.awayMessage.workingHours?.get(dayName) || (settings.awayMessage.workingHours && settings.awayMessage.workingHours[dayName]);
           if (dayConfig) {
             if (!dayConfig.isOpen) {
               isOutOfOffice = true;
@@ -1166,6 +1206,13 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             matchedFlow = awayFlow;
             matchedTriggerNode = awayFlow.nodes.find(n => n.type === 'triggerNode') || awayFlow.nodes[0];
           }
+        }
+        // If out of office and no flow or flow not active, send away text message!
+        if (!matchedFlow) {
+          const awayText = settings.awayMessage.textMessage || 'We are currently away and will get back to you as soon as possible!';
+          const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: awayText } };
+          await sendWhatsAppMessage(customerPhone, payload, channel);
+          return;
         }
       }
 
@@ -1192,12 +1239,20 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
       if (!activeFlow) {
         // Fallback: check dynamic settings first
-        if (settings && settings.fallbackMessage && settings.fallbackMessage.enabled && settings.fallbackMessage.automationId) {
-          activeFlow = await Automation.findById(settings.fallbackMessage.automationId);
-          if (activeFlow && activeFlow.isActive) {
-            triggerNode = activeFlow.nodes.find(n => n.type === 'triggerNode') || activeFlow.nodes[0];
-          } else {
-            activeFlow = null;
+        if (settings && settings.fallbackMessage && settings.fallbackMessage.enabled) {
+          if (settings.fallbackMessage.automationId) {
+            activeFlow = await Automation.findById(settings.fallbackMessage.automationId);
+            if (activeFlow && activeFlow.isActive) {
+              triggerNode = activeFlow.nodes.find(n => n.type === 'triggerNode') || activeFlow.nodes[0];
+            } else {
+              activeFlow = null;
+            }
+          }
+          if (!activeFlow) {
+            const fallbackText = settings.fallbackMessage.textMessage || 'Sorry, we did not understand that. Please reply with a keyword or wait for an agent.';
+            const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: fallbackText } };
+            await sendWhatsAppMessage(customerPhone, payload, channel);
+            return;
           }
         }
       }
@@ -1337,15 +1392,17 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         // Process input answer safely
         const rawVarName = session.saveVariableAs || 'custom_field';
-        if (!session.sessionVariables || typeof session.sessionVariables.set !== 'function') {
-          session.sessionVariables = new Map(Object.entries(session.sessionVariables || {}));
+        if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
+          session.sessionVariables = {};
+        } else if (session.sessionVariables instanceof Map) {
+          session.sessionVariables = Object.fromEntries(session.sessionVariables);
         }
         
         // Save both with and without prefix so {{neet_score}} and {{contact.neet_score}} both work!
-        session.sessionVariables.set(rawVarName, incomingPayload);
+        session.sessionVariables[rawVarName] = incomingPayload;
         if (rawVarName.startsWith('contact.')) {
           const shortName = rawVarName.replace('contact.', '');
-          session.sessionVariables.set(shortName, incomingPayload);
+          session.sessionVariables[shortName] = incomingPayload;
           
           // Also persist directly to Contact in database
           try {
@@ -1378,7 +1435,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             console.error('Failed to sync contact field from inputNode:', e);
           }
         } else {
-          session.sessionVariables.set(`contact.${rawVarName}`, incomingPayload);
+          session.sessionVariables[`contact.${rawVarName}`] = incomingPayload;
           
           // Also persist non-prefixed variable name into Contact customFields
           try {
@@ -1411,6 +1468,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             console.error('Failed to sync non-prefixed contact field from inputNode:', e);
           }
         }
+        session.markModified('sessionVariables');
 
         session.status = 'ACTIVE';
         session.expectedValidation = null;
@@ -1517,11 +1575,36 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 // If customer responds after viewing catalog or payment link, advance via main-handle
                 matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
              }
-          }
+              // If still not matched, check if there's only 1 outgoing edge or any edge title contains button text
+              if (!matchedEdge && outgoingEdges.length === 1) {
+                matchedEdge = outgoingEdges[0];
+              } else if (!matchedEdge) {
+                // Try matching button by partial word or case-insensitive contains
+                const foundBtn = currentNode.data?.buttons?.find((b, idx) => {
+                  const bText = (b.text || b.title || b.payload || '').toLowerCase();
+                  return bText && (bText.includes(lowerIncoming) || lowerIncoming.includes(bText));
+                });
+                if (foundBtn) {
+                  const btnIdx = currentNode.data.buttons.indexOf(foundBtn);
+                  const btnId = foundBtn.id || btnIdx;
+                  matchedEdge = outgoingEdges.find(e => 
+                    e.sourceHandle === `btn-${btnId}` || 
+                    e.sourceHandle === `btn-${btnIdx}` ||
+                    e.sourceHandle === btnId ||
+                    e.sourceHandle === `${btnIdx}`
+                  );
+                }
+              }
+           }
           
           if (!matchedEdge) {
             // Check if flow designer connected to the 'main-handle' (Next step fallback)
             matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
+          }
+
+          // If still not matched and there is only 1 outgoing connection, route to it
+          if (!matchedEdge && outgoingEdges.length === 1) {
+            matchedEdge = outgoingEdges[0];
           }
           
           if (matchedEdge) {
@@ -1587,7 +1670,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
  */
 export async function startFlowManually(customerPhone, channelId, flowId, eventData = {}) {
   try {
-    const activeFlow = await Automation.findOne({ _id: flowId, channelId, isActive: true });
+    const isSim = typeof customerPhone === 'string' && customerPhone.startsWith('SIMULATOR_');
+    const query = { _id: flowId, channelId };
+    if (!isSim) {
+      query.isActive = true;
+    }
+    const activeFlow = await Automation.findOne(query);
     if (!activeFlow) {
       console.warn(`Flow ${flowId} not found or inactive. Cannot start manually.`);
       return;

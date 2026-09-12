@@ -17,10 +17,22 @@ function deepGet(obj, path) {
 
 function safeSetSessionVariable(session, key, value) {
   if (!session) return;
-  if (!session.sessionVariables || typeof session.sessionVariables.set !== 'function') {
-    session.sessionVariables = new Map(Object.entries(session.sessionVariables || {}));
+  if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
+    session.sessionVariables = {};
   }
-  session.sessionVariables.set(key, value);
+  if (session.sessionVariables instanceof Map) {
+    if (key.includes('.')) {
+      session.sessionVariables = Object.fromEntries(session.sessionVariables);
+      session.sessionVariables[key] = value;
+    } else {
+      session.sessionVariables.set(key, value);
+    }
+  } else {
+    session.sessionVariables[key] = value;
+  }
+  if (typeof session.markModified === 'function') {
+    session.markModified('sessionVariables');
+  }
 }
 
 function safeGetSessionVariable(session, key) {

@@ -137,7 +137,7 @@ const SUBITEM_PLAN_FEATURES = {
 };
 
 const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
-  const { user } = useContext(userContext);
+  const { user, promptUpgrade } = useContext(userContext);
   const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
   const planFeature = ITEM_PLAN_FEATURES[item.title];
   const isPlanLocked = planFeature ? !hasPlanFeature(currentPlan, planFeature) : false;
@@ -155,7 +155,14 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
       return (
         <div className="relative my-1 mx-2">
           <button
-            onClick={(e) => { e.stopPropagation(); onFloatingToggle(item.title, e); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPlanLocked) {
+                promptUpgrade({ feature: planFeature, featureName: item.title });
+              } else {
+                onFloatingToggle(item.title, e);
+              }
+            }}
             className={`w-full flex justify-center items-center py-3 rounded-lg transition-colors cursor-pointer relative ${isChildActive || isFloatingOpen ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`}
             title={item.title + (isPlanLocked ? " (Upgrade Required)" : "")}
           >
@@ -170,7 +177,17 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
       );
     }
     return (
-      <Link to={item.path || "#"} className={`flex justify-center items-center py-3 my-1 mx-2 rounded-lg transition-colors relative ${active ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`} title={item.title + (isPlanLocked ? " (Upgrade Required)" : "")}>
+      <Link 
+        to={isPlanLocked ? "#" : (item.path || "#")} 
+        onClick={(e) => {
+          if (isPlanLocked) {
+            e.preventDefault();
+            promptUpgrade({ feature: planFeature, featureName: item.title });
+          }
+        }}
+        className={`flex justify-center items-center py-3 my-1 mx-2 rounded-lg transition-colors relative cursor-pointer ${active ? "bg-[#EBF5F0] text-[#10B981]" : "text-slate-500 hover:bg-slate-100 hover:text-black"}`} 
+        title={item.title + (isPlanLocked ? " (Upgrade Required)" : "")}
+      >
         <Icon icon={item.icon} className="w-5 h-5" />
         {isPlanLocked && <span className="absolute right-1 top-1 w-2 h-2 bg-amber-500 rounded-full"></span>}
       </Link>
@@ -195,8 +212,24 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
             {item.children.map((sub, idx) => {
               const subFeature = SUBITEM_PLAN_FEATURES[sub.path];
               const isSubLocked = subFeature ? !hasPlanFeature(currentPlan, subFeature) : false;
+              
+              const handleSubClick = (e) => {
+                if (isSubLocked) {
+                  e.preventDefault();
+                  promptUpgrade({
+                    feature: subFeature,
+                    featureName: sub.title,
+                  });
+                }
+              };
+
               return (
-                <Link key={idx} to={sub.path} className={`flex items-center justify-between px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors ${isActive(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}>
+                <Link 
+                  key={idx} 
+                  to={isSubLocked ? "#" : sub.path} 
+                  onClick={handleSubClick}
+                  className={`flex items-center justify-between px-4 py-2 text-[13px] font-medium rounded-r-lg transition-colors cursor-pointer ${isActive(sub.path) ? "text-slate-900 bg-[#EBF5F0]" : "text-slate-500 hover:text-black hover:bg-slate-50"}`}
+                >
                   <div className="flex items-center gap-3 truncate">
                     <Icon icon={sub.icon} className={`w-4 h-4 min-w-[16px] ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400 group-hover:text-slate-600"}`} />
                     <span className="truncate">{sub.title}</span>
@@ -213,9 +246,23 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
 
   const displayBadge = item.title === "Chats" ? (unreadCount > 0 ? (unreadCount > 99 ? "99+" : unreadCount) : null) : item.badge;
 
+  const handleItemClick = (e) => {
+    if (isPlanLocked) {
+      e.preventDefault();
+      promptUpgrade({
+        feature: planFeature,
+        featureName: item.title,
+      });
+    }
+  };
+
   return (
     <div className="mb-1">
-      <Link to={item.path} className={`group flex items-center px-4 py-3 transition-all duration-200 ${active ? activeClass : inactiveClass}`}>
+      <Link 
+        to={isPlanLocked ? "#" : item.path} 
+        onClick={handleItemClick}
+        className={`group flex items-center px-4 py-3 transition-all duration-200 cursor-pointer ${active ? activeClass : inactiveClass}`}
+      >
         <div className="flex items-center gap-3 w-full overflow-hidden">
           <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${active ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
           <div className="flex items-center justify-between w-full">
@@ -272,7 +319,7 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { logoutUser, user, rolePermissions, updateUser, refreshUser } = useContext(userContext);
+  const { logoutUser, user, rolePermissions, updateUser, refreshUser, promptUpgrade } = useContext(userContext);
   const isExpired = Boolean(
     user?.subscriptionEndDate && new Date(user.subscriptionEndDate) < new Date()
   );
@@ -401,8 +448,27 @@ const MainSidebar = ({ isOpen, setIsOpen }) => {
                 const subFeature = SUBITEM_PLAN_FEATURES[sub.path];
                 const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
                 const isSubLocked = subFeature ? !hasPlanFeature(currentPlan, subFeature) : false;
+                
+                const handleFloatingSubClick = (e) => {
+                  if (isSubLocked) {
+                    e.preventDefault();
+                    setActiveFloating(null);
+                    promptUpgrade({
+                      feature: subFeature,
+                      featureName: sub.title,
+                    });
+                  } else {
+                    setActiveFloating(null);
+                  }
+                };
+
                 return (
-                  <Link key={idx} to={sub.path} onClick={() => setActiveFloating(null)} className={`flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-colors ${isActive(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}>
+                  <Link 
+                    key={idx} 
+                    to={isSubLocked ? "#" : sub.path} 
+                    onClick={handleFloatingSubClick} 
+                    className={`flex items-center justify-between px-3 py-2.5 text-sm font-medium rounded-lg transition-colors cursor-pointer ${isActive(sub.path) ? "text-[#10B981] bg-[#EBF5F0]" : "text-slate-600 hover:bg-slate-50 hover:text-black"}`}
+                  >
                     <div className="flex items-center gap-3 truncate">
                       <Icon icon={sub.icon} className={`w-4 h-4 ${isActive(sub.path) ? "text-[#10B981]" : "text-slate-400"}`} />
                       <span className="truncate">{sub.title}</span>
