@@ -4,6 +4,7 @@ import {
   Plus, Search, ChevronLeft, Trash2, Edit3, Shield, Zap, Settings, Clock, RefreshCw, BarChart2, MessageSquare
 } from 'lucide-react';
 import { DeliveryRulesModal, SpamProtectionModal, CrmSyncModal, ChannelAssignmentModal } from './GlobalSettingsModals';
+import { showToast } from '../../utils/showToast';
 
 export default function AutomationDashboard({ onCreateAutomation, onEditAutomation, onBack }) {
   const [automations, setAutomations] = useState([]);
@@ -47,9 +48,10 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
     try {
       await api.delete(`/automation/${id}`);
       setAutomations(prev => prev.filter(a => a._id !== id));
+      showToast.success('Deleted', 'Automation deleted successfully');
     } catch (error) {
       console.error('Failed to delete:', error);
-      alert('Failed to delete automation.');
+      showToast.error('Delete Failed', 'Failed to delete automation.');
     }
   };
   
@@ -58,9 +60,10 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
       const newStatus = !automation.isActive;
       await api.put(`/automation/${automation._id}`, { isActive: newStatus });
       setAutomations(prev => prev.map(a => a._id === automation._id ? { ...a, isActive: newStatus } : a));
+      showToast.success(automation.name || 'Automation', newStatus ? 'Activated' : 'Paused');
     } catch (error) {
       console.error('Failed to toggle status:', error);
-      alert('Failed to update automation status.');
+      showToast.error('Update Failed', 'Failed to update automation status.');
     }
   };
 

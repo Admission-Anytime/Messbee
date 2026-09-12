@@ -294,3 +294,36 @@ body {
 .interactive-btn:hover {
   background: #eff6ff;
 }
+
+/* Premium Toast Styling (Orange / Amber Glow) */
+.Toastify__toast-container {
+  z-index: 99999 !important;
+}
+
+.Toastify__toast {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.18), 0 8px 10px -6px rgba(249, 115, 22, 0.1) !important;
+  font-family: 'Outfit', 'Urbanist', sans-serif !important;
+}
+
+.Toastify__toast--success {
+  background: linear-gradient(135deg, #FFF7ED 0%, #FFEDD5 100%) !important;
+  border: 1px solid #FDBA74 !important;
+  color: #9A3412 !important;
+}
+
+.Toastify__toast--success .Toastify__progress-bar {
+  background: #F97316 !important;
+}
+
+.Toastify__toast--error {
+  background: #FFF1F2 !important;
+  border: 1px solid #FECDD3 !important;
+  color: #9F1239 !important;
+}
+
+.Toastify__toast--info, .Toastify__toast--warning {
+  background: #FFFBEB !important;
+  border: 1px solid #FDE68A !important;
+  color: #92400E !important;
+}

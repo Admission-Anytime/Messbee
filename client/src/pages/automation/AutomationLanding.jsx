@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import api from '../../context/axios';
 import { userContext } from '../../context/Context';
+import { showToast } from '../../utils/showToast';
 
 const ToggleSwitch = ({ isActive, onChange }) => (
   <div 
@@ -71,27 +72,40 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
         const newValue = !(settings?.welcomeMessage?.enabled || false);
         await api.put('/tenant-settings', { welcomeMessage: { ...settings?.welcomeMessage, enabled: newValue } });
         fetchSettings();
+        showToast.success('Welcome Message', newValue ? 'Automation Activated' : 'Automation Paused');
       }
       else if (automationName === 'Away message') {
         const newValue = !(settings?.awayMessage?.enabled || false);
         await api.put('/tenant-settings', { awayMessage: { ...settings?.awayMessage, enabled: newValue } });
         fetchSettings();
+        showToast.success('Away Message', newValue ? 'Automation Activated' : 'Automation Paused');
       }
       else if (automationName === 'Fallback message') {
         const newValue = !(settings?.fallbackMessage?.enabled || false);
         await api.put('/tenant-settings', { fallbackMessage: { ...settings?.fallbackMessage, enabled: newValue } });
         fetchSettings();
+        showToast.success('Fallback Message', newValue ? 'Automation Activated' : 'Automation Paused');
       }
       else {
         // Normal template automation
         const existing = automations.find(a => a.name === automationName);
         if (existing) {
-          await api.put(`/automation/${existing._id}`, { isActive: !existing.isActive });
+          const newStatus = !existing.isActive;
+          await api.put(`/automation/${existing._id}`, { isActive: newStatus });
           fetchAutomations();
+          showToast.success(automationName, newStatus ? 'Automation Activated' : 'Automation Paused');
         } else {
-          // If it doesn't exist, maybe they should click Use Template. 
-          // We can optionally alert them here.
-          alert(`You need to configure the "${automationName}" automation first by clicking "Use Template".`);
+          // If it doesn't exist yet, auto-create it as active!
+          let keyword = 'start';
+          let action = `Thank you for reaching out regarding ${automationName}!`;
+          if (automationName === 'Order Confirmation') {
+            keyword = 'order';
+            action = 'Your order has been confirmed!';
+          } else if (automationName === 'Weekly Reports') {
+            keyword = 'report';
+            action = 'Here is your weekly report summary.';
+          }
+          await handleCreateTemplate(automationName, keyword, action);
         }
       }
     } catch (e) {
@@ -117,7 +131,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
         if (channelsRes.data && channelsRes.data.length > 0) {
           channelId = channelsRes.data[0]._id;
         } else {
-          alert("Please connect a WhatsApp channel first or set a Default Channel in settings.");
+          showToast.warning("Channel Needed", "Please connect a WhatsApp channel first or set a Default Channel in settings.");
           return;
         }
       }
@@ -146,11 +160,12 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
       });
 
       if (res.data && res.data._id) {
+        showToast.success(templateName, "Template ready! Opening canvas...");
         navigate(`/admin/automation/${res.data._id}`);
       }
     } catch (error) {
       console.error('Failed to create template:', error);
-      alert('Failed to create template flow.');
+      showToast.error("Template Error", "Failed to create template flow.");
     }
   };
 

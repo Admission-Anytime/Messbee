@@ -20,7 +20,7 @@ import {
 const CreateCampaign = () => {
     const navigate = useNavigate();
     const location = useLocation();
-    const { user, updateUser } = useContext(userContext);
+    const { user, updateUser, checkPlanAccess } = useContext(userContext);
     const canSchedule = hasPlanFeature(user?.subscriptionPlan, 'scheduleCampaign');
     const [currentStep, setCurrentStep] = useState(location.state?.step || 1);
 
@@ -890,10 +890,7 @@ const CreateCampaign = () => {
                             {/* Option 2: Schedule for later */}
                             <div
                                 onClick={() => {
-                                    if (!canSchedule) {
-                                        toast.warn("Campaign scheduling requires a Basic plan or higher. Please upgrade your plan to unlock.", {
-                                            onClick: () => navigate("/admin/plan/upgrade")
-                                        });
+                                    if (checkPlanAccess && !checkPlanAccess('scheduleCampaign', 'Campaign Scheduling')) {
                                         return;
                                     }
                                     setScheduleOption('later');

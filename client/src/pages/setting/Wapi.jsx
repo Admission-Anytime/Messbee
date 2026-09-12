@@ -2,6 +2,7 @@ import { useState, useRef, useContext } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
 import { Lock } from "lucide-react";
 import HealthDiagnosticModal from "../../components/Modol/HealthDiagnosticModal";
 import TestConnectionModal from "../../components/Modol/TestConnectionModal";
@@ -106,6 +107,7 @@ export default function WhatsAppConfig() {
     phoneId, setPhoneId,
     accessToken, setAccessToken,
     webhookUrl, setWebhookUrl,
+    verifyToken, setVerifyToken,
     events, setEvents,
     loading, saving,
     connectionStatus, setConnectionStatus,
@@ -122,7 +124,6 @@ export default function WhatsAppConfig() {
   const [credsDraft, setCredsDraft] = useState({});
 
   const [webhookDraft, setWebhookDraft] = useState("");
-  const [verifyToken] = useState(generateToken(24));
   const [showVerifyToken, setShowVerifyToken] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState("idle");
   const [webhookEditMode, setWebhookEditMode] = useState(false);
@@ -206,17 +207,41 @@ export default function WhatsAppConfig() {
   const handlePinKey = (idx, e, arr, refs) => {
     if (e.key === "Backspace" && !arr[idx] && idx > 0) refs.current[idx - 1]?.focus();
   };
-  const handleSetPin = () => {
+  const handleSetPin = async () => {
     const p = pin.join(""), c = confirmPin.join("");
     if (p.length < 6) { setPinError("Please fill all 6 digits"); return; }
     if (p !== c) { setPinError("PINs don't match — try again"); setConfirmPin(["","","","","",""]); confirmPinRefs.current[0]?.focus(); return; }
-    setPinError(""); setPinSet(true); setShowPinModal(false);
-    toast.success("Two-step verification enabled!");
+    setPinError("");
+    try {
+      const res = await axios.post("/whatsapp/register", { pin: p });
+      if (res.data?.success) {
+        setPinSet(true);
+        setShowPinModal(false);
+        toast.success(res.data.message || "Two-step verification enabled with Meta!");
+      } else {
+        setPinError(res.data?.message || "Failed to register PIN with Meta");
+      }
+    } catch (err) {
+      // If meta registration fails (e.g. invalid permissions), save locally as fallback and alert user
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setPinError(msg);
+      toast.error("Meta PIN Registration: " + msg);
+    }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (disconnectText !== "DISCONNECT") { toast.error('Type exactly "DISCONNECT" to confirm'); return; }
-    setDisconnected(true); setShowDisconnectModal(false); setConnectionStatus("Disconnected");
+    try {
+      await axios.post("/whatsapp/deregister");
+    } catch (e) {
+      console.warn("Deregister call warning:", e.message);
+    }
+    setDisconnected(true);
+    setShowDisconnectModal(false);
+    setConnectionStatus("Disconnected");
+    setBusinessId("");
+    setPhoneId("");
+    setAccessToken("");
     toast.error("Integration disconnected. Message processing halted.");
   };
 

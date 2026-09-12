@@ -22,7 +22,7 @@ import { userContext } from "../context/Context";
 function Dashboard() {
    const navigate = useNavigate();
    const [isSyncing, setIsSyncing] = useState(false);
-   const { user } = useContext(userContext);
+   const { user, refreshUser, updateUser } = useContext(userContext);
 
    const formatAmount = (val) => {
       if (val === null || val === undefined || val === "") return "0.00";
@@ -98,6 +98,11 @@ function Dashboard() {
                agents:   m.agents,
                wabaConfig: res.data.wabaConfig,
             });
+
+            // Dynamically sync credits if returned from backend
+            if (res.data?.credits !== undefined && updateUser) {
+               updateUser({ credits: res.data.credits });
+            }
          }
       } catch (err) {
          console.warn("Performance fetch failed:", err?.response?.data?.message || err.message);
@@ -105,7 +110,7 @@ function Dashboard() {
       } finally {
          setIsSyncing(false);
       }
-   }, []);
+   }, [updateUser]);
 
    const handleDateChange = (date) => {
       setSelectedDate(date);
@@ -116,12 +121,19 @@ function Dashboard() {
 
    const handleSyncData = useCallback(() => {
       fetchPerformance(dateString);
-   }, [fetchPerformance, dateString]);
+      if (refreshUser) {
+         refreshUser();
+      }
+   }, [fetchPerformance, dateString, refreshUser]);
 
-   // Load real performance data on mount
+   // Load real performance data & latest user credits once on mount
    useEffect(() => {
       fetchPerformance(dayjs().format("YYYY-MM-DD"));
-   }, [fetchPerformance]);
+      if (refreshUser) {
+         refreshUser();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
 
    // Helper: render trend badge
    const TrendBadge = ({ trend, change, suffix = "%" }) => {
@@ -237,9 +249,21 @@ function Dashboard() {
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
                      <h3 className="text-3xl font-black text-slate-900">₹{formatAmount(user?.credits)}</h3>
-                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
+                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap ${
+                        Number(user?.credits || 0) > 0 ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"
+                     }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${Number(user?.credits || 0) > 0 ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                        {user?.autoRecharge ? "Auto-recharge on" : (Number(user?.credits || 0) > 0 ? "Active Balance" : "Low Balance")}
+                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                     {(() => {
+                        const bal = Number(user?.credits || 0);
+                        if (bal <= 0) return "Zero balance. Recharge to continue sending outbound campaigns.";
+                        if (bal < 100) return "Low credit balance. Top-up recommended to avoid disruptions.";
+                        return "Real-time live balance available for outbound messaging and campaigns.";
+                     })()}
+                  </p>
                </div>
                <div className="flex flex-col sm:flex-row gap-3 mt-8">
                   <button onClick={() => navigate('/admin/plan/addons')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add New Payment</button>

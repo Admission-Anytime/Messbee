@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Info, Settings } from 'lucide-react';
 import api from '../../context/axios';
+import { showToast } from '../../utils/showToast';
 
 export default function AwayMessageSettings({ onBack }) {
   const [isEnabled, setIsEnabled] = useState(false);
   const [holidayMode, setHolidayMode] = useState(false);
   const [timezone, setTimezone] = useState('Asia/Kolkata');
   const [selectedFlow, setSelectedFlow] = useState(null);
+  const [textMessage, setTextMessage] = useState('We are currently away and will get back to you as soon as possible!');
   
   const [workingHours, setWorkingHours] = useState({
     monday: { isOpen: true, open: '09:00', close: '17:00' },
@@ -37,6 +39,9 @@ export default function AwayMessageSettings({ onBack }) {
           setIsEnabled(settings.awayMessage.enabled || false);
           setHolidayMode(settings.awayMessage.holidayMode || false);
           setTimezone(settings.awayMessage.timezone || 'Asia/Kolkata');
+          if (settings.awayMessage.textMessage) {
+            setTextMessage(settings.awayMessage.textMessage);
+          }
           
           if (settings.awayMessage.workingHours && Object.keys(settings.awayMessage.workingHours).length > 0) {
             setWorkingHours(settings.awayMessage.workingHours);
@@ -70,13 +75,14 @@ export default function AwayMessageSettings({ onBack }) {
           timezone,
           holidayMode,
           workingHours,
+          textMessage,
           automationId: selectedFlow ? selectedFlow._id : null
         }
       });
-      alert('Away Message settings saved successfully.');
+      showToast.success('Away Message', 'Settings saved successfully');
     } catch (error) {
       console.error('Failed to save settings:', error);
-      alert('Failed to save settings.');
+      showToast.error('Error', 'Failed to save settings');
     } finally {
       setIsSaving(false);
     }
@@ -288,26 +294,55 @@ export default function AwayMessageSettings({ onBack }) {
 
       {/* Set Message Card */}
       <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Set Away Message</h3>
-        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 20px 0' }}>Choose the message flow to be sent when you are away.</p>
+        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Default Away Text</h3>
+        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 12px 0' }}>Sent automatically outside business hours or in holiday mode if no custom flow is chosen.</p>
+        
+        <textarea
+          value={textMessage}
+          onChange={(e) => setTextMessage(e.target.value)}
+          rows={3}
+          style={{
+            width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '8px',
+            border: '1px solid #D1D5DB', fontSize: '14px', outline: 'none', marginBottom: '20px',
+            fontFamily: 'inherit', resize: 'vertical'
+          }}
+          placeholder="e.g. We are currently away and will get back to you as soon as possible!"
+        />
+
+        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Or Choose a Chatbot Flow (Optional)</h3>
+        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 16px 0' }}>If selected, this interactive flow will execute instead of the plain text message.</p>
         
         <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '11px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.05em', marginBottom: '4px' }}>SELECTED MESSAGE FLOW</div>
             <div style={{ fontSize: '15px', fontWeight: '500', color: '#111827' }}>
-              {selectedFlow ? selectedFlow.name : 'Select flow'}
+              {selectedFlow ? selectedFlow.name : 'None (Using Default Text Above)'}
             </div>
           </div>
-          <button 
-            onClick={() => setShowFlowSelector(!showFlowSelector)}
-            style={{
-              background: 'white', border: '1px solid #E5E7EB', padding: '8px 16px',
-              borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#374151',
-              cursor: 'pointer'
-            }}
-          >
-            Select New Message
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {selectedFlow && (
+              <button 
+                onClick={() => setSelectedFlow(null)}
+                style={{
+                  background: 'white', border: '1px solid #E5E7EB', padding: '8px 12px',
+                  borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#EF4444',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear
+              </button>
+            )}
+            <button 
+              onClick={() => setShowFlowSelector(!showFlowSelector)}
+              style={{
+                background: 'white', border: '1px solid #E5E7EB', padding: '8px 16px',
+                borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#374151',
+                cursor: 'pointer'
+              }}
+            >
+              Select Flow
+            </button>
+          </div>
         </div>
         
         {/* Simple inline dropdown to select flow if showFlowSelector is true */}

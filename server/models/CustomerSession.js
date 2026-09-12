@@ -27,9 +27,8 @@ const customerSessionSchema = new mongoose.Schema({
   },
   // Store user context/variables across the flow
   sessionVariables: {
-    type: Map,
-    of: mongoose.Schema.Types.Mixed,
-    default: new Map()
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   status: {
     type: String,

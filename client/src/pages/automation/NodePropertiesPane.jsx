@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
 import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList } from 'lucide-react';
+import { showToast } from '../../utils/showToast';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -63,10 +64,11 @@ function LocationPicker({ localData, setLocalData, updateNodeData, id }) {
           mapInstance.flyTo([lat, lng], 13);
         }
       } else {
-        alert("Location not found. Try a different city or pin code.");
+        showToast.warning("Location", "Location not found. Try a different city or pin code.");
       }
-    } catch (err) {
-      console.error("Search failed", err);
+    } catch (e) {
+      console.error(e);
+      showToast.error("Location Error", "Failed to search location.");
     } finally {
       setIsGeocoding(false);
     }
@@ -255,7 +257,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
       }
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.message || 'Upload failed. Is the backend running?');
+      showToast.error('Upload Failed', error.response?.data?.message || 'Upload failed. Is the backend running?');
     } finally {
       setIsUploading(false);
     }
@@ -456,7 +458,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                       <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
                         https://wa.me/{channelPhone}?text={encodeURIComponent(localData.keyword)}
                       </div>
-                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); alert('Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
                         Copy Link
                       </button>
                     </div>

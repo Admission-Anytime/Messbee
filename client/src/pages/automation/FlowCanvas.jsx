@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, addEdge, MarkerType, useReactFlow, ReactFlowProvider, getOutgoers } from 'reactflow';
 import { Undo, Redo, ZoomIn, ZoomOut, Maximize, FilePlus2, Zap, LayoutTemplate, MessageSquare, Image as ImageIcon, GitBranch, Clock, Globe } from 'lucide-react';
 import useCanvasStore from '../../store/useCanvasStore';
+import { showToast } from '../../utils/showToast';
 import MessageNode from './nodes/MessageNode';
 import TriggerNode from './nodes/TriggerNode';
 import MenuNode from './nodes/MenuNode';
@@ -209,7 +210,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     const sourceNode = nodes.find(n => n.id === connection.source);
     
     if (checkCycle(targetNode, sourceNode.id)) {
-      alert("Cyclic connections (infinite loops) are not allowed.");
+      showToast.warning("Invalid Connection", "Cyclic connections (infinite loops) are not allowed.");
       return false;
     }
     return true;
