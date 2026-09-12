@@ -626,8 +626,9 @@ router.post("/message", async (req, res) => {
             chatId: chatId.toString(),
             message: newMessage
           });
-          // Also update chat list for all clients
-          io.emit("chat_updated", await Chat.findById(chatId));
+          // Also update chat list strictly for this tenant
+          const tenantRoom = `tenant_${chat.user?.toString() || req.user?.tenantId || req.user?._id}`;
+          io.to(tenantRoom).emit("chat_updated", await Chat.findById(chatId));
         }
       } catch (socketError) {
         console.error("❌ Socket error:", socketError.message);

@@ -12,7 +12,7 @@ const SOCKET_URL =
     : '');
 
 export const ChatProvider = ({ children }) => {
-  const { isLoggedIn } = useContext(userContext);
+  const { isLoggedIn, user } = useContext(userContext);
   const [unreadCount, setUnreadCount] = useState(0);
   const [chats, setChats] = useState([]);
   const socketRef = useRef(null);
@@ -36,6 +36,11 @@ export const ChatProvider = ({ children }) => {
       fetchChats();
 
       socketRef.current = io(SOCKET_URL, { withCredentials: true });
+
+      const tenantId = user?.tenantId || user?._id || user?.id;
+      if (tenantId) {
+        socketRef.current.emit("join_tenant", tenantId.toString());
+      }
 
       socketRef.current.on('receive_message', (data) => {
         // We only care about unread count here

@@ -21,15 +21,22 @@ const SOCKET_URL =
 
 const isChatAccessibleForUser = (chat, currentUser) => {
   if (!chat || !currentUser) return false;
-  const role = (currentUser.role || '').toUpperCase();
-  if (role === 'ADMIN' || role === 'MANAGER') return true;
 
   const currentUserId = (currentUser._id || currentUser.id || '').toString();
   const currentTenantId = (currentUser.tenantId || currentUserId).toString();
+  const chatUserId = (chat.user?._id || chat.user || '').toString();
+
+  // STRICT MULTI-TENANT: A chat MUST belong to the current user's tenant
+  if (chatUserId && chatUserId !== currentUserId && chatUserId !== currentTenantId) {
+    return false;
+  }
+
+  const role = (currentUser.role || '').toUpperCase();
+  if (role === 'ADMIN' || role === 'MANAGER') return true;
+
   const currentUserName = (currentUser.name || '').trim().toLowerCase();
   const currentUserEmail = (currentUser.email || '').trim().toLowerCase();
 
-  const chatUserId = (chat.user?._id || chat.user || '').toString();
   const chatTeamMember = (chat.teamMember || '').trim();
   const chatTeamMemberLower = chatTeamMember.toLowerCase();
 
@@ -107,6 +114,12 @@ const Chat = () => {
 
   useEffect(() => {
     socketRef.current = io(SOCKET_URL, { withCredentials: true });
+
+    // Join tenant room for strict multi-tenant isolation
+    const tenantId = user?.tenantId || user?._id || user?.id;
+    if (tenantId) {
+      socketRef.current.emit("join_tenant", tenantId.toString());
+    }
 
     const fetchChats = async () => {
       try {

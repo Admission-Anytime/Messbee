@@ -80,23 +80,28 @@ const getTenantWhatsAppService = async (tenantId) => {
           }
         }
       }
+
+      // If still not found in Channel or User, check User by direct lookup
+      if (!accessToken || !phoneNumberId) {
+        const directUser = await User.findById(tenantId).select('whatsappConfig tenantId');
+        if (directUser?.whatsappConfig?.accessToken && directUser?.whatsappConfig?.phoneNumberId) {
+          accessToken = directUser.whatsappConfig.accessToken;
+          phoneNumberId = directUser.whatsappConfig.phoneNumberId;
+          businessAccountId = directUser.whatsappConfig.wabaId || null;
+        }
+      }
     } catch (e) {
       console.error('[getTenantWhatsAppService] Error fetching tenant config from DB:', e.message);
     }
   }
 
-  console.log(`[getTenantWhatsAppService] TargetTenant: ${tenantId} | Found: ${!!phoneNumberId} | PhoneNumberId: ${phoneNumberId || 'NOT_CONNECTED'}`);
+  console.log(`[getTenantWhatsAppService] TargetTenant: ${tenantId} | FoundInDB: ${!!phoneNumberId} | PhoneNumberId: ${phoneNumberId || 'NOT_CONNECTED'}`);
 
-  // If not configured in DB, fall back to environment variables (for local dev)
+  // STRICT MULTI-TENANT: Do NOT fall back to process.env under any circumstances.
+  // Each tenant/startup must only send/receive messages from their own connected WhatsApp number in the database.
   if (!accessToken || !phoneNumberId) {
-    if (process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID) {
-      accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
-      phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-      businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID || null;
-    } else {
-      console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected for tenant ${tenantId}.`);
-      return null;
-    }
+    console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected in database for tenant ${tenantId}. Rejecting request.`);
+    return null;
   }
 
   const service = new WhatsAppService({
@@ -105,7 +110,7 @@ const getTenantWhatsAppService = async (tenantId) => {
     phoneNumberId,
     businessAccountId: businessAccountId || null
   });
-  service.configSource = (accessToken === process.env.WHATSAPP_ACCESS_TOKEN) ? 'ENV_FALLBACK' : 'DB_TENANT';
+  service.configSource = 'DB_TENANT';
   
   return service;
 };
@@ -967,14 +972,23 @@ async function handleIncomingMessage(data) {
     let resolvedTenantId = null;
     if (phoneNumberId) {
       const Channel = require('../models/Channel');
-      const channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
+      const User = require('../models/User');
+
+      let channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
       if (channelRecord) {
         resolvedChannelId = channelRecord._id.toString();
         resolvedTenantId = channelRecord.tenantId;
+      } else {
+        // Fallback: check User model directly
+        const userWithPhone = await User.findOne({ 'whatsappConfig.phoneNumberId': phoneNumberId });
+        if (userWithPhone) {
+          resolvedTenantId = userWithPhone.tenantId || userWithPhone._id;
+          resolvedChannelId = userWithPhone._id.toString();
+        }
       }
     }
 
-    if (!resolvedChannelId) {
+    if (!resolvedTenantId) {
       console.warn(`[Webhook] Ignored message for unknown phoneNumberId: ${phoneNumberId}`);
       return;
     }
@@ -1028,11 +1042,12 @@ async function handleIncomingMessage(data) {
         user: assignedUserId // Link strictly to the channel tenant
       });
       
-      // Emit chat_created event
+      // Emit chat_created event strictly to tenant room
       try {
         const io = getIO();
         if (io) {
-          io.emit('chat_created', chat);
+          const tenantRoom = `tenant_${assignedUserId?.toString() || resolvedTenantId?.toString()}`;
+          io.to(tenantRoom).emit('chat_created', chat);
         }
       } catch (socketError) {
       }
@@ -1222,18 +1237,22 @@ async function handleIncomingMessage(data) {
       );
     }
 
-    // Emit to socket for real-time update
+    // Emit to socket for real-time update (scoped strictly to tenant room)
     try {
       const io = getIO();
       if (io) {
-        io.emit('receive_message', {
+        const tenantRoom = `tenant_${chat.user?.toString() || resolvedTenantId?.toString()}`;
+        const chatRoom = chat._id.toString();
+
+        // Emit receive_message to active chat room and to tenant room
+        io.to(chatRoom).to(tenantRoom).emit('receive_message', {
           chatId: chat._id,
           message: newMessage,
           chat: chat
         });
         
-        // Also emit chat list update
-        io.emit('chat_updated', chat);
+        // Emit chat list update strictly to this tenant
+        io.to(tenantRoom).emit('chat_updated', chat);
       }
     } catch (socketError) {
       console.error('Socket emit error:', socketError.message);

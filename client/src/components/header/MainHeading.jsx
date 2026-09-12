@@ -23,6 +23,7 @@ import { userContext } from "../../context/Context";
 
 // --- SERVICES ---
 import NotificationApi from "../../services/NotificationApi";
+import { getBackendFileUrl } from "../../utils/urlHelper";
 
 // --- ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png"; 
@@ -51,7 +52,7 @@ const MainHeading = ({ onMenuClick }) => {
     email: user?.email || "", 
     phone: user?.phone || "", 
     credits: user?.credits || "0.00", 
-    avatar: user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`
+    avatar: getBackendFileUrl(user?.avatar) || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || "User")}&background=10B981&color=fff`
   };
 
    const displayedCredits = (() => {
@@ -384,7 +385,15 @@ const MainHeading = ({ onMenuClick }) => {
         {/* PROFILE DROPDOWN */}
         <div className="relative" ref={profileRef}>
            <div onClick={() => setIsProfileOpen(!isProfileOpen)} className="flex items-center gap-3 cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors border border-transparent hover:border-slate-100">
-              <img src={userProfile.avatar} alt="Profile" className="w-9 h-9 rounded-full object-cover border border-gray-200 shadow-sm" />
+               <img 
+                 src={userProfile.avatar} 
+                 alt="Profile" 
+                 className="w-9 h-9 rounded-full object-cover border border-gray-200 shadow-sm" 
+                 onError={(e) => {
+                   e.target.onerror = null;
+                   e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || "User")}&background=10B981&color=fff`;
+                 }}
+               />
               <div className="flex flex-col items-start leading-tight">
                  <span className="text-[13px] font-bold text-slate-800">{userProfile.name}</span>
                  <span className="text-[11px] font-medium text-slate-400">{userProfile.phone}</span>
@@ -394,7 +403,15 @@ const MainHeading = ({ onMenuClick }) => {
            {isProfileOpen && (
              <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-xl shadow-xl border border-gray-100 py-2 z-[60] animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="px-4 py-3 border-b border-gray-50 flex items-center gap-3 mb-1">
-                   <img src={userProfile.avatar} className="w-10 h-10 rounded-full object-cover" alt="" />
+                    <img 
+                      src={userProfile.avatar} 
+                      className="w-10 h-10 rounded-full object-cover" 
+                      alt="" 
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(userProfile.name || "User")}&background=10B981&color=fff`;
+                      }}
+                    />
                    <div className="overflow-hidden">
                       <p className="text-sm font-bold text-slate-900 truncate">{userProfile.name}</p>
                       <p className="text-xs text-slate-500 truncate">{userProfile.email}</p>

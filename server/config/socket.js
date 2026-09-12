@@ -25,6 +25,15 @@ const initializeSocket = (httpServer) => {
       console.log(`👤 User ${userId} joined room`);
     });
 
+    // Join tenant room for strict multi-tenant real-time chat isolation
+    socket.on('join_tenant', (tenantId) => {
+      if (tenantId) {
+        const roomName = `tenant_${tenantId}`;
+        socket.join(roomName);
+        console.log(`🏢 Socket ${socket.id} joined tenant room: ${roomName}`);
+      }
+    });
+
     // Join specific chat room
     socket.on('join_chat', (chatId) => {
       socket.join(chatId);

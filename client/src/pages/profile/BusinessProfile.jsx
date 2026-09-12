@@ -5,6 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
 import api from '../../context/axios';
 import { userContext } from '../../context/Context';
+import { getBackendFileUrl as resolveFileUrl } from '../../utils/urlHelper';
 
 const STANDARD_CATEGORIES = [
   "Technology & Software",
@@ -16,16 +17,7 @@ const STANDARD_CATEGORIES = [
   "Travel & Hospitality",
 ];
 
-const getBackendFileUrl = (path) => {
-  if (!path) return defaultLogo;
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
-    return path;
-  }
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
-  const backendRoot = apiUrl.replace(/\/api\/?$/i, '');
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${backendRoot}${cleanPath}`;
-};
+const getBackendFileUrl = (path) => resolveFileUrl(path, defaultLogo);
 
 const BusinessProfile = () => {
   const navigate = useNavigate();

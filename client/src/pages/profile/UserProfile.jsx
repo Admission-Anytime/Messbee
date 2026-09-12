@@ -3,18 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
+import { getBackendFileUrl } from "../../utils/urlHelper";
 import "react-toastify/dist/ReactToastify.css";
-
-const getBackendFileUrl = (path) => {
-  if (!path) return null;
-  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:') || path.startsWith('data:')) {
-    return path;
-  }
-  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5002/api';
-  const backendRoot = apiUrl.replace(/\/api\/?$/i, '');
-  const cleanPath = path.startsWith('/') ? path : `/${path}`;
-  return `${backendRoot}${cleanPath}`;
-};
 
 const UserProfile = () => {
   const { user, updateUser } = useContext(userContext);
