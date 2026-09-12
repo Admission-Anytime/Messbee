@@ -500,47 +500,112 @@ exports.contactSales = async (req, res, next) => {
       inquiryId
     } = req.body;
 
-    const Notification = require('../models/Notification');
+    if (!fullName || !email || !phone || !company) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full Name, Work Email, Phone/WhatsApp, and Company Name are required.'
+      });
+    }
 
-    // Create notification for user/system
+    const SalesInquiry = require('../models/SalesInquiry');
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+    const { sendSalesInquiryEmail } = require('../services/emailService');
+
+    const effectiveInquiryId = inquiryId || `INQ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 1. Permanently save into dedicated SalesInquiry collection
+    const savedInquiry = await SalesInquiry.create({
+      inquiryId: effectiveInquiryId,
+      user: req.user?._id || req.user?.id,
+      fullName: String(fullName).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      company: String(company).trim(),
+      companySize: companySize || '11-50',
+      messageVolume: messageVolume || '50,000 - 250,000 / mo',
+      agentsNeeded: agentsNeeded || '11-25 Agents',
+      selectedFeatures: Array.isArray(selectedFeatures) ? selectedFeatures : [],
+      message: (message || '').trim(),
+      status: 'new'
+    });
+
+    console.log(`💼 Saved new Enterprise Sales Inquiry [${effectiveInquiryId}] for ${company} (${email})`);
+
+    // 2. Create notification for the submitting user
     try {
       await Notification.create({
         userId: req.user.id,
         type: 'lead',
-        title: `Sales Inquiry: ${company || fullName}`,
-        message: `${fullName} (${email}) requested corporate sales consultation. Company size: ${companySize || 'N/A'}, Expected Volume: ${messageVolume || 'N/A'}.`,
+        title: `Enterprise Inquiry Registered: ${company}`,
+        message: `Your enterprise sales consultation request (Ref: ${effectiveInquiryId}) has been registered. Our enterprise team will contact you shortly.`,
         meta: [
-          { label: 'Inquiry ID', value: String(inquiryId || 'N/A') },
-          { label: 'Company', value: String(company || 'N/A') },
-          { label: 'Phone', value: String(phone || 'N/A') },
-          { label: 'Agents Needed', value: String(agentsNeeded || 'N/A') }
+          { label: 'Inquiry ID', value: String(effectiveInquiryId) },
+          { label: 'Company', value: String(company) },
+          { label: 'Status', value: 'Submitted' }
         ],
         data: {
-          fullName,
-          email,
-          phone,
+          inquiryId: effectiveInquiryId,
           company,
-          companySize,
-          messageVolume,
-          agentsNeeded,
-          selectedFeatures,
-          message,
-          inquiryId
+          fullName
         }
       });
+
+      // 3. ALSO notify all Admin accounts in their notification bell!
+      const adminUsers = await User.find({ role: { $in: ['ADMIN', 'admin'] } }).select('_id');
+      for (const admin of adminUsers) {
+        if (admin._id.toString() !== req.user.id.toString()) {
+          await Notification.create({
+            userId: admin._id,
+            type: 'lead',
+            title: `🚀 New Enterprise Lead: ${company || fullName}`,
+            message: `${fullName} (${email}, ${phone}) requested Corporate & Enterprise plan consultation.`,
+            meta: [
+              { label: 'Inquiry ID', value: String(effectiveInquiryId) },
+              { label: 'Company', value: String(company) },
+              { label: 'Phone', value: String(phone) },
+              { label: 'Volume', value: String(messageVolume || 'N/A') }
+            ],
+            data: savedInquiry
+          });
+        }
+      }
     } catch (notifErr) {
       console.warn('Could not create notification for sales inquiry:', notifErr.message);
     }
 
-    res.status(200).json({
+    // 4. Send email notifications (both to support and confirmation to user)
+    sendSalesInquiryEmail(savedInquiry).catch((e) =>
+      console.warn('Sales inquiry email failed:', e.message)
+    );
+
+    res.status(201).json({
       success: true,
       message: 'Inquiry received successfully. Our sales team will reach out shortly.',
       data: {
-        inquiryId,
-        submittedAt: new Date()
+        inquiryId: effectiveInquiryId,
+        submittedAt: savedInquiry.createdAt
       }
     });
   } catch (error) {
     next(error);
   }
 };
+
+// @desc    Get all Sales Inquiries (Admin only)
+// @route   GET /api/users/contact-sales
+// @access  Private
+exports.getSalesInquiries = async (req, res, next) => {
+  try {
+    const SalesInquiry = require('../models/SalesInquiry');
+    const inquiries = await SalesInquiry.find({}).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      count: inquiries.length,
+      data: inquiries
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
