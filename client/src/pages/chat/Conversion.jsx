@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useContext } from "react";
 import { createPortal } from "react-dom";
 import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
+import axios from "../../context/axios";
 import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
 import { formatWhatsAppMarkdown } from "../../utils/markdownParser";
@@ -272,7 +273,7 @@ const Conversion = ({
    canAssign = true,
    onAssignAgent
 }) => {
-   const { user } = useContext(userContext);
+   const { user, updateUser } = useContext(userContext);
    const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
    const [selectedMediaId, setSelectedMediaId] = useState(1);
    const [mediaCaption, setMediaCaption] = useState("");
@@ -484,6 +485,22 @@ const Conversion = ({
          }
 
          await handleTemplateSelect(templateToSend);
+
+         // Deduct ₹0.95 WCC credit for the template send (Marketing conversation rate)
+         try {
+            await axios.post("/billing/transactions", {
+               desc: `Template Message - ${confirmTemplate.name}`,
+               amount: -0.95,
+               status: "Paid"
+            });
+            // Sync latest credits from server
+            const userRes = await axios.get("/auth/me");
+            if (userRes.data?.data) updateUser(userRes.data.data);
+         } catch (_billingErr) {
+            // Fallback: deduct locally if server sync fails
+            if (user) updateUser({ ...user, credits: parseFloat((parseFloat(user.credits || 0) - 0.95).toFixed(2)) });
+         }
+
          setIsConfirmTemplateModalOpen(false);
       } finally {
          setIsConfirmSending(false);
@@ -1861,7 +1878,7 @@ const selectedTemplate = useMemo(() => {
 
                         <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
                            <InformationCircleIcon className="w-4 h-4 text-slate-500" />
-                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">1 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">{user?.credits != null ? parseFloat(user.credits).toFixed(2) : '0.00'}</span>.</p>
+                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">₹0.95 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">{user?.credits != null ? parseFloat(user.credits).toFixed(2) : '0.00'}</span>.</p>
                         </div>
                         {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
                      </div>

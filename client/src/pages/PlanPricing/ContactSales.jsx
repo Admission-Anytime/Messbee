@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
@@ -54,6 +54,19 @@ const ContactSales = () => {
     message: ""
   });
 
+  // Sync user info when available
+  useEffect(() => {
+    if (user) {
+      setFormData((prev) => ({
+        ...prev,
+        fullName: prev.fullName || user.name || "",
+        email: prev.email || user.email || "",
+        phone: prev.phone || user.phone || user.businessNumber || "",
+        company: prev.company || user.businessName || user.company || ""
+      }));
+    }
+  }, [user]);
+
   const [submitting, setSubmitting] = useState(false);
   const [submittedData, setSubmittedData] = useState(null);
 
@@ -76,10 +89,18 @@ const ContactSales = () => {
       toast.error("Please enter your full name.");
       return;
     }
-    if (!formData.email.trim()) {
-      toast.error("Please enter your business email.");
+
+    const emailTrimmed = formData.email.trim();
+    if (!emailTrimmed) {
+      toast.error("Please enter your work email.");
       return;
     }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(emailTrimmed)) {
+      toast.error("Please enter a valid work email address (e.g. name@company.com).");
+      return;
+    }
+
     if (!formData.phone.trim()) {
       toast.error("Please enter your contact or WhatsApp number.");
       return;
@@ -94,28 +115,30 @@ const ContactSales = () => {
     const inquiryId = `INQ-${Math.floor(100000 + Math.random() * 900000)}`;
 
     try {
-      // Attempt backend submission
-      await axios.post("/users/contact-sales", {
+      const response = await axios.post("/users/contact-sales", {
         ...formData,
+        email: emailTrimmed,
         inquiryId
-      }).catch((err) => {
-        // Log gracefully if offline or endpoint handling fallback
-        console.warn("Contact sales API logged locally:", err?.message || err);
       });
 
-      setSubmittedData({
-        inquiryId,
-        submittedAt: new Date().toLocaleDateString("en-IN", {
-          day: "numeric",
-          month: "short",
-          year: "numeric"
-        })
-      });
+      if (response.data?.success) {
+        setSubmittedData({
+          inquiryId,
+          submittedAt: new Date().toLocaleDateString("en-IN", {
+            day: "numeric",
+            month: "short",
+            year: "numeric"
+          })
+        });
 
-      toast.success("Inquiry submitted successfully! Our sales team will reach out to you shortly.");
+        toast.success("Inquiry submitted successfully! Our enterprise team will reach out to you shortly.");
+      } else {
+        toast.error(response.data?.message || "Failed to submit inquiry. Please try again.");
+      }
     } catch (error) {
       console.error("Error submitting sales inquiry:", error);
-      toast.error("Something went wrong. Please try again or email sales@messbee.com.");
+      const errMsg = error.response?.data?.message || "Something went wrong. Please try again or email support@messbee.com.";
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -474,7 +497,7 @@ const ContactSales = () => {
             {/* Direct Assistance Info Card */}
             <div className="bg-white rounded-3xl border border-slate-200/80 p-6 shadow-sm space-y-4">
               <h4 className="text-xs font-black uppercase tracking-wider text-slate-400">
-                Direct Sales Channels
+                Direct Support &amp; Sales Channels
               </h4>
               
               <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100">
@@ -482,9 +505,9 @@ const ContactSales = () => {
                   <Mail className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs font-bold text-slate-800">Sales Inquiries</p>
-                  <a href="mailto:sales@messbee.com" className="text-xs text-emerald-600 font-medium hover:underline">
-                    sales@messbee.com
+                  <p className="text-xs font-bold text-slate-800">Support &amp; Sales Inquiries</p>
+                  <a href="mailto:support@messbee.com" className="text-xs text-emerald-600 font-medium hover:underline">
+                    support@messbee.com
                   </a>
                 </div>
               </div>

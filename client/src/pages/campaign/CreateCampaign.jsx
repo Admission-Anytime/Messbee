@@ -209,7 +209,8 @@ const CreateCampaign = () => {
         }
     };
 
-    const estimatedCost = estimatedCount * 0.80;
+    // Campaign cost: ₹0.95 per contact (Marketing conversation rate per pricing table)
+    const estimatedCost = estimatedCount * 0.95;
 
     const handleLaunch = async () => {
         if (!campaignName.trim()) {
