@@ -24,6 +24,30 @@ const getAspectRatioLabel = (width, height) => {
 };
 
 /**
+ * Computes preview countdown timer string based on expiration configuration
+ */
+const getExpirationPreviewText = (expirationDate = '24h', customHours = 24) => {
+  switch (expirationDate) {
+    case '6h': return '05:59:59';
+    case '12h': return '11:59:59';
+    case '24h': return '23:59:59';
+    case '48h': return '47:59:59';
+    case '72h': return '2d 23h';
+    case '7d': return '6d 23h';
+    case 'custom': {
+      const h = Number(customHours) || 24;
+      if (h > 24) {
+        const d = Math.floor(h / 24);
+        const remH = h % 24;
+        return `${d}d ${remH > 0 ? remH + 'h' : '00h'}`;
+      }
+      return `${String(Math.max(0, h - 1)).padStart(2, '0')}:59:59`;
+    }
+    default: return '23:59:59';
+  }
+};
+
+/**
  * Checks media file size and dimensions.
  * For images: if dimensions are too large (>1920px) or file size > 5MB,
  * automatically proportionally scales down (shortens/optimizes) without any cropping.
@@ -430,11 +454,18 @@ const CreateTemplate = () => {
     name: location.state?.templateData?.name || '',
     language: location.state?.templateData?.language || 'English (US)',
     offerTitle: '20% OFF',
+    limitedTimeOfferText: location.state?.templateData?.limitedTimeOfferText || 'Expiring offer!',
+    hasExpiration: true,
+    offerCode: location.state?.templateData?.offerCode || 'SALE20',
+    ltoHasUrlButton: false,
+    ltoUrlText: 'Shop Now',
+    ltoUrl: '',
     headerType: location.state?.templateData?.headerType || 'None',
     headerText: location.state?.templateData?.headerText || '',
     bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
-    expirationDate: '24h',
+    expirationDate: location.state?.templateData?.expirationDate || '24h',
+    customExpirationHours: location.state?.templateData?.customExpirationHours || 24,
     catalogButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Catalog',
     mpmButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Items',
   });
@@ -962,6 +993,37 @@ const CreateTemplate = () => {
       return;
     }
 
+    if (templateType === 'LIMITED_TIME_OFFER') {
+      if (formData.headerType === 'Text' || formData.headerType === 'Document') {
+        failSubmit("Limited-Time Offer templates only support Image or Video headers (or None). Please select None, Image, or Video.", true);
+        return;
+      }
+      if (!formData.limitedTimeOfferText || !formData.limitedTimeOfferText.trim()) {
+        failSubmit("Please enter the Offer heading text (max 16 characters).");
+        return;
+      }
+      if (formData.limitedTimeOfferText.trim().length > 16) {
+        failSubmit("Offer heading text cannot exceed 16 characters.");
+        return;
+      }
+      if (!formData.offerCode || !formData.offerCode.trim()) {
+        failSubmit("Please enter an Offer / Coupon Code for the Copy Code button (max 15 characters, e.g. SALE20).");
+        return;
+      }
+      if (formData.offerCode.trim().length > 15) {
+        failSubmit("Offer / Coupon Code cannot exceed 15 characters.");
+        return;
+      }
+      if (!formData.ltoUrl || !formData.ltoUrl.trim()) {
+        failSubmit("WhatsApp mandates a Website URL button for Limited-Time Offers. Please enter your website or offer link below.");
+        return;
+      }
+      if (!/^https?:\/\//i.test(formData.ltoUrl.trim())) {
+        failSubmit("Website URL must start with https:// or http:// (e.g. https://example.com/offers).");
+        return;
+      }
+    }
+
     setIsSubmitting(true);
 
     // Prevent submission if media is still uploading
@@ -1025,6 +1087,16 @@ const CreateTemplate = () => {
       }
 
 
+      if (templateType === 'LIMITED_TIME_OFFER') {
+        components.push({
+          type: 'LIMITED_TIME_OFFER',
+          limited_time_offer: {
+            text: (formData.limitedTimeOfferText || 'Expiring offer!').trim().substring(0, 16),
+            has_expiration: formData.hasExpiration !== false
+          }
+        });
+      }
+
       const bodyComponent = { type: 'BODY', text: strippedBody };
       if (templateVariables.length > 0) {
         bodyComponent.example = {
@@ -1033,7 +1105,7 @@ const CreateTemplate = () => {
       }
       components.push(bodyComponent);
 
-      if (formData.footerText && formData.footerText.trim()) {
+      if (templateType !== 'LIMITED_TIME_OFFER' && formData.footerText && formData.footerText.trim()) {
         components.push({ type: 'FOOTER', text: formData.footerText.substring(0, 60) }); // Max 60 chars
       }
 
@@ -1053,9 +1125,26 @@ const CreateTemplate = () => {
           buttons: [
             {
               type: 'MPM',
-              text: (formData.mpmButtonText || 'View Items').trim().substring(0, 20)
+              // Meta mandates this text MUST always be exactly "View items" — cannot be modified
+              text: 'View items'
             }
           ]
+        });
+      } else if (templateType === 'LIMITED_TIME_OFFER') {
+        const ltoButtons = [
+          {
+            type: 'COPY_CODE',
+            example: (formData.offerCode || 'SALE20').trim().substring(0, 15)
+          },
+          {
+            type: 'URL',
+            text: (formData.ltoUrlText || 'Shop Now').trim().substring(0, 25),
+            url: (formData.ltoUrl || 'https://example.com').trim()
+          }
+        ];
+        components.push({
+          type: 'BUTTONS',
+          buttons: ltoButtons
         });
       } else if (buttons && buttons.length > 0) {
         const waButtons = buttons.map(b => {
@@ -1546,6 +1635,11 @@ const CreateTemplate = () => {
                                   if (type === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
                                     setFormData(prev => ({ ...prev, headerType: 'Text', headerText: prev.headerText || 'Featured Products' }));
                                   }
+                                  if (type === 'LIMITED_TIME_OFFER') {
+                                    if (formData.headerType === 'Text' || formData.headerType === 'Document') {
+                                      setFormData(prev => ({ ...prev, headerType: 'None' }));
+                                    }
+                                  }
                                   setSubmitError(null);
                                   setHeaderError(false);
                                 }} 
@@ -1788,11 +1882,16 @@ const CreateTemplate = () => {
                             }}
                         >
                             <option value="None">{templateType === 'MPM' ? 'None (Header is required for MPM)' : 'None'}</option>
-                            <option value="Text">Text</option>
+                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Text">Text</option>}
                             <option value="Image">Image</option>
                             <option value="Video">Video</option>
-                            <option value="Document">Document</option>
+                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Document">Document</option>}
                         </select>
+                        {templateType === 'LIMITED_TIME_OFFER' && (
+                          <p className="text-[11px] text-gray-500 mt-2">
+                            WhatsApp allows <strong>Image</strong> or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
+                          </p>
+                        )}
 
                         {formData.headerType === 'Text' && (
                           <div className="mt-4 space-y-2">
@@ -2020,25 +2119,41 @@ const CreateTemplate = () => {
                     </div>
 
                     {/* FOOTER SECTION */}
-                    <div className="mt-8 border-t border-gray-50 pt-6">
-                        <div className="flex flex-col gap-1 mb-3">
-                            <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
-                            <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
-                        </div>
-                        <div className="relative">
-                            <input 
-                                type="text" 
-                                value={formData.footerText} 
-                                onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
-                                placeholder="Enter footer text..."
-                                maxLength={60}
-                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
-                            />
-                            <div className="flex justify-end mt-1">
-                                <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                    {templateType === 'LIMITED_TIME_OFFER' ? (
+                      <div className="mt-8 border-t border-gray-50 pt-6">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                          <div className="flex items-start gap-2.5">
+                            <span className="text-amber-600 text-sm mt-0.5">ℹ️</span>
+                            <div>
+                              <h4 className="text-xs font-semibold text-amber-900">Footer not permitted for Limited-Time Offers</h4>
+                              <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                                WhatsApp rules do not allow a footer component on Limited-Time Offer templates because the countdown timer and offer banner occupy the bottom section.
+                              </p>
                             </div>
+                          </div>
                         </div>
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="mt-8 border-t border-gray-50 pt-6">
+                          <div className="flex flex-col gap-1 mb-3">
+                              <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
+                              <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
+                          </div>
+                          <div className="relative">
+                              <input 
+                                  type="text" 
+                                  value={formData.footerText} 
+                                  onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
+                                  placeholder="Enter footer text..."
+                                  maxLength={60}
+                                  className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
+                              />
+                              <div className="flex justify-end mt-1">
+                                  <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                              </div>
+                          </div>
+                      </div>
+                    )}
 
                     {bodyVariables.length > 0 && (
                       <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
@@ -2124,24 +2239,244 @@ const CreateTemplate = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
-                                            <div className="relative">
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                                Button Text
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                                                    <Lock size={9} /> Locked by WhatsApp
+                                                </span>
+                                            </label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between">
+                                                <span>View items</span>
+                                                <Lock size={13} className="text-gray-400" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    WhatsApp mandates the button text is always <strong>&quot;View items&quot;</strong> for Multi-Product Messages — this cannot be changed.
+                                </p>
+                            </div>
+                        ) : templateType === 'LIMITED_TIME_OFFER' ? (
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                        Limited-Time Offer Details
+                                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full uppercase">
+                                          Countdown & Offer Banner
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        Configure the promotional banner and countdown timer that WhatsApp renders natively.
+                                    </p>
+
+                                    <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl space-y-5 shadow-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                    <span>Offer Heading Text</span>
+                                                    <span className="text-[10px] font-medium text-gray-400">
+                                                        {(formData.limitedTimeOfferText || '').length}/16
+                                                    </span>
+                                                </label>
                                                 <input 
                                                     type="text" 
-                                                    value={formData.mpmButtonText || ''} 
-                                                    onChange={(e) => setFormData({...formData, mpmButtonText: e.target.value})}
-                                                    maxLength={20}
+                                                    value={formData.limitedTimeOfferText || ''} 
+                                                    onChange={(e) => setFormData({...formData, limitedTimeOfferText: e.target.value})}
+                                                    maxLength={16}
                                                     className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
-                                                    placeholder="View Items"
+                                                    placeholder="Expiring offer!"
                                                 />
-                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
-                                                    {(formData.mpmButtonText || '').length}/20
+                                                <p className="text-[11px] text-gray-400 mt-1">E.g., &quot;Expiring offer!&quot; or &quot;20% OFF&quot; (Max 16 chars)</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">
+                                                    Countdown Timer
+                                                </label>
+                                                <div className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock size={16} className="text-[#10B981]" />
+                                                        <span className="text-xs font-semibold text-gray-700">Display Live Countdown</span>
+                                                    </div>
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="sr-only peer" 
+                                                            checked={formData.hasExpiration !== false} 
+                                                            onChange={(e) => setFormData({...formData, hasExpiration: e.target.checked})} 
+                                                        />
+                                                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10B981]"></div>
+                                                    </label>
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 mt-1">Turns red in WhatsApp within the last hour of expiration</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Expiration Timing Options */}
+                                        {formData.hasExpiration !== false && (
+                                            <div className="pt-4 mt-2 border-t border-gray-100 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                                                        <span>Set Timing of Expiration</span>
+                                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md normal-case">
+                                                            Countdown Length
+                                                        </span>
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-[#10B981] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                        <Clock size={11} />
+                                                        Active Timer: {getExpirationPreviewText(formData.expirationDate || '24h', formData.customExpirationHours || 24)}
+                                                    </span>
+                                                </div>
+
+                                                {/* Preset Pill Buttons */}
+                                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                                    {[
+                                                        { label: '6 Hours', val: '6h' },
+                                                        { label: '12 Hours', val: '12h' },
+                                                        { label: '24 Hours', val: '24h' },
+                                                        { label: '48 Hours', val: '48h' },
+                                                        { label: '3 Days', val: '72h' },
+                                                        { label: 'Custom', val: 'custom' }
+                                                    ].map(opt => (
+                                                        <button
+                                                            key={opt.val}
+                                                            type="button"
+                                                            onClick={() => setFormData({...formData, expirationDate: opt.val})}
+                                                            className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all text-center ${
+                                                                (formData.expirationDate || '24h') === opt.val
+                                                                    ? 'bg-[#10B981] text-white border-[#10B981] shadow-xs'
+                                                                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-white'
+                                                            }`}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Custom Hours Input if Custom selected */}
+                                                {formData.expirationDate === 'custom' && (
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg animate-in fade-in">
+                                                        <span className="text-xs font-semibold text-gray-700">Expire after:</span>
+                                                        <div className="relative w-28">
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                max="720"
+                                                                value={formData.customExpirationHours || 24}
+                                                                onChange={(e) => setFormData({...formData, customExpirationHours: Math.max(1, parseInt(e.target.value) || 1)})}
+                                                                className="w-full p-2 border border-gray-200 rounded-lg text-sm font-bold text-center bg-white outline-none focus:border-[#10B981]"
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-gray-700">Hours</span>
+                                                        <span className="text-[11px] text-gray-400">
+                                                            ({Math.round(((formData.customExpirationHours || 24) / 24) * 10) / 10} days)
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-gray-400">
+                                                    Sets how long recipient has to redeem this offer before the countdown ends.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                        Buttons
+                                        <span className="text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full uppercase">
+                                          WhatsApp Mandated
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        WhatsApp requires a Copy Code button for Limited-Time Offers so users can tap to copy the coupon code to clipboard.
+                                    </p>
+
+                                    <div className="space-y-4">
+                                        {/* Copy Code Button (Mandatory) */}
+                                        <div className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                                        Button 1: Type
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full normal-case">
+                                                            <Lock size={9} /> Copy Code (Native)
+                                                        </span>
+                                                    </label>
+                                                    <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center gap-2">
+                                                        <Copy size={14} className="text-gray-400" />
+                                                        <span>Copy code</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-gray-400 mt-1">WhatsApp automatically labels this button &quot;Copy code&quot;</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                        <span>Offer / Coupon Code</span>
+                                                        <span className="text-[10px] font-medium text-gray-400">
+                                                            {(formData.offerCode || '').length}/15
+                                                        </span>
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={formData.offerCode || ''} 
+                                                        onChange={(e) => setFormData({...formData, offerCode: e.target.value.toUpperCase()})}
+                                                        maxLength={15}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold bg-white outline-none focus:border-[#10B981] transition-all uppercase" 
+                                                        placeholder="SALE20"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Copied to clipboard when tapped (Max 15 characters)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Website URL Button (Mandatory by WhatsApp at index 1) */}
+                                        <div className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <ExternalLink size={16} className="text-blue-600" />
+                                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                                                    Button 2: Website URL
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full normal-case">
+                                                        <Lock size={9} /> Required by WhatsApp
+                                                    </span>
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                        <span>Button Text</span>
+                                                        <span className="text-[10px] font-medium text-gray-400">
+                                                            {(formData.ltoUrlText || '').length}/25
+                                                        </span>
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={formData.ltoUrlText || ''} 
+                                                        onChange={(e) => setFormData({...formData, ltoUrlText: e.target.value})}
+                                                        maxLength={25}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                        placeholder="Shop Now"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Label shown on the link button (e.g. &quot;Shop Now&quot;)</p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">
+                                                        Website URL
+                                                    </label>
+                                                    <input 
+                                                        type="url" 
+                                                        value={formData.ltoUrl || ''} 
+                                                        onChange={(e) => setFormData({...formData, ltoUrl: e.target.value})}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                        placeholder="https://example.com/offers"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Web address opened when tapped (Must start with https://)</p>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">This button opens a curated selection of products inside WhatsApp.</p>
                             </div>
                         ) : (
                         <>
@@ -2309,12 +2644,18 @@ const CreateTemplate = () => {
           <MobilePreview 
             name={formData.name || 'YOUR_TEMPLATE'} 
             body={formData.bodyText} 
-            footer={formData.category === 'Authentication' ? '' : formData.footerText} 
+            footer={(formData.category === 'Authentication' || templateType === 'LIMITED_TIME_OFFER') ? '' : formData.footerText} 
             headerMedia={headerMedia}
             headerType={formData.headerType}
             showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
             offer={formData.offerTitle} 
             isLimited={templateType === 'LIMITED_TIME_OFFER'}
+            limitedTimeOfferText={formData.limitedTimeOfferText}
+            hasExpiration={formData.hasExpiration}
+            expirationPreviewText={getExpirationPreviewText(formData.expirationDate || '24h', formData.customExpirationHours || 24)}
+            offerCode={formData.offerCode}
+            ltoHasUrlButton={formData.ltoHasUrlButton}
+            ltoUrlText={formData.ltoUrlText}
             isCatalog={templateType === 'CATALOG'}
             isMpm={templateType === 'MPM'}
             catalogButtonText={formData.catalogButtonText}
@@ -2399,7 +2740,27 @@ const CreateTemplate = () => {
   );
 };
 
-const MobilePreview = ({ name, body, footer, showImage = false, isLimited = false, isCatalog = false, isMpm = false, catalogButtonText = "", mpmButtonText = "", buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
+const MobilePreview = ({ 
+  name, 
+  body, 
+  footer, 
+  showImage = false, 
+  isLimited = false, 
+  limitedTimeOfferText = 'Expiring offer!',
+  hasExpiration = true,
+  expirationPreviewText = '23:59:59',
+  offerCode = 'SALE20',
+  ltoHasUrlButton = false,
+  ltoUrlText = 'Shop Now',
+  isCatalog = false, 
+  isMpm = false, 
+  catalogButtonText = "", 
+  mpmButtonText = "", 
+  buttons = [], 
+  headerMedia = null, 
+  headerType = 'None', 
+  isSetupView = false 
+}) => {
   if (isSetupView) {
     return (
       <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
@@ -2429,26 +2790,31 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                  {/* Laptop */}
                  <div className="w-[86px] h-[30px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
               </div>
-              
+
+              {/* Message Details */}
               <div className="p-4 flex flex-col">
-                 <div className="text-[13px] text-[#2c3e50] font-normal leading-relaxed mb-2">
-                   Hey there! Check out our fresh groceries now!
-                   <br /><br />
-                   Use code <strong>HEALTH</strong> to get additional 10% off on your entire purchase.
-                 </div>
+                 <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[YOUR_TEMPLATE]</p>
+                 <p className="text-[9px] text-[#333] font-normal leading-relaxed">
+                   Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.
+                 </p>
                  
-                 <div className="flex justify-end">
+                 <div className="flex justify-end mt-2">
                     <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
                  </div>
               </div>
-              
+
+              {/* Action Button */}
+              <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                 <div className="w-full py-3 flex items-center justify-center gap-2">
+                    <span className="text-[#25d366] font-bold text-[9px]">Visit Website</span>
+                 </div>
+              </div>
            </div>
         </div>
       </div>
     );
   }
 
-  // Dynamic preview for content phase
   return (
     <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
       {/* Notch */}
@@ -2460,18 +2826,28 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
       <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
-            {showImage && (
-              <div className="w-full relative overflow-hidden bg-gray-50 shrink-0 min-h-[110px] max-h-[220px] flex items-center justify-center">
-                {headerMedia ? (
+            {/* Header Media */}
+            {headerType !== 'None' && (
+              <div className="w-full relative bg-gray-100 flex items-center justify-center shrink-0 border-b border-gray-50 overflow-hidden">
+                {headerMedia?.preview ? (
                   <>
-                    {headerMedia.type === 'image' && (
-                      <img src={headerMedia.preview} alt="header" className="w-full h-auto max-h-[220px] object-contain bg-slate-900/5"/>
+                    {headerType === 'Image' && (
+                      <img 
+                        src={headerMedia.preview} 
+                        alt="Header preview" 
+                        className="w-full h-auto max-h-[180px] object-cover" 
+                      />
                     )}
-                    {headerMedia.type === 'video' && (
-                      <video src={headerMedia.preview} className="w-full h-auto max-h-[220px] object-contain bg-black" controls={false}/>
+                    {headerType === 'Video' && (
+                      <video 
+                        src={headerMedia.preview} 
+                        className="w-full h-auto max-h-[180px] object-cover" 
+                        controls 
+                      />
                     )}
-                    {headerMedia.type === 'document' && (
-                      <div className="w-full h-32 bg-red-50 flex items-center justify-center flex-col gap-2">
+                    {headerType === 'Document' && (
+                      <div className="w-full h-24 bg-red-50 flex items-center justify-center gap-2">
+                        <span className="text-2xl">📄</span>
                         <div className="text-3xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
                       </div>
                     )}
@@ -2489,9 +2865,23 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
                
                {isLimited && (
-                  <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-100 flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-red-500">Offer expires in:</span>
-                      <span className="text-[11px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-sm">23:59:59</span>
+                  <div className="mt-3 p-2.5 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-red-600 tracking-tight">
+                            {limitedTimeOfferText || 'Expiring offer!'}
+                          </span>
+                          {hasExpiration && (
+                            <span className="text-[9px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-1">
+                              ⏱ {expirationPreviewText || '23:59:59'}
+                            </span>
+                          )}
+                      </div>
+                      {offerCode && (
+                        <div className="flex items-center justify-between bg-white/90 px-2 py-1 rounded border border-dashed border-red-300">
+                          <span className="text-[9px] font-medium text-gray-500">Code:</span>
+                          <span className="text-[10px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">{offerCode}</span>
+                        </div>
+                      )}
                   </div>
                )}
 
@@ -2506,7 +2896,22 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   <div className="w-full py-3 flex items-center justify-center gap-2">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2">
-                       {isCatalog ? (catalogButtonText || 'View Catalog') : (mpmButtonText || 'View Items')}
+                       {isCatalog ? (catalogButtonText || 'View Catalog') : 'View items'}
+                     </span>
+                  </div>
+               </div>
+            ) : isLimited ? (
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
+                  <div className="w-full py-2.5 flex items-center justify-center gap-2 border-b border-gray-100">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                       <Copy size={12} className="text-[#25d366]"/>
+                       Copy code
+                     </span>
+                  </div>
+                  <div className="w-full py-2.5 flex items-center justify-center gap-2">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                       <ExternalLink size={12} className="text-[#25d366]"/>
+                       {ltoUrlText || 'Shop Now'}
                      </span>
                   </div>
                </div>

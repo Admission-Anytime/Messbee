@@ -1289,8 +1289,10 @@ async function handleStatusUpdate(data) {
       statusTimestamp: new Date(parseInt(timestamp) * 1000)
     };
 
-    if (newStatus === 'failed' && errorMessage) {
-      updatePayload.error = errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage;
+    if (newStatus === 'failed') {
+      const fallbackMsg = errorCode ? `[${errorCode}] Message failed to deliver` : 'Message not delivered';
+      updatePayload.error = errorMessage ? (errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage) : fallbackMsg;
+      if (errorCode) updatePayload.errorCode = String(errorCode);
     }
 
     const updatedMessage = await Message.findOneAndUpdate(
@@ -1364,10 +1366,11 @@ async function handleStatusUpdate(data) {
       if (io) {
         io.emit('message_status_update', {
           messageId: updatedMessage._id,
+          chatId: updatedMessage.chatId,
           status: newStatus,
           whatsappMessageId: messageId,
           error: updatedMessage.error,
-          errorCode: errorCode
+          errorCode: errorCode || updatedMessage.errorCode
         });
       }
     } catch (socketError) {

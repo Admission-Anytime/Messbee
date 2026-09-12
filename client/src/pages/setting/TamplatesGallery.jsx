@@ -297,7 +297,18 @@ const TemplatesGallery = () => {
   );
 };
 
-const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons=[] }) => {
+const MobilePreview = ({ 
+  name, 
+  body, 
+  headerType, 
+  headerMediaUrl = '', 
+  footerText, 
+  buttons=[],
+  isLimited = false,
+  limitedTimeOfferText = 'Expiring offer!',
+  hasExpiration = true,
+  offerCode = ''
+}) => {
   const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
   const isTextHeader = headerType === 'Text';
   const previewName = name || 'Business Update';
@@ -366,7 +377,29 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
               <p className="text-[8px] sm:text-[9px] text-gray-400 font-bold mb-1.5 uppercase tracking-tight opacity-75 break-all leading-tight">{previewName}</p>
             )}
             <div className="text-[11px] sm:text-[13px] text-gray-800 font-medium leading-relaxed whitespace-pre-line" dangerouslySetInnerHTML={{ __html: body }}></div>
-            {footerText && (
+            
+            {isLimited && (
+              <div className="mt-2.5 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1 shadow-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-red-600 tracking-tight">
+                    {limitedTimeOfferText || 'Expiring offer!'}
+                  </span>
+                  {hasExpiration && (
+                    <span className="text-[8.5px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-1">
+                      ⏱ 23:59:59
+                    </span>
+                  )}
+                </div>
+                {offerCode && (
+                  <div className="flex items-center justify-between bg-white/90 px-1.5 py-0.5 rounded border border-dashed border-red-300">
+                    <span className="text-[8px] font-medium text-gray-500">Code:</span>
+                    <span className="text-[8.5px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">{offerCode}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {!isLimited && footerText && (
               <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-1.5 leading-tight">{footerText}</p>
             )}
             <div className="flex items-center justify-end gap-1 mt-1.5">

@@ -379,18 +379,28 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
        }
     }
 
+    const ltoComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+    const isLimited = Boolean(ltoComponent);
+    const limitedTimeOfferText = ltoComponent?.limited_time_offer?.text || (isLimited ? 'Expiring offer!' : '');
+    const hasExpiration = ltoComponent?.limited_time_offer?.has_expiration !== false;
+    const rawLtoCode = safeComponents.flatMap(c => c?.buttons || []).find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example;
+    const ltoOfferCode = Array.isArray(rawLtoCode) ? (rawLtoCode[0] || '') : (String(rawLtoCode || '').trim());
+
     const mappedButtons = Array.isArray(buttonComponent?.buttons)
       ? buttonComponent.buttons.map((btn, idx) => {
           let type = 'Custom';
           if (btn?.type === 'URL') type = 'Visit Website';
           if (btn?.type === 'PHONE_NUMBER') type = 'Call phone number';
           if (btn?.type === 'QUICK_REPLY') type = 'Custom';
+          if (btn?.type === 'COPY_CODE') type = 'Copy offer code';
+          if (btn?.type === 'CATALOG') type = 'View Catalog';
+          if (btn?.type === 'MPM') type = 'View items';
 
           return {
             id: idx + 1,
             type,
-            text: btn?.text || 'Action Button',
-            value: btn?.url || btn?.phone_number || ''
+            text: btn?.text || (btn?.type === 'COPY_CODE' ? 'Copy offer code' : 'Action Button'),
+            value: btn?.url || btn?.phone_number || btn?.example || ''
           };
         })
       : [];
@@ -411,7 +421,11 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
       headerMediaUrl: mediaUrl,
       headerMediaUrlPreview: resolveMediaUrlForDev(mediaUrl),
       buttons: mappedButtons,
-      bodySamples
+      bodySamples,
+      isLimited,
+      limitedTimeOfferText,
+      hasExpiration,
+      offerCode: ltoOfferCode
     };
   };
 
@@ -492,6 +506,10 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         headerMediaUrlPreview: headerMediaUrlPreview,
         buttons: componentData.buttons,
         bodySamples: componentData.bodySamples,
+        isLimited: componentData.isLimited,
+        limitedTimeOfferText: componentData.limitedTimeOfferText,
+        hasExpiration: componentData.hasExpiration,
+        offerCode: componentData.offerCode,
         rejectedReason: template.rejected_reason || template.rejectedReason || null
       };
     });
