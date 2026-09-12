@@ -1440,8 +1440,10 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       });
     }
 
-    // Find chat
-    const chat = chatId ? await Chat.findById(chatId) : await Chat.findOne({ phone: to });
+    // Find chat strictly belonging to this tenant
+    const chat = chatId 
+      ? await Chat.findOne({ _id: chatId, user: tenantId }) 
+      : await Chat.findOne({ phone: to, user: tenantId });
 
     if (!chat) {
       logAPICall({
@@ -1450,11 +1452,11 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
         path: '/api/whatsapp/send',
         userId: req.user?.id,
         statusCode: 404,
-        errorMessage: 'Chat not found'
+        errorMessage: 'Chat not found or access denied'
       });
       return res.status(404).json({
         success: false,
-        message: 'Chat not found'
+        message: 'Chat not found or does not belong to this account'
       });
     }
 

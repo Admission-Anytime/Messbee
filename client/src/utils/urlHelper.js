@@ -4,18 +4,26 @@
  */
 
 export const getBackendBaseUrl = () => {
-  // If VITE_API_URL is configured in environment, use it as the source of truth
+  // 1. If VITE_API_URL is configured in environment, use it as the source of truth
   const apiUrl = import.meta.env.VITE_API_URL;
   if (apiUrl) {
     return apiUrl.replace(/\/api\/?$/i, '');
   }
 
-  // If in browser, dynamically fallback to the current window's origin
+  // 2. If running in browser
   if (typeof window !== 'undefined' && window.location) {
-    // If running in development on port 5173 without VITE_API_URL set
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      return `${window.location.protocol}//${window.location.hostname}:5002`;
+    const host = window.location.hostname;
+
+    // Local development
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `${window.location.protocol}//${host}:5002`;
     }
+
+    // Production / Staging on messbee domain (e.g. tools.messbee.com -> webservices.messbee.com)
+    if (host.endsWith('.messbee.com') || host === 'messbee.com') {
+      return 'https://webservices.messbee.com';
+    }
+
     return window.location.origin;
   }
 
@@ -42,5 +50,10 @@ export const getBackendFileUrl = (path, fallback = null) => {
 
   const backendRoot = getBackendBaseUrl();
   const cleanPath = String(path).startsWith('/') ? path : `/${path}`;
-  return `${backendRoot}${cleanPath}`;
+  
+  // If the path already has a query string, append timestamp; else add ?t=
+  const separator = cleanPath.includes('?') ? '&' : '?';
+  const finalUrl = `${backendRoot}${cleanPath}`;
+  
+  return finalUrl;
 };

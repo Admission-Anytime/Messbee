@@ -282,7 +282,7 @@ const BusinessProfile = () => {
 
         if (response.data && response.data.success) {
           const avatarUrl = response.data.data.avatar;
-          const fullAvatar = getBackendFileUrl(avatarUrl);
+          const fullAvatar = `${getBackendFileUrl(avatarUrl)}?t=${Date.now()}`;
           setLogoPreview(fullAvatar);
           setSavedLogo(fullAvatar);
           updateUser(response.data.data.user);
@@ -293,7 +293,18 @@ const BusinessProfile = () => {
         }
       } catch (err) {
         console.error("Upload error:", err);
-        toast.error(err.response?.data?.message || "Failed to upload logo");
+        let errMsg = "Failed to upload logo";
+        if (err.response?.status === 413) {
+          errMsg = "Logo size exceeds server upload limit. Please use an image under 1MB.";
+        } else if (err.response?.data?.message) {
+          errMsg = err.response.data.message;
+        } else if (err.message) {
+          errMsg = `Upload error: ${err.message}`;
+        }
+        toast.error(errMsg, {
+          position: "top-right",
+          autoClose: 3500,
+        });
       }
     }
   };
