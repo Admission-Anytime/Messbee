@@ -21,6 +21,7 @@ const UserProfile = () => {
 
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(user?.avatar || null);
+  const [avatarKey, setAvatarKey] = useState(Date.now());
   const inputsRef = useRef([]);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(59);
@@ -168,12 +169,22 @@ const handleKeyDown = (e, index) => {
       if (response.data && response.data.success) {
         const returnedUser = response.data.data.user;
         updateUser(returnedUser);
-        setProfileImage(response.data.data.avatar || returnedUser.avatar);
-        toast.success("Profile photo updated");
+        const newAvatar = response.data.data.avatar || returnedUser.avatar;
+        setProfileImage(newAvatar);
+        setAvatarKey(Date.now());
+        toast.success("Profile photo updated successfully!");
       }
     } catch (error) {
       console.error("Avatar upload failed:", error);
-      toast.error(error.response?.data?.message || "Failed to upload avatar");
+      let errMsg = "Failed to upload avatar";
+      if (error.response?.status === 413) {
+        errMsg = "File size exceeds server upload limit. Please use an image under 1MB.";
+      } else if (error.response?.data?.message) {
+        errMsg = error.response.data.message;
+      } else if (error.message) {
+        errMsg = `Upload error: ${error.message}`;
+      }
+      toast.error(errMsg);
     }
   };
   useEffect(() => {
@@ -219,7 +230,7 @@ useEffect(() => {
                 <img
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  src={getBackendFileUrl(profileImage)}
+                  src={profileImage.startsWith('blob:') || profileImage.startsWith('data:') ? profileImage : `${getBackendFileUrl(profileImage)}?t=${avatarKey || Date.now()}`}
                   onError={(e) => {
                     e.target.style.display = 'none';
                     if (e.target.nextSibling) {

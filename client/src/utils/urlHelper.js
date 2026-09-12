@@ -50,5 +50,10 @@ export const getBackendFileUrl = (path, fallback = null) => {
 
   const backendRoot = getBackendBaseUrl();
   const cleanPath = String(path).startsWith('/') ? path : `/${path}`;
-  return `${backendRoot}${cleanPath}`;
+  
+  // If the path already has a query string, append timestamp; else add ?t=
+  const separator = cleanPath.includes('?') ? '&' : '?';
+  const finalUrl = `${backendRoot}${cleanPath}`;
+  
+  return finalUrl;
 };
