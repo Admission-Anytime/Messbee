@@ -44,6 +44,194 @@ const ChatSkeletonLoader = () => (
    </div>
 );
 
+// ─── WhatsApp Template Bubble ────────────────────────────────────────────────
+const TemplateBubble = ({ msg, template }) => {
+   const [now, setNow] = React.useState(Date.now());
+   const [copied, setCopied] = React.useState(false);
+
+   React.useEffect(() => {
+      const t = setInterval(() => setNow(Date.now()), 1000);
+      return () => clearInterval(t);
+   }, []);
+
+   const comps = Array.isArray(msg.metadata?.components) ? msg.metadata.components : [];
+   const ltoComp = comps.find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+   const isLTO = Boolean(template?.isLimited || ltoComp);
+
+   // Extract body text: replace placeholders with message parameters if present
+   const bodyText = (() => {
+      if (msg.text && !msg.text.startsWith('Template:')) return msg.text;
+      let text = template?.bodyText || msg.text || '';
+      const bodyComp = comps.find(c => String(c?.type || '').toLowerCase() === 'body');
+      const params = bodyComp?.parameters || [];
+      params.forEach((param, idx) => {
+         const val = param?.text || '';
+         if (val) {
+            text = text.replace(new RegExp(`\\{\\{\\s*${idx + 1}\\s*\\}\\}`, 'g'), val);
+         }
+      });
+      return text;
+   })();
+
+   // Extract offer code
+   const buttonComp = comps.find(c => String(c?.type || '').toLowerCase() === 'button' && String(c?.sub_type || '').toLowerCase() === 'copy_code');
+   const offerCode = template?.offerCode ||
+      buttonComp?.parameters?.[0]?.coupon_code ||
+      '';
+
+   // Expiration timestamp in ms
+   const expiryMs = (() => {
+      const rawMs = ltoComp?.parameters?.[0]?.limited_time_offer?.expiration_time_ms ||
+                    ltoComp?.expiration_time_ms;
+      if (rawMs) return Number(rawMs);
+      return new Date(msg.createdAt || Date.now()).getTime() + 24 * 60 * 60 * 1000;
+   })();
+
+   const isExpired = isLTO && (expiryMs - now <= 0);
+
+   const countdown = (() => {
+      if (!isLTO) return null;
+      const diff = Math.max(0, expiryMs - now);
+      if (diff === 0) return '00:00:00';
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+   })();
+
+   const handleCopyCode = (e) => {
+      e.stopPropagation();
+      if (!offerCode) return;
+      navigator.clipboard?.writeText?.(offerCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+   };
+
+   // Buttons: combine from template or synthesized from components
+   const buttons = (() => {
+      if (Array.isArray(template?.buttons) && template.buttons.length > 0) {
+         return template.buttons;
+      }
+      const list = [];
+      if (offerCode) list.push({ type: 'Copy offer code', text: 'Copy offer code' });
+      return list;
+   })();
+
+   const mediaUrl = msg.mediaUrl || template?.headerMediaUrlPreview || template?.headerMediaUrl;
+   const mediaType = msg.mediaType || (template?.headerType ? String(template.headerType).toLowerCase() : null);
+
+   return (
+      <div className={`w-full max-w-[290px] bg-white rounded-2xl rounded-br-sm shadow-sm overflow-hidden border ${msg.status === 'failed' ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200/80'} text-slate-800`}>
+         {/* Media Header if present */}
+         {mediaUrl && mediaType === 'image' && (
+            <div className="w-full max-h-[160px] overflow-hidden bg-slate-100 border-b border-slate-100">
+               <img src={mediaUrl} alt="Template Header" className="w-full h-full object-cover" />
+            </div>
+         )}
+         {mediaUrl && mediaType === 'video' && (
+            <div className="w-full max-h-[160px] overflow-hidden bg-black">
+               <video src={mediaUrl} className="w-full h-full object-cover" controls />
+            </div>
+         )}
+
+         {/* Body */}
+         <div className="px-3 pt-3 pb-2 text-[13px] leading-relaxed font-medium">
+            <p className="text-[9px] font-bold text-emerald-600 uppercase tracking-widest mb-1">
+               {msg.templateName || template?.name || 'WhatsApp Template'}
+            </p>
+            <p className="whitespace-pre-wrap">{bodyText}</p>
+         </div>
+
+         {/* Failed / Not Delivered Banner */}
+         {msg.status === 'failed' && (
+            <div className="mx-3 mb-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2 text-rose-700 shadow-2xs">
+               <svg className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+               </svg>
+               <div className="flex-1 min-w-0">
+                  <p className="text-[11px] font-bold text-rose-700">Message not delivered</p>
+                  <p className="text-[10px] text-rose-600 mt-0.5 leading-snug">
+                     {msg.error || "Customer did not receive this message. They have not interacted with recent messages, Meta marketing limit reached, or 24h window closed."}
+                  </p>
+               </div>
+            </div>
+         )}
+
+         {/* LTO Countdown Banner */}
+         {isLTO && (
+            <div className="mx-3 mb-2 border border-red-200 rounded-xl overflow-hidden shadow-2xs">
+               <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-red-50 to-orange-50">
+                  <span className="text-[11px] font-bold text-red-600 flex items-center gap-1">
+                     <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                     {template?.limitedTimeOfferText || 'Expiring offer!'}
+                  </span>
+                  {isExpired ? (
+                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                        Offer expired
+                     </span>
+                  ) : (
+                     countdown && (
+                        <span className="text-[11px] font-mono font-bold text-red-600 flex items-center gap-1 bg-white px-2 py-0.5 rounded-md shadow-2xs border border-red-100">
+                           <svg className="w-3 h-3 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <circle cx="12" cy="12" r="10" strokeWidth="2"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6l4 2"/>
+                           </svg>
+                           {countdown}
+                        </span>
+                     )
+                  )}
+               </div>
+               {offerCode && (
+                  <div
+                     onClick={handleCopyCode}
+                     className="flex items-center justify-between px-3 py-1.5 border-t border-dashed border-red-200 bg-white cursor-pointer hover:bg-red-50/40 transition-colors"
+                     title="Click to copy code"
+                  >
+                     <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] text-slate-400 font-semibold">Code:</span>
+                        <span className="text-[11px] font-mono font-bold text-slate-800 tracking-wider bg-slate-100 px-1.5 py-0.5 rounded">
+                           {offerCode}
+                        </span>
+                     </div>
+                     <span className="text-[10px] font-bold text-emerald-600 flex items-center gap-1">
+                        {copied ? '✓ Copied' : 'Copy'}
+                     </span>
+                  </div>
+               )}
+            </div>
+         )}
+
+         {/* Timestamp inside bubble */}
+         <div className="px-3 pb-2 flex justify-end">
+            <span className="text-[9px] text-slate-400">{msg.time || ''}</span>
+         </div>
+
+         {/* Action Buttons */}
+         {buttons.length > 0 && (
+            <div className="border-t border-slate-100">
+               {buttons.map((btn, i) => (
+                  <div
+                     key={i}
+                     onClick={btn.type === 'Copy offer code' ? handleCopyCode : undefined}
+                     className={`flex items-center justify-center gap-2 py-2.5 text-[12px] font-bold text-[#22C55E] border-b border-slate-100 last:border-0 select-none ${
+                        btn.type === 'Copy offer code' ? 'cursor-pointer hover:bg-emerald-50/30' : 'cursor-default'
+                     }`}
+                  >
+                     {btn.type === 'Copy offer code' && (
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" strokeWidth="2"/>
+                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                        </svg>
+                     )}
+                     {btn.type === 'Visit Website' && <span className="text-[10px]">↗</span>}
+                     {btn.type === 'Copy offer code' && copied ? 'Code Copied!' : (btn.text || btn.type)}
+                  </div>
+               ))}
+            </div>
+         )}
+      </div>
+   );
+};
 
 
 const MOCK_MEDIA = [
@@ -65,6 +253,7 @@ const MEDIA_TABS = [
 
 const Conversion = ({
    data,
+   isLoadingChat: isLoadingChatProp = false,
    onSendMessage,
    onSendTemplate,
    onBack,
@@ -107,11 +296,12 @@ const Conversion = ({
    const [isSendingTemplate, setIsSendingTemplate] = useState(false);
    const [isConfirmTemplateModalOpen, setIsConfirmTemplateModalOpen] = useState(false);
    const [confirmTemplate, setConfirmTemplate] = useState(null);
-  const [isConfirmSending, setIsConfirmSending] = useState(false);
+   const [isConfirmSending, setIsConfirmSending] = useState(false);
    const [deliveryMode, setDeliveryMode] = useState("now");
    const [scheduleDate, setScheduleDate] = useState("");
    const [scheduleTime, setScheduleTime] = useState("12:00");
    const [confirmSendError, setConfirmSendError] = useState("");
+   const [offerExpiryHours, setOfferExpiryHours] = useState(24);
    const [isSearchOpen, setIsSearchOpen] = useState(false);
    const [searchQuery, setSearchQuery] = useState("");
    const [activeSearchMatch, setActiveSearchMatch] = useState(0);
@@ -150,7 +340,7 @@ const Conversion = ({
    // Applied labels local state for the modal
    const [appliedLabels, setAppliedLabels] = useState([]);
 
-   // Chat loading skeleton state
+   // Chat loading skeleton state - driven by parent prop
    const [isLoadingChat, setIsLoadingChat] = useState(false);
    const previousChatIdRef = useRef(null);
 
@@ -161,22 +351,10 @@ const Conversion = ({
    const templateRef = useRef(null);
    const fileInputRef = useRef(null);
 
-   // Detect when chat changes - show loading skeleton
+   // Sync isLoadingChat from prop - true while parent is fetching messages
    useEffect(() => {
-      const currentChatId = data?._id || data?.id;
-      
-      if (currentChatId && previousChatIdRef.current !== currentChatId) {
-         setIsLoadingChat(true);
-         previousChatIdRef.current = currentChatId;
-         
-         // Hide skeleton after 300ms
-         const timer = setTimeout(() => {
-            setIsLoadingChat(false);
-         }, 300);
-         
-         return () => clearTimeout(timer);
-      }
-   }, [data?._id, data?.id]);
+      setIsLoadingChat(isLoadingChatProp);
+   }, [isLoadingChatProp]);
 
    useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -272,6 +450,7 @@ const Conversion = ({
       setScheduleDate("");
       setScheduleTime("12:00");
       setConfirmSendError("");
+      setOfferExpiryHours(24);
       setShowTemplates(false);
       setIsConfirmTemplateModalOpen(true);
    };
@@ -280,6 +459,11 @@ const Conversion = ({
       if (!confirmTemplate?.name || isConfirmSending) return;
       setIsConfirmSending(true);
       setConfirmSendError("");
+
+      // Attach expiry ms for LTO templates
+      const templateToSend = confirmTemplate?.isLimited
+         ? { ...confirmTemplate, offerExpiryMs: Date.now() + offerExpiryHours * 60 * 60 * 1000 }
+         : confirmTemplate;
 
       try {
          if (deliveryMode === "schedule") {
@@ -292,15 +476,14 @@ const Conversion = ({
             }
 
             const safeDelay = Math.min(delayMs, 2147483647);
-            const scheduledTemplate = confirmTemplate;
             window.setTimeout(() => {
-               handleTemplateSelect(scheduledTemplate);
+               handleTemplateSelect(templateToSend);
             }, safeDelay);
             setIsConfirmTemplateModalOpen(false);
             return;
          }
 
-         await handleTemplateSelect(confirmTemplate);
+         await handleTemplateSelect(templateToSend);
          setIsConfirmTemplateModalOpen(false);
       } finally {
          setIsConfirmSending(false);
@@ -1135,11 +1318,45 @@ const selectedTemplate = useMemo(() => {
                               <img src={data.avatar || `https://ui-avatars.com/api/?name=${data.name}`} alt="A" className="w-full h-full object-cover" />
                            </div>
                         )}
+                        {/* ── TEMPLATE MESSAGE ── */}
+                        {msg.messageType === 'template' ? (
+                           <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} gap-0.5`}>
+                              <TemplateBubble
+                                 msg={msg}
+                                 template={allTemplates.find(t =>
+                                    t.name === msg.templateName ||
+                                    t.name?.toLowerCase() === msg.templateName?.toLowerCase()
+                                 )}
+                              />
+                              <div className="flex items-center gap-1.5 pr-1">
+                                 {formatMessageTime(msg) && <span className="text-[9px] text-slate-400">{formatMessageTime(msg)}</span>}
+                                 {msg.sender === 'me' && (
+                                    msg.status === 'failed' ? (
+                                       <span 
+                                          className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded shadow-2xs cursor-help"
+                                          title={msg.error || 'Message was not delivered to recipient'}
+                                       >
+                                          <span className="font-extrabold text-[11px]">✗</span> Not delivered
+                                       </span>
+                                    ) : msg.status === 'pending' ? (
+                                       <span className="text-slate-400 font-bold text-xs animate-pulse" title="Sending...">○</span>
+                                    ) : (msg.status === 'read' || msg.isRead === true) ? (
+                                       <span className="text-[#22C55E] font-bold text-xs tracking-tighter" title="Read by recipient">✓✓</span>
+                                    ) : msg.status === 'delivered' ? (
+                                       <span className="text-slate-500 font-bold text-xs tracking-tighter" title="Delivered to recipient's phone">✓✓</span>
+                                    ) : (
+                                       <span className="text-slate-400 font-bold text-xs tracking-tighter cursor-help" title="Sent to WhatsApp • Waiting to be delivered to recipient's phone (Recipient may be offline or hasn't interacted)">✓</span>
+                                    )
+                                 )}
+                              </div>
+                           </div>
+                        ) : (
+                        /* ── NORMAL MESSAGE ── */
                         <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} max-w-[78%] lg:max-w-[72%]`}>
                            <div className={`px-4 py-2.5 text-sm shadow-sm ${
                               msg.sender === "me"
                                  ? msg.status === 'failed'
-                                    ? "bg-red-50 text-red-800 rounded-2xl rounded-br-sm border border-red-200"
+                                    ? "bg-rose-50 text-rose-950 rounded-2xl rounded-br-sm border border-rose-200"
                                     : "bg-[#22C55E] text-white rounded-2xl rounded-br-sm"
                                  : "bg-[#F1F5F9] text-slate-800 rounded-2xl rounded-bl-sm"
                            }`}>
@@ -1197,22 +1414,42 @@ const selectedTemplate = useMemo(() => {
                                  />
                               )}
                               {msg.sender === "me" && msg.status === 'failed' && (
-                                 <p className="text-[10px] text-red-500 font-semibold mt-1">⚠ Not delivered via WhatsApp</p>
+                                 <div className="mt-2 pt-2 border-t border-rose-200/80 flex items-start gap-1.5 text-rose-700">
+                                    <svg className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                    </svg>
+                                    <div className="flex-1 min-w-0">
+                                       <p className="text-[11px] font-bold text-rose-700 leading-tight">Message not delivered</p>
+                                       <p className="text-[10px] text-rose-600 mt-0.5 leading-snug">
+                                          {msg.error || "Customer did not receive this message. 24-hour window closed or recipient has not interacted."}
+                                       </p>
+                                    </div>
+                                 </div>
                               )}
                            </div>
-                           <div className={`text-[10px] text-slate-400 mt-0.5 flex items-center gap-1 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
+                           <div className={`text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5 ${msg.sender === "me" ? "justify-end" : "justify-start"}`}>
                               {formatMessageTime(msg)}
                               {msg.sender === "me" && (
-                                 msg.status === 'failed'
-                                    ? <span className="text-red-500 font-bold text-xs" title={msg.error || 'Failed to send'}>✗</span>
-                                    : msg.status === 'pending'
-                                       ? <span className="text-slate-400 font-bold text-xs animate-pulse">○</span>
-                                        : (msg.status === 'read' || msg.isRead === true)
-                                           ? <span className="text-[#22C55E] font-bold text-xs tracking-tighter">✓✓</span>
-                                           : <span className="text-slate-400 font-bold text-xs tracking-tighter">✓</span>
+                                 msg.status === 'failed' ? (
+                                    <span 
+                                       className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.5 rounded shadow-2xs cursor-help"
+                                       title={msg.error || 'Message was not delivered to recipient'}
+                                    >
+                                       <span className="font-extrabold text-[11px]">✗</span> Not delivered
+                                    </span>
+                                 ) : msg.status === 'pending' ? (
+                                    <span className="text-slate-400 font-bold text-xs animate-pulse" title="Sending...">○</span>
+                                 ) : (msg.status === 'read' || msg.isRead === true) ? (
+                                    <span className="text-[#22C55E] font-bold text-xs tracking-tighter" title="Read by recipient">✓✓</span>
+                                 ) : msg.status === 'delivered' ? (
+                                    <span className="text-slate-500 font-bold text-xs tracking-tighter" title="Delivered to recipient's phone">✓✓</span>
+                                 ) : (
+                                    <span className="text-slate-400 font-bold text-xs tracking-tighter cursor-help" title="Sent to WhatsApp • Waiting to be delivered to recipient's phone (Recipient may be offline or hasn't interacted)">✓</span>
+                                 )
                               )}
                            </div>
                         </div>
+                        )}
                      </div>
                   </React.Fragment>
                );
@@ -1235,8 +1472,16 @@ const selectedTemplate = useMemo(() => {
             )}
 
             {isTemplateOnlyMode && (
-               <div className="mb-3 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-semibold">
-                  Template-only mode: customer reply is required to open 24-hour free chat window.
+               <div className="mb-3 px-3.5 py-2.5 rounded-xl bg-amber-50/90 border border-amber-200/80 text-amber-800 text-xs shadow-2xs">
+                  <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                     <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                     </svg>
+                     <span>Template-only mode: 24-hour customer window closed</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 font-normal leading-relaxed pl-5.5">
+                     Customer reply is required to open the free 24-hour chat window. If the recipient has not interacted with recent messages, Meta may delay or suppress delivery of further marketing templates to protect the user from spam.
+                  </p>
                </div>
             )}
 
@@ -1535,6 +1780,33 @@ const selectedTemplate = useMemo(() => {
                               </div>
                            </div>
                         </div>
+
+                        {/* LTO Expiry Picker — only for Limited Time Offer templates */}
+                        {confirmTemplate?.isLimited && (
+                           <div className="space-y-2">
+                              <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                 <svg className="w-3.5 h-3.5 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><circle cx="12" cy="12" r="10" strokeWidth="2"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6l4 2"/></svg>
+                                 Offer Expiry Time
+                              </span>
+                              <div className="grid grid-cols-5 gap-1.5">
+                                 {[1, 6, 24, 48, 72].map(h => (
+                                    <button
+                                       key={h}
+                                       type="button"
+                                       onClick={() => setOfferExpiryHours(h)}
+                                       className={`py-2 rounded-xl text-[11px] font-bold transition-all border-2 ${
+                                          offerExpiryHours === h
+                                             ? 'bg-red-50 border-red-400 text-red-600'
+                                             : 'bg-slate-50 border-transparent text-slate-500 hover:border-slate-200'
+                                       }`}
+                                    >
+                                       {h < 24 ? `${h}h` : `${h/24}d`}
+                                    </button>
+                                 ))}
+                              </div>
+                              <p className="text-[10px] text-slate-400">Offer expires in <span className="font-bold text-red-500">{offerExpiryHours < 24 ? `${offerExpiryHours} hour${offerExpiryHours > 1 ? 's' : ''}` : `${offerExpiryHours/24} day${offerExpiryHours > 24 ? 's' : ''}`}</span> — the countdown timer will show on the receiver's WhatsApp.</p>
+                           </div>
+                        )}
 
                         <div className="space-y-2">
                            <span className="text-[11px] font-extrabold text-slate-500 uppercase tracking-widest block">Delivery Options</span>

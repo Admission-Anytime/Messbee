@@ -510,6 +510,48 @@ const Chat = () => {
       });
     }
 
+    // 3. Handle COPY_CODE button if present
+    const buttonsComponent = Array.isArray(template?.components)
+      ? template.components.find((c) => String(c?.type || '').toUpperCase() === 'BUTTONS')
+      : null;
+    if (buttonsComponent && Array.isArray(buttonsComponent.buttons)) {
+      buttonsComponent.buttons.forEach((btn, idx) => {
+        if (String(btn?.type || '').toUpperCase() === 'COPY_CODE') {
+          const rawCode = template.offerCode || (Array.isArray(btn.example) ? btn.example[0] : btn.example) || 'SALE20';
+          const code = String(rawCode).trim() || 'SALE20';
+          components.push({
+            type: 'button',
+            sub_type: 'copy_code',
+            index: String(idx),
+            parameters: [
+              {
+                type: 'coupon_code',
+                coupon_code: code
+              }
+            ]
+          });
+        }
+      });
+    }
+
+    // 4. Handle Limited-Time Offer (LTO) component
+    const hasLto = template.isLimited || (Array.isArray(template?.components) && 
+      template.components.some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER'));
+    if (hasLto) {
+      const expirationMs = template.offerExpiryMs || (Date.now() + 24 * 60 * 60 * 1000);
+      components.push({
+        type: 'limited_time_offer',
+        parameters: [
+          {
+            type: 'limited_time_offer',
+            limited_time_offer: {
+              expiration_time_ms: Math.floor(Number(expirationMs))
+            }
+          }
+        ]
+      });
+    }
+
     try {
       const result = await chatService.sendTemplateMessage(
         activeChatId,
@@ -535,6 +577,18 @@ const Chat = () => {
         const displayErr = result.errorCode ? `[${result.errorCode}] ${errMsg}` : errMsg;
         setSendError(displayErr);
         setTimeout(() => setSendError(null), 10000);
+
+        // Add failed message to chat state so user immediately sees "Not delivered"
+        if (result.data) {
+          setMessages((prev) => {
+            const msgId = result?.data?._id?.toString();
+            const alreadyExists = msgId && prev.some((msg) => msg._id?.toString() === msgId);
+            if (alreadyExists) {
+              return prev.map((m) => m._id?.toString() === msgId ? { ...m, status: 'failed', error: errMsg } : m);
+            }
+            return [...prev, { ...result.data, status: 'failed', error: errMsg }];
+          });
+        }
       }
     } catch (error) {
       const errMsg = error?.message || `Failed to send template ${template.name}`;
@@ -822,6 +876,7 @@ const Chat = () => {
 
               <Conversion
                 data={{ ...activeChat, messages: messages }}
+                isLoadingChat={messagesLoading}
                 onSendMessage={canReply ? handleSendMessage : null}
                 onSendTemplate={canReply ? handleSendTemplate : null}
                 onBack={() => setActiveChatId(null)}
