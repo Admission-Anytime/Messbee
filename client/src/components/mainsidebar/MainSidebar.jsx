@@ -29,6 +29,7 @@ const MENU_ITEMS = [
         isSubmenu: true,
         children: [
           { title: "Contacts", path: "/admin/contacts/list", icon: "feather:user" },
+          { title: "CRM Pipeline", path: "/admin/contacts/crm", icon: "feather:columns" },
           { title: "Labels", path: "/admin/contacts/labels", icon: "feather:tag" },
           { title: "Custom fields", path: "/admin/contacts/fields", icon: "feather:list" },
           { title: "Quick reply", path: "/admin/contacts/quick-replies", icon: "feather:message-square" },

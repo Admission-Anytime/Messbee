@@ -60,8 +60,8 @@ const TaxInformation = lazy(() => import("./pages/PlanPricing/TaxInformation"));
 const ManageSubscription = lazy(() => import("./pages/PlanPricing/ManageSubscription"));
 const InvoiceView = lazy(() => import("./pages/PlanPricing/InvoiceView"));
 
-// --- LAZY LOADED CONTACTS ---
 const Contact = lazy(() => import(/* webpackPrefetch: true */ "./pages/contats/contact"));
+const CRMPipeline = lazy(() => import("./pages/contats/CRMPipeline"));
 const StatusPage = lazy(() => import("./pages/contats/Status/StatusPage"));
 const ImportContacts = lazy(() => import("./pages/contats/importContact"));
 const MapFields      = lazy(() => import("./pages/contats/mapFields"));
@@ -336,7 +336,7 @@ function App() {
           <Route path="/admin/contacts/status" element={<StatusPage />} />
           <Route
             path="/admin/contacts/crm"
-            element={<Placeholder title="CRM Pipeline" />}
+            element={<CRMPipeline />}
           />
           {/* ── Import Contacts Flow: Step 1 → Step 2 → Step 3 ── */}
           <Route path="/admin/contacts/import"     element={<ImportContacts />} />

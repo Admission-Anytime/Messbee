@@ -83,7 +83,7 @@ const contactSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['ACTIVE', 'WARM', 'INACTIVE', 'COLD'],
+    trim: true,
     default: 'ACTIVE'
   },
   labels: [{
