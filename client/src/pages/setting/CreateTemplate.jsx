@@ -226,6 +226,9 @@ const CreateTemplate = () => {
   const [authExpirationMinutes, setAuthExpirationMinutes] = useState(10);
   const [authSecurityRecommendation, setAuthSecurityRecommendation] = useState(true);
   const [buttons, setButtons] = useState([]);
+  const [showButtonMenu, setShowButtonMenu] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState('up');
+  const buttonMenuRef = useRef(null);
   const editorRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [charCount, setCharCount] = useState(0);
@@ -504,10 +507,117 @@ const CreateTemplate = () => {
     else toast.error(message);
   };
 
-  const addButton = () => {
-    if (buttons.length < 3) {
-      setButtons([...buttons, { id: Date.now(), type: 'Visit Website', text: 'New Button', value: '', countryCode: '+91' }]);
+  // Close button menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (buttonMenuRef.current && !buttonMenuRef.current.contains(event.target)) {
+        setShowButtonMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Button counts by type
+  const websiteButtonCount = buttons.filter(b => b.type === 'Visit website' || b.type === 'Visit Website').length;
+  const phoneButtonCount = buttons.filter(b => b.type === 'Call phone number').length;
+  const copyCodeButtonCount = buttons.filter(b => b.type === 'Copy offer code').length;
+  const quickReplyButtonCount = buttons.filter(b => b.type === 'Custom' || b.type === 'Marketing opt-out').length;
+
+  const addSpecificButton = (actionType) => {
+    setShowButtonMenu(false);
+
+    if (buttons.length >= 10) {
+      toast.error('Maximum 10 buttons allowed per template.');
+      return;
     }
+
+    if (actionType === 'Marketing opt-out') {
+      if (quickReplyButtonCount >= 3) {
+        toast.error('Maximum 3 quick reply buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Marketing opt-out', 
+        text: 'Stop promotions', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Custom') {
+      if (quickReplyButtonCount >= 3) {
+        toast.error('Maximum 3 quick reply buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Custom', 
+        text: 'Quick Reply', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Visit website') {
+      if (websiteButtonCount >= 2) {
+        toast.error('Maximum 2 website buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Visit website', 
+        text: 'Visit website', 
+        value: '',
+        urlType: 'static'
+      }]);
+      return;
+    }
+
+    if (actionType === 'Call phone number') {
+      if (phoneButtonCount >= 1) {
+        toast.error('Maximum 1 phone number button allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Call phone number', 
+        text: 'Call us', 
+        countryCode: '+91', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Copy offer code') {
+      if (copyCodeButtonCount >= 1) {
+        toast.error('Maximum 1 copy offer code button allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Copy offer code', 
+        text: 'Copy offer code', 
+        value: '' 
+      }]);
+      return;
+    }
+  };
+
+  const addButton = () => {
+    if (!showButtonMenu && buttonMenuRef.current) {
+      const rect = buttonMenuRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // Popup height is ~280px. If space below is less than 300px and space above is larger, open UP, otherwise open DOWN
+      if (spaceBelow < 300 && spaceAbove > spaceBelow) {
+        setMenuPlacement('up');
+      } else {
+        setMenuPlacement('down');
+      }
+    }
+    setShowButtonMenu(!showButtonMenu);
   };
 
   const removeButton = (id) => {
@@ -1149,14 +1259,24 @@ const CreateTemplate = () => {
       } else if (buttons && buttons.length > 0) {
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
-            return { type: 'URL', text: b.text, url: b.value };
+            return { type: 'URL', text: (b.text || 'Visit website').trim().substring(0, 25), url: (b.value || '').trim() };
           }
           if (b.type === 'Call phone number') {
-            const fullPhone = `${b.countryCode || '+91'}${b.value}`;
-            return { type: 'PHONE_NUMBER', text: b.text, phone_number: fullPhone };
+            const fullPhone = `${b.countryCode || '+91'}${b.value}`.replace(/[^\d+]/g, '');
+            return { type: 'PHONE_NUMBER', text: (b.text || 'Call us').trim().substring(0, 25), phone_number: fullPhone };
           }
-          return { type: 'QUICK_REPLY', text: b.text };
-        }).filter(b => b.text && (b.url || b.phone_number || b.type === 'QUICK_REPLY'));
+          if (b.type === 'Copy offer code') {
+            return { type: 'COPY_CODE', example: (b.value || 'OFFER').trim().substring(0, 15) };
+          }
+          // Custom or Marketing opt-out
+          return { type: 'QUICK_REPLY', text: (b.text || 'Quick Reply').trim().substring(0, 25) };
+        }).filter(b => {
+          if (b.type === 'URL') return b.text && b.url;
+          if (b.type === 'PHONE_NUMBER') return b.text && b.phone_number;
+          if (b.type === 'COPY_CODE') return b.example;
+          if (b.type === 'QUICK_REPLY') return b.text;
+          return false;
+        });
         
         if (waButtons.length > 0) {
           components.push({ type: 'BUTTONS', buttons: waButtons });
@@ -1521,7 +1641,7 @@ const CreateTemplate = () => {
 
   // ================= SETUP / CONTENT UI (UNCHANGED) =================
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500 relative">
+    <div className="flex flex-col lg:flex-row h-screen max-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500 relative">
       {/* UPGRADE PLAN MODAL */}
       {upgradeModal.isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
@@ -1570,11 +1690,9 @@ const CreateTemplate = () => {
           </div>
         </div>
       )}
-      {/* REST OF YOUR ORIGINAL FILE BELOW — 100% SAME */}
 
-      
       {/* Scrollable Form Container */}
-      <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
+      <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-10 border-r border-slate-100 bg-[#F8FAFC]">
         <div className="max-w-3xl mx-auto space-y-5 pb-20">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -2480,33 +2598,102 @@ const CreateTemplate = () => {
                             </div>
                         ) : (
                         <>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons </h3>
-                            <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
-                                <Plus size={14}/> Add New
-                            </button>
+                        <div className="flex justify-between items-center mb-4 relative" ref={buttonMenuRef}>
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons</h3>
+                            
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={addButton} 
+                                disabled={buttons.length >= 10} 
+                                className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-40 cursor-pointer shadow-xs"
+                              >
+                                  <Plus size={14}/> Add button
+                              </button>
+
+                              {/* WhatsTool exact style Button Picker Popup (Intelligently opens UP or DOWN based on screen space) */}
+                              {showButtonMenu && (
+                                <div className={`absolute right-0 ${menuPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-72 bg-white rounded-2xl shadow-2xl border border-gray-200/80 py-3 z-50 animate-in fade-in zoom-in-95 duration-150`}>
+                                  
+                                  {/* Quick Reply Section */}
+                                  <div className="px-4 pb-2">
+                                    <h4 className="text-xs font-bold text-gray-900 tracking-tight">Quick reply buttons</h4>
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={quickReplyButtonCount >= 3}
+                                      onClick={() => addSpecificButton('Marketing opt-out')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Marketing opt-out</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">Recommended</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={quickReplyButtonCount >= 3}
+                                      onClick={() => addSpecificButton('Custom')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Custom</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="my-2 border-t border-gray-100" />
+
+                                  {/* Call to Action Section */}
+                                  <div className="px-4 pb-2">
+                                    <h4 className="text-xs font-bold text-gray-900 tracking-tight">Call to action buttons</h4>
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={websiteButtonCount >= 2}
+                                      onClick={() => addSpecificButton('Visit website')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Visit website</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">2 buttons maximum</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={phoneButtonCount >= 1}
+                                      onClick={() => addSpecificButton('Call phone number')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Call phone number</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">1 buttons maximum</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={copyCodeButtonCount >= 1}
+                                      onClick={() => addSpecificButton('Copy offer code')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Copy offer code</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">1 buttons maximum</span>
+                                    </button>
+                                  </div>
+
+                                </div>
+                              )}
+                            </div>
                         </div>
+
                         <div className="space-y-4">
                             {buttons.map((btn) => (
                                 <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
-                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : btn.type === 'Custom' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
+                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : btn.type === 'Custom' || btn.type === 'Marketing opt-out' ? 'md:grid-cols-2' : btn.type === 'Copy offer code' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
                                         <div>
                                             <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                            <select 
-                                              value={btn.type}
-                                              onChange={(e) => {
-                                                const newType = e.target.value;
-                                                updateButton(btn.id, 'type', newType);
-                                                if (newType === 'Custom' && (!btn.text || btn.text === 'Visit website' || btn.text === 'Call phone number')) {
-                                                  updateButton(btn.id, 'text', 'Quick Reply');
-                                                }
-                                              }}
-                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
-                                            >
-                                              <option>Visit website</option>
-                                              <option>Call phone number</option>
-                                              <option>Custom</option>
-                                            </select>
+                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700">
+                                              {btn.type}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
@@ -2517,7 +2704,13 @@ const CreateTemplate = () => {
                                                 maxLength={25}
                                                 onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
                                                 className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                placeholder={btn.type === 'Custom' ? 'e.g. Yes, Interested' : btn.type === 'Call phone number' ? 'Call us' : 'Visit website'}
+                                                placeholder={
+                                                  btn.type === 'Marketing opt-out' ? 'Stop promotions' :
+                                                  btn.type === 'Custom' ? 'e.g. Yes, Interested' : 
+                                                  btn.type === 'Call phone number' ? 'Call us' : 
+                                                  btn.type === 'Copy offer code' ? 'Copy offer code' :
+                                                  'Visit website'
+                                                }
                                               />
                                               <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
                                                 {(btn.text || '').length}/25
@@ -2562,24 +2755,37 @@ const CreateTemplate = () => {
                                                 </div>
                                             </div>
                                           </>
-                                        ) : btn.type === 'Custom' ? null : (
-                                          <>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
-                                                <div className="relative">
-                                                  <input 
-                                                    type="text" 
-                                                    value={btn.value} 
-                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="https://..."
-                                                  />
-                                                </div>
-                                            </div>
-                                          </>
+                                        ) : btn.type === 'Copy offer code' ? (
+                                          <div>
+                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                <span>Coupon / Offer Code</span>
+                                                <span className="text-[10px] text-gray-400">{(btn.value || '').length}/15</span>
+                                              </label>
+                                              <input 
+                                                type="text" 
+                                                value={btn.value} 
+                                                maxLength={15}
+                                                onChange={(e) => updateButton(btn.id, 'value', e.target.value.toUpperCase())}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold uppercase bg-white outline-none focus:border-blue-400 transition-all" 
+                                                placeholder="OFFER20"
+                                              />
+                                          </div>
+                                        ) : (btn.type === 'Custom' || btn.type === 'Marketing opt-out') ? null : (
+                                          <div>
+                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
+                                              <div className="relative">
+                                                <input 
+                                                  type="text" 
+                                                  value={btn.value} 
+                                                  onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                  placeholder="https://example.com"
+                                                />
+                                              </div>
+                                          </div>
                                         )}
                                     </div>
-                                    <button onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors">
+                                    <button type="button" onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors cursor-pointer">
                                         <X size={20}/>
                                     </button>
                                 </div>
@@ -2629,18 +2835,18 @@ const CreateTemplate = () => {
         </div>
       </div>
 
-      {/* Responsive Preview Sidebar */}
-      <div className="w-full lg:w-[450px] xl:w-[480px] bg-white p-6 md:p-10 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-y-auto">
-        <div className="lg:sticky lg:top-0 w-full flex flex-col items-center">
-            <div className="flex justify-between w-full mb-8 lg:mb-12">
+      {/* Responsive Preview Sidebar (Permanently Fixed on Screen) */}
+      <div className="w-full lg:w-[420px] xl:w-[450px] bg-white px-4 py-6 md:p-8 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative h-full overflow-hidden shrink-0">
+        <div className="w-full flex flex-col items-center h-full justify-between pb-4">
+            <div className="flex justify-between w-full mb-3 shrink-0">
                 <p className="text-gray-800 font-semibold text-sm uppercase tracking-wide">Live Preview</p>
-                <div className="flex items-center gap-2 bg-green-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
+                <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
                     <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Synced</span>
                 </div>
             </div>
-            {/* Scale adjustment for smaller laptop screens */}
-            <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
+            {/* Centered Fixed Phone Mockup */}
+            <div className="flex-1 flex items-center justify-center w-full">
           <MobilePreview 
             name={formData.name || 'YOUR_TEMPLATE'} 
             body={formData.bodyText} 
@@ -2763,10 +2969,10 @@ const MobilePreview = ({
 }) => {
   if (isSetupView) {
     return (
-      <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+      <div className="relative w-[260px] h-[525px] bg-white rounded-[2rem] border-[6px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
         {/* Notch */}
-        <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
-           <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
+        <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
+           <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
         </div>
         
         {/* Screen Background */}
@@ -2816,10 +3022,10 @@ const MobilePreview = ({
   }
 
   return (
-    <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+    <div className="relative w-[255px] h-[520px] bg-white rounded-[2rem] border-[5px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
       {/* Notch */}
-      <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
-         <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
+      <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
+         <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
       </div>
       
       {/* Screen Background */}
@@ -2919,9 +3125,15 @@ const MobilePreview = ({
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
                      <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
-                        <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2 hover:opacity-80 transition-opacity">
-                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <ExternalLink size={12} className="text-[#25d366]"/> : btn.text.toLowerCase().includes('copy') ? <Copy size={12} className="text-[#25d366]"/> : null} 
-                          {btn.text}
+                        <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? (
+                            <ExternalLink size={11} className="text-[#25d366]"/>
+                          ) : btn.type === 'Call phone number' ? (
+                            <span className="text-[10px]">📞</span>
+                          ) : btn.type === 'Copy offer code' || (btn.text && btn.text.toLowerCase().includes('copy')) ? (
+                            <Copy size={11} className="text-[#25d366]"/>
+                          ) : null} 
+                          {btn.text || (btn.type === 'Copy offer code' ? 'Copy offer code' : 'Button')}
                         </span>
                      </div>
                    ))}

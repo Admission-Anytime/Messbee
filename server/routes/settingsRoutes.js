@@ -59,31 +59,21 @@ router.get("/:key", async (req, res) => {
         }
       }
 
-      // If no tenant-specific channel, check any active channel
-      if (!channel) {
-        channel = await Channel.findOne({
-          activeWhatsappPhoneNumberId: { $exists: true, $ne: null },
-          status: { $ne: "disconnected" }
-        }).select("+metaAccessToken").lean();
-      }
-
-      const rawSetting = await Setting.findOne({ key: "whatsapp_config" }).lean();
-      const settingVal = rawSetting?.value || {};
-
+      // Strictly check only the authenticated user/tenant's channel — NEVER fall back to random other tenants or global Setting tokens
       const businessAccountId = channel?.metadata?.wabaId
         || userDoc?.whatsappConfig?.wabaId
-        || settingVal.businessAccountId
         || "";
 
       const phoneNumberId = channel?.activeWhatsappPhoneNumberId
         || userDoc?.whatsappConfig?.phoneNumberId
-        || settingVal.phoneNumberId
         || "";
 
       const accessToken = channel?.metaAccessToken
         || userDoc?.whatsappConfig?.accessToken
-        || settingVal.accessToken
         || "";
+
+      const rawSetting = await Setting.findOne({ key: "whatsapp_config" }).lean();
+      const settingVal = rawSetting?.value || {};
 
       const verifyToken = settingVal.verifyToken
         || process.env.WHATSAPP_VERIFY_TOKEN
@@ -131,13 +121,24 @@ router.post("/", async (req, res) => {
 
     let setting = await Setting.findOne({ key });
 
+    // Never store tenant access tokens or phone IDs in the global Setting collection
+    let sanitizedValue = value;
+    if (key === "whatsapp_config" && sanitizedValue && typeof sanitizedValue === "object") {
+      sanitizedValue = {
+        ...sanitizedValue,
+        accessToken: "",
+        phoneNumberId: "",
+        businessAccountId: ""
+      };
+    }
+
     if (setting) {
-      setting.value = value;
+      setting.value = sanitizedValue;
       if (description !== undefined) setting.description = description;
       setting.markModified("value");
       await setting.save();
     } else {
-      setting = await Setting.create({ key, value, description });
+      setting = await Setting.create({ key, value: sanitizedValue, description });
     }
 
     // Broadcast permissions update to all connected clients via Socket.IO
