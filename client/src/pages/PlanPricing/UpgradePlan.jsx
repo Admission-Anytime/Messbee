@@ -1062,7 +1062,7 @@ const UpgradePlan = () => {
       return;
     }
     if (plan.isCustom) {
-      navigate("/admin/help/support");
+      navigate("/admin/plan/contact-sales");
       return;
     }
     setSelectedPlan(plan);
@@ -1446,7 +1446,15 @@ const UpgradePlan = () => {
 
                     {/* CTA Button */}
                     <button
-                      onClick={() => !plan.isCustom && (!isExpired || !plan.isFree) && handlePlanSelect(plan)}
+                      onClick={() => {
+                        if (plan.isCustom) {
+                          handlePlanSelect(plan);
+                          return;
+                        }
+                        if (!isExpired || !plan.isFree) {
+                          handlePlanSelect(plan);
+                        }
+                      }}
                       disabled={isExpired && plan.isFree && currentPlan === "free"}
                       style={{
                         width: "100%",

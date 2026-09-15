@@ -1,10 +1,12 @@
-import { useState, useRef, useContext } from "react";
+import { useState, useRef, useContext, useEffect } from "react";
 import { toast } from "react-toastify";
 import { useNavigate } from "react-router-dom";
 import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
 import { Lock } from "lucide-react";
 import HealthDiagnosticModal from "../../components/Modol/HealthDiagnosticModal";
 import TestConnectionModal from "../../components/Modol/TestConnectionModal";
+import ConnectWhatsAppModal from "../../components/Modol/ConnectWhatsAppModal";
 import { useWhatsAppConfig } from "../../hooks/useWhatsAppConfig";
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
@@ -106,6 +108,7 @@ export default function WhatsAppConfig() {
     phoneId, setPhoneId,
     accessToken, setAccessToken,
     webhookUrl, setWebhookUrl,
+    verifyToken, setVerifyToken,
     events, setEvents,
     loading, saving,
     connectionStatus, setConnectionStatus,
@@ -122,7 +125,6 @@ export default function WhatsAppConfig() {
   const [credsDraft, setCredsDraft] = useState({});
 
   const [webhookDraft, setWebhookDraft] = useState("");
-  const [verifyToken] = useState(generateToken(24));
   const [showVerifyToken, setShowVerifyToken] = useState(false);
   const [webhookStatus, setWebhookStatus] = useState("idle");
   const [webhookEditMode, setWebhookEditMode] = useState(false);
@@ -143,7 +145,30 @@ export default function WhatsAppConfig() {
   const [showRotateModal, setShowRotateModal] = useState(false);
   const [showTestModal, setShowTestModal] = useState(false);
   const [showHealthModal, setShowHealthModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
 
+  // ── Phone Registration Status ──────────────────────────────────────────────
+  const [phoneStatus, setPhoneStatus] = useState('UNKNOWN'); // 'ACTIVE' | 'PENDING' | 'UNKNOWN'
+  const [registrationPin, setRegistrationPin] = useState(null);
+  const [showRegPin, setShowRegPin] = useState(false);
+
+  useEffect(() => {
+    // Fetch phone registration status from server (non-critical, silent)
+    axios.get('/whatsapp/phone-status')
+      .then(res => {
+        if (res.data?.connected) {
+          const status = res.data.phoneStatus || 'UNKNOWN';
+          setPhoneStatus(status);
+          if (res.data.registrationPin) {
+            setRegistrationPin(res.data.registrationPin);
+            setPinSet(true);
+          } else if (status === 'ACTIVE') {
+            setPinSet(true);
+          }
+        }
+      })
+      .catch(() => {}); // Silent — not critical
+  }, []);
 
   // ── Access Restriction Check ──
   if (!hasApiAccess) {
@@ -206,17 +231,44 @@ export default function WhatsAppConfig() {
   const handlePinKey = (idx, e, arr, refs) => {
     if (e.key === "Backspace" && !arr[idx] && idx > 0) refs.current[idx - 1]?.focus();
   };
-  const handleSetPin = () => {
+  const handleSetPin = async () => {
     const p = pin.join(""), c = confirmPin.join("");
     if (p.length < 6) { setPinError("Please fill all 6 digits"); return; }
     if (p !== c) { setPinError("PINs don't match — try again"); setConfirmPin(["","","","","",""]); confirmPinRefs.current[0]?.focus(); return; }
-    setPinError(""); setPinSet(true); setShowPinModal(false);
-    toast.success("Two-step verification enabled!");
+    setPinError("");
+    try {
+      const res = await axios.post("/whatsapp/register", { pin: p });
+      if (res.data?.success) {
+        setPinSet(true);
+        setPhoneStatus("ACTIVE");
+        setRegistrationPin(p);
+        setShowPinModal(false);
+        toast.success(res.data.message || "Two-step verification enabled with Meta!");
+      } else {
+        setPinError(res.data?.message || "Failed to register PIN with Meta");
+      }
+    } catch (err) {
+      // If meta registration fails (e.g. invalid permissions), save locally as fallback and alert user
+      const msg = err.response?.data?.message || err.response?.data?.error || err.message;
+      setPinError(msg);
+      toast.error("Meta PIN Registration: " + msg);
+    }
   };
 
-  const handleDisconnect = () => {
+  const handleDisconnect = async () => {
     if (disconnectText !== "DISCONNECT") { toast.error('Type exactly "DISCONNECT" to confirm'); return; }
-    setDisconnected(true); setShowDisconnectModal(false); setConnectionStatus("Disconnected");
+    try {
+      await axios.post("/whatsapp/deregister");
+    } catch (e) {
+      console.warn("Deregister call warning:", e.message);
+    }
+    setDisconnected(true);
+    setPhoneStatus("PENDING");
+    setShowDisconnectModal(false);
+    setConnectionStatus("Disconnected");
+    setBusinessId("");
+    setPhoneId("");
+    setAccessToken("");
     toast.error("Integration disconnected. Message processing halted.");
   };
 
@@ -259,6 +311,15 @@ export default function WhatsAppConfig() {
             </div>
           </div>
           <div className="flex gap-3">
+            <button 
+              onClick={() => setShowConnectModal(true)} 
+              className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-[#1877F2] hover:bg-[#0c63d4] rounded-lg shadow-sm transition"
+            >
+              <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+              </svg>
+              {connectionStatus === "Active" ? "Reconnect WhatsApp" : "Connect WhatsApp"}
+            </button>
             <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 shadow-sm transition">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
               Export Config
@@ -482,6 +543,23 @@ export default function WhatsAppConfig() {
 
         {/* ── TWO-STEP VERIFICATION ── */}
         <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5 shadow-sm">
+          {/* Phone Status Banner — shown when phone is PENDING */}
+          {phoneStatus === 'PENDING' && (
+            <div className="mb-4 flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-3.5">
+              <span className="text-xl mt-0.5">⚠️</span>
+              <div>
+                <p className="text-sm font-bold text-amber-800">Phone Number Not Yet Activated</p>
+                <p className="text-xs text-amber-700 mt-0.5">Your phone number is connected but not registered with Meta. Set a 6-digit PIN below to activate it.</p>
+              </div>
+            </div>
+          )}
+          {phoneStatus === 'ACTIVE' && (
+            <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3.5 py-2.5">
+              <span className="text-base">✅</span>
+              <p className="text-sm font-semibold text-green-700">Phone number is registered and active with Meta.</p>
+            </div>
+          )}
+
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center">🛡️</div>
@@ -489,6 +567,17 @@ export default function WhatsAppConfig() {
                 <div className="flex items-center gap-2">
                   <h2 className="font-bold text-gray-800">Two-Step Verification</h2>
                   {pinSet && <span className="text-xs font-bold bg-green-100 text-green-700 border border-green-200 rounded-full px-2 py-0.5">Enabled</span>}
+                  {/* Phone Status Badge */}
+                  {phoneStatus === 'ACTIVE' && (
+                    <span className="text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-full px-2 py-0.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />Registered
+                    </span>
+                  )}
+                  {phoneStatus === 'PENDING' && (
+                    <span className="text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200 rounded-full px-2 py-0.5 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block" />Pending
+                    </span>
+                  )}
                 </div>
                 <p className="text-sm text-gray-500 mt-0.5">Protect your number with a 6-digit PIN required to register with WhatsApp.</p>
               </div>
@@ -509,6 +598,27 @@ export default function WhatsAppConfig() {
               </button>
             </div>
           </div>
+
+          {/* Auto-generated PIN display for admin reference */}
+          {registrationPin && phoneStatus === 'ACTIVE' && (
+            <div className="mt-4 border-t border-gray-100 pt-4">
+              <label className="block text-xs font-semibold text-gray-400 tracking-widest uppercase mb-1.5">Auto-Generated Registration PIN</label>
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5">
+                <input
+                  type={showRegPin ? "text" : "password"}
+                  value={registrationPin}
+                  readOnly
+                  className="flex-1 text-sm font-mono text-gray-700 bg-transparent outline-none tracking-widest"
+                />
+                <EyeBtn visible={showRegPin} onToggle={() => setShowRegPin(!showRegPin)} />
+                <CopyBtn text={registrationPin} onCopy={() => toast.success("Registration PIN copied")} />
+              </div>
+              <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                This PIN was auto-generated when you connected via Embedded Signup. Keep it safe.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* ── UNLINK SECTION ── */}
@@ -627,6 +737,12 @@ export default function WhatsAppConfig() {
           setShowTestModal(false);
           setTimeout(() => setShowHealthModal(true), 350);
         }}
+      />
+
+      {/* ══ MODAL: CONNECT / RECONNECT WHATSAPP ══ */}
+      <ConnectWhatsAppModal
+        isOpen={showConnectModal}
+        onClose={() => setShowConnectModal(false)}
       />
     </>
   );

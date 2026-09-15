@@ -58,9 +58,12 @@ const messageSchema = new mongoose.Schema({
   deletedAt: { type: Date },
   status: {
     type: String,
-    enum: ['sent', 'delivered', 'read', 'failed', 'received'],
+    enum: ['pending', 'sent', 'delivered', 'read', 'failed', 'received'],
     default: 'sent'
-  }
+  },
+  statusTimestamp: { type: Date },
+  error: { type: String },
+  errorCode: { type: String }
 }, {
   timestamps: true
 });

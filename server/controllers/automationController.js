@@ -240,8 +240,25 @@ exports.simulateStart = async (req, res, next) => {
       { $set: { status: 'COMPLETED' } }
     );
 
-    // Removed startFlowManually so the flow doesn't auto-start. 
-    // The simulator will wait for the user to type a trigger keyword (e.g. 'hello').
+    // Automatically trigger/start the flow so template/first message immediately pops up in the simulator!
+    const { startFlowManually, executeWorkflowStep } = require('../engine/flowRunner');
+    
+    // Check if flow has a triggerNode with keyword or starts with templateNode
+    const triggerNode = automation.nodes?.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+    
+    if (triggerNode) {
+      // Find what trigger keyword it expects, or start it via trigger node's next edge
+      const outgoing = automation.edges?.filter(e => e.source === triggerNode.id);
+      if (outgoing && outgoing.length > 0) {
+        // Start flow directly from the node attached to trigger
+        await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+      } else {
+        await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+      }
+    } else {
+      // Flow directly starts with a message/template node
+      await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+    }
     
     res.status(200).json({ success: true, message: 'Simulation started' });
   } catch (error) {

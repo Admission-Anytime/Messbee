@@ -27,9 +27,8 @@ const customerSessionSchema = new mongoose.Schema({
   },
   // Store user context/variables across the flow
   sessionVariables: {
-    type: Map,
-    of: mongoose.Schema.Types.Mixed,
-    default: new Map()
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   status: {
     type: String,
@@ -39,7 +38,7 @@ const customerSessionSchema = new mongoose.Schema({
   },
   expectedValidation: {
     type: String,
-    enum: ['text', 'email', 'phone', 'number', 'date', 'boolean']
+    enum: ['text', 'email', 'phone', 'mobile', 'number', 'date', 'boolean', 'url', 'location', 'photo', 'audio', 'pdf', 'address']
   },
   validationRetries: {
     type: Number,

@@ -50,15 +50,7 @@ class WhatsAppService {
         let setting = await Setting.findOne({ key: 'whatsapp_config' });
         
         if (!setting || !setting.value) {
-          // No DB config yet — seed from .env and save
-          setting = setting || new Setting({ key: 'whatsapp_config', value: {} });
-          setting.value = {
-            apiVersion: process.env.WHATSAPP_API_VERSION,
-            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-            accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-            businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
-          };
-          await setting.save();
+          return;
         }
         
         // ✅ DB values take priority — only fall back to .env if DB value is missing/empty
@@ -104,11 +96,25 @@ class WhatsAppService {
     const templatesResult = await this.getTemplates();
     const templates = Array.isArray(templatesResult?.data) ? templatesResult.data : [];
 
-    return templates.find(
+    // 1. Exact match by name and language
+    const exact = templates.find(
       (template) =>
         template?.name === templateName &&
         template?.language === languageCode
-    ) || null;
+    );
+    if (exact) return exact;
+
+    // 2. Base language match (e.g. 'en' matches 'en_US')
+    const baseLang = String(languageCode || '').split('_')[0].toLowerCase();
+    const langMatch = templates.find(
+      (template) =>
+        template?.name === templateName &&
+        (String(template?.language || '').toLowerCase().startsWith(baseLang) || !languageCode)
+    );
+    if (langMatch) return langMatch;
+
+    // 3. Fallback: Match by name only
+    return templates.find((template) => template?.name === templateName) || null;
   }
 
   getTemplateBodyText(template) {
@@ -595,6 +601,77 @@ class WhatsAppService {
         }
       }
 
+      // AUTO-INJECT COPY_CODE BUTTON PARAMETER IF MISSING
+      const buttonsComp = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'BUTTONS');
+      if (buttonsComp && Array.isArray(buttonsComp.buttons)) {
+        buttonsComp.buttons.forEach((btn, idx) => {
+          const btnType = String(btn?.type || '').toUpperCase();
+          if (btnType === 'COPY_CODE') {
+            const hasBtnParam = components.some(c => 
+              String(c?.type || '').toLowerCase() === 'button' && 
+              String(c?.index) === String(idx)
+            );
+            if (!hasBtnParam) {
+              const rawExample = Array.isArray(btn?.example) ? btn.example[0] : btn?.example;
+              const codeToUse = (String(rawExample || '').trim()) || 'OFFER20';
+              components.push({
+                type: 'button',
+                sub_type: 'copy_code',
+                index: String(idx),
+                parameters: [
+                  {
+                    type: 'coupon_code',
+                    coupon_code: codeToUse
+                  }
+                ]
+              });
+            }
+          }
+        });
+      }
+
+      // AUTO-INJECT / NORMALIZE LIMITED_TIME_OFFER expiration_time_ms
+      const ltoComp = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+      if (ltoComp) {
+        const ltoParamIndex = components.findIndex(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+        if (ltoParamIndex === -1) {
+          // Default: expire 24 hours from now (in milliseconds)
+          const expirationMs = Date.now() + 24 * 60 * 60 * 1000;
+          components.push({
+            type: 'limited_time_offer',
+            parameters: [
+              {
+                type: 'limited_time_offer',
+                limited_time_offer: {
+                  expiration_time_ms: expirationMs
+                }
+              }
+            ]
+          });
+        } else {
+          // Validate and ensure valid future timestamp in ms
+          const existing = components[ltoParamIndex];
+          const rawMs = existing?.parameters?.[0]?.limited_time_offer?.expiration_time_ms ||
+                        existing?.expiration_time_ms;
+          const parsedMs = Number(rawMs);
+          const validMs = (!isNaN(parsedMs) && parsedMs > Date.now())
+            ? Math.floor(parsedMs)
+            : Date.now() + 24 * 60 * 60 * 1000;
+
+          components[ltoParamIndex] = {
+            type: 'limited_time_offer',
+            parameters: [
+              {
+                type: 'limited_time_offer',
+                limited_time_offer: {
+                  expiration_time_ms: validMs
+                }
+              }
+            ]
+          };
+        }
+      }
+
       // INTERCEPT COMPONENTS TO FIX MEDIA LINKS FOR SENDING
       // Meta rejects 'scontent.whatsapp.net' and 'localhost' URLs when sending templates.
       // So we intercept any media URL, upload it to Meta to get an 'id', and use that instead.
@@ -690,6 +767,11 @@ class WhatsAppService {
         }
       }
 
+      const effectiveLanguage = template.language || normalizedLanguage;
+
+      // Filter out any null/undefined components
+      const finalComponents = components.filter(Boolean);
+
       const payload = {
         messaging_product: 'whatsapp',
         to: cleanPhone,
@@ -697,15 +779,14 @@ class WhatsAppService {
         template: {
           name: templateName,
           language: {
-            code: normalizedLanguage
+            code: effectiveLanguage
           },
-          components: components
+          ...(finalComponents.length > 0 && { components: finalComponents })
         }
       };
 
-
       console.log(`\n📤 [WhatsApp API] Sending Template Message to: ${cleanPhone}`);
-      console.log(`   Template: ${templateName} | Language: ${normalizedLanguage}`);
+      console.log(`   Template: ${templateName} | Language: ${effectiveLanguage}`);
       console.log(`   Payload: ${JSON.stringify(payload, null, 2)}`);
 
       const response = await axios.post(
@@ -935,9 +1016,35 @@ class WhatsAppService {
         return {
           contacts: message.contacts
         };
+      case 'interactive': {
+        const interactive = message.interactive;
+        if (interactive?.button_reply) {
+          return {
+            text: interactive.button_reply.id || interactive.button_reply.title,
+            buttonId: interactive.button_reply.id,
+            buttonTitle: interactive.button_reply.title
+          };
+        }
+        if (interactive?.list_reply) {
+          return {
+            text: interactive.list_reply.id || interactive.list_reply.title,
+            listId: interactive.list_reply.id,
+            listTitle: interactive.list_reply.title
+          };
+        }
+        return { text: 'Interactive selection' };
+      }
+      case 'button': {
+        const btn = message.button;
+        return {
+          text: btn?.payload || btn?.text || 'Button reply',
+          buttonPayload: btn?.payload,
+          buttonText: btn?.text
+        };
+      }
       default:
         return {
-          text: 'Unsupported message type'
+          text: message[message.type]?.body || message[message.type]?.text || 'Unsupported message type'
         };
     }
   }
@@ -1011,15 +1118,34 @@ class WhatsAppService {
               const buttons = Array.isArray(component?.buttons) ? component.buttons : [];
               const sanitizedButtons = buttons
                 .map((btn) => ({ ...btn }))
-                .filter((btn) => String(btn?.text || '').trim().length > 0)
+                .filter((btn) => {
+                  const btnType = String(btn?.type || '').toUpperCase();
+                  if (btnType === 'OTP' || btnType === 'COPY_CODE') return true;
+                  return String(btn?.text || '').trim().length > 0;
+                })
                 .filter((btn) => {
                   const btnType = String(btn?.type || '').toUpperCase();
                   if (btnType === 'URL') return /^https?:\/\//i.test(String(btn?.url || '').trim());
                   if (btnType === 'PHONE_NUMBER') return String(btn?.phone_number || '').trim().length > 0;
-                  return btnType === 'QUICK_REPLY';
+                  if (btnType === 'QUICK_REPLY') return true;
+                  if (btnType === 'MPM') return true;
+                  if (btnType === 'CATALOG') return true;
+                  if (btnType === 'OTP') return true;
+                  if (btnType === 'COPY_CODE') return String(btn?.example || '').trim().length > 0;
+                  return false;
                 });
               component.buttons = sanitizedButtons;
               return sanitizedButtons.length > 0;
+            }
+            if (type === 'LIMITED_TIME_OFFER') {
+              return Boolean(component?.limited_time_offer?.text);
+            }
+            if (type === 'FOOTER') {
+              const hasLto = inputComponents.some(
+                c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER'
+              );
+              if (hasLto) return false;
+              return Boolean(String(component?.text || '').trim());
             }
             return true;
           });
@@ -1404,6 +1530,75 @@ class WhatsAppService {
         });
       }
 
+      // Auto-inject COPY_CODE button coupon_code parameter if template has copy_code button
+      const buttonsComp = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'BUTTONS');
+      if (buttonsComp && Array.isArray(buttonsComp.buttons)) {
+        buttonsComp.buttons.forEach((btn, idx) => {
+          const btnType = String(btn?.type || '').toUpperCase();
+          if (btnType === 'COPY_CODE') {
+            const hasBtnParam = components.some(c => 
+              String(c?.type || '').toLowerCase() === 'button' && 
+              String(c?.index) === String(idx)
+            );
+            if (!hasBtnParam) {
+              const rawExample = Array.isArray(btn?.example) ? btn.example[0] : btn?.example;
+              const codeToUse = (String(rawExample || '').trim()) || 'OFFER20';
+              components.push({
+                type: 'button',
+                sub_type: 'copy_code',
+                index: String(idx),
+                parameters: [
+                  {
+                    type: 'coupon_code',
+                    coupon_code: codeToUse
+                  }
+                ]
+              });
+            }
+          }
+        });
+      }
+
+      // Auto-inject / normalize LIMITED_TIME_OFFER expiration_time_ms if template has LTO component
+      const ltoComp2 = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+      if (ltoComp2) {
+        const ltoParamIndex2 = components.findIndex(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+        if (ltoParamIndex2 === -1) {
+          const expirationMs2 = Date.now() + 24 * 60 * 60 * 1000;
+          components.push({
+            type: 'limited_time_offer',
+            parameters: [
+              {
+                type: 'limited_time_offer',
+                limited_time_offer: {
+                  expiration_time_ms: expirationMs2
+                }
+              }
+            ]
+          });
+        } else {
+          const existing2 = components[ltoParamIndex2];
+          const rawMs2 = existing2?.parameters?.[0]?.limited_time_offer?.expiration_time_ms ||
+                         existing2?.expiration_time_ms;
+          const parsedMs2 = Number(rawMs2);
+          const validMs2 = (!isNaN(parsedMs2) && parsedMs2 > Date.now())
+            ? Math.floor(parsedMs2)
+            : Date.now() + 24 * 60 * 60 * 1000;
+
+          components[ltoParamIndex2] = {
+            type: 'limited_time_offer',
+            parameters: [
+              {
+                type: 'limited_time_offer',
+                limited_time_offer: {
+                  expiration_time_ms: validMs2
+                }
+              }
+            ]
+          };
+        }
+      }
+
       const response = await axios.post(
         `${this.baseURL}/messages`,
         {
@@ -1460,8 +1655,37 @@ class WhatsAppService {
       await this.syncConfig();
 
       // Correct endpoint: DELETE /{WABA-ID}/message_templates?name={template_name}
+      const apiVersion = this.apiVersion || process.env.WHATSAPP_API_VERSION || 'v20.0';
+      let wabaId = this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+
+      if (!wabaId && this.phoneNumberId) {
+        try {
+          const phoneRes = await axios.get(
+            `https://graph.facebook.com/${apiVersion}/${this.phoneNumberId}?fields=whatsapp_business_account`,
+            { headers: { 'Authorization': `Bearer ${this.accessToken}` } }
+          );
+          wabaId = phoneRes.data?.whatsapp_business_account?.id;
+          if (wabaId) {
+            this.businessAccountId = wabaId;
+          }
+        } catch (phoneErr) {
+          console.warn('⚠️ [Service] Could not resolve WABA ID from phone number:', phoneErr.message);
+        }
+      }
+
+      if (!wabaId) {
+        throw new Error('WhatsApp Business Account ID (WABA ID) is required to delete a template');
+      }
+
+      console.log('🗑️ [Service] Deleting template from WhatsApp:', {
+        templateId,
+        templateName,
+        wabaId,
+        apiVersion
+      });
+
       const response = await axios.delete(
-        `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION}/${this.businessAccountId}/message_templates`,
+        `https://graph.facebook.com/${apiVersion}/${wabaId}/message_templates`,
         {
           params: {
             name: templateName

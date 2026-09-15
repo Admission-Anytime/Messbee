@@ -3,7 +3,6 @@ const Chat = require("../models/Chat");
 const Message = require("../models/Message");
 const Media = require("../models/Media");
 const mongoose = require("mongoose");
-const whatsappService = require("../services/whatsappService");
 const { getIO } = require("../config/socket");
 const { protect } = require('../middleware/auth');
 const upload = require('../middleware/upload');
@@ -28,12 +27,12 @@ function parseWhatsAppError(errorObj) {
     131026: 'Message could not be delivered — the number may not have WhatsApp installed or has blocked your number.',
     131000: 'Something went wrong on WhatsApp servers. Please try again.',
     131005: 'Permission denied — your WhatsApp Business Account does not have permission to perform this action.',
-    131008: 'Required parameter is missing from the API request.',
-    131009: 'Parameter value is invalid.',
+    131008: details ? `Required parameter is missing: ${details}` : 'Required parameter is missing from the API request.',
+    131009: details ? `Parameter value is invalid: ${details}` : 'Parameter value is invalid.',
     131051: 'Message type not supported for this recipient.',
     131052: 'Media download error.',
     131053: 'Media upload error.',
-    100:    'Invalid parameter — check your phone number format. It must include country code (e.g. 919XXXXXXXXX).',
+    100:    (inner?.error_user_msg || details || inner?.message || 'Invalid parameter in WhatsApp API request.').replace(/^\(#100\)\s*/, ''),
     190:    'WhatsApp access token has expired. Please update WHATSAPP_ACCESS_TOKEN in your .env file.',
     4:      'API call limit reached. Please try again later.',
     80007:  'Rate limit — too many messages sent too quickly.'
@@ -277,48 +276,48 @@ router.post("/", async (req, res) => {
 
     // Normalize phone numbers
     const normalizedPhone = normalizePhoneNumber(phone || whatsappId);
+    const last10 = normalizedPhone.slice(-10);
+    const phoneRegex = last10.length >= 10 ? new RegExp(`${last10}$`) : null;
 
+    // Check if chat already exists for THIS tenant
+    const effectiveTenantId = req.user.tenantId || req.user._id || req.user.id;
+    const tenantIdStr = (effectiveTenantId || '').toString();
+    const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+    const userTenantFilter = tenantIdObj ? { $in: [effectiveTenantId, tenantIdStr, tenantIdObj] } : effectiveTenantId;
 
+    const searchConditions = [
+      { phone: normalizedPhone },
+      { whatsappId: normalizedPhone },
+      { phone: phone || whatsappId },
+      { whatsappId: whatsappId || phone }
+    ];
+    if (phoneRegex) {
+      searchConditions.push({ phone: phoneRegex });
+      searchConditions.push({ whatsappId: phoneRegex });
+    }
 
-    // Check if chat already exists for THIS user OR is a shared WhatsApp chat
-    const existingChat = await Chat.findOne({
-      $and: [
-        {
-          $or: [
-            { user: req.user.id },
-            { source: 'whatsapp' }
-          ]
-        },
-        {
-          $or: [
-            { phone: normalizedPhone },
-            { whatsappId: normalizedPhone },
-            { phone: phone || whatsappId },
-            { whatsappId: whatsappId || phone }
-          ]
-        }
-      ]
+    let existingChat = await Chat.findOne({
+      user: userTenantFilter,
+      $or: searchConditions
     });
 
     if (existingChat) {
-
-
       // Update the chat with normalized phone if needed
       if (existingChat.phone !== normalizedPhone) {
         existingChat.phone = normalizedPhone;
         existingChat.whatsappId = normalizedPhone;
         await existingChat.save();
-
       }
 
       return res.json({
         success: true,
         data: existingChat,
+        alreadyExists: true,
         message: "Chat already exists"
       });
     }
 
-    // Create new chat with normalized phone and current userId
+    // Create new chat with normalized phone and current tenant's ID
     const newChat = await Chat.create({
       name: name || normalizedPhone,
       phone: normalizedPhone,
@@ -332,17 +331,14 @@ router.post("/", async (req, res) => {
       lastMsg: "",
       lastMsgTime: "",
       lastActivity: new Date(),
-      user: req.user.id
+      user: effectiveTenantId
     });
-
-
 
     // Emit socket event for new chat
     try {
       const io = getIO();
       if (io) {
         io.emit("chat_created", newChat);
-
       }
     } catch (socketError) {
       console.error("Socket error:", socketError.message);
@@ -357,6 +353,44 @@ router.post("/", async (req, res) => {
 
     // Handle Mongoose duplicate key error (11000)
     if (error.code === 11000) {
+      try {
+        const effectiveTenantId = req.user?.tenantId || req.user?._id || req.user?.id;
+        const tenantIdStr = (effectiveTenantId || '').toString();
+        const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+        const userTenantFilter = tenantIdObj ? { $in: [effectiveTenantId, tenantIdStr, tenantIdObj] } : effectiveTenantId;
+
+        const raw = req.body.phone || req.body.whatsappId || '';
+        const norm = normalizePhoneNumber(raw);
+        const l10 = norm.slice(-10);
+        const reg = l10.length >= 10 ? new RegExp(`${l10}$`) : null;
+        
+        const fallbackConditions = [
+          { phone: norm },
+          { whatsappId: norm },
+          { phone: raw }
+        ];
+        if (reg) {
+          fallbackConditions.push({ phone: reg });
+          fallbackConditions.push({ whatsappId: reg });
+        }
+
+        const foundExisting = await Chat.findOne({
+          user: userTenantFilter,
+          $or: fallbackConditions
+        });
+
+        if (foundExisting) {
+          return res.json({
+            success: true,
+            data: foundExisting,
+            alreadyExists: true,
+            message: "Chat already exists"
+          });
+        }
+      } catch (findErr) {
+        console.error("Error finding duplicate chat:", findErr);
+      }
+
       return res.status(400).json({
         success: false,
         error: "A contact with this phone number already exists in your list.",
@@ -427,7 +461,8 @@ router.post("/message", async (req, res) => {
       let whatsappMediaType = 'document'; // default, overridden below if media present
 
       const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-      const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+      const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+      const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
       if (!tenantWhatsAppService) {
         return res.status(403).json({ success: false, error: 'WhatsApp is not connected for this account.' });
@@ -591,8 +626,9 @@ router.post("/message", async (req, res) => {
             chatId: chatId.toString(),
             message: newMessage
           });
-          // Also update chat list for all clients
-          io.emit("chat_updated", await Chat.findById(chatId));
+          // Also update chat list strictly for this tenant
+          const tenantRoom = `tenant_${chat.user?.toString() || req.user?.tenantId || req.user?._id}`;
+          io.to(tenantRoom).emit("chat_updated", await Chat.findById(chatId));
         }
       } catch (socketError) {
         console.error("❌ Socket error:", socketError.message);
@@ -719,8 +755,17 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
 
 
 
-    // Upload to WhatsApp servers with sanitized MIME type
-    const result = await whatsappService.uploadMedia(filePath, mimeType);
+    // Upload to WhatsApp servers with sanitized MIME type using this tenant's own WhatsApp connection
+    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const targetTenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+
+    if (!tenantWhatsAppService) {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      return res.status(403).json({ error: "WhatsApp is not connected for this account. Cannot upload media." });
+    }
+
+    const result = await tenantWhatsAppService.uploadMedia(filePath, mimeType);
 
     if (!result.success) {
       // Clean up local file on failure
@@ -788,7 +833,15 @@ router.post("/upload-media", async (req, res) => {
       });
     }
 
-    const result = await whatsappService.uploadMediaFromUrl(fileUrl, mimeType);
+    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const targetTenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ error: "WhatsApp is not connected for this account." });
+    }
+
+    const result = await tenantWhatsAppService.uploadMediaFromUrl(fileUrl, mimeType);
 
     if (!result.success) {
       return res.status(500).json({
@@ -828,27 +881,47 @@ router.post("/send-template", async (req, res) => {
     }
 
     const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-    const tenantWhatsAppService = await getTenantWhatsAppService(chat.user);
+    const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
     if (!tenantWhatsAppService) {
       return res.status(403).json({ error: 'WhatsApp is not connected for this account.' });
     }
 
+    let metaTemplateName = templateName;
+    try {
+      const Template = require('../models/Template');
+      const dbTpl = await Template.findOne({
+        $or: [
+          { user: chat.user },
+          { tenantId: chat.tenantId || chat.user }
+        ],
+        $or: [
+          { name: templateName },
+          { whatsappTemplateName: templateName }
+        ]
+      });
+      if (dbTpl) {
+        if (dbTpl.whatsappTemplateName) metaTemplateName = dbTpl.whatsappTemplateName;
+        if (dbTpl.language && (!languageCode || languageCode === 'en')) languageCode = dbTpl.language;
+      }
+    } catch (_) {}
+
     const result = await tenantWhatsAppService.sendTemplateMessage(
       chat.whatsappId,
-      templateName,
+      metaTemplateName,
       languageCode || 'en',
       components || []
     );
 
+    let whatsappError = null;
+    let whatsappErrorCode = null;
+
     if (!result.success) {
       const { code, userMessage } = parseWhatsAppError(result.error);
-      return res.status(500).json({
-        success: false,
-        error: userMessage || "Failed to send template",
-        errorCode: code,
-        rawError: result.error
-      });
+      whatsappError = userMessage || "Failed to send template";
+      whatsappErrorCode = code;
+      console.error(`❌ Template send failed [${code}]: ${whatsappError}`);
     }
 
     // Save template message to database
@@ -896,14 +969,15 @@ router.post("/send-template", async (req, res) => {
       }
     }
 
-    // Save template message to database
+    // Save template message to database (both on success and failure)
     try {
+      const msgStatus = result.success ? 'sent' : 'failed';
       const newMessage = await Message.create({
         chatId: chatId,
         text: result.displayText || `Template: ${templateName}`,
         sender: 'me',
         time: time,
-        whatsappMessageId: result.messageId,
+        whatsappMessageId: result.messageId || null,
         messageType: 'template',
         templateName: result.templateName || templateName,
         templateLanguage: result.templateLanguage || (languageCode || 'en'),
@@ -913,7 +987,9 @@ router.post("/send-template", async (req, res) => {
         metadata: {
           components: components || []
         },
-        status: 'sent',
+        status: msgStatus,
+        error: whatsappError || undefined,
+        errorCode: whatsappErrorCode || undefined,
         user: req.user.id
       });
 
@@ -931,14 +1007,30 @@ router.post("/send-template", async (req, res) => {
       }
       const updatedChat = await Chat.findByIdAndUpdate(chatId, chatUpdateFields, { new: true });
 
-      // Emit socket update for the chat list
+      // Emit socket update for the chat room and chat list
       try {
         const io = getIO();
-        if (io && updatedChat) {
-          io.emit("chat_updated", updatedChat);
+        if (io) {
+          io.to(chatId.toString()).emit("message_sent", {
+            chatId: chatId.toString(),
+            message: newMessage
+          });
+          if (updatedChat) {
+            io.emit("chat_updated", updatedChat);
+          }
         }
       } catch (socketError) {
         console.error("Socket error on template send:", socketError.message);
+      }
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          data: newMessage,
+          error: whatsappError,
+          errorCode: whatsappErrorCode,
+          rawError: result.error
+        });
       }
 
       return res.json({

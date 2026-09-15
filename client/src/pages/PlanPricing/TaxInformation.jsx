@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
+import { toast } from "react-toastify";
 import {
     ArrowLeftIcon,
     QuestionMarkCircleIcon,
@@ -12,20 +15,35 @@ import {
 
 function TaxInformation() {
     const navigate = useNavigate();
+    const { user, updateUser } = useContext(userContext);
     const [isEditing, setIsEditing] = React.useState(false);
+    const [saving, setSaving] = useState(false);
 
     const [form, setForm] = useState({
-        taxType: "VAT (Value Added Tax)",
-        taxIdNumber: "",
-        registeredAddress: "",
-        city: "",
-        state: "",
-        postalCode: "",
+        taxType: user?.taxType || "GST (Goods and Services Tax)",
+        taxIdNumber: user?.billingTaxId || "",
+        registeredAddress: user?.billingAddress || user?.address || "",
+        city: user?.billingCity || user?.city || "",
+        state: user?.billingState || user?.state || "",
+        postalCode: user?.billingZipcode || user?.zipcode || "",
     });
 
+    useEffect(() => {
+        if (user) {
+            setForm({
+                taxType: user?.taxType || "GST (Goods and Services Tax)",
+                taxIdNumber: user?.billingTaxId || "",
+                registeredAddress: user?.billingAddress || user?.address || "",
+                city: user?.billingCity || user?.city || "",
+                state: user?.billingState || user?.state || "",
+                postalCode: user?.billingZipcode || user?.zipcode || "",
+            });
+        }
+    }, [user]);
+
     const taxTypes = [
-        "VAT (Value Added Tax)",
         "GST (Goods and Services Tax)",
+        "VAT (Value Added Tax)",
         "HST (Harmonized Sales Tax)",
         "SST (Sales and Service Tax)",
         "Corporate Tax ID",
@@ -38,13 +56,36 @@ function TaxInformation() {
 
     const handleDiscard = () => {
         setForm({
-            taxType: "VAT (Value Added Tax)",
-            taxIdNumber: "",
-            registeredAddress: "",
-            city: "",
-            state: "",
-            postalCode: "",
+            taxType: user?.taxType || "GST (Goods and Services Tax)",
+            taxIdNumber: user?.billingTaxId || "",
+            registeredAddress: user?.billingAddress || user?.address || "",
+            city: user?.billingCity || user?.city || "",
+            state: user?.billingState || user?.state || "",
+            postalCode: user?.billingZipcode || user?.zipcode || "",
         });
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await axios.put("/users/profile", {
+                taxType: form.taxType,
+                billingTaxId: form.taxIdNumber,
+                billingAddress: form.registeredAddress,
+                billingCity: form.city,
+                billingState: form.state,
+                billingZipcode: form.postalCode,
+            });
+            if (res.data?.success && res.data?.data) {
+                updateUser(res.data.data);
+            }
+            setIsEditing(false);
+            toast.success("Tax information updated successfully!");
+        } catch (err) {
+            toast.error("Failed to save tax details: " + (err.response?.data?.message || err.message));
+        } finally {
+            setSaving(false);
+        }
     };
 
     const inputClass =
@@ -188,10 +229,11 @@ function TaxInformation() {
                                     Discard Changes
                                 </button>
                                 <button
-                                    onClick={() => setIsEditing(false)}
-                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm"
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-bold rounded-lg transition-colors shadow-sm"
                                 >
-                                    Save Information
+                                    {saving ? "Saving..." : "Save Information"}
                                 </button>
                             </div>
                         </div>

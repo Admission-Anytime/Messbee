@@ -43,6 +43,7 @@ const tenantSettingsSchema = new mongoose.Schema({
   // Welcome Message Settings
   welcomeMessage: {
     enabled: { type: Boolean, default: false },
+    textMessage: { type: String, default: 'Welcome! How can we help you today?' },
     automationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Automation', default: null }
   },
   // Away Message Settings
@@ -50,6 +51,7 @@ const tenantSettingsSchema = new mongoose.Schema({
     enabled: { type: Boolean, default: false },
     timezone: { type: String, default: 'UTC' },
     holidayMode: { type: Boolean, default: false },
+    textMessage: { type: String, default: 'We are currently away and will get back to you as soon as possible!' },
     automationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Automation', default: null },
     workingHours: {
       type: Map,
@@ -72,6 +74,7 @@ const tenantSettingsSchema = new mongoose.Schema({
   // Fallback Message Settings
   fallbackMessage: {
     enabled: { type: Boolean, default: false },
+    textMessage: { type: String, default: 'Sorry, we did not understand that. Please reply with a keyword or wait for an agent.' },
     automationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Automation', default: null }
   },
   // Spam Protection

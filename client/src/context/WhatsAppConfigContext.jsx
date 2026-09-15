@@ -46,6 +46,9 @@ export const WhatsAppConfigProvider = ({ children }) => {
 
   // ── Fetch config from our backend ─────────────────────────────────────────
   const refreshConfig = useCallback(async (force = false) => {
+    // Only fetch if a user is logged in
+    if (!localStorage.getItem("user")) return;
+
     // Skip if fetched recently (within last 5 min) unless forced
     if (!force && lastFetched && Date.now() - lastFetched < 5 * 60 * 1000) return;
 

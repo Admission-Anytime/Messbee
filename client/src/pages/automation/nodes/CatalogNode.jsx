@@ -53,7 +53,7 @@ export default function CatalogNode({ id, data, selected }) {
             border: '1px solid #4C566A',
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
           }}>
-            <div style={{ fontSize: '12px', color: data.text ? '#374151' : '#9ca3af', fontStyle: data.text ? 'normal' : 'italic', whiteSpace: 'pre-wrap', lineHeight: '1.4', marginBottom: '12px' }}>
+            <div style={{ fontSize: '12px', color: data.text ? '#ECEFF4' : '#9ca3af', fontStyle: data.text ? 'normal' : 'italic', whiteSpace: 'pre-wrap', lineHeight: '1.4', marginBottom: '12px' }}>
               {data.text || 'Check out our amazing products!'}
             </div>
 

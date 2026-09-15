@@ -96,7 +96,17 @@ export default function AutomationBuilder() {
         }
       } else {
         setChannelId(defaultChannelId);
-        const triggerType = location.state?.triggerType || 'exact_match';
+        const rawTriggerType = location.state?.triggerType || 'exact_match';
+        // Map modal trigger IDs to flow trigger types
+        const triggerMap = {
+          'specific_message': 'exact_match',
+          'webhook': 'api_webhook',
+          'crm': 'crm_event',
+          'manual': 'manual_trigger',
+          'media_received': 'media_any'
+        };
+        const triggerType = triggerMap[rawTriggerType] || rawTriggerType;
+
         setFlowData([
           {
             id: 'trigger_1',
@@ -128,18 +138,32 @@ export default function AutomationBuilder() {
       return;
     }
 
+    if (!nodes || nodes.length === 0) {
+      toast.error('The flow cannot be empty. Please add at least one node.');
+      return;
+    }
+
     setInvalidNodeId(null);
     // Pre-save validation
+    const NON_KEYWORD_TRIGGERS = [
+      'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 
+      'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call',
+      'any_message', 'new_subscriber', 'api_webhook', 'webhook', 'crm_event', 'crm',
+      'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual',
+      'welcome_message', 'away_message', 'fallback'
+    ];
+
     for (const node of nodes) {
       if (node.type === 'triggerNode') {
         const tType = node.data?.triggerType || '';
-        if (!node.data?.keyword && tType !== 'media_any' && !tType.includes('_received') && tType !== 'away_message' && tType !== 'fallback') {
+        const isNonKeyword = NON_KEYWORD_TRIGGERS.includes(tType) || tType.includes('_received');
+        if (!isNonKeyword && !node.data?.keyword) {
           toast.error(`Trigger node is missing a keyword`);
           setInvalidNodeId(node.id);
           return;
         }
       }
-      if (node.type === 'apiNode' && !node.data?.endpoint) {
+      if (node.type === 'apiNode' && (!node.data?.endpoint && !node.data?.url)) {
         toast.error(`API node is missing an endpoint URL`);
         setInvalidNodeId(node.id);
         return;
@@ -151,6 +175,16 @@ export default function AutomationBuilder() {
       }
       if (node.type === 'messageNode' && !node.data?.text) {
         toast.error(`Message node is missing text content`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+      if (node.type === 'inputNode' && (!node.data?.text && !node.data?.question)) {
+        toast.error(`"Ask Question" node is missing question text`);
+        setInvalidNodeId(node.id);
+        return;
+      }
+      if (node.type === 'inputNode' && !node.data?.variableName) {
+        toast.error(`"Ask Question" node is missing a variable name to save the answer`);
         setInvalidNodeId(node.id);
         return;
       }
@@ -247,10 +281,36 @@ export default function AutomationBuilder() {
       });
     }
 
+    let templateButtons = [];
+    if (template.components) {
+      const btnComp = template.components.find(c => c.type === 'BUTTONS');
+      if (btnComp && Array.isArray(btnComp.buttons)) {
+        templateButtons = btnComp.buttons.map((b, i) => ({
+          id: b.id || `btn_${i}`,
+          type: (b.type || 'QUICK_REPLY').toLowerCase(),
+          text: b.text || b.title || `Button ${i + 1}`,
+          title: b.text || b.title || `Button ${i + 1}`,
+          url: b.url,
+          phoneNumber: b.phone_number,
+          payload: b.payload
+        }));
+      }
+    } else if (Array.isArray(template.buttons)) {
+      templateButtons = template.buttons.map((b, i) => ({
+        id: b.id || `btn_${i}`,
+        type: (b.type || 'QUICK_REPLY').toLowerCase(),
+        text: b.text || b.title || `Button ${i + 1}`,
+        title: b.text || b.title || `Button ${i + 1}`,
+        url: b.url,
+        phoneNumber: b.phone_number,
+        payload: b.payload
+      }));
+    }
+
     const templateNode = {
       id: `template_node_${Date.now()}`,
       type: 'templateNode',
-      position: { x: 350, y: 150 },
+      position: { x: 250, y: 150 },
       data: {
         label: 'Template Message',
         templateName: template.name,
@@ -260,30 +320,12 @@ export default function AutomationBuilder() {
         headerType: headerType,
         headline: headerText,
         mediaUrl: mediaUrl,
-        buttons: (template.components && template.components.find(c => c.type === 'BUTTONS')?.buttons) || []
+        buttons: templateButtons
       }
     };
 
-    const triggerNode = {
-      id: `trigger_${Date.now()}`,
-      type: 'triggerNode',
-      position: { x: 50, y: 150 },
-      data: {
-        label: 'Incoming Message',
-        triggerType: 'exact_match',
-        keyword: '',
-      },
-    };
-
-    setFlowData([triggerNode, templateNode], [
-      {
-        id: `edge_${Date.now()}`,
-        source: triggerNode.id,
-        target: templateNode.id,
-        sourceHandle: 'main-handle',
-        type: 'smoothstep'
-      }
-    ]);
+    // Start with template directly without creating a dummy triggerNode
+    setFlowData([templateNode], []);
     
     setIsTemplateModalOpen(false);
   };

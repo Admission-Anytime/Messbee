@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Send, Play, Bot, User, Phone, CheckCircle2 } from 'lucide-react';
+import { X, Send, Play, Bot, User, Phone, CheckCircle2, RotateCcw } from 'lucide-react';
 import api from '../../context/axios';
 import io from 'socket.io-client';
+import { showToast } from '../../utils/showToast';
+import { getBackendBaseUrl } from '../../utils/urlHelper';
 
 export default function SimulatorPanel({ automationId, channelId, isOpen, onClose }) {
   const [messages, setMessages] = useState([]);
@@ -14,32 +16,49 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   useEffect(() => {
     if (isOpen && channelId) {
       // Connect to Socket.IO — strip /api suffix since Socket.IO runs at the root
-      const socketUrl = (import.meta.env.VITE_API_URL || '').replace(/\/api\/?$/, '');
+      const socketUrl = import.meta.env.VITE_SOCKET_URL || getBackendBaseUrl();
       const newSocket = io(socketUrl, {
-        withCredentials: true
+        withCredentials: true,
+        transports: ['websocket', 'polling']
       });
       
       newSocket.on('connect', () => {
-        console.log('Simulator connected to socket');
-        newSocket.emit('join_chat', channelId);
+        console.log('Simulator connected to socket:', newSocket.id);
+        newSocket.emit('join_chat', channelId.toString());
+        if (automationId) {
+          newSocket.emit('join_chat', `automation_${automationId}`);
+        }
       });
 
       newSocket.on('simulator_message', (data) => {
-        // data: { direction: 'OUTBOUND', payload: {...}, timestamp }
+        // data: { msgId, direction: 'OUTBOUND', payload: {...}, timestamp }
         console.log('Received simulator message:', data.payload?.type, data);
-        setMessages(prev => [...prev, {
-          id: `msg_${Date.now()}_${Math.random()}`,
-          sender: 'bot',
-          text: '',
-          time: new Date(data.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          raw: data.payload
-        }]);
+        const incomingId = data.msgId || `msg_${Date.now()}`;
+        setMessages(prev => {
+          if (data.msgId && prev.some(m => m.msgId === data.msgId)) {
+            return prev;
+          }
+          return [...prev, {
+            id: incomingId,
+            msgId: data.msgId,
+            sender: 'bot',
+            text: '',
+            time: new Date(data.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            raw: data.payload
+          }];
+        });
       });
 
       setSocket(newSocket);
       
-      // Generate a unique simulator phone for this session
-      const userId = localStorage.getItem('userId') || Math.floor(Math.random() * 1000);
+      // Use authenticated user ID from localStorage 'user' object or persistent identifier
+      let userId = 'user';
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        if (storedUser?._id || storedUser?.id) {
+          userId = storedUser._id || storedUser.id;
+        }
+      } catch (e) {}
       setSimulatorPhone(`SIMULATOR_${userId}`);
       
       return () => {
@@ -56,24 +75,28 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
     if (payload.type === 'text') return payload.text?.body || '';
     
     if (payload.type === 'interactive') {
-      if (payload.interactive.type === 'button') {
+      if (payload.interactive?.type === 'button') {
         const title = payload.interactive.body?.text || '';
         const buttons = payload.interactive.action?.buttons || [];
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <span>{title}</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-              {buttons.map((b, i) => (
-                <div 
-                  key={i} 
-                  onClick={() => sendSimulatedReply(b.reply.title)}
-                  style={{ padding: '6px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '4px', textAlign: 'center', fontSize: '13px', fontWeight: '500', cursor: 'pointer', transition: 'background 0.2s' }}
-                  onMouseOver={(e) => e.target.style.background = '#bae6fd'}
-                  onMouseOut={(e) => e.target.style.background = '#e0f2fe'}
-                >
-                  {b.reply.title}
-                </div>
-              ))}
+              {buttons.map((b, i) => {
+                const bTitle = b.reply?.title || b.title || b.text || `Option ${i + 1}`;
+                const bId = b.reply?.id || b.id || bTitle;
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => sendSimulatedReply(bTitle)}
+                    style={{ padding: '8px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '6px', textAlign: 'center', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s', border: '1px solid #bae6fd' }}
+                    onMouseOver={(e) => e.currentTarget.style.background = '#bae6fd'}
+                    onMouseOut={(e) => e.currentTarget.style.background = '#e0f2fe'}
+                  >
+                    ⚡ {bTitle}
+                  </div>
+                );
+              })}
             </div>
           </div>
         );
@@ -135,6 +158,42 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
               {templateText}
             </div>
           )}
+          {payload._sim_template_buttons && payload._sim_template_buttons.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+              {payload._sim_template_buttons.map((b, i) => {
+                const btnTitle = b.text || b.title || `Button ${i + 1}`;
+                const isUrl = b.type === 'URL' || b.type === 'url';
+                const isPhone = b.type === 'PHONE_NUMBER' || b.type === 'phone';
+                return (
+                  <div
+                    key={i}
+                    onClick={() => {
+                      if (!isUrl && !isPhone) {
+                        sendSimulatedReply(b.payload || btnTitle);
+                      }
+                    }}
+                    style={{
+                      padding: '7px 12px',
+                      background: isUrl || isPhone ? '#f1f5f9' : '#e0e7ff',
+                      color: isUrl || isPhone ? '#475569' : '#4338ca',
+                      borderRadius: '6px',
+                      textAlign: 'center',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      cursor: isUrl || isPhone ? 'default' : 'pointer',
+                      border: '1px solid rgba(0,0,0,0.06)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {isUrl ? '🔗' : isPhone ? '📞' : '⚡'} {btnTitle}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }
@@ -144,7 +203,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   const handleStartSimulation = async () => {
     if (!automationId) return;
     if (!channelId) {
-      alert("Please assign a WhatsApp Channel to this flow before starting the simulation.");
+      showToast.warning("Channel Required", "Please assign a WhatsApp Channel to this flow before starting the simulation.");
       return;
     }
     setIsSimulating(true);
@@ -159,7 +218,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       await api.post(`/automation/${automationId}/simulate/start`, { simulatorPhone });
     } catch (error) {
       console.error('Failed to start simulation', error);
-      alert('Failed to start simulation. Please save the flow first.');
+      showToast.error('Simulation Failed', 'Please save the flow first.');
       setIsSimulating(false);
     }
   };
@@ -223,9 +282,20 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
             <div style={{ fontSize: '11px', opacity: 0.8 }}>Test your flow without API limits</div>
           </div>
         </div>
-        <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}>
-          <X size={20} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isSimulating && (
+            <button 
+              onClick={handleStartSimulation} 
+              style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: 'white', cursor: 'pointer', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+              title="Restart Simulation"
+            >
+              <RotateCcw size={14} /> Restart
+            </button>
+          )}
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'white', cursor: 'pointer', padding: '4px' }}>
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Warning/Start Area */}

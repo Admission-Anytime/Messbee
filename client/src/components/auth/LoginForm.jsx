@@ -59,8 +59,8 @@ const LoginForm = () => {
 
       if (response.success) {
         toast.success("Successfully logged in!");
-        saveAuthData(response.data);
-        loginUser(response.data.user);
+        saveAuthData(response);
+        loginUser(response.data?.user || response.user || response.data);
         navigate("/admin/dashboard");
       } else {
         toast.error(response.message || "Login failed");
@@ -124,8 +124,8 @@ const LoginForm = () => {
 
       if (response.success) {
         toast.success("Login successful!");
-        saveAuthData(response.data);
-        loginUser(response.data.user);
+        saveAuthData(response);
+        loginUser(response.data?.user || response.user || response.data);
         navigate("/admin/dashboard");
       } else {
         toast.error(response.message || "Invalid OTP");

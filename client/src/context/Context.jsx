@@ -1,7 +1,9 @@
-import { createContext, useState, useEffect, useRef } from "react";
+import { createContext, useState, useEffect, useRef, useCallback } from "react";
 import { getCurrentUser, clearAuthData, logout } from "../services/authService";
 import axios from "./axios";
 import io from "socket.io-client";
+import UpgradePromptModal from "../components/Modol/UpgradePromptModal";
+import { hasPlanFeature, getRequiredPlan } from "../utils/planLimits";
 
 export const userContext = createContext();
 
@@ -65,16 +67,22 @@ const Context = (props) => {
           setIsLoggedIn(false);
         }
       } catch (error) {
-        // API call failed (401/network error) - user not authenticated
-        // Check if account is pending approval (403 with pendingApproval)
-        if (error?.response?.status === 403 && error?.response?.data?.pendingApproval) {
-          console.log("Account pending admin approval — logging out");
+        // Only clear auth data on definitive auth failures (401 or 403 pending approval)
+        const isAuthFailure = error?.response?.status === 401 ||
+          (error?.response?.status === 403 && error?.response?.data?.pendingApproval);
+
+        if (isAuthFailure) {
+          if (error?.response?.status === 403 && error?.response?.data?.pendingApproval) {
+            console.log("Account pending admin approval — logging out");
+          } else {
+            console.log("No active session");
+          }
+          clearAuthData();
+          setUser(null);
+          setIsLoggedIn(false);
         } else {
-          console.log("No active session");
+          console.warn("Session verification encountered non-auth error:", error?.message);
         }
-        clearAuthData();
-        setUser(null);
-        setIsLoggedIn(false);
       } finally {
         setAuthChecked(true);
       }
@@ -98,13 +106,31 @@ const Context = (props) => {
   }, []);
 
   // Update user data
-  const updateUser = (userData) => {
-    setUser(userData);
-    localStorage.setItem("user", JSON.stringify(userData));
-  };
+  const updateUser = useCallback((userData) => {
+    setUser(prev => {
+      // Avoid triggering re-renders if no actual change
+      if (!userData) return prev;
+      let hasChange = false;
+      for (const key of Object.keys(userData)) {
+        if (prev?.[key] !== userData[key]) {
+          hasChange = true;
+          break;
+        }
+      }
+      if (!hasChange) return prev;
+
+      const merged = { ...prev, ...userData };
+      // Ensure tenantWhatsAppConnected is preserved if not explicitly present in update response
+      if (prev?.tenantWhatsAppConnected !== undefined && merged.tenantWhatsAppConnected === undefined) {
+        merged.tenantWhatsAppConnected = prev.tenantWhatsAppConnected;
+      }
+      localStorage.setItem("user", JSON.stringify(merged));
+      return merged;
+    });
+  }, []);
 
   // Re-fetch latest user data from server (call after actions like plan upgrade)
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     try {
       const response = await getCurrentUser();
       if (response.success && response.data) {
@@ -114,7 +140,7 @@ const Context = (props) => {
     } catch (error) {
       console.error("Failed to refresh user:", error);
     }
-  };
+  }, []);
 
   // Login user - Save user data to localStorage (tokens are in HTTP-only cookies)
   const loginUser = (userData) => {
@@ -139,6 +165,49 @@ const Context = (props) => {
     }
   };
 
+  // Global Upgrade Prompt Modal State
+  const [upgradeModal, setUpgradeModal] = useState({
+    isOpen: false,
+    featureName: "",
+    requiredPlan: "Growth",
+    description: "",
+    benefits: []
+  });
+
+  const promptUpgrade = ({ feature, featureName, requiredPlan, description, benefits } = {}) => {
+    let reqPlan = requiredPlan;
+    if (feature && !reqPlan) {
+      reqPlan = getRequiredPlan(feature)?.name || "Growth";
+    }
+    setUpgradeModal({
+      isOpen: true,
+      featureName: featureName || (feature ? feature.replace(/([A-Z])/g, ' $1').trim() : "This Feature"),
+      requiredPlan: reqPlan || "Growth",
+      description: description || "",
+      benefits: benefits || []
+    });
+  };
+
+  const closeUpgradeModal = () => {
+    setUpgradeModal(prev => ({ ...prev, isOpen: false }));
+  };
+
+  /**
+   * Helper to check plan access. If allowed, returns true.
+   * If not allowed, opens the UpgradePromptModal automatically and returns false.
+   */
+  const checkPlanAccess = (feature, featureDisplayName) => {
+    const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
+    if (hasPlanFeature(currentPlan, feature)) {
+      return true;
+    }
+    promptUpgrade({
+      feature,
+      featureName: featureDisplayName,
+    });
+    return false;
+  };
+
   const contextValue = {
     user,
     setUser,
@@ -150,12 +219,25 @@ const Context = (props) => {
     loginUser,
     logoutUser,
     rolePermissions,
-    setRolePermissions
+    setRolePermissions,
+    promptUpgrade,
+    checkPlanAccess
   };
+
+  const currentPlanCapitalized = (user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1);
 
   return (
     <userContext.Provider value={contextValue}>
       {props.children}
+      <UpgradePromptModal
+        isOpen={upgradeModal.isOpen}
+        onClose={closeUpgradeModal}
+        featureName={upgradeModal.featureName}
+        currentPlan={currentPlanCapitalized}
+        requiredPlan={upgradeModal.requiredPlan}
+        description={upgradeModal.description}
+        benefits={upgradeModal.benefits}
+      />
     </userContext.Provider>
   );
 };

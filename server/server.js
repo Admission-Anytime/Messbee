@@ -35,6 +35,57 @@ connectDB().then(async () => {
     if (roleResult.modifiedCount > 0) {
       console.log(`✅ Migration: Set role='ADMIN' for ${roleResult.modifiedCount} existing users`);
     }
+
+    // Multi-tenant Chat Index Migration: ensure legacy global unique index 'phone_1' on chats is removed
+    try {
+      const chatIndexes = await mongoose.connection.db.collection('chats').indexes();
+      const legacyPhoneIdx = chatIndexes.find(i => i.name === 'phone_1' && i.unique);
+      if (legacyPhoneIdx) {
+        await mongoose.connection.db.collection('chats').dropIndex('phone_1');
+        console.log('✅ Migration: Dropped legacy global unique phone_1 index from chats collection');
+      }
+    } catch (idxErr) {
+      // index already dropped or non-existent
+    }
+
+    // Auto-Sync Migration: Sync connected WhatsApp channels (verified name, phone, token) to User profiles
+    try {
+      const channels = await mongoose.connection.db.collection('channels').find({
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      }).toArray();
+
+      for (const ch of channels) {
+        if (!ch.tenantId) continue;
+        const verifiedName = ch.name && ch.name !== 'WhatsApp Business' && ch.name !== 'Default WhatsApp Channel' && ch.name !== 'Test Channel' && ch.name !== 'Node Test Channel' ? ch.name : null;
+        const updateObj = {};
+
+        if (verifiedName) {
+          updateObj.businessName = verifiedName;
+        }
+        if (ch.phoneNumber) {
+          updateObj.phone = ch.phoneNumber;
+        }
+        if (ch.activeWhatsappPhoneNumberId) {
+          updateObj['whatsappConfig.phoneNumberId'] = ch.activeWhatsappPhoneNumberId;
+        }
+        if (ch.metaAccessToken) {
+          updateObj['whatsappConfig.accessToken'] = ch.metaAccessToken;
+        }
+        if (ch.metadata?.wabaId) {
+          updateObj['whatsappConfig.wabaId'] = ch.metadata.wabaId;
+        }
+
+        if (Object.keys(updateObj).length > 0) {
+          await mongoose.connection.db.collection('users').updateOne(
+            { _id: ch.tenantId },
+            { $set: updateObj }
+          );
+        }
+      }
+      console.log(`✅ Migration: Auto-synced WhatsApp channels to user profiles (${channels.length} channels checked)`);
+    } catch (syncErr) {
+      console.warn('Channel to User auto-sync warning:', syncErr.message);
+    }
   } catch (err) {
     console.error('Migration warning (non-fatal):', err.message);
   }
@@ -181,6 +232,48 @@ app.use('/api/purchases', require('./routes/purchaseRoutes'));
 app.use('/api/sales', require('./routes/salesRoutes'));
 app.use('/api/inventory', require('./routes/inventoryRoutes'));
 app.use('/api/reports', require('./routes/reportsRoutes'));
+
+// ================== TEMP DEV FIX (REMOVE AFTER USE) ==================
+// Fixes isEmailVerified + password for a user — local dev only
+if (process.env.NODE_ENV !== 'production') {
+  app.get('/api/dev/fix-user/:email', async (req, res) => {
+    try {
+      const bcrypt = require('bcryptjs');
+      const mongoose = require('mongoose');
+      const email = decodeURIComponent(req.params.email);
+      const newPassword = req.query.pw || 'Rahul123@';
+
+      const user = await mongoose.connection.db.collection('users').findOne({ email });
+      if (!user) return res.json({ success: false, message: 'User not found: ' + email });
+
+      const before = {
+        isEmailVerified: user.isEmailVerified,
+        isActive: user.isActive,
+        isApproved: user.isApproved,
+        role: user.role
+      };
+
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+      await mongoose.connection.db.collection('users').updateOne(
+        { email },
+        { $set: { isEmailVerified: true, isActive: true, isApproved: true, password: hashedPassword } }
+      );
+
+      res.json({
+        success: true,
+        message: `Fixed user: ${email}`,
+        before,
+        after: { isEmailVerified: true, isActive: true, isApproved: true },
+        newPassword,
+        note: 'REMOVE THIS ENDPOINT AFTER USE!'
+      });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+}
 
 // ================== HEALTH CHECK ==================
 

@@ -76,12 +76,16 @@ export default function WaitForEventNode({ id, data, selected }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
             {/* EVENT HAPPENED Handle */}
             <div style={{ position: 'relative' }}>
-              <div style={branchStyle('#10b981', 'Event Happened', <CheckCircle2 size={14} color="#10b981"/>)}></div>
+              <div style={branchStyle('#10b981')}>
+                <CheckCircle2 size={14} color="#10b981"/> Event Happened
+              </div>
               <Handle type="source" position={Position.Right} id="event_happened" className="custom-handle" style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
             </div>
             {/* TIMEOUT Handle */}
             <div style={{ position: 'relative' }}>
-              <div style={branchStyle('#f59e0b', 'Timeout Reached', <Clock size={14} color="#f59e0b"/>)}></div>
+              <div style={branchStyle('#f59e0b')}>
+                <Clock size={14} color="#f59e0b"/> Timeout Reached
+              </div>
               <Handle type="source" position={Position.Right} id="timeout" className="custom-handle" style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
             </div>
           </div>

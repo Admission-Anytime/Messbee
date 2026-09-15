@@ -8,8 +8,51 @@ export default function TriggerNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
   
-  const isValid = data.triggerType === 'tag_added' ? !!data.keyword : !!data.text;
+  const NON_KEYWORD_TRIGGERS = [
+    'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 
+    'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call',
+    'any_message', 'new_subscriber', 'api_webhook', 'webhook', 'crm_event', 'crm',
+    'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual',
+    'welcome_message', 'away_message', 'fallback'
+  ];
+  const hasKeyword = !NON_KEYWORD_TRIGGERS.includes(data.triggerType) && !data.triggerType?.includes('_received');
+  const isValid = hasKeyword ? !!(data.keyword && data.keyword.trim()) : true;
   const borderColor = isValid ? '#8b5cf6' : '#ef4444';
+
+  const keywordList = data.keyword 
+    ? data.keyword.split(',').map(k => k.trim()).filter(Boolean)
+    : [];
+
+  const getTriggerDisplayLabel = (type) => {
+    switch (type) {
+      case 'tag_added': return 'Tag Added (CRM)';
+      case 'qr_link': return 'QR Code / Click-to-Chat Link';
+      case 'whatsapp_ad': return 'Click to WhatsApp Ad';
+      case 'interactive_template': return 'Interactive Template Reply';
+      case 'any_message': return 'Incoming Message (Any)';
+      case 'new_subscriber': return 'New Contact Subscribed';
+      case 'api_webhook': case 'webhook': return 'API Webhook';
+      case 'crm_event': case 'crm': return 'CRM Event';
+      case 'schedule': return 'Schedule (One-time)';
+      case 'recurring': return 'Recurring Schedule';
+      case 'media_any': case 'media_received': return 'Media Received';
+      case 'image_received': return 'Image Received';
+      case 'video_received': return 'Video Received';
+      case 'document_received': return 'Document Received';
+      case 'voice_received': return 'Voice Note Received';
+      case 'location_received': return 'Location Shared';
+      case 'contact_shared': return 'Contact Card Shared';
+      case 'reaction': return 'Reaction Received';
+      case 'order_created': return 'Order Created';
+      case 'payment_success': return 'Payment Success';
+      case 'button_click': return 'Button Click';
+      case 'list_selection': return 'List Selection';
+      case 'welcome_message': return 'Welcome Message';
+      case 'away_message': return 'Away Message';
+      case 'fallback': return 'Default Fallback';
+      default: return 'Keyword equals';
+    }
+  };
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
@@ -56,7 +99,8 @@ export default function TriggerNode({ id, data, selected }) {
           }}>
             <div style={{ fontSize: '10px', fontWeight: '600', color: '#9ca3af', marginBottom: '4px' }}>TYPE</div>
             <div style={{ border: '1px solid #4C566A', padding: '6px 10px', borderRadius: '6px', fontSize: '12px', color: '#D8DEE9', marginBottom: '12px', background: '#2E3440', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              {data.triggerType === 'tag_added' ? <><Tag size={12}/> Tag Added</> : 'Keyword equals'}
+              {data.triggerType === 'tag_added' ? <Tag size={12}/> : <Zap size={12}/>}
+              {getTriggerDisplayLabel(data.triggerType)}
             </div>
 
             {data.triggerType === 'tag_added' ? (
@@ -77,9 +121,39 @@ export default function TriggerNode({ id, data, selected }) {
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {!['media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'welcome_message', 'away_message', 'fallback'].includes(data.triggerType) && (
-                    <div style={{ fontSize: '13px', color: data.keyword ? '#1f2937' : '#6b7280', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-                      {data.keyword || 'No keyword set'}
+                  {!NON_KEYWORD_TRIGGERS.includes(data.triggerType) && !data.triggerType?.includes('_received') && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: '600', color: '#9CA3AF' }}>
+                        {keywordList.length > 1 ? 'TRIGGER KEYWORDS' : 'TRIGGER KEYWORD'}
+                      </div>
+                      {keywordList.length > 0 ? (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                          {keywordList.map((kw, idx) => (
+                            <span 
+                              key={idx} 
+                              style={{ 
+                                background: '#434C5E', 
+                                color: '#ECEFF4', 
+                                padding: '3px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '12px', 
+                                fontWeight: '500',
+                                border: '1px solid #4C566A',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px'
+                              }}
+                            >
+                              <span style={{ color: '#A3BE8C', fontWeight: 'bold' }}>#</span>
+                              {kw}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '12px', color: '#6B7280', fontStyle: 'italic' }}>
+                          No keyword set
+                        </div>
+                      )}
                     </div>
                   )}
 

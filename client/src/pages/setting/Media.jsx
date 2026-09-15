@@ -117,41 +117,64 @@ function TypeBadge({ type, size = "sm" }) {
 }
 
 // ─── AssetCard ─────────────────────────────────────────────────────────────────
-function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
+function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect, onPreview }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [imgError, setImgError] = useState(false);
   const fi = FILE_ICONS[asset.type] || FILE_ICONS.IMAGE;
-  const previewSrc = getLocalUrl(asset.thumb || ((asset.type === "IMAGE" || asset.type === "VIDEO") ? asset.url : ""));
+  const rawUrl = asset.thumb || ((asset.type === "IMAGE" || asset.type === "VIDEO") ? asset.url : "");
+  const previewSrc = getLocalUrl(rawUrl);
   const pdfPreviewSrc = asset.type === "PDF" ? withPdfPreviewParams(asset.url) : "";
 
   if (viewMode === "list") {
     return (
-      <div className={`flex items-center gap-4 bg-white border rounded-xl px-4 py-3 hover:shadow-sm transition group ${selected ? "border-red-200 bg-red-50/30" : "border-gray-100 hover:border-gray-200"}`}>
+      <div className={`flex items-center gap-4 bg-white border rounded-2xl px-5 py-3.5 hover:shadow-md transition-all duration-200 group ${selected ? "border-emerald-400 bg-emerald-50/40 ring-2 ring-emerald-200" : "border-slate-200/80 hover:border-slate-300"}`}>
         {/* Checkbox */}
-        <button onClick={() => onSelect(asset.id)} className={`w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition ${selected ? "bg-red-500 border-red-500" : "border-gray-300 hover:border-red-400"}`}>
+        <button 
+          onClick={() => onSelect(asset.id)} 
+          className={`w-5 h-5 rounded-lg border-2 flex-shrink-0 flex items-center justify-center transition-all ${selected ? "bg-emerald-500 border-emerald-500 shadow-sm" : "border-slate-300 hover:border-emerald-400 bg-white"}`}
+        >
           {selected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
         </button>
-        <div className={`w-10 h-10 rounded-lg ${fi.bg} flex items-center justify-center flex-shrink-0 ${fi.color}`}>{fi.icon("w-5 h-5")}</div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
-          <p className="text-xs text-gray-400">{asset.size} • {asset.ext}</p>
+
+        {/* Media Icon or Mini Thumbnail */}
+        <div 
+          onClick={() => onPreview && onPreview(asset)}
+          className={`w-11 h-11 rounded-xl overflow-hidden flex items-center justify-center flex-shrink-0 cursor-pointer shadow-sm ${fi.bg} ${fi.color}`}
+        >
+          {previewSrc && asset.type === "IMAGE" && !imgError ? (
+            <img src={previewSrc} alt={asset.name} onError={() => setImgError(true)} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+          ) : (
+            fi.icon("w-5 h-5")
+          )}
         </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => onPreview && onPreview(asset)}>
+          <p className="text-sm font-bold text-slate-800 truncate group-hover:text-emerald-600 transition-colors">{asset.name}</p>
+          <p className="text-xs text-slate-400 font-medium mt-0.5">{asset.size} • {asset.ext} • {new Date(asset.createdAt || Date.now()).toLocaleDateString()}</p>
+        </div>
+
         <TypeBadge type={asset.type} />
-        {/* 3-dot menu */}
+
+        {/* Actions Menu */}
         <div className="relative">
-          <button onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition">
+          <button 
+            onClick={() => setMenuOpen(!menuOpen)} 
+            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+          >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
+            <div className="absolute right-0 top-10 z-30 bg-white border border-slate-100 rounded-2xl shadow-2xl py-1.5 w-44" onMouseLeave={() => setMenuOpen(false)}>
               <a 
                 href={getLocalUrl(asset.url)} 
                 download={asset.name}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                 onClick={(e) => e.stopPropagation()}
               >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download
               </a>
               <button 
@@ -160,18 +183,18 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
                   navigator.clipboard.writeText(getLocalUrl(asset.url));
                   toast.success("Link copied to clipboard");
                 }} 
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
               >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                Copy Link
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                Copy Public URL
               </button>
-              <div className="border-t border-gray-100 my-1" />
+              <div className="border-t border-slate-100 my-1" />
               <button
                 onClick={() => { onDeleteRequest(asset); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition font-medium"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                Delete
+                Delete Asset
               </button>
             </div>
           )}
@@ -181,65 +204,101 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
   }
 
   return (
-    <div className={`bg-white border rounded-2xl overflow-hidden hover:shadow-md transition-all duration-200 group relative ${selected ? "border-red-300 ring-2 ring-red-200" : "border-gray-100 hover:border-gray-200"}`}>
+    <div className={`bg-white border rounded-2xl overflow-hidden hover:shadow-xl transition-all duration-300 group relative flex flex-col justify-between ${selected ? "border-emerald-400 ring-2 ring-emerald-200 shadow-md" : "border-slate-200/90 hover:border-emerald-300/80"}`}>
       {/* Checkbox overlay */}
       <button
         onClick={() => onSelect(asset.id)}
-        className={`absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-md border-2 flex items-center justify-center transition-all duration-150 ${
-          selected ? "bg-red-500 border-red-500 opacity-100" : "bg-white/80 border-gray-300 opacity-0 group-hover:opacity-100"
+        className={`absolute top-3 right-3 z-20 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all duration-200 shadow-sm ${
+          selected ? "bg-emerald-500 border-emerald-500 opacity-100" : "bg-white/90 backdrop-blur-sm border-slate-300 opacity-0 group-hover:opacity-100 hover:border-emerald-500"
         }`}
       >
-        {selected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+        {selected && <svg className="w-3.5 h-3.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
       </button>
 
       {/* Thumbnail */}
-      <div className="relative h-40 bg-gray-50 flex items-center justify-center overflow-hidden">
-        {previewSrc && asset.type === "IMAGE" ? (
-          <img src={previewSrc} alt={asset.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-        ) : previewSrc && asset.type === "VIDEO" ? (
-          <video
-            src={previewSrc}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            preload="metadata"
+      <div 
+        onClick={() => onPreview && onPreview(asset)}
+        className="relative h-44 bg-slate-50 flex items-center justify-center overflow-hidden cursor-pointer group-hover:bg-slate-100/50 transition-colors"
+      >
+        {previewSrc && asset.type === "IMAGE" && !imgError ? (
+          <img 
+            src={previewSrc} 
+            alt={asset.name} 
+            onError={() => setImgError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
           />
+        ) : previewSrc && asset.type === "VIDEO" ? (
+          <div className="relative w-full h-full flex items-center justify-center bg-slate-900">
+            <video
+              src={previewSrc}
+              className="w-full h-full object-cover opacity-80"
+              muted
+              playsInline
+              preload="metadata"
+            />
+            <div className="absolute w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/40 text-white shadow-lg group-hover:scale-110 transition-transform">
+              <svg className="w-5 h-5 translate-x-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+            </div>
+          </div>
         ) : asset.type === "AUDIO" && asset.url ? (
-          <div className="w-full h-full flex items-center justify-center p-3 bg-violet-50">
-            <audio src={getLocalUrl(asset.url)} controls className="w-full max-w-[92%] h-9" preload="metadata" />
+          <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-gradient-to-br from-violet-50 via-purple-50 to-indigo-50">
+            <div className="w-12 h-12 rounded-2xl bg-white shadow-md flex items-center justify-center text-violet-600 mb-2 border border-violet-100">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+            </div>
+            <audio src={getLocalUrl(asset.url)} controls className="w-full max-w-[95%] h-8 mt-1" preload="metadata" onClick={(e) => e.stopPropagation()} />
           </div>
         ) : asset.type === "PDF" && pdfPreviewSrc ? (
-          <iframe title={asset.name} src={pdfPreviewSrc} className="w-full h-full border-0" />
+          <iframe title={asset.name} src={pdfPreviewSrc} className="w-full h-full border-0 pointer-events-none" />
         ) : (
-          <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center ${fi.color}`}>{fi.icon("w-8 h-8")}</div>
+          <div className="flex flex-col items-center gap-2">
+            <div className={`w-16 h-16 rounded-2xl ${fi.bg} flex items-center justify-center ${fi.color} shadow-sm border border-white/60`}>
+              {fi.icon("w-8 h-8")}
+            </div>
+          </div>
         )}
-        <div className="absolute top-2.5 left-2.5"><TypeBadge type={asset.type} size="xs" /></div>
+
+        {/* Floating Type Badge */}
+        <div className="absolute top-3 left-3 z-10 shadow-sm">
+          <TypeBadge type={asset.type} size="xs" />
+        </div>
+
         {asset.duration && (
-          <span className="absolute bottom-2 right-2 text-xs font-semibold bg-black/60 text-white px-1.5 py-0.5 rounded-md">{asset.duration}</span>
+          <span className="absolute bottom-2.5 right-2.5 text-[11px] font-bold bg-black/70 backdrop-blur-sm text-white px-2 py-0.5 rounded-lg shadow-sm">
+            {asset.duration}
+          </span>
         )}
       </div>
 
       {/* Info row */}
-      <div className="flex items-center justify-between px-3 py-2.5">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-gray-800 truncate">{asset.name}</p>
-          <p className="text-xs text-gray-400 mt-0.5">{asset.size} • {asset.ext}</p>
+      <div className="flex items-center justify-between p-3.5 border-t border-slate-100 bg-white">
+        <div className="min-w-0 flex-1 pr-2">
+          <p className="text-xs font-bold text-slate-800 truncate group-hover:text-emerald-600 transition-colors" title={asset.name}>
+            {asset.name}
+          </p>
+          <p className="text-[11px] text-slate-400 font-semibold mt-0.5">
+            {asset.size} • <span className="uppercase text-slate-500">{asset.ext}</span>
+          </p>
         </div>
-        <div className="relative flex-shrink-0 ml-1">
-          <button onClick={() => setMenuOpen(!menuOpen)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-gray-100 text-gray-400 transition">
+
+        {/* 3 dots menu */}
+        <div className="relative flex-shrink-0">
+          <button 
+            onClick={() => setMenuOpen(!menuOpen)} 
+            className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+          >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
           </button>
           {menuOpen && (
-            <div className="absolute right-0 bottom-9 z-20 bg-white border border-gray-100 rounded-xl shadow-xl py-1.5 w-40" onMouseLeave={() => setMenuOpen(false)}>
+            <div className="absolute right-0 bottom-10 z-30 bg-white border border-slate-100 rounded-2xl shadow-2xl py-1.5 w-44" onMouseLeave={() => setMenuOpen(false)}>
               <a 
                 href={getLocalUrl(asset.url)} 
                 download={asset.name}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                 onClick={(e) => e.stopPropagation()}
               >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
                 Download
               </a>
               <button 
@@ -248,15 +307,15 @@ function AssetCard({ asset, onDeleteRequest, viewMode, selected, onSelect }) {
                   navigator.clipboard.writeText(getLocalUrl(asset.url));
                   toast.success("Link copied to clipboard");
                 }} 
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 transition"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
               >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                 Copy Link
               </button>
-              <div className="border-t border-gray-100 my-1" />
+              <div className="border-t border-slate-100 my-1" />
               <button
                 onClick={() => { onDeleteRequest(asset); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-500 hover:bg-red-50 transition font-medium"
+                className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                 Delete
@@ -766,6 +825,17 @@ export default function MediaGallery() {
   }, 0);
   const storageUsed = (totalSizeBytes / (1024 * 1024)).toFixed(1); // in MB
 
+  // Count per tab dynamically
+  const counts = {
+    all: assets.length,
+    images: assets.filter(a => a.type === "IMAGE").length,
+    videos: assets.filter(a => a.type === "VIDEO").length,
+    documents: assets.filter(a => a.type === "PDF" || a.type === "ARCHIVE").length,
+    audio: assets.filter(a => a.type === "AUDIO").length,
+  };
+
+  const [previewModalAsset, setPreviewModalAsset] = useState(null);
+
   return (
     <>
       <style>{`
@@ -787,107 +857,256 @@ export default function MediaGallery() {
         existingAssets={assets}
       />
 
-      <div className="min-h-screen bg-gray-50 flex flex-col">
+      {/* ── PREVIEW LIGHTBOX MODAL ── */}
+      {previewModalAsset && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md" 
+          onClick={() => setPreviewModalAsset(null)}
+        >
+          <div 
+            className="bg-white rounded-3xl shadow-2xl max-w-3xl w-full overflow-hidden flex flex-col max-h-[90vh]"
+            style={{ animation: "popIn 0.2s ease" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-slate-50/50">
+              <div className="flex items-center gap-3 min-w-0">
+                <TypeBadge type={previewModalAsset.type} />
+                <h3 className="text-sm font-bold text-slate-800 truncate" title={previewModalAsset.name}>
+                  {previewModalAsset.name}
+                </h3>
+              </div>
+              <div className="flex items-center gap-2">
+                <a 
+                  href={getLocalUrl(previewModalAsset.url)} 
+                  download={previewModalAsset.name} 
+                  target="_blank" 
+                  rel="noreferrer"
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-emerald-600 bg-white border border-slate-200 rounded-xl transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                  Download
+                </a>
+                <button 
+                  onClick={() => setPreviewModalAsset(null)} 
+                  className="w-8 h-8 flex items-center justify-center rounded-xl hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto flex items-center justify-center min-h-[320px] bg-slate-900/5">
+              {previewModalAsset.type === "IMAGE" ? (
+                <img 
+                  src={getLocalUrl(previewModalAsset.url)} 
+                  alt={previewModalAsset.name} 
+                  className="max-h-[60vh] max-w-full object-contain rounded-2xl shadow-lg" 
+                />
+              ) : previewModalAsset.type === "VIDEO" ? (
+                <video 
+                  src={getLocalUrl(previewModalAsset.url)} 
+                  controls 
+                  autoPlay 
+                  className="max-h-[60vh] max-w-full rounded-2xl shadow-lg" 
+                />
+              ) : previewModalAsset.type === "AUDIO" ? (
+                <div className="w-full max-w-md p-6 bg-white rounded-2xl shadow-md border border-slate-200 flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 rounded-full bg-violet-100 text-violet-600 flex items-center justify-center">
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" /></svg>
+                  </div>
+                  <p className="font-semibold text-slate-800 text-center">{previewModalAsset.name}</p>
+                  <audio src={getLocalUrl(previewModalAsset.url)} controls className="w-full" autoPlay />
+                </div>
+              ) : previewModalAsset.type === "PDF" ? (
+                <iframe 
+                  title={previewModalAsset.name} 
+                  src={getLocalUrl(previewModalAsset.url)} 
+                  className="w-full h-[65vh] rounded-2xl border border-slate-200 shadow" 
+                />
+              ) : (
+                <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center">
+                  <p className="text-sm font-semibold text-slate-700">Preview not supported for this file format.</p>
+                  <a 
+                    href={getLocalUrl(previewModalAsset.url)} 
+                    download={previewModalAsset.name}
+                    className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold"
+                  >
+                    Download to view
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-slate-100 bg-white flex items-center justify-between text-xs text-slate-400 font-medium">
+              <span>Size: <strong className="text-slate-700">{previewModalAsset.size}</strong></span>
+              <span>Format: <strong className="text-slate-700 uppercase">{previewModalAsset.ext}</strong></span>
+              <span>Uploaded: <strong className="text-slate-700">{new Date(previewModalAsset.createdAt || Date.now()).toLocaleDateString()}</strong></span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col font-['Urbanist',sans-serif]">
         {/* ── MAIN CONTENT ── */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 max-w-7xl mx-auto w-full">
 
           {/* Header */}
-          <div className="flex items-start justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Media Gallery</h1>
-                  <p className="text-sm text-gray-400 mt-0.5">Manage all digital assets for your WhatsApp campaigns</p>
-                </div>
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 bg-gradient-to-br from-emerald-400 to-teal-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-emerald-500/20">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               </div>
+              <div>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">Media Gallery</h1>
+                <p className="text-sm text-slate-500 font-medium mt-0.5">Manage and preview digital assets for WhatsApp campaigns and broadcasts</p>
+              </div>
+            </div>
+
             <div className="flex items-center gap-3">
               {/* Search */}
               <div className="relative">
-                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
                 <input
                   type="text"
-                  placeholder="Find assets..."
+                  placeholder="Search assets..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:border-green-400 focus:ring-2 focus:ring-green-100 transition w-56"
+                  className="pl-10 pr-4 py-2.5 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition w-60 shadow-sm"
                 />
               </div>
+
               {/* Upload button */}
               <button
                 onClick={() => setShowUpload(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-xl shadow-sm transition"
+                className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-emerald-500/25 transition cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
                 Upload Media
               </button>
             </div>
           </div>
 
+          {/* ── STATS ROW ── */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Assets</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{totalAssets}</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                📁
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Images & Videos</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{counts.images + counts.videos}</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                🎬
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Storage Used</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{storageUsed} <span className="text-xs font-bold text-slate-400">MB</span></p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                💾
+              </div>
+            </div>
+
+            <div className="bg-white border border-slate-200/80 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Docs & Audio</p>
+                <p className="text-2xl font-black text-slate-800 mt-1">{counts.documents + counts.audio}</p>
+              </div>
+              <div className="w-11 h-11 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold">
+                🎵
+              </div>
+            </div>
+          </div>
+
           {/* Tabs + View toggle */}
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-1 border-b border-gray-200 w-full">
-              <div className="flex gap-1 flex-1">
-                {TABS.map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-4 py-2 text-sm font-semibold transition-all relative whitespace-nowrap ${
-                      activeTab === tab
-                        ? "text-gray-900 after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-green-500 after:rounded-t"
-                        : "text-gray-400 hover:text-gray-600"
-                    }`}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
-              {/* Grid / List toggle */}
-              <div className="flex items-center gap-1 pb-2 flex-shrink-0">
+          <div className="flex items-center justify-between mb-6 bg-white rounded-2xl border border-slate-200/80 p-1.5 shadow-sm">
+            <div className="flex gap-1 overflow-x-auto">
+              {[
+                { name: "All Assets", count: counts.all },
+                { name: "Images", count: counts.images },
+                { name: "Videos", count: counts.videos },
+                { name: "Documents", count: counts.documents },
+                { name: "Audio", count: counts.audio }
+              ].map((tab) => (
                 <button
-                  onClick={() => setViewMode("grid")}
-                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${viewMode === "grid" ? "bg-gray-100 text-gray-700" : "text-gray-400 hover:text-gray-600"}`}
+                  key={tab.name}
+                  onClick={() => setActiveTab(tab.name)}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition-all flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+                    activeTab === tab.name
+                      ? "bg-slate-900 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-                  </svg>
+                  {tab.name}
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] ${
+                    activeTab === tab.name ? "bg-white/20 text-white" : "bg-slate-200/70 text-slate-600"
+                  }`}>
+                    {tab.count}
+                  </span>
                 </button>
-                <button
-                  onClick={() => setViewMode("list")}
-                  className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${viewMode === "list" ? "bg-gray-100 text-gray-700" : "text-gray-400 hover:text-gray-600"}`}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              </div>
+              ))}
+            </div>
+
+            {/* Grid / List toggle */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl flex-shrink-0">
+              <button
+                onClick={() => setViewMode("grid")}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${viewMode === "grid" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                title="Grid View"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                </svg>
+              </button>
+              <button
+                onClick={() => setViewMode("list")}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg transition ${viewMode === "list" ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-700"}`}
+                title="List View"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
             </div>
           </div>
 
           {/* ── Bulk action bar ── */}
           {selectedIds.length > 0 && (
-            <div className="flex items-center justify-between bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4" style={{ animation: "fadeUp 0.2s ease" }}>
+            <div className="flex items-center justify-between bg-rose-50 border border-rose-200 rounded-2xl px-5 py-3 mb-5" style={{ animation: "fadeUp 0.2s ease" }}>
               <div className="flex items-center gap-3">
-                <button onClick={handleSelectAll} className="text-xs font-semibold text-red-600 hover:text-red-700 underline underline-offset-2 transition">
+                <button onClick={handleSelectAll} className="text-xs font-bold text-rose-600 hover:text-rose-700 underline underline-offset-2 transition cursor-pointer">
                   {selectedIds.length === filtered.length ? "Deselect All" : "Select All"}
                 </button>
-                <span className="text-sm font-semibold text-red-700">{selectedIds.length} asset{selectedIds.length > 1 ? "s" : ""} selected</span>
+                <span className="text-sm font-bold text-rose-800">{selectedIds.length} asset{selectedIds.length > 1 ? "s" : ""} selected</span>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={() => setSelectedIds([])} className="px-3 py-1.5 text-xs font-semibold text-gray-600 border border-gray-200 bg-white rounded-lg hover:bg-gray-50 transition">
+                <button onClick={() => setSelectedIds([])} className="px-3 py-1.5 text-xs font-bold text-slate-600 border border-slate-200 bg-white rounded-xl hover:bg-slate-50 transition cursor-pointer">
                   Cancel
                 </button>
                 <button
                   onClick={handleBulkDelete}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition"
+                  className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 rounded-xl transition shadow-sm cursor-pointer"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  Delete {selectedIds.length} selected
+                  Delete ({selectedIds.length})
                 </button>
               </div>
             </div>
@@ -895,38 +1114,63 @@ export default function MediaGallery() {
 
           {/* Assets Grid / List */}
           {viewMode === "grid" ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" style={{ animation: "fadeUp 0.3s ease" }}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5" style={{ animation: "fadeUp 0.3s ease" }}>
               {loading ? (
-                <div className="col-span-full py-20 flex flex-col items-center justify-center">
-                  <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-gray-400 mt-4 font-medium">Loading assets...</p>
+                <div className="col-span-full py-24 flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-slate-400 mt-4 font-semibold text-sm">Loading media assets...</p>
                 </div>
               ) : (
                 <>
                   {/* New Asset card — always first */}
                   <NewAssetCard onClick={() => setShowUpload(true)} />
                   {filtered.map((asset) => (
-                    <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="grid" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
+                    <AssetCard 
+                      key={asset.id} 
+                      asset={asset} 
+                      onDeleteRequest={setDeleteTarget} 
+                      viewMode="grid" 
+                      selected={selectedIds.includes(asset.id)} 
+                      onSelect={handleSelect}
+                      onPreview={setPreviewModalAsset}
+                    />
                   ))}
                 </>
               )}
             </div>
           ) : (
-            <div className="flex flex-col gap-2" style={{ animation: "fadeUp 0.3s ease" }}>
+            <div className="flex flex-col gap-3" style={{ animation: "fadeUp 0.3s ease" }}>
               {loading ? (
-                <div className="py-20 flex flex-col items-center justify-center">
-                  <div className="w-10 h-10 border-4 border-green-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-gray-400 mt-4 font-medium">Loading assets...</p>
+                <div className="py-24 flex flex-col items-center justify-center">
+                  <div className="w-10 h-10 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-slate-400 mt-4 font-semibold text-sm">Loading media assets...</p>
                 </div>
               ) : (
                 <>
                   {filtered.map((asset) => (
-                    <AssetCard key={asset.id} asset={asset} onDeleteRequest={setDeleteTarget} viewMode="list" selected={selectedIds.includes(asset.id)} onSelect={handleSelect} />
+                    <AssetCard 
+                      key={asset.id} 
+                      asset={asset} 
+                      onDeleteRequest={setDeleteTarget} 
+                      viewMode="list" 
+                      selected={selectedIds.includes(asset.id)} 
+                      onSelect={handleSelect}
+                      onPreview={setPreviewModalAsset}
+                    />
                   ))}
                   {filtered.length === 0 && (
-                    <div className="text-center py-16 text-gray-400 font-medium">
-                      <p className="text-lg">No assets found</p>
-                      <p className="text-sm mt-1">Try a different search or upload new files</p>
+                    <div className="text-center py-20 bg-white rounded-2xl border border-slate-200/80 p-8 shadow-sm">
+                      <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-2xl">
+                        🔍
+                      </div>
+                      <p className="text-base font-bold text-slate-700">No assets found</p>
+                      <p className="text-xs text-slate-400 mt-1">Try a different search keyword or upload new media assets</p>
+                      <button 
+                        onClick={() => setShowUpload(true)} 
+                        className="mt-4 px-4 py-2 bg-emerald-600 text-white text-xs font-bold rounded-xl shadow transition"
+                      >
+                        Upload Now
+                      </button>
                     </div>
                   )}
                 </>

@@ -54,7 +54,7 @@ export default function InputNode({ id, data, selected }) {
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             marginBottom: '12px'
           }}>
-            <div style={{ fontSize: '12px', color: data.text ? '#374151' : '#9ca3af', fontStyle: data.text ? 'normal' : 'italic', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
+            <div style={{ fontSize: '12px', color: (data.text || data.question) ? '#ECEFF4' : '#9ca3af', fontStyle: (data.text || data.question) ? 'normal' : 'italic', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
               {data.text || data.question || 'Write your question here...'}
             </div>
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>

@@ -16,9 +16,10 @@ export function useWhatsAppConfig(initialState = {}) {
     profileUpdates: false 
   });
   
+  const [verifyToken, setVerifyToken] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState("Disconnected");
+  const [connectionStatus, setConnectionStatus] = useState("Checking...");
   const [lastSync, setLastSync] = useState("Never");
   
   const [savedSnapshot, setSavedSnapshot] = useState(null);
@@ -41,16 +42,29 @@ export function useWhatsAppConfig(initialState = {}) {
         setPhoneId(config.phoneNumberId || "");
         setAccessToken(config.accessToken || "");
         setWebhookUrl(config.webhookUrl || "");
+        if (config.verifyToken) setVerifyToken(config.verifyToken);
         if (config.events) setEvents(config.events);
+
+        // Check if credentials are present
+        if (config.phoneNumberId && config.accessToken) {
+          setConnectionStatus("Active");
+          setLastSync("Live (Meta API)");
+        } else {
+          setConnectionStatus("Disconnected");
+        }
+
         setSavedSnapshot(JSON.stringify({
           businessId: config.businessAccountId || "",
           phoneId: config.phoneNumberId || "",
           webhookUrl: config.webhookUrl || "",
           events: config.events || events
         }));
+      } else {
+        setConnectionStatus("Disconnected");
       }
     } catch (error) {
       console.error("Error fetching WhatsApp config:", error);
+      setConnectionStatus("Disconnected");
     } finally {
       setLoading(false);
     }
@@ -58,6 +72,19 @@ export function useWhatsAppConfig(initialState = {}) {
 
   useEffect(() => {
     fetchConfig();
+    // Also perform real ping test in background
+    axios.get("/whatsapp/test-connection")
+      .then((res) => {
+        if (res.data?.success) {
+          setConnectionStatus("Active");
+          setLastSync("Just now");
+        } else {
+          setConnectionStatus("Disconnected");
+        }
+      })
+      .catch(() => {
+        // Keep active if config was found, else disconnected
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -165,6 +192,7 @@ export function useWhatsAppConfig(initialState = {}) {
     phoneId, setPhoneId,
     accessToken, setAccessToken,
     webhookUrl, setWebhookUrl,
+    verifyToken, setVerifyToken,
     events, setEvents,
     loading, saving,
     connectionStatus, setConnectionStatus,

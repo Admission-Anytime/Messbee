@@ -12,10 +12,22 @@ const emailService = require('../services/emailService');
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    const Channel = require('../models/Channel');
+    const tenantId = user.tenantId || user._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = user.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
 
     res.status(200).json({
       success: true,
-      data: user
+      data: userObj
     });
   } catch (error) {
     next(error);
@@ -286,7 +298,13 @@ exports.updateProfile = async (req, res, next) => {
     if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
     const fieldsToUpdate = {};
-    const allowed = ['name', 'email', 'phone', 'businessName', 'businessCategory', 'businessType', 'city', 'state', 'country', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'];
+    const allowed = [
+      'name', 'email', 'phone', 'businessName', 'businessCategory', 'businessType',
+      'city', 'state', 'country', 'address', 'zipcode', 'currency', 'businessDescription',
+      'billingName', 'billingAddress', 'billingCountry', 'billingState', 'billingCity',
+      'billingZipcode', 'mobileNumber', 'emailId', 'taxType', 'billingTaxId', 'gst',
+      'website', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'
+    ];
     
     allowed.forEach(key => {
       if (req.body[key] !== undefined) {
@@ -311,9 +329,20 @@ exports.updateProfile = async (req, res, next) => {
       }
     );
 
+    const Channel = require('../models/Channel');
+    const tenantId = updatedUser.tenantId || updatedUser._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = updatedUser.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
+
     res.status(200).json({
       success: true,
-      data: updatedUser
+      data: userObj
     });
   } catch (error) {
     next(error);
@@ -340,11 +369,22 @@ exports.uploadAvatar = async (req, res, next) => {
       { new: true }
     );
 
+    const Channel = require('../models/Channel');
+    const tenantId = user.tenantId || user._id;
+    const channel = await Channel.findOne({ 
+      tenantId, 
+      activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, 
+      status: { $ne: 'disconnected' } 
+    });
+
+    const userObj = user.toObject();
+    userObj.tenantWhatsAppConnected = !!channel;
+
     res.status(200).json({
       success: true,
       data: {
         avatar: avatarUrl,
-        user
+        user: userObj
       }
     });
   } catch (error) {
@@ -441,3 +481,131 @@ exports.approveUser = async (req, res, next) => {
     next(error);
   }
 };
+
+// @desc    Submit Contact Sales / Enterprise inquiry
+// @route   POST /api/users/contact-sales
+// @access  Private
+exports.contactSales = async (req, res, next) => {
+  try {
+    const {
+      fullName,
+      email,
+      phone,
+      company,
+      companySize,
+      messageVolume,
+      agentsNeeded,
+      selectedFeatures,
+      message,
+      inquiryId
+    } = req.body;
+
+    if (!fullName || !email || !phone || !company) {
+      return res.status(400).json({
+        success: false,
+        message: 'Full Name, Work Email, Phone/WhatsApp, and Company Name are required.'
+      });
+    }
+
+    const SalesInquiry = require('../models/SalesInquiry');
+    const Notification = require('../models/Notification');
+    const User = require('../models/User');
+    const { sendSalesInquiryEmail } = require('../services/emailService');
+
+    const effectiveInquiryId = inquiryId || `INQ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    // 1. Permanently save into dedicated SalesInquiry collection
+    const savedInquiry = await SalesInquiry.create({
+      inquiryId: effectiveInquiryId,
+      user: req.user?._id || req.user?.id,
+      fullName: String(fullName).trim(),
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      company: String(company).trim(),
+      companySize: companySize || '11-50',
+      messageVolume: messageVolume || '50,000 - 250,000 / mo',
+      agentsNeeded: agentsNeeded || '11-25 Agents',
+      selectedFeatures: Array.isArray(selectedFeatures) ? selectedFeatures : [],
+      message: (message || '').trim(),
+      status: 'new'
+    });
+
+    console.log(`💼 Saved new Enterprise Sales Inquiry [${effectiveInquiryId}] for ${company} (${email})`);
+
+    // 2. Create notification for the submitting user
+    try {
+      await Notification.create({
+        userId: req.user.id,
+        type: 'lead',
+        title: `Enterprise Inquiry Registered: ${company}`,
+        message: `Your enterprise sales consultation request (Ref: ${effectiveInquiryId}) has been registered. Our enterprise team will contact you shortly.`,
+        meta: [
+          { label: 'Inquiry ID', value: String(effectiveInquiryId) },
+          { label: 'Company', value: String(company) },
+          { label: 'Status', value: 'Submitted' }
+        ],
+        data: {
+          inquiryId: effectiveInquiryId,
+          company,
+          fullName
+        }
+      });
+
+      // 3. ALSO notify all Admin accounts in their notification bell!
+      const adminUsers = await User.find({ role: { $in: ['ADMIN', 'admin'] } }).select('_id');
+      for (const admin of adminUsers) {
+        if (admin._id.toString() !== req.user.id.toString()) {
+          await Notification.create({
+            userId: admin._id,
+            type: 'lead',
+            title: `🚀 New Enterprise Lead: ${company || fullName}`,
+            message: `${fullName} (${email}, ${phone}) requested Corporate & Enterprise plan consultation.`,
+            meta: [
+              { label: 'Inquiry ID', value: String(effectiveInquiryId) },
+              { label: 'Company', value: String(company) },
+              { label: 'Phone', value: String(phone) },
+              { label: 'Volume', value: String(messageVolume || 'N/A') }
+            ],
+            data: savedInquiry
+          });
+        }
+      }
+    } catch (notifErr) {
+      console.warn('Could not create notification for sales inquiry:', notifErr.message);
+    }
+
+    // 4. Send email notifications (both to support and confirmation to user)
+    sendSalesInquiryEmail(savedInquiry).catch((e) =>
+      console.warn('Sales inquiry email failed:', e.message)
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Inquiry received successfully. Our sales team will reach out shortly.',
+      data: {
+        inquiryId: effectiveInquiryId,
+        submittedAt: savedInquiry.createdAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get all Sales Inquiries (Admin only)
+// @route   GET /api/users/contact-sales
+// @access  Private
+exports.getSalesInquiries = async (req, res, next) => {
+  try {
+    const SalesInquiry = require('../models/SalesInquiry');
+    const inquiries = await SalesInquiry.find({}).sort({ createdAt: -1 });
+    res.status(200).json({
+      success: true,
+      count: inquiries.length,
+      data: inquiries
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

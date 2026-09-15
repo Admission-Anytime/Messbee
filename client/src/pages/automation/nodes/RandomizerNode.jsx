@@ -67,12 +67,12 @@ export default function RandomizerNode({ id, data, selected }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
             {/* PATH A Handle */}
             <div style={{ position: 'relative' }}>
-              <div style={branchStyle('#0ea5e9', `Path A (${splitPercentage}%)`)}></div>
+              <div style={branchStyle('#0ea5e9')}>Path A ({splitPercentage}%)</div>
               <Handle type="source" position={Position.Right} id="path_a" className="custom-handle" style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
             </div>
             {/* PATH B Handle */}
             <div style={{ position: 'relative' }}>
-              <div style={branchStyle('#f59e0b', `Path B (${100 - splitPercentage}%)`)}></div>
+              <div style={branchStyle('#f59e0b')}>Path B ({100 - splitPercentage}%)</div>
               <Handle type="source" position={Position.Right} id="path_b" className="custom-handle" style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
             </div>
           </div>

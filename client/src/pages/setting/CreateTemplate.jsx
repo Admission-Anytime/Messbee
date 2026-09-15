@@ -1,18 +1,221 @@
 /* eslint-disable react/prop-types */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl, resolveMediaUrlForDev } from '../../services/TemplateApi';
+import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl, resolveMediaUrlForDev, fetchWhatsAppTemplates } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 import axios from '../../context/axios';
+import { userContext } from '../../context/Context';
+import { getPlanLimit, hasPlanFeature } from '../../utils/planLimits';
+
+/**
+ * Detects aspect ratio label
+ */
+const getAspectRatioLabel = (width, height) => {
+  if (!width || !height) return '';
+  const ratio = width / height;
+  if (Math.abs(ratio - 1) < 0.05) return '1:1 Square';
+  if (Math.abs(ratio - 16 / 9) < 0.08) return '16:9 Landscape';
+  if (Math.abs(ratio - 4 / 3) < 0.08) return '4:3 Landscape';
+  if (Math.abs(ratio - 9 / 16) < 0.08) return '9:16 Vertical';
+  if (Math.abs(ratio - 4 / 5) < 0.08) return '4:5 Portrait';
+  return ratio > 1 ? `${ratio.toFixed(2)}:1 Landscape` : `1:${(1 / ratio).toFixed(2)} Portrait`;
+};
+
+/**
+ * Computes preview countdown timer string based on expiration configuration
+ */
+const getExpirationPreviewText = (expirationDate = '24h', customHours = 24) => {
+  switch (expirationDate) {
+    case '6h': return '05:59:59';
+    case '12h': return '11:59:59';
+    case '24h': return '23:59:59';
+    case '48h': return '47:59:59';
+    case '72h': return '2d 23h';
+    case '7d': return '6d 23h';
+    case 'custom': {
+      const h = Number(customHours) || 24;
+      if (h > 24) {
+        const d = Math.floor(h / 24);
+        const remH = h % 24;
+        return `${d}d ${remH > 0 ? remH + 'h' : '00h'}`;
+      }
+      return `${String(Math.max(0, h - 1)).padStart(2, '0')}:59:59`;
+    }
+    default: return '23:59:59';
+  }
+};
+
+/**
+ * Checks media file size and dimensions.
+ * For images: if dimensions are too large (>1920px) or file size > 5MB,
+ * automatically proportionally scales down (shortens/optimizes) without any cropping.
+ * If dimensions are very small (<300px), cleanly scales while maintaining 100% aspect ratio.
+ */
+const processMediaWithoutCropping = (file) => {
+  return new Promise((resolve) => {
+    if (!file.type.startsWith('image/')) {
+      return resolve({
+        file,
+        preview: null,
+        width: null,
+        height: null,
+        aspectRatio: null,
+        optimized: false,
+        originalSize: file.size,
+        newSize: file.size
+      });
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const originalWidth = img.naturalWidth || img.width;
+        const originalHeight = img.naturalHeight || img.height;
+        const aspectLabel = getAspectRatioLabel(originalWidth, originalHeight);
+
+        // Meta WhatsApp limits: max 5MB for images, recommended max dimension 1920px
+        const MAX_DIMENSION = 1920;
+        const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+
+        let targetWidth = originalWidth;
+        let targetHeight = originalHeight;
+        let isResized = false;
+
+        // Scale down proportionally if exceeding 1920px (Zero cropping!)
+        if (targetWidth > MAX_DIMENSION || targetHeight > MAX_DIMENSION) {
+          isResized = true;
+          if (targetWidth >= targetHeight) {
+            targetHeight = Math.round((targetHeight * MAX_DIMENSION) / targetWidth);
+            targetWidth = MAX_DIMENSION;
+          } else {
+            targetWidth = Math.round((targetWidth * MAX_DIMENSION) / targetHeight);
+            targetHeight = MAX_DIMENSION;
+          }
+        }
+
+        // If file is > 5MB, we must compress/scale down to comply with WhatsApp API limit
+        if (file.size > MAX_BYTES) {
+          isResized = true;
+          if (targetWidth === originalWidth && targetHeight === originalHeight && targetWidth > 1200) {
+            targetHeight = Math.round((targetHeight * 1200) / targetWidth);
+            targetWidth = 1200;
+          }
+        }
+
+        if (!isResized && file.size <= MAX_BYTES) {
+          return resolve({
+            file,
+            preview: e.target.result,
+            width: originalWidth,
+            height: originalHeight,
+            aspectRatio: aspectLabel,
+            optimized: false,
+            originalSize: file.size,
+            newSize: file.size
+          });
+        }
+
+        // Proportional canvas scale - maintains full image content without cropping
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+        const outputMime = file.type === 'image/png' && file.size < 3 * 1024 * 1024 ? 'image/png' : 'image/jpeg';
+        const quality = 0.90;
+
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              return resolve({
+                file,
+                preview: e.target.result,
+                width: originalWidth,
+                height: originalHeight,
+                aspectRatio: aspectLabel,
+                optimized: false,
+                originalSize: file.size,
+                newSize: file.size
+              });
+            }
+
+            const cleanFileName = file.name.replace(/\.[^.]+$/, outputMime === 'image/jpeg' ? '.jpg' : '.png');
+            const processedFile = new File([blob], cleanFileName, {
+              type: outputMime,
+              lastModified: Date.now()
+            });
+
+            const previewUrl = canvas.toDataURL(outputMime, quality);
+
+            resolve({
+              file: processedFile,
+              preview: previewUrl,
+              width: targetWidth,
+              height: targetHeight,
+              originalWidth,
+              originalHeight,
+              aspectRatio: aspectLabel,
+              optimized: true,
+              originalSize: file.size,
+              newSize: processedFile.size
+            });
+          },
+          outputMime,
+          quality
+        );
+      };
+      img.onerror = () => {
+        resolve({
+          file,
+          preview: e.target.result,
+          width: null,
+          height: null,
+          aspectRatio: null,
+          optimized: false,
+          originalSize: file.size,
+          newSize: file.size
+        });
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+};
+
 const CreateTemplate = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const { user } = useContext(userContext);
+  const currentPlan = (user?.subscriptionPlan || 'free').toLowerCase();
+  const currentPlanCapitalized = currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1);
+  const templateLimit = getPlanLimit(currentPlan, 'templates');
+  const canAccessGallery = hasPlanFeature(currentPlan, 'templateGallery');
+  const [upgradeModal, setUpgradeModal] = useState({ isOpen: false, featureName: 'Templates', message: '' });
+  const [existingTemplateCount, setExistingTemplateCount] = useState(0);
+
   const isEditing = location.state?.isEditing;
   const isDuplicate = location.state?.isDuplicate;
   const templateData = location.state?.templateData;
+
+  useEffect(() => {
+    if (!isEditing) {
+      fetchWhatsAppTemplates()
+        .then(res => {
+          const list = res.data?.data || [];
+          setExistingTemplateCount(list.length);
+        })
+        .catch(() => {});
+    }
+  }, [isEditing]);
+
+  const isLimitReached = !isEditing && templateLimit !== -1 && existingTemplateCount >= templateLimit;
 
   // ✅ KEY FIX: gallery vs direct create vs edit
   const [view, setView] = useState(
@@ -23,6 +226,9 @@ const CreateTemplate = () => {
   const [authExpirationMinutes, setAuthExpirationMinutes] = useState(10);
   const [authSecurityRecommendation, setAuthSecurityRecommendation] = useState(true);
   const [buttons, setButtons] = useState([]);
+  const [showButtonMenu, setShowButtonMenu] = useState(false);
+  const [menuPlacement, setMenuPlacement] = useState('up');
+  const buttonMenuRef = useRef(null);
   const editorRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [charCount, setCharCount] = useState(0);
@@ -101,12 +307,84 @@ const CreateTemplate = () => {
       setCharCount(plain.length);
       setFormData(prev => ({ ...prev, bodyText: editorRef.current.innerHTML }));
       syncBodyVariableState(plain);
+      validateBodyText(plain);
     } else {
       // truncate — restore selection to end
       editorRef.current.innerText = plain.slice(0, 1024);
       setCharCount(1024);
       syncBodyVariableState(editorRef.current.innerText);
+      validateBodyText(plain.slice(0, 1024));
     }
+  };
+
+  const [bodyWarnings, setBodyWarnings] = useState([]);
+
+  const validateBodyText = (text = '') => {
+    const warnings = [];
+
+    // 1. Emoji count (Unicode emoji detection)
+    const emojiRegex = /\p{Emoji_Presentation}|\p{Extended_Pictographic}/gu;
+    const emojiMatches = text.match(emojiRegex) || [];
+    if (emojiMatches.length > 10) {
+      warnings.push(`Too many emojis (${emojiMatches.length}). WhatsApp allows a maximum of 10 emojis per template.`);
+    }
+
+    // 2. Consecutive spaces (more than 4 in a row)
+    const spaceMatch = text.match(/ {5,}/);
+    if (spaceMatch) {
+      warnings.push('Excessive consecutive spaces detected. WhatsApp may flag templates with large whitespace blocks.');
+    }
+
+    // 3. Consecutive newlines (more than 2)
+    const newlineMatch = text.match(/\n{3,}/);
+    if (newlineMatch) {
+      warnings.push('More than 2 consecutive blank lines detected. Keep formatting clean to avoid rejection.');
+    }
+
+    // 4. Malformed variables — spaces inside braces, e.g. { {1} }
+    const malformedVars = text.match(/\{\s+\{|\}\s+\}/g) || [];
+    if (malformedVars.length > 0) {
+      warnings.push('Malformed variable detected. Use {{1}} with no spaces inside the braces.');
+    }
+
+    // 5. Empty variable — {{}}
+    const emptyVars = text.match(/\{\{\s*\}\}/g) || [];
+    if (emptyVars.length > 0) {
+      warnings.push('Empty variable {{}} detected. Variables must have a number, e.g. {{1}}.');
+    }
+
+    // 6. Non-sequential variables — e.g. {{1}} then {{3}} skipping {{2}}
+    const vars = (text.match(/\{\{(\d+)\}\}/g) || []).map(v => parseInt(v.replace(/\D/g, ''), 10));
+    const uniqueVars = [...new Set(vars)].sort((a, b) => a - b);
+    const isSequential = uniqueVars.every((v, i) => v === i + 1);
+    if (uniqueVars.length > 0 && !isSequential) {
+      warnings.push(`Variables must be sequential starting from {{1}}. Found: ${uniqueVars.map(v => `{{${v}}}`).join(', ')}.`);
+    }
+
+    // 7. Repeated character abuse (e.g. "!!!!!" or "....")
+    const repeatedPunct = text.match(/([!?.]){5,}/g) || [];
+    if (repeatedPunct.length > 0) {
+      warnings.push('Repeated punctuation (e.g. "!!!!!") may cause rejection. Use 1–2 marks at most.');
+    }
+
+    // 8. All caps body
+    const letters = text.replace(/[^a-zA-Z]/g, '');
+    if (letters.length > 20 && letters === letters.toUpperCase()) {
+      warnings.push('Body text appears to be ALL CAPS. WhatsApp discourages fully uppercase messages.');
+    }
+
+    // 9. URL in body (discouraged in some categories)
+    const urlMatch = text.match(/https?:\/\/[^\s]+/);
+    if (urlMatch) {
+      warnings.push('URLs in the body text may reduce approval chances. Consider using a Call-to-Action button instead.');
+    }
+
+    // 10. Approaching char limit
+    if (text.length >= 950 && text.length <= 1024) {
+      warnings.push(`Approaching character limit (${text.length}/1024). Keep it under 1024.`);
+    }
+
+    setBodyWarnings(warnings);
   };
 
   const handleBodySampleChange = (variableId, value) => {
@@ -179,11 +457,18 @@ const CreateTemplate = () => {
     name: location.state?.templateData?.name || '',
     language: location.state?.templateData?.language || 'English (US)',
     offerTitle: '20% OFF',
+    limitedTimeOfferText: location.state?.templateData?.limitedTimeOfferText || 'Expiring offer!',
+    hasExpiration: true,
+    offerCode: location.state?.templateData?.offerCode || 'SALE20',
+    ltoHasUrlButton: false,
+    ltoUrlText: 'Shop Now',
+    ltoUrl: '',
     headerType: location.state?.templateData?.headerType || 'None',
     headerText: location.state?.templateData?.headerText || '',
     bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
     footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
-    expirationDate: '24h',
+    expirationDate: location.state?.templateData?.expirationDate || '24h',
+    customExpirationHours: location.state?.templateData?.customExpirationHours || 24,
     catalogButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Catalog',
     mpmButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Items',
   });
@@ -222,10 +507,117 @@ const CreateTemplate = () => {
     else toast.error(message);
   };
 
-  const addButton = () => {
-    if (buttons.length < 3) {
-      setButtons([...buttons, { id: Date.now(), type: 'Visit Website', text: 'New Button', value: '', countryCode: '+91' }]);
+  // Close button menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (buttonMenuRef.current && !buttonMenuRef.current.contains(event.target)) {
+        setShowButtonMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Button counts by type
+  const websiteButtonCount = buttons.filter(b => b.type === 'Visit website' || b.type === 'Visit Website').length;
+  const phoneButtonCount = buttons.filter(b => b.type === 'Call phone number').length;
+  const copyCodeButtonCount = buttons.filter(b => b.type === 'Copy offer code').length;
+  const quickReplyButtonCount = buttons.filter(b => b.type === 'Custom' || b.type === 'Marketing opt-out').length;
+
+  const addSpecificButton = (actionType) => {
+    setShowButtonMenu(false);
+
+    if (buttons.length >= 10) {
+      toast.error('Maximum 10 buttons allowed per template.');
+      return;
     }
+
+    if (actionType === 'Marketing opt-out') {
+      if (quickReplyButtonCount >= 3) {
+        toast.error('Maximum 3 quick reply buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Marketing opt-out', 
+        text: 'Stop promotions', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Custom') {
+      if (quickReplyButtonCount >= 3) {
+        toast.error('Maximum 3 quick reply buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Custom', 
+        text: 'Quick Reply', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Visit website') {
+      if (websiteButtonCount >= 2) {
+        toast.error('Maximum 2 website buttons allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Visit website', 
+        text: 'Visit website', 
+        value: '',
+        urlType: 'static'
+      }]);
+      return;
+    }
+
+    if (actionType === 'Call phone number') {
+      if (phoneButtonCount >= 1) {
+        toast.error('Maximum 1 phone number button allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Call phone number', 
+        text: 'Call us', 
+        countryCode: '+91', 
+        value: '' 
+      }]);
+      return;
+    }
+
+    if (actionType === 'Copy offer code') {
+      if (copyCodeButtonCount >= 1) {
+        toast.error('Maximum 1 copy offer code button allowed.');
+        return;
+      }
+      setButtons([...buttons, { 
+        id: Date.now(), 
+        type: 'Copy offer code', 
+        text: 'Copy offer code', 
+        value: '' 
+      }]);
+      return;
+    }
+  };
+
+  const addButton = () => {
+    if (!showButtonMenu && buttonMenuRef.current) {
+      const rect = buttonMenuRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      // Popup height is ~280px. If space below is less than 300px and space above is larger, open UP, otherwise open DOWN
+      if (spaceBelow < 300 && spaceAbove > spaceBelow) {
+        setMenuPlacement('up');
+      } else {
+        setMenuPlacement('down');
+      }
+    }
+    setShowButtonMenu(!showButtonMenu);
   };
 
   const removeButton = (id) => {
@@ -238,59 +630,91 @@ const CreateTemplate = () => {
   };
 
   const handleHeaderMediaUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const maxSize = 16 * 1024 * 1024; // 16MB max
-    if (file.size > maxSize) {
-      toast.error('File size must be less than 16MB');
-      return;
-    }
+    const originalFile = e.target.files?.[0];
+    if (!originalFile) return;
 
     const allowedImageTypes = ['image/jpeg', 'image/png'];
     const allowedVideoTypes = ['video/mp4'];
     const allowedDocumentTypes = ['application/pdf'];
 
-    const mediaType = file.type.startsWith('image/')
+    const mediaType = originalFile.type.startsWith('image/')
       ? 'image'
-      : file.type.startsWith('video/')
+      : originalFile.type.startsWith('video/')
         ? 'video'
         : 'document';
 
     // WhatsApp strict validation
-    if (mediaType === 'image' && !allowedImageTypes.includes(file.type)) {
+    if (mediaType === 'image' && !allowedImageTypes.includes(originalFile.type)) {
       toast.error('WhatsApp only supports JPG and PNG images for templates.');
       return;
     }
-    if (mediaType === 'video' && !allowedVideoTypes.includes(file.type)) {
+    if (mediaType === 'video' && !allowedVideoTypes.includes(originalFile.type)) {
       toast.error('WhatsApp only supports MP4 videos for templates.');
       return;
     }
-    if (mediaType === 'document' && !allowedDocumentTypes.includes(file.type)) {
-      toast.info('WhatsApp needs a PDF for the review sample. We will use a dummy PDF for approval, but you can send your file later!');
-      // We don't return here, we let them upload it!
+    if (mediaType === 'video' && originalFile.size > 16 * 1024 * 1024) {
+      toast.error('Video file size must be less than 16MB for WhatsApp header.');
+      return;
+    }
+    if (mediaType === 'document' && originalFile.size > 16 * 1024 * 1024) {
+      toast.error('Document file size must be less than 16MB for template sample.');
+      return;
     }
 
-    // Show a local preview immediately
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    // Process media: checks dimensions and auto-resizes proportionally without cropping
+    const processed = await processMediaWithoutCropping(originalFile);
+    const fileToUpload = processed.file;
+
+    // Show preview immediately with dimension & aspect ratio metadata (without cropping)
+    if (mediaType === 'image' && processed.preview) {
       setHeaderMedia({
-        file: file,
-        preview: event.target?.result,
+        file: fileToUpload,
+        preview: processed.preview,
         type: mediaType,
-        name: file.name,
-        hostedUrl: null // will be set after upload completes
+        name: fileToUpload.name,
+        width: processed.width,
+        height: processed.height,
+        aspectRatio: processed.aspectRatio,
+        optimized: processed.optimized,
+        originalSize: processed.originalSize,
+        newSize: processed.newSize,
+        hostedUrl: null
       });
-    };
-    reader.readAsDataURL(file);
+      if (processed.optimized) {
+        toast.info(
+          `Image auto-scaled (${processed.originalWidth}×${processed.originalHeight} → ${processed.width}×${processed.height} px) to optimize for WhatsApp without cropping!`,
+          { toastId: 'image-autoscale' }
+        );
+      }
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setHeaderMedia({
+          file: fileToUpload,
+          preview: event.target?.result,
+          type: mediaType,
+          name: fileToUpload.name,
+          width: null,
+          height: null,
+          aspectRatio: null,
+          optimized: false,
+          originalSize: originalFile.size,
+          newSize: fileToUpload.size,
+          hostedUrl: null
+        });
+      };
+      reader.readAsDataURL(fileToUpload);
+    }
 
     // Upload to server and get the public DOCUMENT_GET_URL-based URL
     setIsUploadingMedia(true);
     setUploadProgress(0);
     try {
-      const response = await uploadTemplateMedia(file, (progressEvent) => {
-        const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-        setUploadProgress(percentCompleted);
+      const response = await uploadTemplateMedia(fileToUpload, (progressEvent) => {
+        if (progressEvent.total) {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setUploadProgress(percentCompleted);
+        }
       });
       if (response?.success && response?.data?.url) {
         const hostedUrl = response.data.url;
@@ -410,23 +834,49 @@ const CreateTemplate = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [nameError, setNameError] = useState(null);
   const [templateNameSuggestion, setTemplateNameSuggestion] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
+  const [headerError, setHeaderError] = useState(false);
+  const headerRef = useRef(null);
 
   const handleSubmit = async () => {
     if (isSubmitting) {
       return;
     }
 
+    setSubmitError(null);
+    setHeaderError(false);
     setNameError(null);
     setTemplateNameSuggestion(null);
 
+    const failSubmit = (msg, isHeader = false) => {
+      setSubmitError(msg);
+      toast.error(msg);
+      if (isHeader) {
+        setHeaderError(true);
+        if (headerRef.current) {
+          headerRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+    };
+
+    if (!isEditing && isLimitReached) {
+      failSubmit(`Template limit reached (${existingTemplateCount}/${templateLimit}). Please upgrade your plan to create more templates.`);
+      setUpgradeModal({
+        isOpen: true,
+        featureName: 'Templates',
+        message: `You have reached your limit of ${templateLimit} templates on the ${currentPlanCapitalized} plan. Upgrade to create more templates!`
+      });
+      return;
+    }
+
     if (!formData.name.trim()) {
-      toast.error("Template name is mandatory");
+      failSubmit("Template name is mandatory");
       return;
     }
 
     // Validate template name length (WhatsApp has higher approval rates with longer names)
     if (formData.name.length < 4) {
-      toast.error("Template name must be at least 4 characters");
+      failSubmit("Template name must be at least 4 characters");
       return;
     }
 
@@ -437,7 +887,7 @@ const CreateTemplate = () => {
       const waNameAuth = inputNameRaw.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 
       if (!waNameAuth || waNameAuth.length < 4) {
-        toast.error(`Template name "${waNameAuth}" is too short or invalid. Minimum 4 characters using letters, numbers, or underscores.`);
+        failSubmit(`Template name "${waNameAuth}" is too short or invalid. Minimum 4 characters using letters, numbers, or underscores.`);
         return;
       }
 
@@ -448,6 +898,29 @@ const CreateTemplate = () => {
           { type: 'FOOTER', code_expiration_minutes: Number(authExpirationMinutes) || 10 },
           { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] }
         ];
+
+        const originalName = typeof templateData?.name === 'string' ? templateData.name : '';
+
+        // If editing existing Authentication template, update it instead of creating
+        if (isEditing && templateData?.id) {
+          console.log(`Updating existing Authentication template: ${originalName} (ID: ${templateData.id})`);
+          await updateWhatsAppTemplate(templateData.id, {
+            components: authComponents
+          });
+          const successMessage = 'Template updated successfully! Meta may take a moment to reflect the changes.';
+          toast.success(successMessage, { toastId: 'template-saved-success', autoClose: 5000 });
+          try {
+            localStorage.setItem('templateSuccessToast', JSON.stringify({
+              message: successMessage,
+              isEditing: true,
+              templateName: originalName || waNameAuth,
+              ts: Date.now()
+            }));
+          } catch (_) {}
+          setTimeout(() => navigate('/admin/templates/list', { replace: true }), 150);
+          return;
+        }
+
         const authPayload = {
           name: waNameAuth,
           category: 'AUTHENTICATION',
@@ -455,15 +928,34 @@ const CreateTemplate = () => {
           components: authComponents
         };
         await createWhatsAppTemplate(authPayload);
-        navigate('/admin/templates/list', {
-          state: { showSuccessToast: true, toastMessage: 'Authentication OTP template created successfully!' }
-        });
+        const successMessage = 'Authentication OTP template created successfully!';
+        toast.success(successMessage, { toastId: 'template-saved-success', autoClose: 5000 });
+        try {
+          localStorage.setItem('templateSuccessToast', JSON.stringify({
+            message: successMessage,
+            isEditing: false,
+            templateName: waNameAuth,
+            ts: Date.now()
+          }));
+        } catch (_) {}
+        setTimeout(() => navigate('/admin/templates/list', { replace: true }), 150);
       } catch (error) {
+        if (error?.response?.data?.limitReached) {
+          setUpgradeModal({
+            isOpen: true,
+            featureName: 'Templates',
+            message: error?.response?.data?.message || `You have reached your template limit. Upgrade your plan to create more templates!`
+          });
+          return;
+        }
+        const waError = error?.response?.data?.error || {};
+        const nestedWaError = waError?.error || {};
         const errMsg =
-          error?.response?.data?.error?.message ||
+          nestedWaError?.message ||
+          waError?.message ||
           error?.response?.data?.message ||
           error?.message ||
-          'Failed to create Authentication template. Please try again.';
+          (isEditing ? 'Failed to update Authentication template. Please try again.' : 'Failed to create Authentication template. Please try again.');
         toast.error(errMsg);
       } finally {
         setIsSubmitting(false);
@@ -473,7 +965,7 @@ const CreateTemplate = () => {
     
     // Validate body text is complete (non-Authentication templates only)
     if (!formData.bodyText.trim()) {
-      toast.error("Template body content is mandatory");
+      failSubmit("Template body content is mandatory");
       return;
     }
     
@@ -523,20 +1015,20 @@ const CreateTemplate = () => {
     const templateVariables = extractBodyVariables(strippedBody);
 
     if (bodyText.length < 20) {
-      toast.error("Template body must be at least 20 characters for better approval rates");
+      failSubmit("Template body must be at least 20 characters for better approval rates");
       return;
     }
 
     // Check for incomplete sentences
     if (bodyText.endsWith('Use') || bodyText.endsWith('Please') || bodyText.endsWith('For')) {
-      toast.error("Template body text appears incomplete. Please complete the message.");
+      failSubmit("Template body text appears incomplete. Please complete the message.");
       return;
     }
 
     if (templateVariables.length > 0) {
       const hasMissingSamples = templateVariables.some((id) => !String(bodySamples[id] || '').trim());
       if (hasMissingSamples) {
-        toast.error("Please add sample text for all body variables");
+        failSubmit("Please add sample text for all body variables");
         return;
       }
     }
@@ -544,13 +1036,13 @@ const CreateTemplate = () => {
     if (formData.headerType === 'Text' && headerVariables.length > 0) {
       const hasMissingHeaderSamples = headerVariables.some((id) => !String(headerSamples[id] || '').trim());
       if (hasMissingHeaderSamples) {
-        toast.error("Please add sample text for all header variables");
+        failSubmit("Please add sample text for all header variables", true);
         return;
       }
     }
 
     if (strippedBody.length > 1024) {
-      toast.error(`Template body is ${strippedBody.length} characters. WhatsApp allows a maximum of 1024 characters.`);
+      failSubmit(`Template body is ${strippedBody.length} characters. WhatsApp allows a maximum of 1024 characters.`);
       return;
     }
     
@@ -592,23 +1084,54 @@ const CreateTemplate = () => {
 
     // Validate the formatted name meets WhatsApp requirements
     if (!waName || waName.length === 0) {
-      toast.error("Template name cannot be empty. Please use letters, numbers, or underscores.");
+      failSubmit("Template name cannot be empty. Please use letters, numbers, or underscores.");
       return;
     }
 
     if (!/^[a-z0-9_]+$/.test(waName)) {
-      toast.error(`Invalid name format. Formatted name "${waName}" contains invalid characters. Use only letters, numbers, and underscores.`);
+      failSubmit(`Invalid name format. Formatted name "${waName}" contains invalid characters. Use only letters, numbers, and underscores.`);
       return;
     }
 
     if (waName.length < 4) {
-      toast.error(`Template name too short. Formatted name "${waName}" is ${waName.length} chars. Minimum is 4 characters.`);
+      failSubmit(`Template name too short. Formatted name "${waName}" is ${waName.length} chars. Minimum is 4 characters.`);
       return;
     }
 
     if (templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
-      toast.error("A Header is mandatory for Multi-Product Messages. Please add a Text or Media header.");
+      failSubmit("A Header is mandatory for Multi-Product Messages. Please select a Text or Media header above.", true);
       return;
+    }
+
+    if (templateType === 'LIMITED_TIME_OFFER') {
+      if (formData.headerType === 'Text' || formData.headerType === 'Document') {
+        failSubmit("Limited-Time Offer templates only support Image or Video headers (or None). Please select None, Image, or Video.", true);
+        return;
+      }
+      if (!formData.limitedTimeOfferText || !formData.limitedTimeOfferText.trim()) {
+        failSubmit("Please enter the Offer heading text (max 16 characters).");
+        return;
+      }
+      if (formData.limitedTimeOfferText.trim().length > 16) {
+        failSubmit("Offer heading text cannot exceed 16 characters.");
+        return;
+      }
+      if (!formData.offerCode || !formData.offerCode.trim()) {
+        failSubmit("Please enter an Offer / Coupon Code for the Copy Code button (max 15 characters, e.g. SALE20).");
+        return;
+      }
+      if (formData.offerCode.trim().length > 15) {
+        failSubmit("Offer / Coupon Code cannot exceed 15 characters.");
+        return;
+      }
+      if (!formData.ltoUrl || !formData.ltoUrl.trim()) {
+        failSubmit("WhatsApp mandates a Website URL button for Limited-Time Offers. Please enter your website or offer link below.");
+        return;
+      }
+      if (!/^https?:\/\//i.test(formData.ltoUrl.trim())) {
+        failSubmit("Website URL must start with https:// or http:// (e.g. https://example.com/offers).");
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -616,7 +1139,7 @@ const CreateTemplate = () => {
     // Prevent submission if media is still uploading
     const hasMediaHeader = ['Image', 'Video', 'Document'].includes(formData.headerType);
     if (hasMediaHeader && !uploadedMediaUrl && !headerMedia?.hostedUrl) {
-      toast.error('Please wait for the media to finish uploading before submitting.');
+      failSubmit('Please wait for the media to finish uploading before submitting.', true);
       setIsSubmitting(false);
       return;
     }
@@ -674,6 +1197,16 @@ const CreateTemplate = () => {
       }
 
 
+      if (templateType === 'LIMITED_TIME_OFFER') {
+        components.push({
+          type: 'LIMITED_TIME_OFFER',
+          limited_time_offer: {
+            text: (formData.limitedTimeOfferText || 'Expiring offer!').trim().substring(0, 16),
+            has_expiration: formData.hasExpiration !== false
+          }
+        });
+      }
+
       const bodyComponent = { type: 'BODY', text: strippedBody };
       if (templateVariables.length > 0) {
         bodyComponent.example = {
@@ -682,7 +1215,7 @@ const CreateTemplate = () => {
       }
       components.push(bodyComponent);
 
-      if (formData.footerText && formData.footerText.trim()) {
+      if (templateType !== 'LIMITED_TIME_OFFER' && formData.footerText && formData.footerText.trim()) {
         components.push({ type: 'FOOTER', text: formData.footerText.substring(0, 60) }); // Max 60 chars
       }
 
@@ -702,21 +1235,48 @@ const CreateTemplate = () => {
           buttons: [
             {
               type: 'MPM',
-              text: (formData.mpmButtonText || 'View Items').trim().substring(0, 20)
+              // Meta mandates this text MUST always be exactly "View items" — cannot be modified
+              text: 'View items'
             }
           ]
+        });
+      } else if (templateType === 'LIMITED_TIME_OFFER') {
+        const ltoButtons = [
+          {
+            type: 'COPY_CODE',
+            example: (formData.offerCode || 'SALE20').trim().substring(0, 15)
+          },
+          {
+            type: 'URL',
+            text: (formData.ltoUrlText || 'Shop Now').trim().substring(0, 25),
+            url: (formData.ltoUrl || 'https://example.com').trim()
+          }
+        ];
+        components.push({
+          type: 'BUTTONS',
+          buttons: ltoButtons
         });
       } else if (buttons && buttons.length > 0) {
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
-            return { type: 'URL', text: b.text, url: b.value };
+            return { type: 'URL', text: (b.text || 'Visit website').trim().substring(0, 25), url: (b.value || '').trim() };
           }
           if (b.type === 'Call phone number') {
-            const fullPhone = `${b.countryCode || '+91'}${b.value}`;
-            return { type: 'PHONE_NUMBER', text: b.text, phone_number: fullPhone };
+            const fullPhone = `${b.countryCode || '+91'}${b.value}`.replace(/[^\d+]/g, '');
+            return { type: 'PHONE_NUMBER', text: (b.text || 'Call us').trim().substring(0, 25), phone_number: fullPhone };
           }
-          return { type: 'QUICK_REPLY', text: b.text };
-        }).filter(b => b.text && (b.url || b.phone_number || b.type === 'QUICK_REPLY'));
+          if (b.type === 'Copy offer code') {
+            return { type: 'COPY_CODE', example: (b.value || 'OFFER').trim().substring(0, 15) };
+          }
+          // Custom or Marketing opt-out
+          return { type: 'QUICK_REPLY', text: (b.text || 'Quick Reply').trim().substring(0, 25) };
+        }).filter(b => {
+          if (b.type === 'URL') return b.text && b.url;
+          if (b.type === 'PHONE_NUMBER') return b.text && b.phone_number;
+          if (b.type === 'COPY_CODE') return b.example;
+          if (b.type === 'QUICK_REPLY') return b.text;
+          return false;
+        });
         
         if (waButtons.length > 0) {
           components.push({ type: 'BUTTONS', buttons: waButtons });
@@ -738,18 +1298,11 @@ const CreateTemplate = () => {
       
       const submitTemplate = async (payload) => {
         if (isEditing && templateData?.id) {
-          // Check if template is approved - WhatsApp doesn't allow editing approved templates
-          if (templateData?.status?.toUpperCase() === 'APPROVED') {
-            throw new Error(
-              'This template has been approved by Meta and cannot be edited. '
-              + 'To make changes, please duplicate this template to create a new version. '
-              + 'Once the new template is approved, you can use it for sending messages.'
-            );
-          }
           console.log(`Updating existing template: ${originalName} (ID: ${templateData.id})`);
-          return await updateWhatsAppTemplate(templateData.id, { 
-            components: payload.components,
-            category: payload.category
+          // Meta's API only accepts 'components' on update — sending 'category' causes "Invalid parameter"
+          // Note: editing an APPROVED template will revert it to PENDING for Meta re-review
+          return await updateWhatsAppTemplate(templateData.id, {
+            components: payload.components
           });
         }
         
@@ -823,16 +1376,38 @@ const CreateTemplate = () => {
       }
       
       // Template saved/updated successfully
-      const successMessage = isEditing ? "Template updated successfully!" : "Template submitted successfully to WhatsApp!";
-      navigate('/admin/templates/list', { 
-        state: { 
-          showSuccessToast: true, 
-          toastMessage: successMessage 
-        } 
-      });
+      const successMessage = isEditing
+        ? 'Template updated successfully! Meta may take a moment to reflect the changes.'
+        : 'Template submitted to WhatsApp! Awaiting Meta\'s review.';
+
+      // Fire toast immediately (ToastContainer in App.jsx persists across routes)
+      toast.success(successMessage, { toastId: 'template-saved-success', autoClose: 5000 });
+
+      // Also store in localStorage so Templates.jsx can show the in-page banner
+      try {
+        localStorage.setItem('templateSuccessToast', JSON.stringify({
+          message: successMessage,
+          isEditing: Boolean(isEditing),
+          templateName: originalName || waName,
+          ts: Date.now()
+        }));
+      } catch (_) {}
+
+      // Small delay so the toast registers in the global ToastContainer before navigation unmounts this page
+      setTimeout(() => {
+        navigate('/admin/templates/list', { replace: true });
+      }, 150);
 
     } catch (error) {
       console.error("Template Creation Error:", error?.response?.data || error);
+      if (error?.response?.data?.limitReached) {
+        setUpgradeModal({
+          isOpen: true,
+          featureName: 'Templates',
+          message: error?.response?.data?.message || `You have reached your template limit. Upgrade your plan to create more templates!`
+        });
+        return;
+      }
       const waError = error?.response?.data?.error || {};
       const nestedWaError = waError?.error || {};
       const errorSubcode = nestedWaError?.error_subcode ?? nestedWaError?.errorSubcode ?? waError?.error_subcode ?? waError?.errorSubcode;
@@ -853,19 +1428,10 @@ const CreateTemplate = () => {
         error?.message ||
         "Failed to create template on WhatsApp. Please try again.";
       
-      // Handle specific user-facing errors (like approved template edit attempts)
+      // Handle specific user-facing errors
       if (!error?.response && (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND') || error?.message?.includes('getaddrinfo'))) {
         // Network error — server can't reach graph.facebook.com
         errorMessage = 'Cannot reach WhatsApp servers. Please check that the server has a working internet connection and try again.';
-        toast.error(errorMessage);
-      } else if (error?.message?.includes('This template has been approved by Meta')) {
-        errorMessage = 'Approved Template - Cannot Edit\n\n' +
-          'WhatsApp does not allow editing templates that have been approved by Meta. ' +
-          'To make changes:\n\n' +
-          '1. Duplicate this template to create a new version\n' +
-          '2. Make your changes in the new template\n' +
-          '3. Submit for Meta approval\n' +
-          '4. Once approved, use the new template for sending messages';
         toast.error(errorMessage);
       } else if (errorSubcode === 2388023) {
         errorMessage = `WhatsApp is currently deleting this template language variant. During this 30-day lock period, you cannot add English (US) back to the same name. Please use a new name now.`;
@@ -905,8 +1471,9 @@ const CreateTemplate = () => {
       } else {
         toast.error(errorMessage);
       }
-          } finally {
-            setIsSubmitting(false);
+      setSubmitError(errorMessage);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -929,43 +1496,141 @@ const CreateTemplate = () => {
   // ================= CHOOSE SCREEN =================
   if (view === 'choose') {
     return (
-      <div className="min-h-screen w-full bg-[#F9FAFB] p-4 md:p-6 lg:p-12 flex flex-col items-center font-sans overflow-x-hidden">
+      <div className="min-h-screen w-full bg-[#F9FAFB] p-4 md:p-6 lg:p-12 flex flex-col items-center font-sans overflow-x-hidden relative">
+        {/* UPGRADE PLAN MODAL */}
+        {upgradeModal.isOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl scale-in-center border border-slate-100 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-teal-500" />
+              <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-5 text-emerald-600 shadow-sm">
+                <Lock className="w-8 h-8" />
+              </div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold mb-3">
+                <span>Current: {currentPlanCapitalized} Plan</span>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Upgrade Required</h3>
+              <p className="text-slate-500 text-xs sm:text-sm mb-6 leading-relaxed">
+                {upgradeModal.message || `Upgrade your plan to unlock this feature and create more templates.`}
+              </p>
+              <div className="bg-slate-50 rounded-xl p-3.5 text-left border border-slate-100 mb-6 space-y-1.5 text-xs">
+                <div className="flex items-center gap-2 font-bold text-slate-700">
+                  <Sparkles className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                  <span>Template limits by plan:</span>
+                </div>
+                <p className="text-slate-500 leading-relaxed pl-6 space-y-0.5">
+                  • <strong>Free Trial:</strong> 3 templates<br/>
+                  • <strong>Basic:</strong> 15 templates & Template Gallery<br/>
+                  • <strong>Growth:</strong> 50 templates & Analytics<br/>
+                  • <strong>Professional:</strong> Unlimited templates
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' })}
+                  className="flex-1 py-2.5 px-4 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' });
+                    navigate('/admin/plan/upgrade');
+                  }}
+                  className="flex-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <span>Upgrade Plan</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="text-center w-full max-w-2xl mt-4 md:mt-3 mb-4 md:mb-12">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-800 mb-3 tracking-tight">Choose Template Method</h2>
           <p className="text-gray-500 text-sm md:text-base font-medium">Select how you want to create your WhatsApp template</p>
         </div>
 
+        {/* Plan Limit Warning Banner */}
+        {isLimitReached && (
+          <div className="w-full max-w-4xl mb-6 p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-amber-900 shadow-sm animate-fadeIn">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="font-bold text-sm text-slate-800">
+                  Template Limit Reached ({existingTemplateCount}/{templateLimit})
+                </p>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Your {currentPlanCapitalized} plan allows up to {templateLimit} templates. Upgrade your plan to create more.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate('/admin/plan/upgrade')}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow-sm transition shrink-0 cursor-pointer flex items-center gap-1.5 ml-3"
+            >
+              <span>Upgrade Plan</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         <div className="flex flex-col md:flex-row gap-6 md:gap-8 w-full max-w-4xl px-2">
           {/* CREATE NEW */}
           <div
-            onClick={() => setView('setup')}
-            className="flex-1 bg-white p-6 md:p-10 rounded-xl border border-gray-200 hover:border-[#10B981] shadow-sm cursor-pointer group transition-all duration-300 hover:shadow-md"
+            onClick={() => {
+              if (isLimitReached) {
+                setUpgradeModal({
+                  isOpen: true,
+                  featureName: 'Templates',
+                  message: `You have reached your limit of ${templateLimit} templates on the ${currentPlanCapitalized} plan. Upgrade to create more templates!`
+                });
+                return;
+              }
+              setView('setup');
+            }}
+            className={`flex-1 bg-white p-6 md:p-10 rounded-xl border shadow-sm cursor-pointer group transition-all duration-300 hover:shadow-md relative ${
+              isLimitReached ? 'border-amber-200 hover:border-amber-400' : 'border-gray-200 hover:border-[#10B981]'
+            }`}
           >
-            <div className="w-12 h-12 md:w-14 md:h-14 bg-green-50 text-green-600 rounded-lg flex items-center justify-center mb-6 group-hover:bg-[#10B981] group-hover:text-white transition-all duration-300">
-              <Plus size={24}/>
+            {isLimitReached && (
+              <div className="absolute top-4 right-4 flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 border border-amber-200 text-amber-800 text-[11px] font-bold">
+                <Lock size={12}/> Limit Reached
+              </div>
+            )}
+            <div className={`w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center mb-6 transition-all duration-300 ${
+              isLimitReached 
+                ? 'bg-amber-50 text-amber-600 group-hover:bg-amber-500 group-hover:text-white' 
+                : 'bg-green-50 text-green-600 group-hover:bg-[#10B981] group-hover:text-white'
+            }`}>
+              {isLimitReached ? <Lock size={24}/> : <Plus size={24}/>}
             </div>
             <h3 className="text-lg md:text-xl font-bold mb-3 text-gray-800">Create New Template</h3>
             <p className="text-gray-500 text-sm font-medium mb-8 leading-relaxed">
               Build custom templates with full control over design and variables.
             </p>
-            <div className="flex items-center text-[#10B981] font-semibold gap-2 text-sm">
-              Start Building <ChevronRight size={18}/>
+            <div className={`flex items-center font-semibold gap-2 text-sm ${
+              isLimitReached ? 'text-amber-600' : 'text-[#10B981]'
+            }`}>
+              {isLimitReached ? 'Upgrade Required' : 'Start Building'} <ChevronRight size={18}/>
             </div>
           </div>
 
           {/* GALLERY */}
           <div
             onClick={() => navigate('/admin/templates/gallery')}
-            className="flex-1 bg-white p-6 md:p-10 rounded-xl border border-gray-200 hover:border-blue-500 shadow-sm cursor-pointer group transition-all duration-300 hover:shadow-md"
+            className="flex-1 bg-white p-6 md:p-10 rounded-xl border border-gray-200 hover:border-blue-500 shadow-sm cursor-pointer group transition-all duration-300 hover:shadow-md relative"
           >
-            <div className="w-12 h-12 md:w-14 md:h-14 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-6 group-hover:bg-blue-500 group-hover:text-white transition-all duration-300">
+            <div className="w-12 h-12 md:w-14 md:h-14 rounded-lg flex items-center justify-center mb-6 transition-all duration-300 bg-blue-50 text-blue-600 group-hover:bg-blue-500 group-hover:text-white">
               <Globe size={24}/>
             </div>
             <h3 className="text-lg md:text-xl font-bold mb-3 text-gray-800">Template Gallery</h3>
             <p className="text-gray-500 text-sm font-medium mb-8 leading-relaxed">
               Browse pre-approved templates ready for quick deployment.
             </p>
-            <div className="flex items-center text-blue-500 font-semibold gap-2 text-sm">
+            <div className="flex items-center font-semibold gap-2 text-sm text-blue-500">
               Browse Library <ChevronRight size={18}/>
             </div>
           </div>
@@ -976,12 +1641,58 @@ const CreateTemplate = () => {
 
   // ================= SETUP / CONTENT UI (UNCHANGED) =================
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500">
-      {/* REST OF YOUR ORIGINAL FILE BELOW — 100% SAME */}
+    <div className="flex flex-col lg:flex-row h-screen max-h-screen w-full bg-white overflow-hidden font-sans animate-in fade-in duration-500 relative">
+      {/* UPGRADE PLAN MODAL */}
+      {upgradeModal.isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full mx-4 shadow-2xl scale-in-center border border-slate-100 text-center relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-emerald-400 to-teal-500" />
+            <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center mx-auto mb-5 text-emerald-600 shadow-sm">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-bold mb-3">
+              <span>Current: {currentPlanCapitalized} Plan</span>
+            </div>
+            <h3 className="text-xl font-bold text-slate-900 mb-2">Upgrade Required</h3>
+            <p className="text-slate-500 text-xs sm:text-sm mb-6 leading-relaxed">
+              {upgradeModal.message || `Upgrade your plan to unlock this feature and create more templates.`}
+            </p>
+            <div className="bg-slate-50 rounded-xl p-3.5 text-left border border-slate-100 mb-6 space-y-1.5 text-xs">
+              <div className="flex items-center gap-2 font-bold text-slate-700">
+                <Sparkles className="w-4 h-4 text-emerald-500 flex-shrink-0" />
+                <span>Template limits by plan:</span>
+              </div>
+              <p className="text-slate-500 leading-relaxed pl-6 space-y-0.5">
+                • <strong>Free Trial:</strong> 3 templates<br/>
+                • <strong>Basic:</strong> 15 templates & Template Gallery<br/>
+                • <strong>Growth:</strong> 50 templates & Analytics<br/>
+                • <strong>Professional:</strong> Unlimited templates
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' })}
+                className="flex-1 py-2.5 px-4 border border-slate-200 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setUpgradeModal({ isOpen: false, featureName: 'Templates', message: '' });
+                  navigate('/admin/plan/upgrade');
+                }}
+                className="flex-1 py-2.5 px-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-bold shadow-md shadow-emerald-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Upgrade Plan</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-      
       {/* Scrollable Form Container */}
-      <div className="flex-1 p-4 md:p-6 lg:p-10 overflow-y-auto border-r border-slate-100 bg-[#F8FAFC]">
+      <div className="flex-1 h-full overflow-y-auto p-4 md:p-6 lg:p-10 border-r border-slate-100 bg-[#F8FAFC]">
         <div className="max-w-3xl mx-auto space-y-5 pb-20">
           <div className="flex items-center justify-between mb-4">
             <button
@@ -1035,7 +1746,23 @@ const CreateTemplate = () => {
                             </div>
                         ) : (
                             (formData.category === 'Marketing' ? ['CUSTOM', 'CATALOG', 'MPM', 'LIMITED_TIME_OFFER'] : ['CUSTOM']).map((type) => (
-                              <div key={type} onClick={() => setTemplateType(type)} className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}>
+                              <div 
+                                key={type} 
+                                onClick={() => {
+                                  setTemplateType(type);
+                                  if (type === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
+                                    setFormData(prev => ({ ...prev, headerType: 'Text', headerText: prev.headerText || 'Featured Products' }));
+                                  }
+                                  if (type === 'LIMITED_TIME_OFFER') {
+                                    if (formData.headerType === 'Text' || formData.headerType === 'Document') {
+                                      setFormData(prev => ({ ...prev, headerType: 'None' }));
+                                    }
+                                  }
+                                  setSubmitError(null);
+                                  setHeaderError(false);
+                                }} 
+                                className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}
+                              >
                                 <div className="flex items-start gap-4">
                                     {templateType === type ? (
                                       <div className="mt-1 w-4 h-4 shrink-0 rounded-full bg-[#10B981] flex items-center justify-center border-2 border-[#10B981]">
@@ -1219,30 +1946,70 @@ const CreateTemplate = () => {
                         </div>
                       </div>
                     )}
-                    <div className="mb-8 border-b border-gray-100 pb-6">
+                    <div ref={headerRef} className={`mb-8 border-b pb-6 transition-all duration-300 ${headerError ? 'p-5 bg-red-50/70 border-2 border-red-400 rounded-xl shadow-sm' : 'border-gray-100'}`}>
                         <div className="flex flex-col gap-1 mb-3">
-                            <h3 className="text-sm md:text-base font-bold text-gray-800">Header <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
-                            <p className="text-xs text-gray-500">Add a title or choose which type of media you&apos;ll use for this header.</p>
+                            <h3 className="text-sm md:text-base font-bold text-gray-800 flex items-center gap-2">
+                                Header 
+                                {templateType === 'MPM' ? (
+                                  <span className="text-amber-800 bg-amber-100/90 border border-amber-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full tracking-wide">
+                                    REQUIRED FOR MPM
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span>
+                                )}
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                              {templateType === 'MPM'
+                                ? 'Meta WhatsApp strictly requires a Header (Text or Media) for Multi-Product Messages.'
+                                : "Add a title or choose which type of media you'll use for this header."}
+                            </p>
                         </div>
+
+                        {templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None') && (
+                          <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2.5">
+                            <Info size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                            <div>
+                              <p className="font-bold">Header Required for Multi-Product Messages</p>
+                              <p className="text-[11px] text-amber-700 mt-0.5">
+                                WhatsApp requires a Header (Text, Image, Video, or Document) for Multi-Product templates. Please change &quot;None&quot; to &quot;Text&quot; or another media type below.
+                              </p>
+                            </div>
+                          </div>
+                        )}
+
+                        {headerError && (
+                          <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-xs flex items-center gap-2">
+                            <AlertCircle size={16} className="shrink-0 text-red-600" />
+                            <span className="font-semibold">Please select a Text or Media header before submitting.</span>
+                          </div>
+                        )}
+
                         <select 
-                            className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
+                            className={`w-full p-4 border rounded-lg text-sm font-medium outline-none bg-white transition-all ${headerError ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-200 focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]'}`} 
                             value={formData.headerType} 
                             onChange={(e) => {
                               setFormData({...formData, headerType: e.target.value});
                               // Clear previous media when header type changes
                               setHeaderMedia(null);
                               setUploadedMediaUrl(null);
+                              setHeaderError(false);
+                              setSubmitError(null);
                               if (headerFileRef.current) {
                                 headerFileRef.current.value = '';
                               }
                             }}
                         >
-                            <option>None</option>
-                            <option>Text</option>
-                            <option>Image</option>
-                            <option>Video</option>
-                            <option>Document</option>
+                            <option value="None">{templateType === 'MPM' ? 'None (Header is required for MPM)' : 'None'}</option>
+                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Text">Text</option>}
+                            <option value="Image">Image</option>
+                            <option value="Video">Video</option>
+                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Document">Document</option>}
                         </select>
+                        {templateType === 'LIMITED_TIME_OFFER' && (
+                          <p className="text-[11px] text-gray-500 mt-2">
+                            WhatsApp allows <strong>Image</strong> or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
+                          </p>
+                        )}
 
                         {formData.headerType === 'Text' && (
                           <div className="mt-4 space-y-2">
@@ -1310,24 +2077,57 @@ const CreateTemplate = () => {
                               </div>
                             ) : (
                               <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3 flex-1">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3 flex-1 min-w-0">
                                     {headerMedia.type === 'image' && (
-                                      <img src={headerMedia.preview} alt="preview" className="h-16 w-16 rounded-lg object-cover"/>
+                                      <img 
+                                        src={headerMedia.preview} 
+                                        alt="preview" 
+                                        className="h-16 w-16 rounded-lg object-contain bg-white border border-gray-200 p-1 shrink-0"
+                                      />
                                     )}
                                     {headerMedia.type === 'video' && (
-                                      <video src={headerMedia.preview} className="h-16 w-16 rounded-lg object-cover"/>
+                                      <video 
+                                        src={headerMedia.preview} 
+                                        className="h-16 w-16 rounded-lg object-contain bg-black shrink-0"
+                                      />
                                     )}
                                     {headerMedia.type === 'document' && (
-                                      <div className="h-16 w-16 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs">
+                                      <div className="h-16 w-16 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs shrink-0 border border-red-100">
                                         {headerMedia.name.split('.').pop().toUpperCase()}
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-semibold text-gray-800 truncate">{headerMedia.name}</p>
-                                      {headerMedia.file && (
-                                        <p className="text-xs text-gray-500">{(headerMedia.file.size / 1024 / 1024).toFixed(2)} MB</p>
+                                      
+                                      <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500 mt-0.5">
+                                        {headerMedia.file && (
+                                          <span>{((headerMedia.newSize || headerMedia.file.size) / 1024 / 1024).toFixed(2)} MB</span>
+                                        )}
+                                        {headerMedia.width && headerMedia.height && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="font-mono text-[11px] text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">
+                                              {headerMedia.width} × {headerMedia.height} px
+                                            </span>
+                                          </>
+                                        )}
+                                        {headerMedia.aspectRatio && (
+                                          <>
+                                            <span>•</span>
+                                            <span className="text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded font-medium">
+                                              {headerMedia.aspectRatio} (No crop)
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      {headerMedia.optimized && (
+                                        <p className="text-[11px] text-emerald-700 font-medium mt-1">
+                                          ✓ Auto-scaled proportionally without cropping (Original: {(headerMedia.originalSize / 1024 / 1024).toFixed(2)} MB)
+                                        </p>
                                       )}
+
                                       {isUploadingMedia ? (
                                         <div className="flex items-center gap-2 mt-2 w-48">
                                           <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
@@ -1353,7 +2153,8 @@ const CreateTemplate = () => {
                                   <button 
                                     type="button"
                                     onClick={() => removeHeaderMedia()}
-                                    className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                    className="p-2 text-gray-400 hover:text-red-600 transition-colors shrink-0 cursor-pointer"
+                                    title="Remove media"
                                   >
                                     <Trash2 size={18}/>
                                   </button>
@@ -1361,7 +2162,7 @@ const CreateTemplate = () => {
                                 <button 
                                   type="button"
                                   onClick={triggerHeaderMediaPicker}
-                                  className="w-full p-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                  className="w-full p-2 text-sm font-semibold text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
                                 >
                                   Change {formData.headerType}
                                 </button>
@@ -1388,6 +2189,17 @@ const CreateTemplate = () => {
                             style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                         />
                     </div>
+                    {/* Real-time body validation warnings */}
+                    {bodyWarnings.length > 0 && (
+                      <div className="mt-2 space-y-1.5">
+                        {bodyWarnings.map((w, i) => (
+                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                            <span className="text-amber-500 text-sm mt-0.5 shrink-0">⚠️</span>
+                            <p className="text-[12px] font-medium text-amber-800 leading-snug">{w}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center justify-between mt-2 gap-3 relative">
                         <span className="text-xs font-semibold text-gray-500">Characters:- {charCount}/1024</span>
                         <div className="flex items-center gap-4 text-gray-500">
@@ -1425,25 +2237,41 @@ const CreateTemplate = () => {
                     </div>
 
                     {/* FOOTER SECTION */}
-                    <div className="mt-8 border-t border-gray-50 pt-6">
-                        <div className="flex flex-col gap-1 mb-3">
-                            <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
-                            <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
-                        </div>
-                        <div className="relative">
-                            <input 
-                                type="text" 
-                                value={formData.footerText} 
-                                onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
-                                placeholder="Enter footer text..."
-                                maxLength={60}
-                                className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
-                            />
-                            <div className="flex justify-end mt-1">
-                                <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                    {templateType === 'LIMITED_TIME_OFFER' ? (
+                      <div className="mt-8 border-t border-gray-50 pt-6">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-4">
+                          <div className="flex items-start gap-2.5">
+                            <span className="text-amber-600 text-sm mt-0.5">ℹ️</span>
+                            <div>
+                              <h4 className="text-xs font-semibold text-amber-900">Footer not permitted for Limited-Time Offers</h4>
+                              <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                                WhatsApp rules do not allow a footer component on Limited-Time Offer templates because the countdown timer and offer banner occupy the bottom section.
+                              </p>
                             </div>
+                          </div>
                         </div>
-                    </div>
+                      </div>
+                    ) : (
+                      <div className="mt-8 border-t border-gray-50 pt-6">
+                          <div className="flex flex-col gap-1 mb-3">
+                              <h3 className="text-sm md:text-base font-bold text-gray-800">Footer <span className="text-gray-400 font-normal text-sm ml-1">(Optional)</span></h3>
+                              <p className="text-xs text-gray-500">Add a short line of text to the bottom of your message.</p>
+                          </div>
+                          <div className="relative">
+                              <input 
+                                  type="text" 
+                                  value={formData.footerText} 
+                                  onChange={(e) => setFormData({...formData, footerText: e.target.value})} 
+                                  placeholder="Enter footer text..."
+                                  maxLength={60}
+                                  className="w-full p-4 border border-gray-200 rounded-lg text-sm font-medium outline-none bg-white focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981] transition-all" 
+                              />
+                              <div className="flex justify-end mt-1">
+                                  <span className="text-[10px] font-medium text-gray-400">{formData.footerText?.length || 0}/60</span>
+                              </div>
+                          </div>
+                      </div>
+                    )}
 
                     {bodyVariables.length > 0 && (
                       <div className="mt-5 rounded-xl border border-gray-200 bg-white p-5 md:p-6 shadow-sm">
@@ -1529,47 +2357,343 @@ const CreateTemplate = () => {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
-                                            <div className="relative">
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                                Button Text
+                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                                                    <Lock size={9} /> Locked by WhatsApp
+                                                </span>
+                                            </label>
+                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between">
+                                                <span>View items</span>
+                                                <Lock size={13} className="text-gray-400" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-2">
+                                    WhatsApp mandates the button text is always <strong>&quot;View items&quot;</strong> for Multi-Product Messages — this cannot be changed.
+                                </p>
+                            </div>
+                        ) : templateType === 'LIMITED_TIME_OFFER' ? (
+                            <div className="space-y-6">
+                                <div>
+                                    <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                        Limited-Time Offer Details
+                                        <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full uppercase">
+                                          Countdown & Offer Banner
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        Configure the promotional banner and countdown timer that WhatsApp renders natively.
+                                    </p>
+
+                                    <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl space-y-5 shadow-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                    <span>Offer Heading Text</span>
+                                                    <span className="text-[10px] font-medium text-gray-400">
+                                                        {(formData.limitedTimeOfferText || '').length}/16
+                                                    </span>
+                                                </label>
                                                 <input 
                                                     type="text" 
-                                                    value={formData.mpmButtonText || ''} 
-                                                    onChange={(e) => setFormData({...formData, mpmButtonText: e.target.value})}
-                                                    maxLength={20}
+                                                    value={formData.limitedTimeOfferText || ''} 
+                                                    onChange={(e) => setFormData({...formData, limitedTimeOfferText: e.target.value})}
+                                                    maxLength={16}
                                                     className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
-                                                    placeholder="View Items"
+                                                    placeholder="Expiring offer!"
                                                 />
-                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
-                                                    {(formData.mpmButtonText || '').length}/20
+                                                <p className="text-[11px] text-gray-400 mt-1">E.g., &quot;Expiring offer!&quot; or &quot;20% OFF&quot; (Max 16 chars)</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">
+                                                    Countdown Timer
+                                                </label>
+                                                <div className="flex items-center justify-between p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock size={16} className="text-[#10B981]" />
+                                                        <span className="text-xs font-semibold text-gray-700">Display Live Countdown</span>
+                                                    </div>
+                                                    <label className="relative inline-flex items-center cursor-pointer">
+                                                        <input 
+                                                            type="checkbox" 
+                                                            className="sr-only peer" 
+                                                            checked={formData.hasExpiration !== false} 
+                                                            onChange={(e) => setFormData({...formData, hasExpiration: e.target.checked})} 
+                                                        />
+                                                        <div className="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#10B981]"></div>
+                                                    </label>
+                                                </div>
+                                                <p className="text-[11px] text-gray-400 mt-1">Turns red in WhatsApp within the last hour of expiration</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Expiration Timing Options */}
+                                        {formData.hasExpiration !== false && (
+                                            <div className="pt-4 mt-2 border-t border-gray-100 space-y-3">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[11px] font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                                                        <span>Set Timing of Expiration</span>
+                                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded-md normal-case">
+                                                            Countdown Length
+                                                        </span>
+                                                    </label>
+                                                    <span className="text-[10px] font-bold text-[#10B981] bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                        <Clock size={11} />
+                                                        Active Timer: {getExpirationPreviewText(formData.expirationDate || '24h', formData.customExpirationHours || 24)}
+                                                    </span>
+                                                </div>
+
+                                                {/* Preset Pill Buttons */}
+                                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                                    {[
+                                                        { label: '6 Hours', val: '6h' },
+                                                        { label: '12 Hours', val: '12h' },
+                                                        { label: '24 Hours', val: '24h' },
+                                                        { label: '48 Hours', val: '48h' },
+                                                        { label: '3 Days', val: '72h' },
+                                                        { label: 'Custom', val: 'custom' }
+                                                    ].map(opt => (
+                                                        <button
+                                                            key={opt.val}
+                                                            type="button"
+                                                            onClick={() => setFormData({...formData, expirationDate: opt.val})}
+                                                            className={`py-2 px-2 rounded-lg text-xs font-semibold border transition-all text-center ${
+                                                                (formData.expirationDate || '24h') === opt.val
+                                                                    ? 'bg-[#10B981] text-white border-[#10B981] shadow-xs'
+                                                                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-300 hover:bg-white'
+                                                            }`}
+                                                        >
+                                                            {opt.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+
+                                                {/* Custom Hours Input if Custom selected */}
+                                                {formData.expirationDate === 'custom' && (
+                                                    <div className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg animate-in fade-in">
+                                                        <span className="text-xs font-semibold text-gray-700">Expire after:</span>
+                                                        <div className="relative w-28">
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                max="720"
+                                                                value={formData.customExpirationHours || 24}
+                                                                onChange={(e) => setFormData({...formData, customExpirationHours: Math.max(1, parseInt(e.target.value) || 1)})}
+                                                                className="w-full p-2 border border-gray-200 rounded-lg text-sm font-bold text-center bg-white outline-none focus:border-[#10B981]"
+                                                            />
+                                                        </div>
+                                                        <span className="text-xs font-semibold text-gray-700">Hours</span>
+                                                        <span className="text-[11px] text-gray-400">
+                                                            ({Math.round(((formData.customExpirationHours || 24) / 24) * 10) / 10} days)
+                                                        </span>
+                                                    </div>
+                                                )}
+                                                <p className="text-[11px] text-gray-400">
+                                                    Sets how long recipient has to redeem this offer before the countdown ends.
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                        Buttons
+                                        <span className="text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full uppercase">
+                                          WhatsApp Mandated
+                                        </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                        WhatsApp requires a Copy Code button for Limited-Time Offers so users can tap to copy the coupon code to clipboard.
+                                    </p>
+
+                                    <div className="space-y-4">
+                                        {/* Copy Code Button (Mandatory) */}
+                                        <div className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                                        Button 1: Type
+                                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full normal-case">
+                                                            <Lock size={9} /> Copy Code (Native)
+                                                        </span>
+                                                    </label>
+                                                    <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center gap-2">
+                                                        <Copy size={14} className="text-gray-400" />
+                                                        <span>Copy code</span>
+                                                    </div>
+                                                    <p className="text-[11px] text-gray-400 mt-1">WhatsApp automatically labels this button &quot;Copy code&quot;</p>
+                                                </div>
+
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                        <span>Offer / Coupon Code</span>
+                                                        <span className="text-[10px] font-medium text-gray-400">
+                                                            {(formData.offerCode || '').length}/15
+                                                        </span>
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={formData.offerCode || ''} 
+                                                        onChange={(e) => setFormData({...formData, offerCode: e.target.value.toUpperCase()})}
+                                                        maxLength={15}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold bg-white outline-none focus:border-[#10B981] transition-all uppercase" 
+                                                        placeholder="SALE20"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Copied to clipboard when tapped (Max 15 characters)</p>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Website URL Button (Mandatory by WhatsApp at index 1) */}
+                                        <div className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl shadow-sm">
+                                            <div className="flex items-center gap-2 mb-4">
+                                                <ExternalLink size={16} className="text-blue-600" />
+                                                <span className="text-xs font-bold text-gray-700 uppercase tracking-wide flex items-center gap-1.5">
+                                                    Button 2: Website URL
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-200 px-1.5 py-0.5 rounded-full normal-case">
+                                                        <Lock size={9} /> Required by WhatsApp
+                                                    </span>
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                        <span>Button Text</span>
+                                                        <span className="text-[10px] font-medium text-gray-400">
+                                                            {(formData.ltoUrlText || '').length}/25
+                                                        </span>
+                                                    </label>
+                                                    <input 
+                                                        type="text" 
+                                                        value={formData.ltoUrlText || ''} 
+                                                        onChange={(e) => setFormData({...formData, ltoUrlText: e.target.value})}
+                                                        maxLength={25}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                        placeholder="Shop Now"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Label shown on the link button (e.g. &quot;Shop Now&quot;)</p>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">
+                                                        Website URL
+                                                    </label>
+                                                    <input 
+                                                        type="url" 
+                                                        value={formData.ltoUrl || ''} 
+                                                        onChange={(e) => setFormData({...formData, ltoUrl: e.target.value})}
+                                                        className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] transition-all" 
+                                                        placeholder="https://example.com/offers"
+                                                    />
+                                                    <p className="text-[11px] text-gray-400 mt-1">Web address opened when tapped (Must start with https://)</p>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">This button opens a curated selection of products inside WhatsApp.</p>
                             </div>
                         ) : (
                         <>
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons </h3>
-                            <button onClick={addButton} disabled={buttons.length >= 3} className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-30">
-                                <Plus size={14}/> Add New
-                            </button>
+                        <div className="flex justify-between items-center mb-4 relative" ref={buttonMenuRef}>
+                            <h3 className="text-sm md:text-base font-bold text-gray-800">Buttons</h3>
+                            
+                            <div className="relative">
+                              <button 
+                                type="button"
+                                onClick={addButton} 
+                                disabled={buttons.length >= 10} 
+                                className="text-xs font-bold text-blue-600 flex items-center gap-1.5 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-all disabled:opacity-40 cursor-pointer shadow-xs"
+                              >
+                                  <Plus size={14}/> Add button
+                              </button>
+
+                              {/* WhatsTool exact style Button Picker Popup (Intelligently opens UP or DOWN based on screen space) */}
+                              {showButtonMenu && (
+                                <div className={`absolute right-0 ${menuPlacement === 'up' ? 'bottom-full mb-2' : 'top-full mt-2'} w-72 bg-white rounded-2xl shadow-2xl border border-gray-200/80 py-3 z-50 animate-in fade-in zoom-in-95 duration-150`}>
+                                  
+                                  {/* Quick Reply Section */}
+                                  <div className="px-4 pb-2">
+                                    <h4 className="text-xs font-bold text-gray-900 tracking-tight">Quick reply buttons</h4>
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={quickReplyButtonCount >= 3}
+                                      onClick={() => addSpecificButton('Marketing opt-out')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Marketing opt-out</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">Recommended</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={quickReplyButtonCount >= 3}
+                                      onClick={() => addSpecificButton('Custom')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Custom</span>
+                                    </button>
+                                  </div>
+
+                                  <div className="my-2 border-t border-gray-100" />
+
+                                  {/* Call to Action Section */}
+                                  <div className="px-4 pb-2">
+                                    <h4 className="text-xs font-bold text-gray-900 tracking-tight">Call to action buttons</h4>
+                                  </div>
+
+                                  <div className="space-y-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={websiteButtonCount >= 2}
+                                      onClick={() => addSpecificButton('Visit website')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Visit website</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">2 buttons maximum</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={phoneButtonCount >= 1}
+                                      onClick={() => addSpecificButton('Call phone number')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Call phone number</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">1 buttons maximum</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      disabled={copyCodeButtonCount >= 1}
+                                      onClick={() => addSpecificButton('Copy offer code')}
+                                      className="w-full px-4 py-2 text-left hover:bg-gray-50 transition-colors flex flex-col disabled:opacity-35 disabled:cursor-not-allowed group cursor-pointer"
+                                    >
+                                      <span className="text-sm font-medium text-gray-800 group-hover:text-blue-600 transition-colors">Copy offer code</span>
+                                      <span className="text-[11px] text-gray-400 font-normal">1 buttons maximum</span>
+                                    </button>
+                                  </div>
+
+                                </div>
+                              )}
+                            </div>
                         </div>
+
                         <div className="space-y-4">
                             {buttons.map((btn) => (
                                 <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
-                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
+                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : btn.type === 'Custom' || btn.type === 'Marketing opt-out' ? 'md:grid-cols-2' : btn.type === 'Copy offer code' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
                                         <div>
                                             <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                            <select 
-                                              value={btn.type}
-                                              onChange={(e) => updateButton(btn.id, 'type', e.target.value)}
-                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
-                                            >
-                                              <option>Visit website</option>
-                                              <option>Call phone number</option>
-                                            </select>
+                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700">
+                                              {btn.type}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
@@ -1577,10 +2701,20 @@ const CreateTemplate = () => {
                                               <input 
                                                 type="text" 
                                                 value={btn.text} 
+                                                maxLength={25}
                                                 onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
                                                 className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                placeholder="Visit website"
+                                                placeholder={
+                                                  btn.type === 'Marketing opt-out' ? 'Stop promotions' :
+                                                  btn.type === 'Custom' ? 'e.g. Yes, Interested' : 
+                                                  btn.type === 'Call phone number' ? 'Call us' : 
+                                                  btn.type === 'Copy offer code' ? 'Copy offer code' :
+                                                  'Visit website'
+                                                }
                                               />
+                                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
+                                                {(btn.text || '').length}/25
+                                              </span>
                                             </div>
                                         </div>
                                         
@@ -1621,24 +2755,37 @@ const CreateTemplate = () => {
                                                 </div>
                                             </div>
                                           </>
-                                        ) : (
-                                          <>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
-                                                <div className="relative">
-                                                  <input 
-                                                    type="text" 
-                                                    value={btn.value} 
-                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="https://..."
-                                                  />
-                                                </div>
-                                            </div>
-                                          </>
+                                        ) : btn.type === 'Copy offer code' ? (
+                                          <div>
+                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
+                                                <span>Coupon / Offer Code</span>
+                                                <span className="text-[10px] text-gray-400">{(btn.value || '').length}/15</span>
+                                              </label>
+                                              <input 
+                                                type="text" 
+                                                value={btn.value} 
+                                                maxLength={15}
+                                                onChange={(e) => updateButton(btn.id, 'value', e.target.value.toUpperCase())}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold uppercase bg-white outline-none focus:border-blue-400 transition-all" 
+                                                placeholder="OFFER20"
+                                              />
+                                          </div>
+                                        ) : (btn.type === 'Custom' || btn.type === 'Marketing opt-out') ? null : (
+                                          <div>
+                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
+                                              <div className="relative">
+                                                <input 
+                                                  type="text" 
+                                                  value={btn.value} 
+                                                  onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                                  placeholder="https://example.com"
+                                                />
+                                              </div>
+                                          </div>
                                         )}
                                     </div>
-                                    <button onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors">
+                                    <button type="button" onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors cursor-pointer">
                                         <X size={20}/>
                                     </button>
                                 </div>
@@ -1649,6 +2796,26 @@ const CreateTemplate = () => {
                     </div>
                 </div>
                 )}
+                {submitError && (
+                  <div className="w-full mt-6 p-4 bg-red-50 border border-red-300 rounded-xl text-red-800 text-sm flex items-start gap-3 animate-in fade-in shadow-sm">
+                    <div className="p-1.5 bg-red-100 rounded-lg text-red-600 shrink-0 mt-0.5">
+                      <AlertCircle size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-red-900 text-sm">Cannot Save Template</p>
+                      <p className="text-xs text-red-700 mt-1 leading-relaxed break-words">{submitError}</p>
+                    </div>
+                    <button 
+                      type="button" 
+                      onClick={() => setSubmitError(null)} 
+                      className="text-red-400 hover:text-red-700 transition-colors p-1 shrink-0"
+                      title="Dismiss"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row justify-between items-center gap-6 pt-6">
                     <button onClick={() => setView('setup')} className="text-gray-500 font-semibold text-sm hover:text-gray-800 transition-colors px-4 py-2 order-2 sm:order-1">← Previous Step</button>
 
@@ -1668,27 +2835,33 @@ const CreateTemplate = () => {
         </div>
       </div>
 
-      {/* Responsive Preview Sidebar */}
-      <div className="w-full lg:w-[450px] xl:w-[480px] bg-white p-6 md:p-10 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative overflow-y-auto">
-        <div className="lg:sticky lg:top-0 w-full flex flex-col items-center">
-            <div className="flex justify-between w-full mb-8 lg:mb-12">
+      {/* Responsive Preview Sidebar (Permanently Fixed on Screen) */}
+      <div className="w-full lg:w-[420px] xl:w-[450px] bg-white px-4 py-6 md:p-8 flex flex-col items-center border-t lg:border-t-0 lg:border-l border-slate-100 relative h-full overflow-hidden shrink-0">
+        <div className="w-full flex flex-col items-center h-full justify-between pb-4">
+            <div className="flex justify-between w-full mb-3 shrink-0">
                 <p className="text-gray-800 font-semibold text-sm uppercase tracking-wide">Live Preview</p>
-                <div className="flex items-center gap-2 bg-green-50 px-3 md:px-4 py-1.5 md:py-2 rounded-full">
+                <div className="flex items-center gap-2 bg-green-50 px-3 py-1 rounded-full">
                     <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
                     <span className="text-xs font-semibold text-green-600 uppercase tracking-wide">Synced</span>
                 </div>
             </div>
-            {/* Scale adjustment for smaller laptop screens */}
-            <div className="transform scale-75 sm:scale-90 lg:scale-95 origin-top">
+            {/* Centered Fixed Phone Mockup */}
+            <div className="flex-1 flex items-center justify-center w-full">
           <MobilePreview 
             name={formData.name || 'YOUR_TEMPLATE'} 
             body={formData.bodyText} 
-            footer={formData.category === 'Authentication' ? '' : formData.footerText} 
+            footer={(formData.category === 'Authentication' || templateType === 'LIMITED_TIME_OFFER') ? '' : formData.footerText} 
             headerMedia={headerMedia}
             headerType={formData.headerType}
             showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
             offer={formData.offerTitle} 
             isLimited={templateType === 'LIMITED_TIME_OFFER'}
+            limitedTimeOfferText={formData.limitedTimeOfferText}
+            hasExpiration={formData.hasExpiration}
+            expirationPreviewText={getExpirationPreviewText(formData.expirationDate || '24h', formData.customExpirationHours || 24)}
+            offerCode={formData.offerCode}
+            ltoHasUrlButton={formData.ltoHasUrlButton}
+            ltoUrlText={formData.ltoUrlText}
             isCatalog={templateType === 'CATALOG'}
             isMpm={templateType === 'MPM'}
             catalogButtonText={formData.catalogButtonText}
@@ -1773,13 +2946,33 @@ const CreateTemplate = () => {
   );
 };
 
-const MobilePreview = ({ name, body, footer, showImage = false, isLimited = false, isCatalog = false, isMpm = false, catalogButtonText = "", mpmButtonText = "", buttons = [], headerMedia = null, headerType = 'None', isSetupView = false }) => {
+const MobilePreview = ({ 
+  name, 
+  body, 
+  footer, 
+  showImage = false, 
+  isLimited = false, 
+  limitedTimeOfferText = 'Expiring offer!',
+  hasExpiration = true,
+  expirationPreviewText = '23:59:59',
+  offerCode = 'SALE20',
+  ltoHasUrlButton = false,
+  ltoUrlText = 'Shop Now',
+  isCatalog = false, 
+  isMpm = false, 
+  catalogButtonText = "", 
+  mpmButtonText = "", 
+  buttons = [], 
+  headerMedia = null, 
+  headerType = 'None', 
+  isSetupView = false 
+}) => {
   if (isSetupView) {
     return (
-      <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+      <div className="relative w-[260px] h-[525px] bg-white rounded-[2rem] border-[6px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
         {/* Notch */}
-        <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
-           <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
+        <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
+           <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
         </div>
         
         {/* Screen Background */}
@@ -1803,55 +2996,70 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                  {/* Laptop */}
                  <div className="w-[86px] h-[30px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
               </div>
-              
+
+              {/* Message Details */}
               <div className="p-4 flex flex-col">
-                 <div className="text-[13px] text-[#2c3e50] font-normal leading-relaxed mb-2">
-                   Hey there! Check out our fresh groceries now!
-                   <br /><br />
-                   Use code <strong>HEALTH</strong> to get additional 10% off on your entire purchase.
-                 </div>
+                 <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[YOUR_TEMPLATE]</p>
+                 <p className="text-[9px] text-[#333] font-normal leading-relaxed">
+                   Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.
+                 </p>
                  
-                 <div className="flex justify-end">
+                 <div className="flex justify-end mt-2">
                     <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
                  </div>
               </div>
-              
+
+              {/* Action Button */}
+              <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                 <div className="w-full py-3 flex items-center justify-center gap-2">
+                    <span className="text-[#25d366] font-bold text-[9px]">Visit Website</span>
+                 </div>
+              </div>
            </div>
         </div>
       </div>
     );
   }
 
-  // Dynamic preview for content phase
   return (
-    <div className="relative w-[285px] h-[585px] bg-white rounded-[2.5rem] border-[12px] border-[#1e293b] shadow-2xl overflow-hidden font-sans flex flex-col items-center">
+    <div className="relative w-[255px] h-[520px] bg-white rounded-[2rem] border-[5px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
       {/* Notch */}
-      <div className="absolute top-0 w-32 h-[24px] bg-[#1e293b] rounded-b-[18px] z-20 flex justify-center">
-         <div className="w-12 h-1.5 bg-white/20 rounded-full mt-1.5"></div>
+      <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
+         <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
       </div>
       
       {/* Screen Background */}
       <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
-            {showImage && (
-              <div className="w-full relative overflow-hidden bg-gray-50 shrink-0">
-                {headerMedia ? (
+            {/* Header Media */}
+            {headerType !== 'None' && (
+              <div className="w-full relative bg-gray-100 flex items-center justify-center shrink-0 border-b border-gray-50 overflow-hidden">
+                {headerMedia?.preview ? (
                   <>
-                    {headerMedia.type === 'image' && (
-                      <img src={headerMedia.preview} alt="header" className="w-full h-36 object-contain bg-gray-50"/>
+                    {headerType === 'Image' && (
+                      <img 
+                        src={headerMedia.preview} 
+                        alt="Header preview" 
+                        className="w-full h-auto max-h-[180px] object-cover" 
+                      />
                     )}
-                    {headerMedia.type === 'video' && (
-                      <video src={headerMedia.preview} className="w-full h-36 object-contain bg-gray-50" controls={false}/>
+                    {headerType === 'Video' && (
+                      <video 
+                        src={headerMedia.preview} 
+                        className="w-full h-auto max-h-[180px] object-cover" 
+                        controls 
+                      />
                     )}
-                    {headerMedia.type === 'document' && (
-                      <div className="w-full h-36 bg-red-50 flex items-center justify-center flex-col gap-2">
+                    {headerType === 'Document' && (
+                      <div className="w-full h-24 bg-red-50 flex items-center justify-center gap-2">
+                        <span className="text-2xl">📄</span>
                         <div className="text-3xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-gray-400">
+                  <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-400">
                     {headerType === 'Image' ? <ImageIcon size={28}/> : headerType === 'Video' ? <span className="text-2xl">▶️</span> : headerType === 'Document' ? <span className="text-2xl">📄</span> : <ImageIcon size={28}/>}
                   </div>
                 )}
@@ -1863,9 +3071,23 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
                
                {isLimited && (
-                  <div className="mt-3 p-2 bg-red-50 rounded-lg border border-red-100 flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-red-500">Offer expires in:</span>
-                      <span className="text-[11px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-sm">23:59:59</span>
+                  <div className="mt-3 p-2.5 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-red-600 tracking-tight">
+                            {limitedTimeOfferText || 'Expiring offer!'}
+                          </span>
+                          {hasExpiration && (
+                            <span className="text-[9px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-1">
+                              ⏱ {expirationPreviewText || '23:59:59'}
+                            </span>
+                          )}
+                      </div>
+                      {offerCode && (
+                        <div className="flex items-center justify-between bg-white/90 px-2 py-1 rounded border border-dashed border-red-300">
+                          <span className="text-[9px] font-medium text-gray-500">Code:</span>
+                          <span className="text-[10px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">{offerCode}</span>
+                        </div>
+                      )}
                   </div>
                )}
 
@@ -1880,7 +3102,22 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   <div className="w-full py-3 flex items-center justify-center gap-2">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2">
-                       {isCatalog ? (catalogButtonText || 'View Catalog') : (mpmButtonText || 'View Items')}
+                       {isCatalog ? (catalogButtonText || 'View Catalog') : 'View items'}
+                     </span>
+                  </div>
+               </div>
+            ) : isLimited ? (
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
+                  <div className="w-full py-2.5 flex items-center justify-center gap-2 border-b border-gray-100">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                       <Copy size={12} className="text-[#25d366]"/>
+                       Copy code
+                     </span>
+                  </div>
+                  <div className="w-full py-2.5 flex items-center justify-center gap-2">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                       <ExternalLink size={12} className="text-[#25d366]"/>
+                       {ltoUrlText || 'Shop Now'}
                      </span>
                   </div>
                </div>
@@ -1888,9 +3125,15 @@ const MobilePreview = ({ name, body, footer, showImage = false, isLimited = fals
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
                      <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
-                        <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2 hover:opacity-80 transition-opacity">
-                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <ExternalLink size={12} className="text-[#25d366]"/> : btn.text.toLowerCase().includes('copy') ? <Copy size={12} className="text-[#25d366]"/> : null} 
-                          {btn.text}
+                        <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
+                          {btn.type === 'Visit Website' || btn.type === 'Visit website' ? (
+                            <ExternalLink size={11} className="text-[#25d366]"/>
+                          ) : btn.type === 'Call phone number' ? (
+                            <span className="text-[10px]">📞</span>
+                          ) : btn.type === 'Copy offer code' || (btn.text && btn.text.toLowerCase().includes('copy')) ? (
+                            <Copy size={11} className="text-[#25d366]"/>
+                          ) : null} 
+                          {btn.text || (btn.type === 'Copy offer code' ? 'Copy offer code' : 'Button')}
                         </span>
                      </div>
                    ))}

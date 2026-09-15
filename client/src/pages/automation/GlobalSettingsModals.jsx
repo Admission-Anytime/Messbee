@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../context/axios';
 import { X, Save } from 'lucide-react';
-import { toast } from 'react-toastify';
+import { showToast } from '../../utils/showToast';
 
 const modalOverlayStyle = {
   position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
@@ -49,11 +49,11 @@ export const DeliveryRulesModal = ({ onClose }) => {
     setSaving(true);
     try {
       await api.put('/tenant-settings', { deliveryRules: rules });
-      toast.success('Delivery rules saved successfully');
+      showToast.success('Delivery Rules', 'Settings saved successfully');
       onClose();
     } catch (e) {
       console.error(e);
-      alert('Failed to save rules');
+      showToast.error('Save Failed', 'Failed to save delivery rules');
     } finally {
       setSaving(false);
     }
@@ -131,11 +131,11 @@ export const SpamProtectionModal = ({ onClose }) => {
     try {
       const formattedList = spam.blocklist.split(',').map(n => n.trim()).filter(n => n);
       await api.put('/tenant-settings', { spamProtection: { ...spam, blocklist: formattedList } });
-      toast.success('Security settings saved successfully');
+      showToast.success('Security', 'Security settings saved successfully');
       onClose();
     } catch (e) {
       console.error(e);
-      alert('Failed to save settings');
+      showToast.error('Save Failed', 'Failed to save security settings');
     } finally {
       setSaving(false);
     }
@@ -196,11 +196,11 @@ export const CrmSyncModal = ({ onClose }) => {
     setSaving(true);
     try {
       await api.put('/tenant-settings', { crmSync: crm });
-      toast.success('CRM settings saved successfully');
+      showToast.success('CRM Sync', 'CRM settings saved successfully');
       onClose();
     } catch (e) {
       console.error(e);
-      alert('Failed to save CRM settings');
+      showToast.error('Save Failed', 'Failed to save CRM settings');
     } finally {
       setSaving(false);
     }
@@ -217,34 +217,29 @@ export const CrmSyncModal = ({ onClose }) => {
         </div>
         
         <div>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', cursor: 'pointer' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px', cursor: 'pointer' }}>
             <input type="checkbox" checked={crm.enabled} onChange={e => setCrm({...crm, enabled: e.target.checked})} style={{ width: '18px', height: '18px' }} />
-            <span style={labelStyle}>Enable CRM Sync (Send data to Zapier/Pabbly/HubSpot)</span>
+            <span style={labelStyle}>Enable CRM Sync for Leads & Conversations</span>
           </label>
           
-          <label style={labelStyle}>Provider</label>
-          <select style={inputStyle} value={crm.provider} onChange={e => setCrm({...crm, provider: e.target.value})}>
-            <option value="custom_webhook">Custom Webhook (Zapier/Pabbly)</option>
-            <option value="none" disabled>HubSpot (Coming Soon)</option>
-            <option value="none" disabled>Salesforce (Coming Soon)</option>
-          </select>
-          
-          <label style={labelStyle}>Webhook POST URL</label>
+          <label style={labelStyle}>CRM Webhook URL</label>
           <input 
             type="text" 
             style={inputStyle} 
             value={crm.webhookUrl} 
             onChange={e => setCrm({...crm, webhookUrl: e.target.value})}
-            placeholder="https://hooks.zapier.com/hooks/catch/..."
+            placeholder="https://your-crm.com/api/webhook"
           />
-          <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '-10px' }}>
-            We will send a POST request with the customer's phone, name, and collected variables when an automation flow finishes.
-          </p>
+          
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', cursor: 'pointer' }}>
+            <input type="checkbox" checked={crm.syncContacts} onChange={e => setCrm({...crm, syncContacts: e.target.checked})} style={{ width: '18px', height: '18px' }} />
+            <span style={{ fontSize: '13px', color: '#4B5563' }}>Automatically send new contacts to CRM</span>
+          </label>
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
           <button onClick={handleSave} disabled={saving} style={{...buttonStyle, opacity: saving ? 0.7 : 1}}>
-            <Save size={16} /> {saving ? 'Saving...' : 'Save Sync Settings'}
+            <Save size={16} /> {saving ? 'Saving...' : 'Save CRM Settings'}
           </button>
         </div>
       </div>
@@ -271,9 +266,9 @@ export const ChannelAssignmentModal = ({ onClose }) => {
         } else if (channelsRes.data && channelsRes.data.length > 0) {
           setSelectedChannelId(channelsRes.data[0]._id);
         }
-        setLoading(false);
       } catch (e) {
         console.error(e);
+      } finally {
         setLoading(false);
       }
     };
@@ -284,11 +279,11 @@ export const ChannelAssignmentModal = ({ onClose }) => {
     setSaving(true);
     try {
       await api.put('/tenant-settings', { defaultChannelId: selectedChannelId });
-      toast.success('Default channel saved successfully');
+      showToast.success('Channel', 'Default channel saved successfully');
       onClose();
     } catch (e) {
       console.error(e);
-      alert('Failed to save default channel');
+      showToast.error('Save Failed', 'Failed to save default channel');
     } finally {
       setSaving(false);
     }

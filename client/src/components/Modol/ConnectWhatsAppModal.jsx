@@ -118,22 +118,24 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
     const scopes = [
       "whatsapp_business_management",
       "whatsapp_business_messaging",
+      "catalog_management"
     ];
-
-    if (withCatalog) {
-      scopes.push("catalog_management");
-    }
 
     const configId = import.meta.env.VITE_META_CONFIG_ID || "3478777475636588";
 
     // Setup listener for Embedded Signup v2 session info
     const sessionInfoListener = (event) => {
-      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
+      const allowedOrigins = [
+        "https://www.facebook.com",
+        "https://web.facebook.com",
+        "https://facebook.com"
+      ];
+      if (!allowedOrigins.includes(event.origin)) {
         return;
       }  
       try {
-        const data = JSON.parse(event.data);
-        if (data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data && data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
           window.lastMetaSessionInfo = data;
           console.log("Captured Meta Session Info:", window.lastMetaSessionInfo);
         }
@@ -165,7 +167,18 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
               })
                 .then((res) => {
                   if (res.data?.success) {
-                    toast.success("WhatsApp Business Account connected successfully!");
+                    if (res.data?.phoneRegistered) {
+                      toast.success("✅ WhatsApp connected & phone number activated!");
+                    } else {
+                      toast.success("✅ WhatsApp account connected!");
+                      // Show a follow-up warning about pending registration
+                      setTimeout(() => {
+                        toast.warning(
+                          "⚠️ Phone number registration pending. Go to Settings → WhatsApp Config → Set PIN to activate.",
+                          { autoClose: 8000 }
+                        );
+                      }, 1000);
+                    }
                     if (!isMandatory) {
                       onClose();
                     } else {

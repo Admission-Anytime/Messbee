@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import CampaignApi from "../../services/CampaignApi";
+import axios from "../../context/axios";
 import {
   ArrowLeft,
   RefreshCw,
@@ -103,7 +104,7 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
   const [showChart, setShowChart] = useState(false);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
-  const { user } = useContext(userContext);
+  const { user, updateUser } = useContext(userContext);
   const [isResending, setIsResending] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -241,7 +242,8 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
   };
 
   const handleResendCampaign = async () => {
-    const estimatedCost = total * 0.80;
+    // Campaign cost: ₹0.95 per contact (Marketing conversation rate per pricing table)
+    const estimatedCost = total * 0.95;
     if (user?.credits < estimatedCost) {
       toast.error(`Insufficient credits! You need ₹${estimatedCost.toFixed(2)} to resend this campaign.`);
       return;
@@ -262,6 +264,22 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
 
       const res = await CampaignApi.createCampaign(campaignData);
       if (res.success) {
+        // Record the transaction and deduct WCC credits for the resend
+        try {
+          await axios.post("/billing/transactions", {
+            desc: `Campaign Resend - ${campaign.title}`,
+            amount: -estimatedCost,
+            status: "Paid"
+          });
+          // Sync the latest credits from server
+          const userRes = await axios.get("/auth/me");
+          if (userRes.data?.data) {
+            updateUser(userRes.data.data);
+          }
+        } catch (_billingErr) {
+          // Fallback: optimistically deduct locally if server sync fails
+          if (user) updateUser({ ...user, credits: parseFloat((parseFloat(user.credits || 0) - estimatedCost).toFixed(2)) });
+        }
         toast.success("Campaign resend initiated successfully!");
         if (typeof window !== "undefined" && window.onCampaignRefresh) {
           window.onCampaignRefresh();
@@ -403,7 +421,7 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
           <InfoCard label="Created On" value={fmt(campaign.rawCreatedAt) || "Feb xxxxx xxxx"} />
           <InfoCard label="Message template" value={campaign.templateName || "Feb xxxxx xxxx"} />
           <InfoCard label="Target connect" value={String(total)} />
-          <InfoCard label="Estimate cost" value={total > 0 ? `₹${(total * 0.80).toFixed(2)}` : "—"} />
+          <InfoCard label="Estimate cost" value={total > 0 ? `₹${(total * 0.95).toFixed(2)}` : "-"} />
         </div>
 
         {/* Overall Campaign Performance */}
@@ -785,7 +803,7 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
             handleResendCampaign();
           }}
           onClose={() => setShowResendModal(false)}
-          cost={total * 0.80}
+          cost={total * 0.95}
         />
       )}
 

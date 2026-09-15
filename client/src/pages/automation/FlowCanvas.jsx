@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import ReactFlow, { Background, Controls, MiniMap, applyNodeChanges, applyEdgeChanges, addEdge, MarkerType, useReactFlow, ReactFlowProvider, getOutgoers } from 'reactflow';
 import { Undo, Redo, ZoomIn, ZoomOut, Maximize, FilePlus2, Zap, LayoutTemplate, MessageSquare, Image as ImageIcon, GitBranch, Clock, Globe } from 'lucide-react';
 import useCanvasStore from '../../store/useCanvasStore';
+import { showToast } from '../../utils/showToast';
 import MessageNode from './nodes/MessageNode';
 import TriggerNode from './nodes/TriggerNode';
 import MenuNode from './nodes/MenuNode';
@@ -114,7 +115,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if ((stepItem.id && stepItem.id.startsWith('ask_')) || stepItem.id === 'wait_input') {
       type = 'inputNode';
       messageType = 'input';
-      const validation = stepItem.id === 'wait_input' ? 'anything' : stepItem.id.replace('ask_', '');
+      let validation = (stepItem.id === 'wait_input' || stepItem.id === 'ask_anything') ? 'text' : stepItem.id.replace('ask_', '');
       dataPayload = { validationType: validation, variableName: `contact.${validation}` };
     } else if (['image_msg', 'video_msg', 'audio_msg', 'doc_msg', 'sticker_msg', 'gif_msg', 'voice_msg'].includes(stepItem.id)) {
       type = 'mediaNode';
@@ -209,7 +210,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     const sourceNode = nodes.find(n => n.id === connection.source);
     
     if (checkCycle(targetNode, sourceNode.id)) {
-      alert("Cyclic connections (infinite loops) are not allowed.");
+      showToast.warning("Invalid Connection", "Cyclic connections (infinite loops) are not allowed.");
       return false;
     }
     return true;

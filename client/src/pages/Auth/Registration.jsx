@@ -174,8 +174,8 @@ const Step1 = ({ onNext }) => {
             const res = await loginWithSocial("google", accessToken);
             if (res.success) {
               toast.success("Successfully signed up with Google!");
-              saveAuthData(res.data);
-              loginUser(res.data.user);
+              saveAuthData(res);
+              loginUser(res.data?.user || res.user || res.data);
               navigate("/admin/dashboard");
             }
           } catch (error) {
@@ -704,8 +704,8 @@ const Step3OTP = ({ allData, onBack, onPendingApproval }) => {
         } else {
           // Normal flow (shouldn't happen with new logic, but kept for safety)
           toast.success("Account created successfully!");
-          saveAuthData(res.data);
-          loginUser(res.data.user);
+          saveAuthData(res);
+          loginUser(res.data?.user || res.user || res.data);
           navigate("/onboarding");
         }
       } else {

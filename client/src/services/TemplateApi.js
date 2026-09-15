@@ -1,4 +1,5 @@
 import axios from "../context/axios";
+import { getBackendBaseUrl } from "../utils/urlHelper";
 
 const TEMPLATE_HEADER_PREVIEW_CACHE_KEY = 'templateHeaderPreviewCache';
 const runtimeHeaderPreviewCache = {};
@@ -49,20 +50,24 @@ const isRenderableMediaUrl = (value) =>
 export const resolveMediaUrlForDev = (url) => {
   if (!url || typeof url !== 'string') return url;
   
-  // If it's already a local URL or data URL, don't touch it
-  if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1') || url.startsWith('data:')) {
+  // If it's already a data URL or blob URL, don't touch it
+  if (url.startsWith('data:') || url.startsWith('blob:')) {
     return url;
   }
   
   const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' || window.location.hostname.startsWith('192.168.');
-  
-  if (isLocalhost && url.includes('documents.messbee.com')) {
-    // Redirect to local backend (port 5000)
-    const filename = url.split('/').pop();
-    const backendBase = import.meta.env.VITE_API_URL 
-      ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "") 
-      : "";
-    return `${backendBase}/uploads/${filename}`;
+  const backendBase = getBackendBaseUrl();
+
+  // If relative path like /uploads/..., resolve dynamically
+  if (url.startsWith('/uploads') || url.startsWith('uploads/')) {
+    return `${backendBase}${url.startsWith('/') ? url : `/${url}`}`;
+  }
+
+  if (isLocalhost) {
+    if (url.includes('documents.messbee.com') || url.includes('messbee.com/uploads')) {
+      const filename = url.split('/').pop().split('?')[0];
+      return `${backendBase}/uploads/${filename}`;
+    }
   }
   
   return url;
@@ -279,11 +284,16 @@ export const saveTemplateHeaderPreview = (templateName, previewData) => {
  */
 export const deleteWhatsAppTemplate = async (templateId, templateName) => {
   try {
+    console.log('🗑️ [TemplateApi] Deleting WhatsApp template:', { templateId, templateName });
     const { data } = await axios.delete(`/whatsapp/templates/${templateId}`, {
       params: {
         templateName
+      },
+      data: {
+        templateName
       }
     });
+    console.log('✅ [TemplateApi] Template deleted successfully:', data);
     return data;
   } catch (error) {
     console.error("❌ [TemplateApi] Error deleting WhatsApp template:", error.response?.data || error.message);
@@ -374,17 +384,28 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
        }
     }
 
+    const ltoComponent = safeComponents.find((c) => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+    const isLimited = Boolean(ltoComponent);
+    const limitedTimeOfferText = ltoComponent?.limited_time_offer?.text || (isLimited ? 'Expiring offer!' : '');
+    const hasExpiration = ltoComponent?.limited_time_offer?.has_expiration !== false;
+    const rawLtoCode = safeComponents.flatMap(c => c?.buttons || []).find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example;
+    const ltoOfferCode = Array.isArray(rawLtoCode) ? (rawLtoCode[0] || '') : (String(rawLtoCode || '').trim());
+
     const mappedButtons = Array.isArray(buttonComponent?.buttons)
       ? buttonComponent.buttons.map((btn, idx) => {
-          let type = 'Quick Reply';
+          let type = 'Custom';
           if (btn?.type === 'URL') type = 'Visit Website';
           if (btn?.type === 'PHONE_NUMBER') type = 'Call phone number';
+          if (btn?.type === 'QUICK_REPLY') type = 'Custom';
+          if (btn?.type === 'COPY_CODE') type = 'Copy offer code';
+          if (btn?.type === 'CATALOG') type = 'View Catalog';
+          if (btn?.type === 'MPM') type = 'View items';
 
           return {
             id: idx + 1,
             type,
-            text: btn?.text || 'Action Button',
-            value: btn?.url || btn?.phone_number || ''
+            text: btn?.text || (btn?.type === 'COPY_CODE' ? 'Copy offer code' : 'Action Button'),
+            value: btn?.url || btn?.phone_number || btn?.example || ''
           };
         })
       : [];
@@ -405,7 +426,11 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
       headerMediaUrl: mediaUrl,
       headerMediaUrlPreview: resolveMediaUrlForDev(mediaUrl),
       buttons: mappedButtons,
-      bodySamples
+      bodySamples,
+      isLimited,
+      limitedTimeOfferText,
+      hasExpiration,
+      offerCode: ltoOfferCode
     };
   };
 
@@ -485,7 +510,12 @@ export const mergeTemplates = (whatsappTemplates = [], _localTemplates = []) => 
         headerMediaUrl: resolvedHeaderMediaUrl,
         headerMediaUrlPreview: headerMediaUrlPreview,
         buttons: componentData.buttons,
-        bodySamples: componentData.bodySamples
+        bodySamples: componentData.bodySamples,
+        isLimited: componentData.isLimited,
+        limitedTimeOfferText: componentData.limitedTimeOfferText,
+        hasExpiration: componentData.hasExpiration,
+        offerCode: componentData.offerCode,
+        rejectedReason: template.rejected_reason || template.rejectedReason || null
       };
     });
 

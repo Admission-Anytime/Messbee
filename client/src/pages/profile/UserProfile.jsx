@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
+import { getBackendFileUrl } from "../../utils/urlHelper";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
@@ -16,9 +17,11 @@ const UserProfile = () => {
   const [step, setStep] = useState(1);
   const [showSmsModal, setShowSmsModal] = useState(false);
   const [smsStep, setSmsStep] = useState(1);
+  const [show2FAHelp, setShow2FAHelp] = useState(false);
 
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(user?.avatar || null);
+  const [avatarKey, setAvatarKey] = useState(Date.now());
   const inputsRef = useRef([]);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(59);
@@ -48,18 +51,33 @@ const handleKeyDown = (e, index) => {
   }
 };
 
-
-
   const [formData, setFormData] = useState({
-    name: user?.name || "Alex Rivera",
-    email: user?.email || "alex.rivera@messbee.com",
-    phone: user?.phone || "No Contact", // Default phone if missing
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: "",
   });
 
   const [preferences, setPreferences] = useState({
     timezone: user?.timezone || "(GMT+05:30) India Standard Time",
     language: user?.language || "English (United States)",
   });
+
+  // Fetch latest profile from server on mount
+  useEffect(() => {
+    let isMounted = true;
+    const fetchLatestProfile = async () => {
+      try {
+        const res = await axios.get("/users/profile");
+        if (isMounted && res.data?.success && res.data?.data) {
+          updateUser(res.data.data);
+        }
+      } catch (err) {
+        console.error("Failed to load latest user profile:", err);
+      }
+    };
+    fetchLatestProfile();
+    return () => { isMounted = false; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update formData when user changes
   useEffect(() => {
@@ -69,7 +87,7 @@ const handleKeyDown = (e, index) => {
       setFormData({
         name: user.name || "",
         email: user.email || "",
-        phone: sanitizedPhone || "No Contact",
+        phone: sanitizedPhone,
       });
       setProfileImage(user.avatar || null);
       setPreferences({
@@ -127,22 +145,46 @@ const handleKeyDown = (e, index) => {
   };
 
   const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const formData = new FormData();
-      formData.append("avatar", file);
-      try {
-        const response = await axios.post("/users/avatar", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (response.data.success) {
-          updateUser(response.data.data.user);
-          setProfileImage(URL.createObjectURL(file));
-          toast.success("Profile photo updated");
-        }
-      } catch (error) {
-        toast.error("Failed to upload avatar");
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    // Validate type
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload a valid image file");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("avatar", file);
+    try {
+      const response = await axios.post("/users/avatar", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      if (response.data && response.data.success) {
+        const returnedUser = response.data.data.user;
+        updateUser(returnedUser);
+        const newAvatar = response.data.data.avatar || returnedUser.avatar;
+        setProfileImage(newAvatar);
+        setAvatarKey(Date.now());
+        toast.success("Profile photo updated successfully!");
       }
+    } catch (error) {
+      console.error("Avatar upload failed:", error);
+      let errMsg = "Failed to upload avatar";
+      if (error.response?.status === 413) {
+        errMsg = "File size exceeds server upload limit. Please use an image under 1MB.";
+      } else if (error.response?.data?.message) {
+        errMsg = error.response.data.message;
+      } else if (error.message) {
+        errMsg = `Upload error: ${error.message}`;
+      }
+      toast.error(errMsg);
     }
   };
   useEffect(() => {
@@ -188,10 +230,12 @@ useEffect(() => {
                 <img
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  src={profileImage.startsWith('blob:') ? profileImage : profileImage}
+                  src={profileImage.startsWith('blob:') || profileImage.startsWith('data:') ? profileImage : `${getBackendFileUrl(profileImage)}?t=${avatarKey || Date.now()}`}
                   onError={(e) => {
                     e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'flex';
+                    if (e.target.nextSibling) {
+                      e.target.nextSibling.style.display = 'flex';
+                    }
                   }}
                 />
               ) : null}
@@ -234,16 +278,40 @@ useEffect(() => {
               </p>
             </div>
             <div className="flex flex-wrap gap-3 justify-center">
-              <button
-                onClick={() => {
-                  const newEditingState = !isEditing;
-                  setIsEditing(newEditingState);
-                  setIsPrefEditing(newEditingState);
-                }}
-                className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
-              >
-                {isEditing ? "Cancel Edit" : "Edit Profile"}
-              </button>
+              {isEditing ? (
+                <>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setIsPrefEditing(false);
+                    }}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 text-sm font-semibold rounded-xl hover:bg-gray-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await handleSaveProfile();
+                      if (isPrefEditing) {
+                        await handleSavePreferences();
+                      }
+                    }}
+                    className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
+                  >
+                    Save Changes
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsEditing(true);
+                    setIsPrefEditing(true);
+                  }}
+                  className="px-5 py-2 bg-green-500 text-white text-sm font-bold rounded-xl shadow-md hover:bg-green-600 transition-all"
+                >
+                  Edit Profile
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -518,12 +586,66 @@ useEffect(() => {
               <p className="font-semibold text-gray-800">MessBee</p>
             </div>
 
-            {/* Help Icon */}
-            <button className="text-gray-400 hover:text-black">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M18 10A8 8 0 11.001 10 8 8 0 0118 10zm-8-3a2 2 0 00-2 2h2a1 1 0 112 0c0 .552-.448 1-1 1h-1v2h1a3 3 0 000-6zm-1 8h2v-2H9v2z"/>
-              </svg>
-            </button>
+            {/* Help Icon with Popover */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShow2FAHelp((prev) => !prev)}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${
+                  show2FAHelp
+                    ? "text-black bg-gray-100"
+                    : "text-gray-400 hover:text-black hover:bg-gray-100"
+                }`}
+                title="What is 2FA?"
+                aria-label="2FA Information"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M18 10A8 8 0 11.001 10 8 8 0 0118 10zm-8-3a2 2 0 00-2 2h2a1 1 0 112 0c0 .552-.448 1-1 1h-1v2h1a3 3 0 000-6zm-1 8h2v-2H9v2z" />
+                </svg>
+              </button>
+
+              {/* Help Popover */}
+              {show2FAHelp && (
+                <>
+                  {/* Click-outside backdrop */}
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setShow2FAHelp(false)}
+                  />
+                  <div className="absolute right-0 top-8 z-30 w-72 bg-white rounded-2xl shadow-xl border border-gray-200 p-4 text-left">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm">🛡️</span>
+                        <h4 className="text-xs font-bold text-gray-900">Why enable 2FA?</h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShow2FAHelp(false)}
+                        className="w-5 h-5 flex items-center justify-center rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100 text-xs transition cursor-pointer"
+                        aria-label="Close help"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-gray-600 leading-relaxed mb-3">
+                      Two-Factor Authentication (2FA) adds an extra defense layer. Even if your password is stolen, your workspace remains protected.
+                    </p>
+
+                    <div className="space-y-2 border-t border-gray-100 pt-2.5 text-[11px] text-gray-600">
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-green-500 font-bold">✓</span>
+                        <span><strong>Extra protection:</strong> Requires a temporary 6-digit code from your device to sign in.</span>
+                      </div>
+                      <div className="flex items-start gap-1.5">
+                        <span className="text-green-500 font-bold">✓</span>
+                        <span><strong>Supported apps:</strong> Google Authenticator, Authy, or Microsoft Authenticator.</span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Title */}
@@ -636,7 +758,7 @@ useEffect(() => {
             onClick={() => setShow2FA(false)}
             className="text-center text-sm text-black mt-4 cursor-pointer"
           >
-            I'll do this later
+            I&apos;ll do this later
           </p>
 
           {/* PROGRESS */}
@@ -708,7 +830,7 @@ useEffect(() => {
 
     {/* Manual entry */}
     <p className="text-center text-sm text-green-600 mb-6 cursor-pointer">
-      Can't scan? Enter code manually
+      Can&apos;t scan? Enter code manually
     </p>
 
     {/* Verify Button */}
@@ -904,7 +1026,7 @@ useEffect(() => {
 
     {/* SUBTEXT */}
     <p className="text-sm text-gray-500 text-center mt-2 mb-5">
-      We've sent a 6-digit security code to your registered phone number{" "}
+      We&apos;ve sent a 6-digit security code to your registered phone number{" "}
       <span className="font-medium text-gray-700">+91 •••• 4412</span>
     </p>
 

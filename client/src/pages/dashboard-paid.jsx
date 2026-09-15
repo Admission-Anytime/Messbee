@@ -22,7 +22,7 @@ import { userContext } from "../context/Context";
 function Dashboard() {
    const navigate = useNavigate();
    const [isSyncing, setIsSyncing] = useState(false);
-   const { user } = useContext(userContext);
+   const { user, refreshUser, updateUser } = useContext(userContext);
 
    const formatAmount = (val) => {
       if (val === null || val === undefined || val === "") return "0.00";
@@ -51,15 +51,19 @@ function Dashboard() {
    const getMessageTier = () => {
       const metaLimit = performanceData?.wabaConfig?.messagingLimit;
       if (metaLimit) {
-         // Meta returns raw API strings like "TIER_50K" or "TIER_UNLIMITED"
-         // This cleans it up dynamically without any manual hardcoding
+         // Meta returns raw API strings like "TIER_250", "TIER_1K", "TIER_10K", "TIER_50K", "TIER_UNLIMITED"
          let displayLimit = metaLimit.replace('TIER_', '');
          if (displayLimit === 'UNLIMITED') return 'Unlimited';
-         // Adds ",000" if it's a K value (e.g., "50K" -> "50,000")
          return displayLimit.replace('K', ',000');
       }
 
       if (user?.messageLimitTier) return user.messageLimitTier;
+
+      // Dynamic fallback: agar Meta connected hai ya phone number configured hai par Meta se tier assign nahi hua hai, to official default 250 dikhega
+      if (performanceData?.wabaConfig?.displayPhoneNumber || performanceData?.wabaConfig?.phoneNumberId || user?.phoneNumber || user?.phone) {
+         return "250";
+      }
+
       return "Pending Meta";
    };
 
@@ -94,6 +98,11 @@ function Dashboard() {
                agents:   m.agents,
                wabaConfig: res.data.wabaConfig,
             });
+
+            // Dynamically sync credits if returned from backend
+            if (res.data?.credits !== undefined && updateUser) {
+               updateUser({ credits: res.data.credits });
+            }
          }
       } catch (err) {
          console.warn("Performance fetch failed:", err?.response?.data?.message || err.message);
@@ -101,7 +110,7 @@ function Dashboard() {
       } finally {
          setIsSyncing(false);
       }
-   }, []);
+   }, [updateUser]);
 
    const handleDateChange = (date) => {
       setSelectedDate(date);
@@ -112,12 +121,19 @@ function Dashboard() {
 
    const handleSyncData = useCallback(() => {
       fetchPerformance(dateString);
-   }, [fetchPerformance, dateString]);
+      if (refreshUser) {
+         refreshUser();
+      }
+   }, [fetchPerformance, dateString, refreshUser]);
 
-   // Load real performance data on mount
+   // Load real performance data & latest user credits once on mount
    useEffect(() => {
       fetchPerformance(dayjs().format("YYYY-MM-DD"));
-   }, [fetchPerformance]);
+      if (refreshUser) {
+         refreshUser();
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+   }, []);
 
    // Helper: render trend badge
    const TrendBadge = ({ trend, change, suffix = "%" }) => {
@@ -147,10 +163,10 @@ function Dashboard() {
                   </div>
                   <div>
                      <h2 className="text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
-                        {performanceData?.wabaConfig?.verifiedName || user?.businessName || "Your Business"}
+                        {performanceData?.wabaConfig?.verifiedName || user?.businessName || user?.company || user?.name || "Your Business"}
                         <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">Official API</span>
                      </h2>
-                     <p className="text-sm text-slate-500 font-medium">{performanceData?.wabaConfig?.displayPhoneNumber || user?.phoneNumber || "Connect WhatsApp to display number"}</p>
+                     <p className="text-sm text-slate-500 font-medium">{performanceData?.wabaConfig?.displayPhoneNumber || user?.phoneNumber || user?.phone || "Connect WhatsApp to display number"}</p>
                   </div>
                </div>
 
@@ -175,27 +191,51 @@ function Dashboard() {
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
                   {(() => {
-                     const qs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
-                     const qsColor = qs === 'Medium' ? 'text-amber-500' : (qs === 'Low' ? 'text-red-500' : (qs === 'Pending' ? 'text-slate-400' : 'text-emerald-500'));
-                     const dotColor = qs === 'Medium' ? 'bg-amber-500' : (qs === 'Low' ? 'bg-red-500' : (qs === 'Pending' ? 'bg-slate-400' : 'bg-emerald-500'));
-                     return (
-                        <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
-                           {qs} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
-                        </p>
-                     );
-                  })()}
+                      const rawQs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
+                      const qsUpper = String(rawQs).toUpperCase();
+                      
+                      let displayLabel = rawQs;
+                      let qsColor = 'text-emerald-500';
+                      let dotColor = 'bg-emerald-500';
+
+                      if (qsUpper === 'GREEN' || qsUpper === 'HIGH') {
+                         displayLabel = 'Green';
+                         qsColor = 'text-emerald-500';
+                         dotColor = 'bg-emerald-500';
+                      } else if (qsUpper === 'YELLOW' || qsUpper === 'MEDIUM') {
+                         displayLabel = 'Medium';
+                         qsColor = 'text-amber-500';
+                         dotColor = 'bg-amber-500';
+                      } else if (qsUpper === 'RED' || qsUpper === 'LOW') {
+                         displayLabel = 'Low';
+                         qsColor = 'text-red-500';
+                         dotColor = 'bg-red-500';
+                      } else if (qsUpper === 'UNKNOWN' || qsUpper === 'PENDING') {
+                         displayLabel = 'Unknown';
+                         qsColor = 'text-slate-400';
+                         dotColor = 'bg-slate-400';
+                      } else {
+                         displayLabel = rawQs;
+                      }
+
+                      return (
+                         <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
+                            {displayLabel} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
+                         </p>
+                      );
+                   })()}
                </div>
-               <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
-                  {(() => {
-                     const isConnected = !!performanceData?.wabaConfig?.phoneNumberId || user?.whatsappConnected;
-                     return (
-                        <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                           {isConnected ? "Connected" : "Disconnected"} {isConnected ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
-                        </p>
-                     );
-                  })()}
-               </div>
+                <div>
+                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
+                   {(() => {
+                      const isConnected = !!performanceData?.wabaConfig?.phoneNumberId || !!user?.whatsappConfig?.phoneNumberId || !!user?.tenantWhatsAppConnected || !!user?.whatsappConnected;
+                      return (
+                         <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            {isConnected ? "Connected" : "Disconnected"} {isConnected ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+                         </p>
+                      );
+                   })()}
+                </div>
             </div>
          </div>
 
@@ -209,9 +249,21 @@ function Dashboard() {
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Available Balance</p>
                   <div className="flex flex-wrap items-baseline gap-2 mb-1">
                      <h3 className="text-3xl font-black text-slate-900">₹{formatAmount(user?.credits)}</h3>
-                     <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Auto-recharge on</span>
+                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 whitespace-nowrap ${
+                        Number(user?.credits || 0) > 0 ? "text-emerald-600 bg-emerald-50" : "text-amber-600 bg-amber-50"
+                     }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${Number(user?.credits || 0) > 0 ? "bg-emerald-500" : "bg-amber-500"}`}></span>
+                        {user?.autoRecharge ? "Auto-recharge on" : (Number(user?.credits || 0) > 0 ? "Active Balance" : "Low Balance")}
+                     </span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1">Estimated 14 days of usage remaining based on current volume.</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                     {(() => {
+                        const bal = Number(user?.credits || 0);
+                        if (bal <= 0) return "Zero balance. Recharge to continue sending outbound campaigns.";
+                        if (bal < 100) return "Low credit balance. Top-up recommended to avoid disruptions.";
+                        return "Real-time live balance available for outbound messaging and campaigns.";
+                     })()}
+                  </p>
                </div>
                <div className="flex flex-col sm:flex-row gap-3 mt-8">
                   <button onClick={() => navigate('/admin/plan/addons')} className="w-full sm:flex-1 py-2.5 bg-[#1e293b] text-white text-sm font-bold rounded-lg hover:bg-slate-800 transition-colors shadow-sm text-center">Add New Payment</button>
@@ -406,7 +458,10 @@ function Dashboard() {
                </div>
                <div className="mt-6 flex items-center text-xs font-bold text-slate-800">Browse Docs <span className="ml-2">→</span></div>
             </div>
-            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group h-full">
+            <div 
+               onClick={() => window.open('https://www.youtube.com', '_blank', 'noopener,noreferrer')} 
+               className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col justify-between hover:border-purple-200 transition-colors cursor-pointer group h-full"
+            >
                <div>
                   <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-110 transition-transform"><PlayCircleIcon className="w-6 h-6" /></div>
                   <h4 className="font-bold text-slate-800 mb-2">Video Tutorials</h4>

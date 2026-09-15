@@ -112,7 +112,7 @@ export default function CommerceNode({ id, data, selected }) {
             )}
 
             {data.text && (
-              <div style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4', borderTop: data.commerceType ? '1px solid #e5e7eb' : 'none', paddingTop: data.commerceType ? '12px' : '0' }}>
+              <div style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4', borderTop: data.commerceType ? '1px solid #4C566A' : 'none', paddingTop: data.commerceType ? '12px' : '0' }}>
                 {data.text}
               </div>
             )}

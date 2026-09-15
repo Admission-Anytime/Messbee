@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { ChevronLeft, Info } from 'lucide-react';
 import api from '../../context/axios';
+import { showToast } from '../../utils/showToast';
 
 export default function FallbackMessageSettings({ onBack }) {
   const [isEnabled, setIsEnabled] = useState(false);
   const [selectedFlow, setSelectedFlow] = useState(null);
+  const [textMessage, setTextMessage] = useState('Sorry, we did not understand that. Please reply with a keyword or wait for an agent.');
   
   const [automations, setAutomations] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -22,6 +24,9 @@ export default function FallbackMessageSettings({ onBack }) {
         const settings = settingsRes.data;
         if (settings?.fallbackMessage) {
           setIsEnabled(settings.fallbackMessage.enabled || false);
+          if (settings.fallbackMessage.textMessage) {
+            setTextMessage(settings.fallbackMessage.textMessage);
+          }
         }
         
         const autoData = automationsRes.data || [];
@@ -48,13 +53,14 @@ export default function FallbackMessageSettings({ onBack }) {
       await api.put('/tenant-settings', {
         fallbackMessage: {
           enabled: isEnabled,
+          textMessage,
           automationId: selectedFlow ? selectedFlow._id : null
         }
       });
-      alert('Fallback Message settings saved successfully.');
+      showToast.success('Fallback Message', 'Settings saved successfully');
     } catch (error) {
       console.error('Failed to save settings:', error);
-      alert('Failed to save settings.');
+      showToast.error('Error', 'Failed to save settings');
     } finally {
       setIsSaving(false);
     }
@@ -129,26 +135,55 @@ export default function FallbackMessageSettings({ onBack }) {
 
       {/* Set Message Card */}
       <div style={{ background: 'white', border: '1px solid #E5E7EB', borderRadius: '12px', padding: '24px', marginBottom: '16px' }}>
-        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Set Fallback Message</h3>
-        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 20px 0' }}>Define what should be sent as a default response.</p>
+        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Default Fallback Text</h3>
+        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 12px 0' }}>Sent whenever a user's message does not match any automation trigger.</p>
+        
+        <textarea
+          value={textMessage}
+          onChange={(e) => setTextMessage(e.target.value)}
+          rows={3}
+          style={{
+            width: '100%', boxSizing: 'border-box', padding: '12px', borderRadius: '8px',
+            border: '1px solid #D1D5DB', fontSize: '14px', outline: 'none', marginBottom: '20px',
+            fontFamily: 'inherit', resize: 'vertical'
+          }}
+          placeholder="e.g. Sorry, we did not understand that. Please reply with a keyword or wait for an agent."
+        />
+
+        <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>Or Choose a Chatbot Flow (Optional)</h3>
+        <p style={{ fontSize: '14px', color: '#6B7280', margin: '0 0 16px 0' }}>If selected, this interactive flow will execute instead of the plain text message.</p>
         
         <div style={{ background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <div style={{ fontSize: '11px', fontWeight: '600', color: '#6B7280', letterSpacing: '0.05em', marginBottom: '4px' }}>SELECTED MESSAGE FLOW</div>
             <div style={{ fontSize: '15px', fontWeight: '500', color: '#111827' }}>
-              {selectedFlow ? selectedFlow.name : 'Select flow'}
+              {selectedFlow ? selectedFlow.name : 'None (Using Default Text Above)'}
             </div>
           </div>
-          <button 
-            onClick={() => setShowFlowSelector(!showFlowSelector)}
-            style={{
-              background: 'white', border: '1px solid #E5E7EB', padding: '8px 16px',
-              borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#374151',
-              cursor: 'pointer'
-            }}
-          >
-            Select New Message
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {selectedFlow && (
+              <button 
+                onClick={() => setSelectedFlow(null)}
+                style={{
+                  background: 'white', border: '1px solid #E5E7EB', padding: '8px 12px',
+                  borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#EF4444',
+                  cursor: 'pointer'
+                }}
+              >
+                Clear
+              </button>
+            )}
+            <button 
+              onClick={() => setShowFlowSelector(!showFlowSelector)}
+              style={{
+                background: 'white', border: '1px solid #E5E7EB', padding: '8px 16px',
+                borderRadius: '6px', fontSize: '13px', fontWeight: '600', color: '#374151',
+                cursor: 'pointer'
+              }}
+            >
+              Select Flow
+            </button>
+          </div>
         </div>
         
         {showFlowSelector && (

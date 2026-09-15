@@ -1,5 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { userContext } from "../../context/Context";
+import axios from "../../context/axios";
+import { toast } from "react-toastify";
 import {
     ArrowLeftIcon,
     ArrowLeftCircleIcon,
@@ -9,24 +12,40 @@ import {
 
 function BillingAddress() {
     const navigate = useNavigate();
+    const { user, updateUser } = useContext(userContext);
     const [isEditing, setIsEditing] = React.useState(false);
+    const [saving, setSaving] = useState(false);
 
     const [form, setForm] = useState({
-        businessName: "Acme Corporation",
-        addressLine1: "123 Innovation Drive",
-        addressLine2: "Suite 400",
-        city: "San Francisco",
-        state: "CA",
-        postalCode: "94107",
-        country: "United States",
+        businessName: user?.businessName || user?.name || "",
+        addressLine1: user?.billingAddress || user?.address || "",
+        addressLine2: "",
+        city: user?.billingCity || user?.city || "",
+        state: user?.billingState || user?.state || "",
+        postalCode: user?.billingZipcode || user?.zipcode || "",
+        country: user?.billingCountry || user?.country || "India",
     });
 
+    useEffect(() => {
+        if (user) {
+            setForm({
+                businessName: user?.businessName || user?.name || "",
+                addressLine1: user?.billingAddress || user?.address || "",
+                addressLine2: "",
+                city: user?.billingCity || user?.city || "",
+                state: user?.billingState || user?.state || "",
+                postalCode: user?.billingZipcode || user?.zipcode || "",
+                country: user?.billingCountry || user?.country || "India",
+            });
+        }
+    }, [user]);
+
     const countries = [
+        "India",
         "United States",
         "United Kingdom",
         "Canada",
         "Australia",
-        "India",
         "Germany",
         "France",
         "Singapore",
@@ -39,14 +58,37 @@ function BillingAddress() {
 
     const handleDiscard = () => {
         setForm({
-            businessName: "Acme Corporation",
-            addressLine1: "123 Innovation Drive",
-            addressLine2: "Suite 400",
-            city: "San Francisco",
-            state: "CA",
-            postalCode: "94107",
-            country: "United States",
+            businessName: user?.businessName || user?.name || "",
+            addressLine1: user?.billingAddress || user?.address || "",
+            addressLine2: "",
+            city: user?.billingCity || user?.city || "",
+            state: user?.billingState || user?.state || "",
+            postalCode: user?.billingZipcode || user?.zipcode || "",
+            country: user?.billingCountry || user?.country || "India",
         });
+    };
+
+    const handleSave = async () => {
+        setSaving(true);
+        try {
+            const res = await axios.put("/users/profile", {
+                businessName: form.businessName,
+                billingAddress: form.addressLine1,
+                billingCity: form.city,
+                billingState: form.state,
+                billingZipcode: form.postalCode,
+                billingCountry: form.country,
+            });
+            if (res.data?.success && res.data?.data) {
+                updateUser(res.data.data);
+            }
+            setIsEditing(false);
+            toast.success("Billing address saved successfully!");
+        } catch (err) {
+            toast.error("Failed to save billing address: " + (err.response?.data?.message || err.message));
+        } finally {
+            setSaving(false);
+        }
     };
 
     const inputClass =
@@ -190,10 +232,11 @@ function BillingAddress() {
                                     Discard
                                 </button>
                                 <button
-                                    onClick={() => setIsEditing(false)}
-                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-lg hover:bg-emerald-600 transition-colors shadow-sm"
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="flex-1 sm:flex-none px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white text-sm font-bold rounded-lg transition-colors shadow-sm"
                                 >
-                                    Save Changes
+                                    {saving ? "Saving..." : "Save Changes"}
                                 </button>
                             </div>
                         </div>

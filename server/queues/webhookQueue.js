@@ -4,7 +4,7 @@
  * so that we can acknowledge the Meta API within 1500ms to avoid timeout retries.
  */
 
-const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null) => {
+const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false) => {
   console.log(`[Webhook Queue] Enqueueing webhook payload for ${customerPhone}...`);
   
   // Asynchronously process the workflow step in the background
@@ -16,7 +16,7 @@ const enqueueWebhookPayload = async (customerPhone, incomingPayload, channelId, 
       const flowRunner = await import('../engine/flowRunner.js');
       const executeWorkflowStep = flowRunner.executeWorkflowStep;
       
-      await executeWorkflowStep(customerPhone, incomingPayload, channelId, referral, incomingMessageId, simulatorTargetFlowId);
+      await executeWorkflowStep(customerPhone, incomingPayload, channelId, referral, incomingMessageId, simulatorTargetFlowId, isNewContact);
       
     } catch (err) {
       console.error(`[Webhook Queue] Error processing webhook for ${customerPhone}:`, err);

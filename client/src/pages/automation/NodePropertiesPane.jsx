@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
 import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList } from 'lucide-react';
+import { showToast } from '../../utils/showToast';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -63,10 +64,11 @@ function LocationPicker({ localData, setLocalData, updateNodeData, id }) {
           mapInstance.flyTo([lat, lng], 13);
         }
       } else {
-        alert("Location not found. Try a different city or pin code.");
+        showToast.warning("Location", "Location not found. Try a different city or pin code.");
       }
-    } catch (err) {
-      console.error("Search failed", err);
+    } catch (e) {
+      console.error(e);
+      showToast.error("Location Error", "Failed to search location.");
     } finally {
       setIsGeocoding(false);
     }
@@ -255,7 +257,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
       }
     } catch (error) {
       console.error(error);
-      alert(error.response?.data?.message || 'Upload failed. Is the backend running?');
+      showToast.error('Upload Failed', error.response?.data?.message || 'Upload failed. Is the backend running?');
     } finally {
       setIsUploading(false);
     }
@@ -398,9 +400,29 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'triggerNode' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <div>
-              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>New incoming conversation</h2>
+              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>
+                {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
+                 localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
+                 localData.triggerType === 'interactive_template' ? 'Template Quick Reply' :
+                 localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
+                 localData.triggerType === 'welcome_message' ? 'Welcome Message' :
+                 localData.triggerType === 'away_message' ? 'Away Message' :
+                 localData.triggerType === 'fallback' ? 'Default Fallback' :
+                 localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
+                 localData.triggerType === 'api_webhook' ? 'API Webhook Trigger' :
+                 localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
+                 'Conversation Trigger'}
+              </h2>
               <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>
-                Starts when a contact writes to you for the first time.
+                {localData.triggerType === 'qr_link' ? 'Generates a QR code and custom wa.me link for customers to start this automation.' :
+                 localData.triggerType === 'whatsapp_ad' ? 'Starts this automation when customers click on your Meta WhatsApp ad.' :
+                 localData.triggerType === 'interactive_template' ? 'Starts when customer taps a Quick Reply or Call-to-Action button on a template.' :
+                 localData.triggerType === 'any_message' ? 'Starts whenever any incoming message is received from a contact.' :
+                 localData.triggerType === 'welcome_message' ? 'Starts when a new contact writes to your WhatsApp number for the first time.' :
+                 localData.triggerType === 'away_message' ? 'Replies automatically when a contact writes outside of business hours.' :
+                 localData.triggerType === 'fallback' ? 'Executes when no keywords or other automations match customer message.' :
+                 localData.triggerType === 'tag_added' ? 'Runs automatically when a specific tag is attached to a contact profile.' :
+                 'Configure when and how this automated workflow starts.'}
               </p>
             </div>
             
@@ -436,7 +458,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                       <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
                         https://wa.me/{channelPhone}?text={encodeURIComponent(localData.keyword)}
                       </div>
-                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); alert('Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
                         Copy Link
                       </button>
                     </div>
@@ -551,8 +573,16 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   </select>
                 </div>
 
-                {!['fallback', 'welcome_message', 'away_message', 'media_any', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'api_webhook', 'crm_event', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger'].includes(localData.triggerType) && (
+                {!['fallback', 'welcome_message', 'away_message', 'any_message', 'new_subscriber', 'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call', 'api_webhook', 'webhook', 'crm_event', 'crm', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual'].includes(localData.triggerType) && (
                   <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                        Trigger Keywords
+                      </label>
+                      <span style={{ fontSize: '11px', color: '#64748B' }}>
+                        Comma separated
+                      </span>
+                    </div>
                     <input
                       type="text"
                       name="keyword"
@@ -560,8 +590,34 @@ export default function NodePropertiesPane({ currentChannelId }) {
                       onChange={handleLocalChange}
                       onBlur={handleBlur}
                       style={{ ...inputStyle, background: 'white' }}
-                      placeholder="hello"
+                      placeholder="e.g. hi, hello, start, menu"
                     />
+                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: '1.4' }}>
+                      Add multiple keywords separated by commas (e.g. <code style={{ background: '#E2E8F0', padding: '1px 4px', borderRadius: '4px' }}>hi, hello, hey</code>). Any of these will trigger this automation.
+                    </div>
+                    {localData.keyword && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                        {localData.keyword.split(',').map(k => k.trim()).filter(Boolean).map((kw, i) => (
+                          <span 
+                            key={i} 
+                            style={{ 
+                              background: '#EFF6FF', 
+                              color: '#2563EB', 
+                              fontSize: '12px', 
+                              fontWeight: '500', 
+                              padding: '2px 8px', 
+                              borderRadius: '12px', 
+                              border: '1px solid #BFDBFE',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px'
+                            }}
+                          >
+                            <span>#</span> {kw}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1341,11 +1397,33 @@ export default function NodePropertiesPane({ currentChannelId }) {
               <>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Field to Update</label>
-                  <input type="text" name="updateField" value={localData.updateField || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. status" />
+                  <input 
+                    type="text" 
+                    name="updateField" 
+                    value={localData.updateField || localData.fieldKey || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, updateField: e.target.value, fieldKey: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { updateField: localData.updateField || localData.fieldKey, fieldKey: localData.updateField || localData.fieldKey })} 
+                    style={inputStyle} 
+                    placeholder="e.g. status or city" 
+                  />
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>New Value</label>
-                  <input type="text" name="updateValue" value={localData.updateValue || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. qualified_lead" />
+                  <input 
+                    type="text" 
+                    name="updateValue" 
+                    value={localData.updateValue || localData.fieldValue || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, updateValue: e.target.value, fieldValue: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { updateValue: localData.updateValue || localData.fieldValue, fieldValue: localData.updateValue || localData.fieldValue })} 
+                    style={inputStyle} 
+                    placeholder="e.g. qualified_lead or {{city}}" 
+                  />
                 </div>
               </>
             )}

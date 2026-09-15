@@ -15,6 +15,34 @@ function deepGet(obj, path) {
   return path.split('.').reduce((acc, part) => acc && acc[part] !== undefined ? acc[part] : undefined, obj);
 }
 
+function safeSetSessionVariable(session, key, value) {
+  if (!session) return;
+  if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
+    session.sessionVariables = {};
+  }
+  if (session.sessionVariables instanceof Map) {
+    if (key.includes('.')) {
+      session.sessionVariables = Object.fromEntries(session.sessionVariables);
+      session.sessionVariables[key] = value;
+    } else {
+      session.sessionVariables.set(key, value);
+    }
+  } else {
+    session.sessionVariables[key] = value;
+  }
+  if (typeof session.markModified === 'function') {
+    session.markModified('sessionVariables');
+  }
+}
+
+function safeGetSessionVariable(session, key) {
+  if (!session || !session.sessionVariables) return undefined;
+  if (typeof session.sessionVariables.get === 'function') {
+    return session.sessionVariables.get(key);
+  }
+  return session.sessionVariables[key];
+}
+
 /**
  * Utility to replace {{variables}} with actual data from context
  * Supports fallback syntax: {{contact.name|there}}
@@ -65,7 +93,7 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
   // Upgrade: Fallback to session variables if not found in context (which now contains CRM data like contact.tags)
   let userValue = deepGet(contextData, variable);
   if (userValue === undefined) {
-    userValue = session.sessionVariables.get(variable);
+    userValue = safeGetSessionVariable(session, variable);
   }
   
   let result = false;
@@ -86,9 +114,10 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
  * @param {object} contextData - Context for parsing variables
  */
 module.exports.executeApiCallNode = async function executeApiCallNode(session, node, contextData) {
-  const { endpoint, method, headers, responseMapping, bodyParams } = node.data;
+  const { endpoint, url: nodeUrl, method, headers, responseMapping, bodyParams, body } = node.data || {};
+  const rawUrl = endpoint || nodeUrl || '';
   
-  const parsedEndpoint = parseDynamicVariables(endpoint, contextData);
+  const parsedEndpoint = parseDynamicVariables(rawUrl, contextData);
   let parsedHeaders = {};
   if (headers) {
     try {
@@ -100,9 +129,10 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
   }
 
   let requestBody = undefined;
-  if (bodyParams && (method === 'POST' || method === 'PUT')) {
+  const rawBody = bodyParams || body;
+  if (rawBody && (method === 'POST' || method === 'PUT')) {
     try {
-      const parsedB = typeof bodyParams === 'string' ? JSON.parse(bodyParams) : bodyParams;
+      const parsedB = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
       const finalBody = {};
       for (const [key, val] of Object.entries(parsedB)) {
         finalBody[key] = parseDynamicVariables(val, contextData);
@@ -133,7 +163,7 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
         // Advanced Extraction: Supports nested JSON paths like 'user.profile.email'
         const extractedValue = deepGet(data, mapping.responseField);
         if (extractedValue !== undefined) {
-          session.sessionVariables.set(mapping.sessionVariable, extractedValue);
+          safeSetSessionVariable(session, mapping.sessionVariable, extractedValue);
         }
       });
     }
@@ -202,15 +232,51 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   }
 
   if (actionType === 'update_field' || actionType === 'update_contact') {
-    if (node.data.fieldKey && node.data.fieldValue !== undefined) {
-      const parsedValue = parseDynamicVariables(node.data.fieldValue, contextData);
-      session.sessionVariables.set(node.data.fieldKey, parsedValue);
+    const targetKey = node.data.fieldKey || node.data.updateField;
+    const rawVal = node.data.fieldValue !== undefined ? node.data.fieldValue : node.data.updateValue;
+    if (targetKey && rawVal !== undefined) {
+      const parsedValue = parseDynamicVariables(rawVal, contextData);
+      safeSetSessionVariable(session, targetKey, parsedValue);
+      safeSetSessionVariable(session, `contact.${targetKey.replace(/^contact\./, '')}`, parsedValue);
+
+      if (contextData?.contact?.phone) {
+        try {
+          const rawKey = targetKey.replace(/^contact\./, '');
+          const dbContact = await Contact.findOne({ phone: contextData.contact.phone });
+          if (dbContact) {
+            if (['name', 'email'].includes(rawKey)) {
+              dbContact[rawKey] = parsedValue;
+            } else {
+              if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
+                dbContact.customFields = {};
+              }
+              if (dbContact.customFields instanceof Map) {
+                dbContact.customFields.set(rawKey, parsedValue);
+              } else if (Array.isArray(dbContact.customFields)) {
+                const existingIdx = dbContact.customFields.findIndex(f => f.key === rawKey || f.name === rawKey);
+                if (existingIdx !== -1) {
+                  dbContact.customFields[existingIdx].value = parsedValue;
+                } else {
+                  dbContact.customFields.push({ key: rawKey, name: rawKey, value: parsedValue });
+                }
+                dbContact.markModified('customFields');
+              } else {
+                dbContact.customFields[rawKey] = parsedValue;
+                dbContact.markModified('customFields');
+              }
+            }
+            await dbContact.save();
+          }
+        } catch (e) {
+          console.error('Failed to sync contact field from actionNode:', e);
+        }
+      }
     }
     return 'success';
   }
 
   if (actionType === 'opt_in') {
-    session.sessionVariables.set('marketing_opt_in', 'true');
+    safeSetSessionVariable(session, 'marketing_opt_in', 'true');
     if (contextData?.contact?.phone) {
       await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: false });
     }
@@ -218,7 +284,7 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   }
 
   if (actionType === 'opt_out') {
-    session.sessionVariables.set('marketing_opt_in', 'false');
+    safeSetSessionVariable(session, 'marketing_opt_in', 'false');
     if (contextData?.contact?.phone) {
       await Contact.findOneAndUpdate({ phone: contextData.contact.phone }, { isOptedOut: true });
     }
@@ -265,12 +331,13 @@ module.exports.executeGoogleSheetsNode = async function executeGoogleSheetsNode(
  * Executes an AI Node using OpenAI (ChatGPT)
  */
 module.exports.executeAiNode = async function executeAiNode(session, node, contextData) {
-  const { systemPrompt, userMessage, saveVariableAs } = node.data;
+  const { systemPrompt, userMessage, saveVariable, saveVariableAs } = node.data;
+  const targetVarName = saveVariable || saveVariableAs;
   
-  if (!userMessage) return 'failure';
+  const rawUserMsg = userMessage || contextData?.lastIncomingMessage || contextData?.message || session.lastIncomingMessage || 'Hello';
 
   const parsedSystem = parseDynamicVariables(systemPrompt || 'You are a helpful assistant.', contextData);
-  const parsedUser = parseDynamicVariables(userMessage, contextData);
+  const parsedUser = parseDynamicVariables(rawUserMsg, contextData);
 
   try {
     const response = await axios.post('https://api.openai.com/v1/chat/completions', {
@@ -288,8 +355,9 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
 
     const aiResponse = response.data.choices[0].message.content;
 
-    if (saveVariableAs) {
-      session.sessionVariables.set(saveVariableAs, aiResponse);
+    if (targetVarName) {
+      safeSetSessionVariable(session, targetVarName, aiResponse);
+      safeSetSessionVariable(session, `contact.${targetVarName.replace(/^contact\./, '')}`, aiResponse);
     }
     
     // We can also store the direct AI response in contextData for immediate use in the next node
@@ -300,7 +368,7 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
     console.error('AI Node Execution Failed:', error?.response?.data || error.message);
     
     if (saveVariableAs) {
-      session.sessionVariables.set(saveVariableAs, "I'm sorry, I cannot process your request right now.");
+      safeSetSessionVariable(session, saveVariableAs, "I'm sorry, I cannot process your request right now.");
     }
     return 'failure'; // Note: In flowRunner, 'failure' doesn't necessarily break the flow, it just moves on
   }
@@ -343,7 +411,7 @@ module.exports.executeShopifyNode = async function executeShopifyNode(session, n
     });
 
     if (shopifyAction === 'get_customer') {
-      session.sessionVariables.set('shopify.customerName', response.data?.shop?.name || contextData.contact?.name);
+      safeSetSessionVariable(session, 'shopify.customerName', response.data?.shop?.name || contextData.contact?.name);
     }
     return 'success';
   } catch (error) {

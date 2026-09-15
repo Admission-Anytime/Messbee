@@ -10,6 +10,7 @@ const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { hasActiveCustomerWindow } = require('../utils/conversationWindow');
 const Template = require('../models/Template');
+const { PLAN_LIMITS } = require('../utils/planLimits');
 const { logAPICall, getRecentLogs } = require('../utils/apiLogger');
 const { createAndEmitNotification } = require('../services/notificationService');
 const automationService = require('../services/automationService');
@@ -31,36 +32,75 @@ const getTenantWhatsAppService = async (tenantId) => {
   let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   let businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 
-  // Optional: Try DB if not in .env, but prioritize .env for local testing
-  if (!accessToken && tenantId) {
+  // 1. First priority: Check DB (Channel and User models for this tenant / user)
+  if (tenantId) {
     try {
+      const User = require('../models/User');
       const Channel = require('../models/Channel');
-      const channel = await Channel.findOne({ 
-        tenantId, 
+
+      // Resolve effective tenant ID (if an agent or sub-user is passed, get their tenantId)
+      let effectiveTenantId = tenantId;
+      const userDoc = await User.findById(tenantId).select('tenantId whatsappConfig');
+      if (userDoc && userDoc.tenantId) {
+        effectiveTenantId = userDoc.tenantId;
+      }
+
+      // Check Channel collection for this tenant or user
+      let channel = await Channel.findOne({ 
+        tenantId: effectiveTenantId, 
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
       }).select('+metaAccessToken');
+
+      // If not found by tenantId, try searching channel by the raw tenantId/user ID
+      if (!channel && effectiveTenantId !== tenantId) {
+        channel = await Channel.findOne({ 
+          tenantId: tenantId, 
+          activeWhatsappPhoneNumberId: { $exists: true, $ne: null } 
+        }).select('+metaAccessToken');
+      }
 
       if (channel && channel.metaAccessToken && channel.activeWhatsappPhoneNumberId) {
         accessToken = channel.metaAccessToken;
         phoneNumberId = channel.activeWhatsappPhoneNumberId;
-        businessAccountId = channel.metadata?.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        businessAccountId = channel.metadata?.wabaId || null;
       }
-    } catch (e) {}
+
+      // If not found in Channel, check User's whatsappConfig
+      if (!accessToken || !phoneNumberId) {
+        if (userDoc && userDoc.whatsappConfig && userDoc.whatsappConfig.accessToken && userDoc.whatsappConfig.phoneNumberId) {
+          accessToken = userDoc.whatsappConfig.accessToken;
+          phoneNumberId = userDoc.whatsappConfig.phoneNumberId;
+          businessAccountId = userDoc.whatsappConfig.wabaId || null;
+        } else if (effectiveTenantId && effectiveTenantId.toString() !== tenantId.toString()) {
+          const tenantOwner = await User.findById(effectiveTenantId).select('whatsappConfig');
+          if (tenantOwner && tenantOwner.whatsappConfig && tenantOwner.whatsappConfig.accessToken && tenantOwner.whatsappConfig.phoneNumberId) {
+            accessToken = tenantOwner.whatsappConfig.accessToken;
+            phoneNumberId = tenantOwner.whatsappConfig.phoneNumberId;
+            businessAccountId = tenantOwner.whatsappConfig.wabaId || null;
+          }
+        }
+      }
+
+      // If still not found in Channel or User, check User by direct lookup
+      if (!accessToken || !phoneNumberId) {
+        const directUser = await User.findById(tenantId).select('whatsappConfig tenantId');
+        if (directUser?.whatsappConfig?.accessToken && directUser?.whatsappConfig?.phoneNumberId) {
+          accessToken = directUser.whatsappConfig.accessToken;
+          phoneNumberId = directUser.whatsappConfig.phoneNumberId;
+          businessAccountId = directUser.whatsappConfig.wabaId || null;
+        }
+      }
+    } catch (e) {
+      console.error('[getTenantWhatsAppService] Error fetching tenant config from DB:', e.message);
+    }
   }
 
-  if (!accessToken && tenantId) {
-    try {
-      const User = require('../models/User');
-      const user = await User.findById(tenantId);
-      if (user && user.whatsappConfig && user.whatsappConfig.accessToken) {
-        accessToken = user.whatsappConfig.accessToken;
-        phoneNumberId = user.whatsappConfig.phoneNumberId;
-        businessAccountId = user.whatsappConfig.wabaId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
-      }
-    } catch (e) {}
-  }
+  console.log(`[getTenantWhatsAppService] TargetTenant: ${tenantId} | FoundInDB: ${!!phoneNumberId} | PhoneNumberId: ${phoneNumberId || 'NOT_CONNECTED'}`);
 
+  // STRICT MULTI-TENANT: Do NOT fall back to process.env under any circumstances.
+  // Each tenant/startup must only send/receive messages from their own connected WhatsApp number in the database.
   if (!accessToken || !phoneNumberId) {
+    console.warn(`[getTenantWhatsAppService] ⚠️ WhatsApp not connected in database for tenant ${tenantId}. Rejecting request.`);
     return null;
   }
 
@@ -70,6 +110,7 @@ const getTenantWhatsAppService = async (tenantId) => {
     phoneNumberId,
     businessAccountId: businessAccountId || null
   });
+  service.configSource = 'DB_TENANT';
   
   return service;
 };
@@ -95,6 +136,7 @@ exports.testConnection = async (req, res, next) => {
       success: true,
       message: 'WhatsApp API configuration is valid',
       config: {
+        source: tenantWhatsAppService.configSource || 'DB_TENANT',
         phoneNumberId: tenantWhatsAppService.phoneNumberId,
         hasAccessToken: !!tenantWhatsAppService.accessToken,
         businessAccountId: tenantWhatsAppService.businessAccountId,
@@ -188,23 +230,6 @@ exports.connectOAuthToken = async (req, res, next) => {
       }
     }
 
-    const Setting = require('../models/Setting');
-    
-    // Save token and WABA ID to settings
-    let setting = await Setting.findOne({ key: 'whatsapp_config' });
-    if (!setting) {
-        setting = new Setting({ key: 'whatsapp_config', value: {} });
-    }
-    
-    setting.value = {
-        ...setting.value,
-        accessToken: accessToken,
-        businessAccountId: wabaId || setting.value.businessAccountId || null,
-        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || null
-    };
-    
-    await setting.save();
-
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
@@ -229,16 +254,62 @@ exports.connectOAuthToken = async (req, res, next) => {
         const User = require('../models/User');
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
-        
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -247,12 +318,6 @@ exports.connectOAuthToken = async (req, res, next) => {
       }
     }
     
-    // Update service config in memory (Legacy Single-Tenant)
-    const whatsappService = require('../services/whatsappService');
-    whatsappService.accessToken = accessToken;
-    if (wabaId) whatsappService.businessAccountId = wabaId;
-    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
-
     res.status(200).json({
       success: true,
       message: 'WhatsApp account connected successfully',
@@ -324,11 +389,39 @@ exports.embeddedSignupCallback = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Failed to exchange OAuth code' });
     }
     
-    // 3. Fetch user info to verify token
+    // 3. Fetch user info & inspect token scopes to verify required WhatsApp permissions
     const userRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/me?access_token=${accessToken}`);
     
     if (!userRes.data || !userRes.data.id) {
       return res.status(400).json({ success: false, message: 'Invalid Meta access token' });
+    }
+
+    // Inspect token debug info to verify scopes
+    try {
+      const debugRes = await axios.get(`https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/debug_token`, {
+        params: {
+          input_token: accessToken,
+          access_token: `${process.env.WHATSAPP_APP_ID}|${process.env.WHATSAPP_APP_SECRET}`
+        }
+      });
+      const tokenData = debugRes.data?.data;
+      console.log('🔍 [OAuth Scope Debug] Token info:', {
+        type: tokenData?.type,
+        application: tokenData?.application,
+        user_id: tokenData?.user_id,
+        scopes: tokenData?.scopes,
+        is_valid: tokenData?.is_valid
+      });
+
+      const grantedScopes = tokenData?.scopes || [];
+      const hasWabaMgmt = grantedScopes.includes('whatsapp_business_management');
+      const hasWabaMsg = grantedScopes.includes('whatsapp_business_messaging');
+
+      if (!hasWabaMgmt && !hasWabaMsg) {
+        console.warn('⚠️ Token lacks whatsapp_business_management / messaging scopes:', grantedScopes);
+      }
+    } catch (debugErr) {
+      console.warn('Could not inspect token debug info:', debugErr.response?.data || debugErr.message);
     }
     
     let wabaId = clientWabaId || null;
@@ -368,20 +461,39 @@ exports.embeddedSignupCallback = async (req, res, next) => {
       }
     }
 
-    // Save token and WABA ID to main config settings
-    let setting = await Setting.findOne({ key: 'whatsapp_config' });
-    if (!setting) {
-        setting = new Setting({ key: 'whatsapp_config', value: {} });
+    // Fallback: If phoneNumberId was not in eventData, query Meta for phone numbers under this WABA
+    if (!phoneNumberId && wabaId) {
+      try {
+        const phoneRes = await axios.get(
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${wabaId}/phone_numbers?access_token=${accessToken}`
+        );
+        if (phoneRes.data && phoneRes.data.data && phoneRes.data.data.length > 0) {
+          phoneNumberId = phoneRes.data.data[0].id;
+          console.log(`📱 Fallback resolved phoneNumberId: ${phoneNumberId}`);
+        }
+      } catch (phoneFetchErr) {
+        console.warn("Could not auto-fetch phone number ID from WABA:", phoneFetchErr.response?.data || phoneFetchErr.message);
+      }
     }
-    
-    setting.value = {
-        ...setting.value,
-        accessToken: accessToken,
-        businessAccountId: wabaId || setting.value.businessAccountId || null,
-        phoneNumberId: phoneNumberId || setting.value.phoneNumberId || null
-    };
-    
-    await setting.save();
+
+    // Auto-subscribe Messbee App to WABA Webhooks so inbound messages & statuses are delivered
+    if (wabaId && accessToken) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${wabaId}/subscribed_apps`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        console.log(`✅ App subscribed to WABA ${wabaId} webhooks successfully`);
+      } catch (subErr) {
+        console.warn(`⚠️ Failed to subscribe app to WABA ${wabaId} webhooks:`, subErr.response?.data || subErr.message);
+      }
+    }
 
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
@@ -398,8 +510,8 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     }
     
     // Sync to Channel for automation engine (Multi-Tenant)
+    const Channel = require('../models/Channel'); // Declared here so it's in scope for auto-register too
     if (req.user && phoneNumberId) {
-      const Channel = require('../models/Channel');
       const tenantId = req.user.tenantId || req.user._id;
       const finalPhoneNumberId = phoneNumberId;
       
@@ -407,16 +519,62 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         const User = require('../models/User');
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
-        
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -425,20 +583,95 @@ exports.embeddedSignupCallback = async (req, res, next) => {
       }
     }
     
-    // Update service config in memory (Legacy Single-Tenant)
-    const whatsappService = require('../services/whatsappService');
-    whatsappService.accessToken = accessToken;
-    if (wabaId) whatsappService.businessAccountId = wabaId;
-    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
+    // ── AUTO-REGISTER PHONE NUMBER WITH META ─────────────────────────────────
+    // After Embedded Signup, the phone number is in "PENDING" status.
+    // We must call /register with a 6-digit PIN to activate it.
+    let phoneRegistered = false;
+    let autoPin = null;
 
+    if (phoneNumberId && accessToken) {
+      // Generate a cryptographically random 6-digit PIN
+      const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
+      
+      const attemptRegister = async (pin) => {
+        try {
+          const regRes = await axios.post(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${phoneNumberId}/register`,
+            { messaging_product: 'whatsapp', pin },
+            {
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              timeout: 10000
+            }
+          );
+          return regRes.data?.success === true;
+        } catch (postErr) {
+          console.warn(`⚠️ Register POST attempt failed for PIN:`, postErr.response?.data?.error?.message || postErr.message);
+          return false;
+        }
+      };
+
+      try {
+        autoPin = generatePin();
+        console.log(`🔐 Attempting to register phone ${phoneNumberId} with Meta...`);
+        phoneRegistered = await attemptRegister(autoPin);
+
+        if (!phoneRegistered) {
+          // Retry once with a fresh PIN
+          console.warn(`⚠️ First register attempt returned non-success, retrying...`);
+          autoPin = generatePin();
+          phoneRegistered = await attemptRegister(autoPin);
+        }
+
+        const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
+
+        if (phoneRegistered) {
+          console.log(`✅ Phone ${phoneNumberId} registered successfully with Meta (PIN auto-generated).`);
+          // Store PIN + mark phone as ACTIVE — use $set to avoid replacing the whole document
+          await Channel.findOneAndUpdate(
+            channelQuery,
+            {
+              $set: {
+                activeWhatsappPhoneNumberId: phoneNumberId,
+                'metadata.phoneStatus': 'ACTIVE',
+                'metadata.registrationPin': autoPin
+              }
+            }
+          );
+        } else {
+          console.warn(`⚠️ Meta /register returned success=false for phone ${phoneNumberId}. Marking PENDING.`);
+          await Channel.findOneAndUpdate(
+            channelQuery,
+            { $set: { 'metadata.phoneStatus': 'PENDING' } }
+          );
+        }
+      } catch (regErr) {
+        // Non-fatal — channel is saved, but phone may need manual PIN
+        const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
+        const regErrMsg = regErr.response?.data?.error?.message || regErr.message;
+        console.warn(`⚠️ Phone registration failed for ${phoneNumberId}: ${regErrMsg}`);
+        console.warn('Full error:', JSON.stringify(regErr.response?.data || {}, null, 2));
+        await Channel.findOneAndUpdate(
+          channelQuery,
+          { $set: { 'metadata.phoneStatus': 'PENDING' } }
+        );
+      }
+    }
     res.status(200).json({
       success: true,
-      message: 'WhatsApp account connected successfully via Embedded Signup Callback',
+      message: phoneRegistered
+        ? 'WhatsApp account connected and phone number activated successfully!'
+        : 'WhatsApp account connected. Phone number registration pending — please set PIN in Settings.',
       wabaId: wabaId,
       phoneNumberId: phoneNumberId,
+      phoneRegistered,
+      registrationPin: phoneRegistered ? autoPin : null, // Send back so admin can note it
       metaUserId: userRes.data.id,
       loggedEvent: true
     });
+
 
   } catch (error) {
     console.error('Embedded Signup Callback Error:', error.response?.data || error.message);
@@ -477,23 +710,6 @@ exports.connectManual = async (req, res, next) => {
       });
     }
 
-    const Setting = require('../models/Setting');
-    
-    // Save token and WABA ID to settings
-    let setting = await Setting.findOne({ key: 'whatsapp_config' });
-    if (!setting) {
-        setting = new Setting({ key: 'whatsapp_config', value: {} });
-    }
-    
-    setting.value = {
-        ...setting.value,
-        accessToken: accessToken,
-        businessAccountId: wabaId,
-        phoneNumberId: phoneNumberId || setting.value.phoneNumberId
-    };
-    
-    await setting.save();
-
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
@@ -519,15 +735,62 @@ exports.connectManual = async (req, res, next) => {
         const userRec = await User.findById(req.user._id);
         let channelName = userRec?.businessName || userRec?.company || 'WhatsApp Business';
         
+        // ── Dynamically fetch phone display number & name from Meta API ──
+        let actualPhoneNumber = finalPhoneNumberId; // fallback
+        let metaQuality       = 'UNKNOWN';
+        let metaStatus        = 'CONNECTED';
+        let metaVerifiedName = null;
+        try {
+          const axios = require('axios');
+          const metaRes = await axios.get(
+            `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
+            {
+              params: {
+                fields: 'display_phone_number,verified_name,quality_rating,status',
+                access_token: accessToken
+              },
+              timeout: 6000
+            }
+          );
+          if (metaRes.data.display_phone_number) actualPhoneNumber = metaRes.data.display_phone_number;
+          if (metaRes.data.verified_name) {
+            channelName = metaRes.data.verified_name;
+            metaVerifiedName = metaRes.data.verified_name;
+          }
+          if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
+          if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+        } catch (metaErr) {
+          console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
+        }
+
+        // Sync verified business name directly to User profile if not set or generic
+        if (metaVerifiedName && userRec) {
+          let userNeedsSave = false;
+          if (!userRec.businessName || userRec.businessName === 'Your Business') {
+            userRec.businessName = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (!userRec.name || userRec.name === 'Facebook User' || userRec.name === 'User') {
+            userRec.name = metaVerifiedName;
+            userNeedsSave = true;
+          }
+          if (userNeedsSave) {
+            await userRec.save();
+          }
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
           {
             tenantId,
             activeWhatsappPhoneNumberId: finalPhoneNumberId,
             metaAccessToken: accessToken,
+            name:            channelName,
+            phoneNumber:     actualPhoneNumber,
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
-            'metadata.status': 'CONNECTED'
+            'metadata.status': metaStatus,
+            'metadata.qualityRating': metaQuality
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -536,12 +799,6 @@ exports.connectManual = async (req, res, next) => {
       }
     }
     
-    // Update service config in memory (Legacy Single-Tenant)
-    const whatsappService = require('../services/whatsappService');
-    whatsappService.accessToken = accessToken;
-    whatsappService.businessAccountId = wabaId;
-    if (phoneNumberId) whatsappService.phoneNumberId = phoneNumberId;
-
     res.status(200).json({
       success: true,
       message: 'WhatsApp account connected manually successfully',
@@ -580,6 +837,23 @@ exports.registerNumber = async (req, res, next) => {
     const response = await tenantWhatsAppService.register(pin);
 
     if (response.success) {
+      // Sync status with Channel in database
+      try {
+        const Channel = require('../models/Channel');
+        await Channel.findOneAndUpdate(
+          { tenantId },
+          {
+            $set: {
+              'metadata.phoneStatus': 'ACTIVE',
+              'metadata.registrationPin': pin
+            }
+          }
+        );
+        console.log(`✅ [registerNumber] Channel phoneStatus updated to ACTIVE for tenant: ${tenantId}`);
+      } catch (dbErr) {
+        console.warn('⚠️ Could not update Channel metadata on register:', dbErr.message);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Number registered successfully',
@@ -614,6 +888,22 @@ exports.deregisterNumber = async (req, res, next) => {
     const response = await tenantWhatsAppService.deregister();
 
     if (response.success) {
+      // Sync status with Channel in database
+      try {
+        const Channel = require('../models/Channel');
+        await Channel.findOneAndUpdate(
+          { tenantId },
+          {
+            $set: {
+              'metadata.phoneStatus': 'PENDING'
+            }
+          }
+        );
+        console.log(`ℹ️ [deregisterNumber] Channel phoneStatus set to PENDING for tenant: ${tenantId}`);
+      } catch (dbErr) {
+        console.warn('⚠️ Could not update Channel metadata on deregister:', dbErr.message);
+      }
+
       res.status(200).json({
         success: true,
         message: 'Number deregistered successfully',
@@ -791,14 +1081,23 @@ async function handleIncomingMessage(data) {
     let resolvedTenantId = null;
     if (phoneNumberId) {
       const Channel = require('../models/Channel');
-      const channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
+      const User = require('../models/User');
+
+      let channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
       if (channelRecord) {
         resolvedChannelId = channelRecord._id.toString();
         resolvedTenantId = channelRecord.tenantId;
+      } else {
+        // Fallback: check User model directly
+        const userWithPhone = await User.findOne({ 'whatsappConfig.phoneNumberId': phoneNumberId });
+        if (userWithPhone) {
+          resolvedTenantId = userWithPhone.tenantId || userWithPhone._id;
+          resolvedChannelId = userWithPhone._id.toString();
+        }
       }
     }
 
-    if (!resolvedChannelId) {
+    if (!resolvedTenantId) {
       console.warn(`[Webhook] Ignored message for unknown phoneNumberId: ${phoneNumberId}`);
       return;
     }
@@ -806,6 +1105,9 @@ async function handleIncomingMessage(data) {
     // Normalize the phone number
     const normalizedFrom = normalizePhoneNumber(from);
     const contactName = contact?.name || contact?.profile?.name || normalizedFrom;
+
+    // Get tenant-specific service for fetching media URL with proper tenant credentials
+    const inboundTenantService = await getTenantWhatsAppService(resolvedTenantId);
 
     // Find or create chat (check both phone and whatsappId with normalized number)
     // We sort by 'user' desc to prefer chats that already have an owner assigned
@@ -823,8 +1125,9 @@ async function handleIncomingMessage(data) {
 
     if (!chat) {
       isNewContact = true;
-      // Try to find if this contact belongs to any user in the CRM (Contact model)
+      // Try to find if this contact belongs to any user within THIS tenant in the CRM (Contact model)
       const crmContact = await Contact.findOne({ 
+        user: resolvedTenantId,
         $or: [
           { whatsapp: normalizedFrom },
           { phone: normalizedFrom },
@@ -845,30 +1148,22 @@ async function handleIncomingMessage(data) {
         whatsappId: normalizedFrom,
         source: 'whatsapp',
         lastActivity: new Date(),
-        user: assignedUserId // Link to the user who owns the contact in CRM or the channel tenant
+        user: assignedUserId // Link strictly to the channel tenant
       });
       
-      // Emit chat_created event
+      // Emit chat_created event strictly to tenant room
       try {
         const io = getIO();
         if (io) {
-          io.emit('chat_created', chat);
+          const tenantRoom = `tenant_${assignedUserId?.toString() || resolvedTenantId?.toString()}`;
+          io.to(tenantRoom).emit('chat_created', chat);
         }
       } catch (socketError) {
       }
     } else {
-      // If found chat has NO user assigned, but we find a CRM contact with a user, assign it
+      // If found chat has NO user assigned, ensure it is assigned to this tenant
       if (!chat.user) {
-        const crmContact = await Contact.findOne({ 
-          $or: [
-            { whatsapp: normalizedFrom },
-            { phone: normalizedFrom }
-          ]
-        }).sort({ updatedAt: -1 });
-        
-        if (crmContact) {
-          chat.user = crmContact.user;
-        }
+        chat.user = resolvedTenantId;
       }
 
       
@@ -915,8 +1210,8 @@ async function handleIncomingMessage(data) {
         mediaTypeStr = message.mimeType;
         
         // Optionally download and store media locally
-        if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+        if (mediaId && inboundTenantService) {
+          const mediaInfo = await inboundTenantService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -930,8 +1225,8 @@ async function handleIncomingMessage(data) {
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
-        if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+        if (mediaId && inboundTenantService) {
+          const mediaInfo = await inboundTenantService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -944,8 +1239,8 @@ async function handleIncomingMessage(data) {
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
-        if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+        if (mediaId && inboundTenantService) {
+          const mediaInfo = await inboundTenantService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -960,8 +1255,8 @@ async function handleIncomingMessage(data) {
         mediaId = message.mediaId;
         mediaTypeStr = message.mimeType;
         
-        if (mediaId) {
-          const mediaInfo = await whatsappService.getMediaUrl(mediaId);
+        if (mediaId && inboundTenantService) {
+          const mediaInfo = await inboundTenantService.getMediaUrl(mediaId);
           if (mediaInfo.success) {
             mediaUrl = mediaInfo.url;
           }
@@ -1047,18 +1342,22 @@ async function handleIncomingMessage(data) {
       );
     }
 
-    // Emit to socket for real-time update
+    // Emit to socket for real-time update (scoped strictly to tenant room)
     try {
       const io = getIO();
       if (io) {
-        io.emit('receive_message', {
+        const tenantRoom = `tenant_${chat.user?.toString() || resolvedTenantId?.toString()}`;
+        const chatRoom = chat._id.toString();
+
+        // Emit receive_message to active chat room and to tenant room
+        io.to(chatRoom).to(tenantRoom).emit('receive_message', {
           chatId: chat._id,
           message: newMessage,
           chat: chat
         });
         
-        // Also emit chat list update
-        io.emit('chat_updated', chat);
+        // Emit chat list update strictly to this tenant
+        io.to(tenantRoom).emit('chat_updated', chat);
       }
     } catch (socketError) {
       console.error('Socket emit error:', socketError.message);
@@ -1114,8 +1413,10 @@ async function handleStatusUpdate(data) {
       statusTimestamp: new Date(parseInt(timestamp) * 1000)
     };
 
-    if (newStatus === 'failed' && errorMessage) {
-      updatePayload.error = errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage;
+    if (newStatus === 'failed') {
+      const fallbackMsg = errorCode ? `[${errorCode}] Message failed to deliver` : 'Message not delivered';
+      updatePayload.error = errorMessage ? (errorCode ? `[${errorCode}] ${errorMessage}` : errorMessage) : fallbackMsg;
+      if (errorCode) updatePayload.errorCode = String(errorCode);
     }
 
     const updatedMessage = await Message.findOneAndUpdate(
@@ -1189,10 +1490,11 @@ async function handleStatusUpdate(data) {
       if (io) {
         io.emit('message_status_update', {
           messageId: updatedMessage._id,
+          chatId: updatedMessage.chatId,
           status: newStatus,
           whatsappMessageId: messageId,
           error: updatedMessage.error,
-          errorCode: errorCode
+          errorCode: errorCode || updatedMessage.errorCode
         });
       }
     } catch (socketError) {
@@ -1243,8 +1545,10 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       });
     }
 
-    // Find chat
-    const chat = chatId ? await Chat.findById(chatId) : await Chat.findOne({ phone: to });
+    // Find chat strictly belonging to this tenant
+    const chat = chatId 
+      ? await Chat.findOne({ _id: chatId, user: tenantId }) 
+      : await Chat.findOne({ phone: to, user: tenantId });
 
     if (!chat) {
       logAPICall({
@@ -1253,11 +1557,11 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
         path: '/api/whatsapp/send',
         userId: req.user?.id,
         statusCode: 404,
-        errorMessage: 'Chat not found'
+        errorMessage: 'Chat not found or access denied'
       });
       return res.status(404).json({
         success: false,
-        message: 'Chat not found'
+        message: 'Chat not found or does not belong to this account'
       });
     }
 
@@ -1473,7 +1777,9 @@ exports.sendTemplateMessage = async (req, res, next) => {
         });
       }
 
+      const effectiveTenantId = req.user?.tenantId || req.user?._id || req.user?.id;
       chat = await Chat.findOne({
+        user: effectiveTenantId,
         $or: [
           { phone: recipientPhone },
           { whatsappId: recipientPhone }
@@ -1488,11 +1794,11 @@ exports.sendTemplateMessage = async (req, res, next) => {
           status: 'active',
           chatStatus: 'open',
           avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=random`,
-          teamMember: req.user?.name || req.user?.id || 'Unassigned',
+          teamMember: req.user?.name || 'Unassigned',
           whatsappId: recipientPhone,
           source: 'whatsapp',
           lastActivity: new Date(),
-          user: req.user?.id || null
+          user: effectiveTenantId
         });
       }
     }
@@ -1660,59 +1966,76 @@ exports.getTemplates = async (req, res, next) => {
     const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
     console.log('[DEBUG] getTenantWhatsAppService result:', !!tenantWhatsAppService);
     
-    if (!tenantWhatsAppService) {
-      console.log('[DEBUG] Sending 403 because tenantWhatsAppService is null');
-      return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
-    }
-    
     let data = { data: [] };
-    try {
-      console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
-      data = await tenantWhatsAppService.getTemplates();
-      console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
-    } catch (err) {
-      console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
-      // Don't crash or return 401 — fall back to local MongoDB templates
-      data = { data: [] };
+    if (tenantWhatsAppService) {
+      try {
+        console.log('[DEBUG] Calling tenantWhatsAppService.getTemplates()');
+        data = await tenantWhatsAppService.getTemplates();
+        console.log('[DEBUG] getTemplates success, items:', data?.data?.length);
+      } catch (err) {
+        console.warn('⚠️ Meta API returned Error in getTemplates (falling back to local DB):', err.response?.status, err.response?.data?.error?.message || err.message);
+        // Don't crash or return 401 — fall back to local MongoDB templates
+        data = { data: [] };
+      }
+    } else {
+      console.log('[DEBUG] tenantWhatsAppService is not connected, loading local templates from DB');
     }
 
     let allTemplates = Array.isArray(data?.data) ? data.data : [];
-    
-    // Get templates owned by this user from our DB (use user ID - always reliable)
-    const userTemplates = await Template.find({ user: req.user.id });
-    
-    // If Meta API returned 0 or failed, use local templates
-    if (allTemplates.length === 0 && userTemplates.length > 0) {
-      allTemplates = userTemplates.map(t => ({
-        id: t.whatsappTemplateId || t._id,
-        name: t.name,
-        category: t.category,
-        language: t.language,
-        status: t.status || 'APPROVED',
-        components: t.components || []
-      }));
-    }
-    const userTemplatesMap = {};
-    userTemplates.forEach(t => {
-      userTemplatesMap[String(t.name).trim()] = t;
+    // Get templates owned by this user/tenant from our DB
+    const userScope = getUserScope(req);
+    const userTemplates = await Template.find({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ]
     });
-
-    console.log('[DEBUG] userTemplatesMap Keys:', Object.keys(userTemplatesMap));
-    Object.keys(userTemplatesMap).forEach(key => {
-      if (userTemplatesMap[key].status === 'DELETED') {
-        console.log(`[DEBUG] FOUND DELETED MARKER IN DB for: ${key}`);
+    
+    // Map userTemplates by lowercase trimmed name, by whatsappTemplateName, and by whatsappTemplateId
+    const userTemplatesByName = {};
+    const userTemplatesById = {};
+    const userTemplatesByMetaName = {};
+    userTemplates.forEach(t => {
+      const nameKey = String(t.name).trim().toLowerCase();
+      userTemplatesByName[nameKey] = t;
+      if (t.whatsappTemplateName) {
+        userTemplatesByMetaName[String(t.whatsappTemplateName).trim().toLowerCase()] = t;
+      }
+      if (t.whatsappTemplateId) {
+        userTemplatesById[String(t.whatsappTemplateId).trim()] = t;
       }
     });
 
-    // Merge Graph API templates with local metadata (to restore media URLs)
-    const filteredTemplates = allTemplates
+    // ONLY SHOW TEMPLATES CREATED BY THIS LOGGED-IN USER / TENANT:
+    // Filter Meta API templates to strictly those that match templates created by this user
+    let matchedMetaTemplates = allTemplates.filter(t => {
+      const metaNameKey = String(t.name).trim().toLowerCase();
+      const idKey = t.id ? String(t.id).trim() : null;
+      return Boolean(
+        userTemplatesByMetaName[metaNameKey] ||
+        (idKey && userTemplatesById[idKey]) ||
+        (userTemplatesByName[metaNameKey] && (!userTemplatesByName[metaNameKey].whatsappTemplateName || userTemplatesByName[metaNameKey].whatsappTemplateName === t.name))
+      );
+    });
+
+    // If no templates match local DB yet (e.g. initial load or local development), display all available WABA templates
+    if (matchedMetaTemplates.length === 0 && allTemplates.length > 0) {
+      matchedMetaTemplates = allTemplates;
+    }
+
+    const processedTemplateNames = new Set();
+
+    // Deep merge Meta API templates with local metadata (to restore media URLs and examples)
+    const filteredTemplates = matchedMetaTemplates
       .map(t => {
-        const templateNameTrimmed = String(t.name).trim();
-        const localTemplate = userTemplatesMap[templateNameTrimmed] || {};
+        const metaNameKey = String(t.name).trim().toLowerCase();
+        const idKey = t.id ? String(t.id).trim() : null;
+        const localTemplate = userTemplatesByMetaName[metaNameKey] || (idKey && userTemplatesById[idKey]) || userTemplatesByName[metaNameKey] || {};
         
-        if (localTemplate.status === 'DELETED') {
-           console.log(`[DEBUG] Mapping Meta template ${templateNameTrimmed} to DELETED status!`);
-        }
+        const displayName = localTemplate.name || t.name;
+        processedTemplateNames.add(metaNameKey);
+        processedTemplateNames.add(String(displayName).trim().toLowerCase());
+        if (idKey) processedTemplateNames.add(idKey);
 
         // Deep merge components to restore 'example' fields that Meta often strips after approval
         const mergedComponents = (t.components || []).map(apiComp => {
@@ -1726,12 +2049,34 @@ exports.getTemplates = async (req, res, next) => {
 
         return {
           ...t,
+          name: displayName,
+          whatsappTemplateName: localTemplate.whatsappTemplateName || t.name,
+          metaTemplateName: t.name,
           components: mergedComponents,
           // Persist our local status if API status is missing, but force DELETED if soft-deleted locally
           status: localTemplate.status === 'DELETED' ? 'DELETED' : (t.status || localTemplate.status)
         };
       })
       .filter(t => t.status !== 'DELETED');
+
+    // Also include any templates created by this user in MongoDB that Meta hasn't returned yet (or if Meta API was offline)
+    userTemplates.forEach(t => {
+      const nameKey = String(t.name).trim().toLowerCase();
+      const metaKey = t.whatsappTemplateName ? String(t.whatsappTemplateName).trim().toLowerCase() : null;
+      const idKey = t.whatsappTemplateId ? String(t.whatsappTemplateId).trim() : null;
+      if (!processedTemplateNames.has(nameKey) && (!metaKey || !processedTemplateNames.has(metaKey)) && (!idKey || !processedTemplateNames.has(idKey)) && t.status !== 'DELETED') {
+        filteredTemplates.push({
+          id: t.whatsappTemplateId || t._id,
+          name: t.name,
+          whatsappTemplateName: t.whatsappTemplateName || t.name,
+          category: t.category,
+          language: t.language,
+          status: t.status || 'PENDING',
+          components: t.components || [],
+          rejected_reason: t.rejectedReason || null
+        });
+      }
+    });
 
     const approvedTemplates = filteredTemplates.filter((template) => template.status === 'APPROVED');
     const nonApprovedTemplates = filteredTemplates.filter((template) => template.status !== 'APPROVED');
@@ -1798,12 +2143,83 @@ exports.createTemplate = async (req, res, next) => {
       });
     }
 
-    const result = await tenantWhatsAppService.createTemplate({
-      name,
+    const userScope = getUserScope(req);
+    const userId = req.user?._id || req.user?.id;
+    const userTenantId = req.user?.tenantId || tenantId || userId;
+
+    // Check if THIS user already has a template with this name and language
+    const existingForUser = await Template.findOne({
+      $or: [
+        { user: { $in: userScope } },
+        { tenantId: { $in: userScope } }
+      ],
+      name: name.toLowerCase().trim(),
+      language: language || 'en_US',
+      status: { $ne: 'DELETED' }
+    });
+
+    if (existingForUser) {
+      return res.status(400).json({
+        success: false,
+        message: `You already have a template named "${name}". Please choose a different name.`,
+        error: {
+          error_subcode: 2388024,
+          message: `You already have a template named "${name}". Please choose a different name.`
+        }
+      });
+    }
+
+    // Check plan template limit
+    const userPlan = (req.user?.subscriptionPlan || 'free').toLowerCase();
+    const templateLimit = PLAN_LIMITS[userPlan]?.templates ?? PLAN_LIMITS.free.templates ?? 3;
+    if (templateLimit !== -1) {
+      const templateCount = await Template.countDocuments({
+        $or: [
+          { user: { $in: userScope } },
+          { tenantId: { $in: userScope } }
+        ],
+        status: { $ne: 'DELETED' }
+      });
+      if (templateCount >= templateLimit) {
+        return res.status(403).json({
+          success: false,
+          message: `Template limit reached. Your ${userPlan.charAt(0).toUpperCase() + userPlan.slice(1)} plan allows up to ${templateLimit} templates. Please upgrade your plan to create more.`,
+          limitReached: true
+        });
+      }
+    }
+
+    let metaTemplateName = name;
+    let result = await tenantWhatsAppService.createTemplate({
+      name: metaTemplateName,
       category: category || 'MARKETING',
       language: language || 'en_US',
       components: components || []
     });
+
+    // If Meta rejected because the template name already exists in this WABA (created by another user/account):
+    const isConflict = !result.success && (
+      result?.error?.errorSubcode === 2388024 ||
+      result?.error?.error?.error_subcode === 2388024 ||
+      result?.error?.error_subcode === 2388024 ||
+      (result?.error?.code === 100 && String(result?.error?.message || '').toLowerCase().includes('already exists'))
+    );
+
+    if (isConflict) {
+      // Generate a unique Meta template name so this user is NOT blocked by other accounts!
+      const shortUser = String(userId || 'usr').slice(-4);
+      const randStr = Math.random().toString(36).substring(2, 6);
+      metaTemplateName = `${name}_${shortUser}_${randStr}`.toLowerCase().replace(/[^a-z0-9_]/g, '_').slice(0, 60);
+
+      console.log(`[Multi-User Isolation] Template name "${name}" taken on Meta. Retrying with unique Meta name "${metaTemplateName}" for user ${userId}`);
+
+      result = await tenantWhatsAppService.createTemplate({
+        name: metaTemplateName,
+        category: category || 'MARKETING',
+        language: language || 'en_US',
+        components: components || []
+      });
+    }
 
     if (!result.success) {
       const detailedMessage =
@@ -1821,17 +2237,25 @@ exports.createTemplate = async (req, res, next) => {
       });
     }
 
-    // Save template ownership to our DB
-    const templateName = result.templateName || name;
-    const createdLocal = await Template.create({
-      name: templateName,
-      whatsappTemplateId: result.data?.id,
-      category: category || 'MARKETING',
-      language: language || 'en_US',
-      components: components || [],
-      user: req.user.id,
-      status: 'PENDING'
-    });
+    // Save template ownership to our DB with user's clean display name and Meta's registered name
+    const createdLocal = await Template.findOneAndUpdate(
+      { name: name, user: userId },
+      {
+        $set: {
+          name: name,
+          whatsappTemplateName: metaTemplateName,
+          whatsappTemplateId: result.data?.id,
+          templateId: result.data?.id,
+          category: category || 'MARKETING',
+          language: language || 'en_US',
+          components: components || [],
+          user: userId,
+          tenantId: userTenantId,
+          status: result.data?.status || 'PENDING'
+        }
+      },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
 
     try {
       const { getIO } = require('../config/socket');
@@ -1843,9 +2267,10 @@ exports.createTemplate = async (req, res, next) => {
       success: true,
       message: 'Template created successfully',
       data: result.data,
-      templateName: templateName,
-      originalTemplateName: result.originalTemplateName || name,
-      usedFallbackName: !!result.usedFallbackName
+      templateName: name,
+      whatsappTemplateName: metaTemplateName,
+      originalTemplateName: name,
+      usedFallbackName: metaTemplateName !== name
     });
   } catch (error) {
     next(error);
@@ -1900,9 +2325,16 @@ exports.testSendTemplate = async (req, res, next) => {
       });
     }
 
+    const userScope = getUserScope(req);
+    const localTpl = await Template.findOne({
+      $or: [{ user: { $in: userScope } }, { tenantId: { $in: userScope } }],
+      $or: [{ name: templateName }, { whatsappTemplateName: templateName }]
+    });
+    const metaTemplateName = localTpl?.whatsappTemplateName || templateName;
+
     const result = await tenantWhatsAppService.testSendTemplate(
       phoneNumber,
-      templateName,
+      metaTemplateName,
       languageCode || 'en_US',
       testData || {}
     );
@@ -1933,7 +2365,7 @@ exports.deleteTemplate = async (req, res, next) => {
   try {
     const tenantId = req.user?.tenantId || req.user?._id;
     const { templateId } = req.params;
-    let { templateName } = req.body || {};
+    let templateName = req.body?.templateName || req.query?.templateName;
 
     if (!templateId) {
       return res.status(400).json({
@@ -1942,55 +2374,103 @@ exports.deleteTemplate = async (req, res, next) => {
       });
     }
 
-    // Look up templateName if missing
-    if (!templateName) {
+    const userScope = getUserScope(req);
+    const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
+    const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
+
+    // Look up local template document to find true registered Meta template name
+    let localDoc = null;
+    try {
+      localDoc = await Template.findOne({
+        $and: [
+          { $or: [{ user: { $in: userScope } }, { tenantId: { $in: userScope } }] },
+          { $or: [query, { name: templateName || '' }, { whatsappTemplateName: templateName || '' }] }
+        ]
+      }) || await Template.findOne(query);
+    } catch (_) {}
+
+    let actualMetaName = localDoc?.whatsappTemplateName || localDoc?.name || templateName;
+
+    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
+    }
+
+    // If templateName is still missing, lookup by templateId from WhatsApp API list
+    if (!actualMetaName && tenantWhatsAppService) {
       try {
-        const isMongoId = /^[0-9a-fA-F]{24}$/.test(templateId);
-        const query = isMongoId ? { _id: templateId } : { whatsappTemplateId: templateId };
-        const localDoc = await Template.findOne(query);
-        if (localDoc) {
-          templateName = localDoc.name;
+        const tplList = await tenantWhatsAppService.getTemplates();
+        const found = (tplList?.data || []).find(t => String(t.id) === String(templateId));
+        if (found) {
+          actualMetaName = found.name;
         }
       } catch (_) {}
     }
 
-    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
-    let metaResult = { success: false };
-
-    if (tenantWhatsAppService && templateName) {
-      console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, templateName });
-      try {
-        metaResult = await tenantWhatsAppService.deleteTemplate(templateId, templateName);
-      } catch (err) {
-        console.warn('⚠️ [Controller] Meta delete warning (suppressed):', err.message);
-        // We suppress this error so the user can delete it from their local DB and UI successfully
-      }
+    if (!actualMetaName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Template name is required to delete a template'
+      });
     }
 
+    console.log('🗑️ [Controller] Attempting to delete template from Meta:', { templateId, actualMetaName });
+    let metaResult = null;
     try {
-      const userScope = getUserScope(req);
-      if (templateName) {
-        // Step 1: Delete ALL records for this template name (including any old DELETED markers)
-        await Template.deleteMany({
-          name: templateName,
-          $or: [
-            { user: { $in: userScope } },
-            { tenantId: { $in: userScope } }
-          ]
-        });
-        // Step 2: Create a fresh DELETED marker using user ID (always reliable)
-        await Template.create({
-          name: templateName,
-          status: 'DELETED',
-          user: req.user.id,
-          category: 'MARKETING',
-          language: 'en'
-        });
-      }
+      metaResult = await tenantWhatsAppService.deleteTemplate(templateId, actualMetaName);
+    } catch (err) {
+      console.warn('⚠️ [Controller] Meta delete warning:', err.message);
+    }
+
+    const isMetaSuccess = !!(metaResult && metaResult.success);
+    const metaErrorCode = metaResult?.error?.code;
+    const metaErrorMsg = metaResult?.error?.message || '';
+    const isPermissionRestriction = metaErrorCode === 100 || metaErrorMsg.includes('Need permission');
+
+    // If Meta returned a failure that is NOT a permission restriction, return 400
+    if (!isMetaSuccess && !isPermissionRestriction) {
+      console.error('❌ [Controller] Meta delete failed:', metaResult?.error);
+      return res.status(400).json({
+        success: false,
+        message: metaResult?.error?.message || metaResult?.error?.error_user_msg || 'Failed to delete template from WhatsApp',
+        error: metaResult?.error
+      });
+    }
+
+    // Clean up / soft-delete from local MongoDB
+    try {
+      const userId = req.user?._id || req.user?.id;
+
+      await Template.deleteMany({
+        $or: [
+          { name: templateName || localDoc?.name },
+          { whatsappTemplateName: actualMetaName },
+          { whatsappTemplateId: templateId },
+          ...(isMongoId ? [{ _id: templateId }] : [])
+        ],
+        $or: [
+          { user: { $in: userScope } },
+          { tenantId: { $in: userScope } }
+        ]
+      });
+
       if (/^[0-9a-fA-F]{24}$/.test(templateId)) {
         await Template.deleteOne({ _id: templateId });
       }
-      console.log('✅ [Controller] Template DELETED marker saved for:', templateName || templateId);
+
+      // If Meta didn't delete on Cloud API due to WABA ownership permissions, store DELETED marker so it stays hidden
+      if (isPermissionRestriction) {
+        await Template.create({
+          name: templateName,
+          status: 'DELETED',
+          user: userId,
+          category: 'MARKETING',
+          language: 'en'
+        });
+        console.log('✅ [Controller] Template soft-deleted locally (Meta permission restriction):', templateName);
+      } else {
+        console.log('✅ [Controller] Template permanently deleted from Meta and DB:', templateName);
+      }
     } catch (dbError) {
       console.error('❌ [Controller] Local DB delete FAILED:', dbError.message, dbError.code);
     }
@@ -2033,6 +2513,30 @@ exports.updateTemplate = async (req, res, next) => {
         message: 'Failed to update template',
         error: result.error
       });
+    }
+
+    if (result.success && updateData.components) {
+      try {
+        const userScope = getUserScope(req);
+        await Template.updateOne(
+          {
+            $or: [
+              { whatsappTemplateId: templateId },
+              { _id: /^[0-9a-fA-F]{24}$/.test(templateId) ? templateId : null }
+            ],
+            $or: [
+              { user: { $in: userScope } },
+              { tenantId: { $in: userScope } }
+            ]
+          },
+          {
+            $set: {
+              components: updateData.components,
+              status: 'PENDING'
+            }
+          }
+        );
+      } catch (_) {}
     }
 
     res.status(200).json({
@@ -2276,8 +2780,14 @@ exports.testTempPath = async (req, res, next) => {
     const normalized = normalizePhoneNumber(testNumber);
     console.log(`🔬 TEST-TEMP-PATH: testNumber="${testNumber}" → Normalized="${normalized}"`);
 
+    const tenantId = req.user?.tenantId || req.user?._id;
+    const tenantWhatsAppService = await getTenantWhatsAppService(tenantId);
+    if (!tenantWhatsAppService) {
+      return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
+    }
+
     // Send the test message
-    const result = await whatsappService.sendTextMessage(normalized, testMessage);
+    const result = await tenantWhatsAppService.sendTextMessage(normalized, testMessage);
 
     // Log the response
     logAPICall({

@@ -124,14 +124,55 @@ const LABEL_CLS = {
   "+2": "bg-violet-50 text-violet-700",
 };
 
+const PRESET_LABEL_COLORS = {
+  "start first": "#e11d48",       // Vibrant Rose
+  "cold lead": "#0284c7",         // Sky Blue
+  "hot lead": "#ea580c",          // Fiery Orange
+  "issue raised": "#dc2626",      // Crimson Red
+  "resolved": "#16a34a",          // Emerald Green
+  "warm lead": "#f59e0b",         // Amber / Gold
+  "payment pending": "#d97706",    // Warm Bronze
+  "payment received": "#059669",   // Deep Teal / Mint
+  "invoice sent": "#7c3aed",       // Purple
+  "new lead": "#ec4899",          // Pink
+  "enterprise": "#8b5cf6",        // Violet
+  "follow-up": "#10b981",         // Green
+  "vip": "#6366f1",               // Indigo
+  "customer": "#06b6d4",          // Cyan
+  "prospect": "#f97316",          // Orange
+  "1rahul": "#00bcd4",            // Bright Cyan / Turquoise
+};
+
+const DISTINCT_PALETTE = [
+  "#e11d48", "#0284c7", "#16a34a", "#ea580c", "#7c3aed", "#0891b2",
+  "#db2777", "#ca8a04", "#4f46e5", "#059669", "#c026d3", "#d97706",
+  "#2563eb", "#9333ea", "#0d9488", "#be123c", "#65a30d", "#b45309",
+  "#475569", "#1d4ed8", "#15803d", "#a21caf", "#c2410c", "#0e7490"
+];
+
 const getLabelColor = (label, labelConfig = []) => {
-  const found = labelConfig.find(l => (typeof l === 'string' ? l : l.name) === label);
+  if (!label) return '#3b82f6';
+  const labelName = typeof label === 'string' ? label : label?.name || '';
+  const normalized = String(labelName).trim().toLowerCase();
+
+  // 1. Check if user configured a color in DB
+  const found = (labelConfig || []).find(l => {
+    const name = typeof l === 'string' ? l : l?.name;
+    return String(name || '').trim().toLowerCase() === normalized;
+  });
   if (found && typeof found === 'object' && found.color) return found.color;
-  
-  const colors = ['#f97316', '#eab308', '#ef4444', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899'];
-  let hash = 0;
-  for (let i = 0; i < label.length; i++) hash = label.charCodeAt(i) + ((hash << 5) - hash);
-  return colors[Math.abs(hash) % colors.length];
+
+  // 2. Check preset map for default tags
+  if (PRESET_LABEL_COLORS[normalized]) {
+    return PRESET_LABEL_COLORS[normalized];
+  }
+
+  // 3. High-dispersion distinct hash function
+  let hash = 5381;
+  for (let i = 0; i < normalized.length; i++) {
+    hash = ((hash << 5) + hash) + normalized.charCodeAt(i);
+  }
+  return DISTINCT_PALETTE[Math.abs(hash) % DISTINCT_PALETTE.length];
 };
 
 /* ─── Toast helper ───────────────────────────────────────────────────────────── */
@@ -173,20 +214,28 @@ function StatusBadge({ status, color }) {
   );
 }
 
-function LabelBadge({ label, color }) {
-  const style = color ? {
-    backgroundColor: `${color}15`,
-    color: color,
-    borderColor: `${color}30`,
-    borderWidth: '1px'
-  } : {};
+function LabelBadge({ label, color, labelConfig = [] }) {
+  const labelText = typeof label === 'string' ? label : label?.name || '';
+  const resolvedColor = color || (typeof label === 'object' && label?.color) || getLabelColor(labelText, labelConfig);
 
   return (
     <span 
-      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-black mr-1 ${!color ? (LABEL_CLS[label] || "bg-gray-100 text-gray-500 border border-gray-200") : ""}`}
-      style={style}
+      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold mr-1 my-0.5 shadow-sm transition-all select-none"
+      style={{
+        backgroundColor: `${resolvedColor}15`,
+        color: resolvedColor,
+        border: `1px solid ${resolvedColor}38`,
+        background: `linear-gradient(135deg, ${resolvedColor}1F 0%, ${resolvedColor}0A 100%)`
+      }}
     >
-      {label}
+      <span 
+        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+        style={{ 
+          backgroundColor: resolvedColor,
+          boxShadow: `0 0 4px ${resolvedColor}80`
+        }} 
+      />
+      {labelText}
     </span>
   );
 }
@@ -674,11 +723,10 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
           />
         </div>
         {contact.labels?.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1 mt-2">
-            {contact.labels.map(l => {
-              const lObj = labels.find(lb => lb.name === l);
-              return <LabelBadge key={l} label={l} color={lObj?.color} />;
-            })}
+          <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+            {contact.labels.map(l => (
+              <LabelBadge key={typeof l === 'string' ? l : l.name} label={l} labelConfig={labels} />
+            ))}
           </div>
         )}
       </div>
@@ -1408,16 +1456,13 @@ function Pagination({ currentPage, totalPages, rowsPerPage, totalCount, onPageCh
 }
 
 /* ─── Bulk Action Toolbar ────────────────────────────────────────────────────── */
-function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, labels = [], statuses = [], labelConfig = [], canDelete = true }) {
+function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemoveLabel, onStatus, onCampaign, onExport, labels = [], statuses = [], labelConfig = [], canDelete = true, canExport = true }) {
   const [activeMenu, setActiveMenu] = useState(null); // 'label' | 'status' | 'more' | null
-  const [showOptions, setShowOptions] = useState(false);
   const [selectedLabels, setSelectedLabels] = useState([]);
   const menuRef = useRef(null);
-  const searchRef = useRef(null);
 
   useEffect(() => {
     if (!activeMenu) {
-      setShowOptions(false);
       setSelectedLabels([]);
     }
   }, [activeMenu]);
@@ -1426,9 +1471,6 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenu(null);
-      }
-      if (searchRef.current && !searchRef.current.contains(event.target)) {
-        setShowOptions(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1553,7 +1595,7 @@ function BulkActionToolbar({ selectedCount, onClear, onDelete, onLabel, onRemove
       {activeMenu === 'more' && (
         <div className="absolute bottom-[calc(100%+10px)] right-0 w-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_20px_50px_rgba(15,23,42,0.12)] animate-in fade-in slide-in-from-bottom-4 duration-300 py-2">
           {[
-            { label: 'Export Selected', icon: ArrowUpTrayIcon, color: 'text-slate-600', action: () => { setActiveMenu(null); } },
+            ...(canExport ? [{ label: 'Export Selected (CSV)', icon: ArrowUpTrayIcon, color: 'text-slate-600', action: () => { if (onExport) onExport(); setActiveMenu(null); } }] : []),
             { label: 'Send Campaign', icon: MegaphoneIcon, color: 'text-slate-600', action: () => { onCampaign(); setActiveMenu(null); } },
             { divider: true },
             { label: 'Delete Contacts', icon: UserMinusIcon, color: 'text-red-500', action: () => { onDelete(); setActiveMenu(null); } },
@@ -1633,7 +1675,7 @@ export default function ContactsCRM() {
   const navigate = useNavigate();
 
   // ── CRM permission flags from role context ──────────────────────────────────
-  const { user, rolePermissions } = useContext(userContext);
+  const { user, rolePermissions, checkPlanAccess } = useContext(userContext);
   const _roleKey = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1).toLowerCase() : "";
   const _perms = rolePermissions && _roleKey ? rolePermissions[_roleKey] : null;
   const canImportContacts = !_perms || _perms.import_contacts !== false;
@@ -1860,6 +1902,35 @@ export default function ContactsCRM() {
     });
   };
 
+  const handleBulkExport = () => {
+    if (checkPlanAccess && !checkPlanAccess('exportContactsCsv', 'Export Contacts CSV')) {
+      return;
+    }
+    const selectedData = contacts.filter(c => selectedRows.includes(c._id));
+    if (!selectedData.length) {
+      toast.info("No contacts selected to export");
+      return;
+    }
+    const headers = ["Name", "Phone", "Email", "Status", "Labels", "Created At"];
+    const rows = selectedData.map(c => [
+      `"${(c.name || '').replace(/"/g, '""')}"`,
+      `"${(c.phone || c.phoneNumber || '').replace(/"/g, '""')}"`,
+      `"${(c.email || '').replace(/"/g, '""')}"`,
+      `"${(c.status || '').replace(/"/g, '""')}"`,
+      `"${(c.labels ? c.labels.join(", ") : '').replace(/"/g, '""')}"`,
+      `"${c.createdAt ? new Date(c.createdAt).toLocaleDateString() : ''}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `contacts_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Exported ${selectedData.length} contacts successfully!`);
+  };
+
   /* ── Row click → profile ── */
   const handleRowClick = (contact, e) => {
     if (e.target.closest("td:first-child") || e.target.closest(".action-btn")) return;
@@ -1919,12 +1990,11 @@ export default function ContactsCRM() {
       case "labels": {
         if (!contact.labels || contact.labels.length === 0) return <span className="text-gray-300 text-xs italic">No labels</span>;
         return (
-          <>
-            {contact.labels.map(l => {
-              const lObj = labelConfig.find(lb => lb.name === l);
-              return <LabelBadge key={l} label={l} color={lObj?.color} />;
-            })}
-          </>
+          <div className="flex flex-wrap items-center gap-1 py-0.5">
+            {contact.labels.map(l => (
+              <LabelBadge key={typeof l === 'string' ? l : l.name} label={l} labelConfig={labelConfig} />
+            ))}
+          </div>
         );
       }
       case "email": return <span className="text-gray-500 text-sm">{contact.email}</span>;
@@ -2256,6 +2326,8 @@ export default function ContactsCRM() {
         onRemoveLabel={handleBulkRemoveLabel}
         onStatus={handleBulkStatus}
         onCampaign={handleSendCampaign}
+        onExport={handleBulkExport}
+        canExport={canExportData}
         labels={[...new Set([...allLabels, ...contacts.filter(c => selectedRows.includes(c._id)).flatMap(c => c.labels || [])])]}
         statuses={allStatuses}
         labelConfig={labelConfig}

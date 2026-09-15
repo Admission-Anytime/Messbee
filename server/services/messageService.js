@@ -74,6 +74,7 @@ const findOrCreateChatForContact = async (contact) => {
   }
 
   let chat = await Chat.findOne({
+    user: contact.user,
     $or: [{ phone: normalizedPhone }, { whatsappId: normalizedPhone }]
   });
 
@@ -90,7 +91,8 @@ const findOrCreateChatForContact = async (contact) => {
       unread: 0,
       lastMsg: '',
       lastMsgTime: '',
-      lastActivity: new Date()
+      lastActivity: new Date(),
+      user: contact.user
     });
   }
 
@@ -182,16 +184,34 @@ exports.sendBulkMessages = async (userId, campaignId, contacts, messageTemplate)
       throw new Error('Campaign template name is required');
     }
 
+    let metaTemplateName = templateName;
+    try {
+      const Template = require('../models/Template');
+      const dbTpl = await Template.findOne({
+        $or: [
+          { user: campaign.user },
+          { tenantId: campaign.tenantId || campaign.user }
+        ],
+        $or: [
+          { name: templateName },
+          { whatsappTemplateName: templateName }
+        ]
+      });
+      if (dbTpl && dbTpl.whatsappTemplateName) {
+        metaTemplateName = dbTpl.whatsappTemplateName;
+      }
+    } catch (_) {}
+
     for (const contact of contacts) {
       try {
         const { chat, normalizedPhone } = await findOrCreateChatForContact(contact);
-        const template = await tenantWhatsAppService.findTemplate(templateName, templateLanguage);
+        const template = await tenantWhatsAppService.findTemplate(metaTemplateName, templateLanguage);
         const components = buildTemplateComponents(template, contact, campaign, tenantWhatsAppService);
         const msgTime = formatMessageTime();
 
         const sendResult = await tenantWhatsAppService.sendTemplateMessage(
           normalizedPhone,
-          templateName,
+          metaTemplateName,
           templateLanguage,
           components
         );

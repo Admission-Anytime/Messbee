@@ -189,12 +189,42 @@ export const resendOTP = async (email, purpose = "login") => {
 // ==================== HELPER FUNCTIONS ====================
 
 /**
- * Save user data to localStorage (tokens are in HTTP-only cookies)
+ * Save user data and tokens to localStorage
  */
-export const saveAuthData = (authData) => {
-  // Only save user data - tokens are handled by HTTP-only cookies
-  if (authData.user) {
-    localStorage.setItem("user", JSON.stringify(authData.user));
+export const saveAuthData = (authData, extraTokens) => {
+  if (!authData) return;
+
+  const user =
+    authData.user ||
+    authData.data?.user ||
+    (authData.email && !authData.tokens ? authData : null);
+
+  if (user) {
+    localStorage.setItem("user", JSON.stringify(user));
+  }
+
+  const token =
+    authData.tokens?.accessToken ||
+    authData.data?.tokens?.accessToken ||
+    authData.data?.accessToken ||
+    authData.accessToken ||
+    authData.token ||
+    extraTokens?.accessToken ||
+    extraTokens?.token;
+
+  if (token) {
+    localStorage.setItem("token", token);
+  }
+
+  const refreshToken =
+    authData.tokens?.refreshToken ||
+    authData.data?.tokens?.refreshToken ||
+    authData.data?.refreshToken ||
+    authData.refreshToken ||
+    extraTokens?.refreshToken;
+
+  if (refreshToken) {
+    localStorage.setItem("refreshToken", refreshToken);
   }
 };
 
@@ -208,7 +238,6 @@ export const getStoredUser = () => {
 
 /**
  * Check if user is authenticated (client-side check only)
- * Note: This only checks localStorage - server validates cookies
  */
 export const isAuthenticated = () => {
   const user = getStoredUser();
@@ -216,8 +245,10 @@ export const isAuthenticated = () => {
 };
 
 /**
- * Clear authentication data (cookies are cleared by backend on logout)
+ * Clear authentication data
  */
 export const clearAuthData = () => {
   localStorage.removeItem("user");
+  localStorage.removeItem("token");
+  localStorage.removeItem("refreshToken");
 };

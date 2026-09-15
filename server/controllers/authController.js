@@ -12,19 +12,21 @@ const crypto = require('crypto');
 const setTokenCookies = (res, accessToken, refreshToken) => {
   const isProduction = process.env.NODE_ENV === 'production';
   
-  // Access Token Cookie (24 hours)
-  res.cookie('accessToken', accessToken, {
+  const cookieOptions = {
     httpOnly: true,
-    secure: true, // Always true for cross-origin cookies
-    sameSite: 'none', // Required for cross-origin requests
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     maxAge: 24 * 60 * 60 * 1000 // 24 hours
-  });
+  };
+
+  if (process.env.COOKIE_DOMAIN) {
+    cookieOptions.domain = process.env.COOKIE_DOMAIN;
+  }
+
+  res.cookie('accessToken', accessToken, cookieOptions);
   
-  // Refresh Token Cookie (7 days)
   res.cookie('refreshToken', refreshToken, {
-    httpOnly: true,
-    secure: true, // Always true for cross-origin cookies
-    sameSite: 'none', // Required for cross-origin requests
+    ...cookieOptions,
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
 };
@@ -33,19 +35,20 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
  * Clear JWT cookies
  */
 const clearTokenCookies = (res) => {
-  res.cookie('accessToken', '', {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
     httpOnly: true,
-    secure: true,
-    sameSite: 'none',
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax',
     expires: new Date(0)
-  });
-  
-  res.cookie('refreshToken', '', {
-    httpOnly: true,
-    secure: true,
-    sameSite: 'none',
-    expires: new Date(0)
-  });
+  };
+
+  if (process.env.COOKIE_DOMAIN) {
+    cookieOptions.domain = process.env.COOKIE_DOMAIN;
+  }
+
+  res.cookie('accessToken', '', cookieOptions);
+  res.cookie('refreshToken', '', cookieOptions);
 };
 
 // ==================== SIGNUP FLOW ====================
@@ -395,6 +398,9 @@ exports.verifyLoginOTP = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    // Set tokens as HTTP-only cookies
+    setTokenCookies(res, accessToken, refreshToken);
+
         // Calculate WhatsApp connection status on login
         let tenantWhatsAppConnected = false;
         let whatsappConfig = user.whatsappConfig;
@@ -420,7 +426,15 @@ exports.verifyLoginOTP = async (req, res, next) => {
             accessToken,
             refreshToken
           },
+          accessToken,
+          refreshToken,
           data: {
+            tokens: {
+              accessToken,
+              refreshToken
+            },
+            accessToken,
+            refreshToken,
             user: {
               id: user._id,
               name: user.name,
@@ -430,6 +444,8 @@ exports.verifyLoginOTP = async (req, res, next) => {
               phone: user.phone,
               company: user.company,
               subscriptionPlan: user.subscriptionPlan,
+              credits: user.credits,
+              subscriptionEndDate: user.subscriptionEndDate,
               lastLogin: user.lastLogin,
               whatsappConfig: whatsappConfig,
               tenantWhatsAppConnected: tenantWhatsAppConnected
@@ -525,14 +541,27 @@ exports.login = async (req, res, next) => {
         accessToken,
         refreshToken
       },
+      accessToken,
+      refreshToken,
       data: {
+        tokens: {
+          accessToken,
+          refreshToken
+        },
+        accessToken,
+        refreshToken,
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
           avatar: user.avatar,
-          subscriptionPlan: user.subscriptionPlan, credits: user.credits, subscriptionEndDate: user.subscriptionEndDate,
+          phone: user.phone,
+          company: user.company,
+          subscriptionPlan: user.subscriptionPlan,
+          credits: user.credits,
+          subscriptionEndDate: user.subscriptionEndDate,
+          lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
           tenantWhatsAppConnected: tenantWhatsAppConnected
         }
@@ -604,6 +633,16 @@ exports.refreshToken = async (req, res, next) => {
       success: true,
       message: 'Token refreshed successfully',
       tokens: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken
+      },
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+      data: {
+        tokens: {
+          accessToken: newAccessToken,
+          refreshToken: newRefreshToken
+        },
         accessToken: newAccessToken,
         refreshToken: newRefreshToken
       }
@@ -901,6 +940,16 @@ exports.getMe = async (req, res, next) => {
       if (user.tenantWhatsAppConnected) {
         if (!user.whatsappConfig) user.whatsappConfig = {};
         user.whatsappConfig.wabaId = user.whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+        if (channel?.activeWhatsappPhoneNumberId && !user.whatsappConfig.phoneNumberId) {
+          user.whatsappConfig.phoneNumberId = channel.activeWhatsappPhoneNumberId;
+        }
+        // Fallback businessName and phone from channel if missing on user
+        if (!user.businessName && channel?.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
+          user.businessName = channel.name;
+        }
+        if (!user.phoneNumber && channel?.phoneNumber) {
+          user.phoneNumber = channel.phoneNumber;
+        }
       }
     }
 
@@ -1060,16 +1109,29 @@ exports.facebookLogin = async (req, res, next) => {
         accessToken: token,
         refreshToken
       },
+      accessToken: token,
+      refreshToken,
       data: {
+        tokens: {
+          accessToken: token,
+          refreshToken
+        },
+        accessToken: token,
+        refreshToken,
         user: {
           id: user._id,
           name: user.name,
           email: user.email,
           role: user.role,
           avatar: user.avatar,
+          phone: user.phone,
+          company: user.company,
+          businessName: user.businessName,
           subscriptionPlan: user.subscriptionPlan,
           credits: user.credits,
-          subscriptionEndDate: user.subscriptionEndDate
+          subscriptionEndDate: user.subscriptionEndDate,
+          lastLogin: user.lastLogin,
+          whatsappConfig: user.whatsappConfig
         }
       }
     });
@@ -1220,6 +1282,13 @@ exports.socialLogin = async (req, res, next) => {
       if (!user.tenantId) {
         user.tenantId = user._id;
       }
+      // If user had generic fallback name and Facebook/Google now provides actual name
+      if (regdata.name && (!user.name || user.name === 'Facebook User' || user.name === 'Google User' || user.name === 'User')) {
+        user.name = regdata.name;
+      }
+      if (regdata.picture && !user.avatar) {
+        user.avatar = regdata.picture;
+      }
     }
 
     // Generate tokens for login
@@ -1258,7 +1327,15 @@ exports.socialLogin = async (req, res, next) => {
         accessToken: token,
         refreshToken
       },
+      accessToken: token,
+      refreshToken,
       data: {
+        tokens: {
+          accessToken: token,
+          refreshToken
+        },
+        accessToken: token,
+        refreshToken,
         user: {
           id: user._id,
           name: user.name,
@@ -1267,9 +1344,11 @@ exports.socialLogin = async (req, res, next) => {
           avatar: user.avatar,
           phone: user.phone,
           company: user.company,
+          businessName: user.businessName,
           subscriptionPlan: user.subscriptionPlan,
           credits: user.credits,
           subscriptionEndDate: user.subscriptionEndDate,
+          lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
           tenantWhatsAppConnected: tenantWhatsAppConnected
         }
