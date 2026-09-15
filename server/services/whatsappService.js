@@ -50,15 +50,7 @@ class WhatsAppService {
         let setting = await Setting.findOne({ key: 'whatsapp_config' });
         
         if (!setting || !setting.value) {
-          // No DB config yet — seed from .env and save
-          setting = setting || new Setting({ key: 'whatsapp_config', value: {} });
-          setting.value = {
-            apiVersion: process.env.WHATSAPP_API_VERSION,
-            phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID,
-            accessToken: process.env.WHATSAPP_ACCESS_TOKEN,
-            businessAccountId: (this.businessAccountId || process.env.WHATSAPP_BUSINESS_ACCOUNT_ID)
-          };
-          await setting.save();
+          return;
         }
         
         // ✅ DB values take priority — only fall back to .env if DB value is missing/empty

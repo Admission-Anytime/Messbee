@@ -128,7 +128,8 @@ router.get('/channels', protect, async (req, res) => {
   try {
     const Channel = require('../models/Channel');
     const tenantId = req.user.tenantId || req.user._id;
-    const channels = await Channel.find({ tenantId });
+    // Exclude registrationPin from this general listing endpoint
+    const channels = await Channel.find({ tenantId }).select('-metadata.registrationPin');
 
     // Transform so modal always gets `name` and `phoneNumber` fields
     const transformed = channels.map(ch => ({
@@ -136,12 +137,38 @@ router.get('/channels', protect, async (req, res) => {
       name:        ch.name || ch.metadata?.name || 'WhatsApp Business',
       phoneNumber: ch.phoneNumber || ch.activeWhatsappPhoneNumberId,
       status:      ch.metadata?.status || 'CONNECTED',
-      wabaId:      ch.metadata?.wabaId
+      wabaId:      ch.metadata?.wabaId,
+      phoneStatus: ch.metadata?.phoneStatus || 'UNKNOWN' // Phone registration status
     }));
 
     res.status(200).json(transformed);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching channels' });
+  }
+});
+
+// Get phone registration status for the current tenant (Admin only)
+router.get('/phone-status', protect, authorize('ADMIN', 'admin'), async (req, res) => {
+  try {
+    const Channel = require('../models/Channel');
+    const tenantId = req.user.tenantId || req.user._id;
+
+    // Fetch the full channel including all metadata fields
+    const channel = await Channel.findOne({ tenantId }).lean();
+
+    if (!channel) {
+      return res.status(200).json({ connected: false, phoneStatus: 'UNKNOWN', registrationPin: null });
+    }
+
+    return res.status(200).json({
+      connected: true,
+      phoneStatus: channel.metadata?.phoneStatus || 'UNKNOWN',
+      registrationPin: channel.metadata?.registrationPin || null,
+      phoneNumber: channel.phoneNumber || '',
+      phoneNumberId: channel.activeWhatsappPhoneNumberId || ''
+    });
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching phone status', error: error.message });
   }
 });
 

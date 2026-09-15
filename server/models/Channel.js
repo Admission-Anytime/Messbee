@@ -30,7 +30,13 @@ const channelSchema = new mongoose.Schema({
     name: { type: String, default: 'Default WhatsApp Channel' },
     qualityRating: { type: String, default: 'UNKNOWN' },
     status: { type: String, default: 'CONNECTED' },
-    wabaId: { type: String } // WhatsApp Business Account ID
+    wabaId: { type: String }, // WhatsApp Business Account ID
+    phoneStatus: {
+      type: String,
+      enum: ['PENDING', 'ACTIVE', 'UNKNOWN'],
+      default: 'UNKNOWN'
+    }, // Tracks whether the phone number is registered with Meta
+    registrationPin: { type: String } // Auto-generated 6-digit PIN — only returned via /phone-status admin endpoint
   }
 }, {
   timestamps: true
