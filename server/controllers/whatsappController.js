@@ -28,9 +28,9 @@ const getUserScope = (req) => {
 
 // --- MULTI-TENANT & HYBRID SERVICE HELPER ---
 const getTenantWhatsAppService = async (tenantId) => {
-  let accessToken = null;
-  let phoneNumberId = null;
-  let businessAccountId = null;
+  let accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
+  let phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
+  let businessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 
   // 1. First priority: Check DB (Channel and User models for this tenant / user)
   if (tenantId) {
@@ -2472,7 +2472,7 @@ exports.deleteTemplate = async (req, res, next) => {
         console.log('✅ [Controller] Template permanently deleted from Meta and DB:', templateName);
       }
     } catch (dbError) {
-      console.warn('⚠️ [Controller] Local DB delete warning:', dbError.message);
+      console.error('❌ [Controller] Local DB delete FAILED:', dbError.message, dbError.code);
     }
 
     try {
