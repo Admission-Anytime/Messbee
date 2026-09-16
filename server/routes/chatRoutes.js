@@ -478,7 +478,19 @@ router.post("/message", async (req, res) => {
         });
       }
 
-
+      // 💳 Pre-flight WCC Wallet Balance Check (text & media both)
+      const walletService = require('../services/walletService');
+      const { getMessageCost } = require('../config/pricingConfig');
+      const msgCategory = media ? 'SERVICE' : 'SERVICE';
+      const msgCost = getMessageCost(msgCategory, whatsappRecipient);
+      const hasBal = await walletService.hasSufficientCredits(targetTenantId, msgCost);
+      if (!hasBal) {
+        return res.status(402).json({
+          success: false,
+          error: `Insufficient WCC Credits. Sending this message costs ₹${msgCost}. Please recharge your WCC Wallet.`,
+          errorCode: 'INSUFFICIENT_WCC_CREDITS'
+        });
+      }
 
       // Handle media messages
       if (media && mediaType) {
@@ -646,6 +658,20 @@ router.post("/message", async (req, res) => {
           errorCode: code,
           rawError: whatsappError
         });
+      }
+
+      // 💸 Deduct WCC credits after confirmed successful dispatch
+      if (whatsappResult) {
+        try {
+          await walletService.deductMessageCredits({
+            tenantId: targetTenantId,
+            category: msgCategory,
+            recipientPhone: whatsappRecipient,
+            messageId: newMessage._id
+          });
+        } catch (deductErr) {
+          console.warn('⚠️ Wallet deduction warning (message already sent):', deductErr.message);
+        }
       }
 
       return res.json({
@@ -942,7 +968,10 @@ router.post("/send-template", async (req, res) => {
         const pType = String(param.type).toLowerCase();
         
         if (['image', 'video', 'document'].includes(pType)) {
-          mediaUrl = param[pType]?.link || param[pType]?.url || param[pType]?.id;
+          const directUrl = param[pType]?.link || param[pType]?.url;
+          if (directUrl && (directUrl.startsWith('http://') || directUrl.startsWith('https://') || directUrl.startsWith('/'))) {
+            mediaUrl = directUrl;
+          }
           mediaType = pType;
           if (pType === 'document') {
             fileName = param.document?.filename || 'Document';
@@ -951,18 +980,25 @@ router.post("/send-template", async (req, res) => {
       }
     }
 
-    // Fallback: Try to find template in database to get media URL if not in request
+    // Fallback: Try to find template in database to get media URL if not in request or if only ID was passed
     if (!mediaUrl) {
       try {
         const Template = require('../models/Template');
-        const dbTemplate = await Template.findOne({ name: templateName });
+        const dbTemplate = await Template.findOne({
+          $or: [
+            { name: templateName },
+            { whatsappTemplateName: templateName }
+          ]
+        });
         if (dbTemplate && Array.isArray(dbTemplate.components)) {
           const headerComp = dbTemplate.components.find(c => String(c.type).toUpperCase() === 'HEADER');
           if (headerComp && headerComp.format && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComp.format)) {
-            mediaType = headerComp.format.toLowerCase();
-            // Check for our own system stored a preview URL
-            mediaUrl = headerComp.headerMediaUrl || headerComp.headerMediaUrlPreview;
+            if (!mediaType) mediaType = headerComp.format.toLowerCase();
+            mediaUrl = headerComp.headerMediaUrlPreview || headerComp.headerMediaUrl;
           }
+        }
+        if (!mediaUrl && dbTemplate) {
+          mediaUrl = dbTemplate.headerMediaUrlPreview || dbTemplate.headerMediaUrl;
         }
       } catch (err) {
         console.error('Error fetching template for media fallback:', err.message);

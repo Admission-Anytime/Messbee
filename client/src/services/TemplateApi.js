@@ -21,7 +21,7 @@ const saveTemplateDateCache = (cache) => {
   } catch { /* ignore quota errors */ }
 };
 
-const getTemplateHeaderPreviewCache = () => {
+export const getTemplateHeaderPreviewCache = () => {
   const runtimeCache = { ...runtimeHeaderPreviewCache };
   if (typeof window === 'undefined') return {};
   try {

@@ -505,12 +505,16 @@ exports.embeddedSignupCallback = async (req, res, next) => {
           phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
           accessToken: accessToken
         };
+        // Auto-approve user upon successful WhatsApp connection
+        userRecord.isApproved = true;
+        userRecord.isActive = true;
         await userRecord.save();
       }
     }
     
     // Sync to Channel for automation engine (Multi-Tenant)
     const Channel = require('../models/Channel'); // Declared here so it's in scope for auto-register too
+    let metaPhoneStatus = 'UNKNOWN';
     if (req.user && phoneNumberId) {
       const tenantId = req.user.tenantId || req.user._id;
       const finalPhoneNumberId = phoneNumberId;
@@ -530,7 +534,7 @@ exports.embeddedSignupCallback = async (req, res, next) => {
             `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}`,
             {
               params: {
-                fields: 'display_phone_number,verified_name,quality_rating,status',
+                fields: 'display_phone_number,verified_name,quality_rating,status,code_verification_status',
                 access_token: accessToken
               },
               timeout: 6000
@@ -543,6 +547,11 @@ exports.embeddedSignupCallback = async (req, res, next) => {
           }
           if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
           if (metaRes.data.status)               metaStatus        = metaRes.data.status;
+          
+          // If Meta reports status as CONNECTED or code_verification_status as VERIFIED, mark ACTIVE
+          if (metaStatus === 'CONNECTED' || metaRes.data.code_verification_status === 'VERIFIED') {
+            metaPhoneStatus = 'ACTIVE';
+          }
         } catch (metaErr) {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
         }
@@ -574,7 +583,8 @@ exports.embeddedSignupCallback = async (req, res, next) => {
             'metadata.name': channelName,
             'metadata.wabaId': wabaId || null,
             'metadata.status': metaStatus,
-            'metadata.qualityRating': metaQuality
+            'metadata.qualityRating': metaQuality,
+            'metadata.phoneStatus': metaPhoneStatus === 'ACTIVE' ? 'ACTIVE' : 'PENDING'
           },
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
@@ -641,11 +651,13 @@ exports.embeddedSignupCallback = async (req, res, next) => {
             }
           );
         } else {
-          console.warn(`⚠️ Meta /register returned success=false for phone ${phoneNumberId}. Marking PENDING.`);
-          await Channel.findOneAndUpdate(
-            channelQuery,
-            { $set: { 'metadata.phoneStatus': 'PENDING' } }
-          );
+          console.warn(`⚠️ Meta /register returned success=false for phone ${phoneNumberId}.`);
+          if (metaPhoneStatus !== 'ACTIVE') {
+            await Channel.findOneAndUpdate(
+              channelQuery,
+              { $set: { 'metadata.phoneStatus': 'PENDING' } }
+            );
+          }
         }
       } catch (regErr) {
         // Non-fatal — channel is saved, but phone may need manual PIN
@@ -653,10 +665,12 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         const regErrMsg = regErr.response?.data?.error?.message || regErr.message;
         console.warn(`⚠️ Phone registration failed for ${phoneNumberId}: ${regErrMsg}`);
         console.warn('Full error:', JSON.stringify(regErr.response?.data || {}, null, 2));
-        await Channel.findOneAndUpdate(
-          channelQuery,
-          { $set: { 'metadata.phoneStatus': 'PENDING' } }
-        );
+        if (metaPhoneStatus !== 'ACTIVE') {
+          await Channel.findOneAndUpdate(
+            channelQuery,
+            { $set: { 'metadata.phoneStatus': 'PENDING' } }
+          );
+        }
       }
     }
     res.status(200).json({
@@ -1425,6 +1439,26 @@ async function handleStatusUpdate(data) {
       { new: true }
     );
 
+    // 💸 Auto-Refund wallet if message failed to deliver
+    if (newStatus === 'failed' && oldStatus !== 'failed') {
+      try {
+        const walletService = require('../services/walletService');
+        const Chat = require('../models/Chat');
+        const chatDoc = await Chat.findById(message.chatId);
+        if (chatDoc?.user) {
+          await walletService.refundFailedMessage(
+            chatDoc.user,
+            message._id,
+            'SERVICE',
+            chatDoc.phone
+          );
+          console.log(`💸 Auto-refunded failed message ${messageId} to tenant ${chatDoc.user}`);
+        }
+      } catch (refundErr) {
+        console.warn('Auto-refund warning:', refundErr.message);
+      }
+    }
+
     // Check if this message belongs to a campaign and update stats
     const campaignId = updatedMessage.metadata?.campaignId || message.metadata?.campaignId;
     if (campaignId) {
@@ -1582,6 +1616,20 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       });
     }
 
+    // 💳 Pre-flight WCC Wallet Balance Check
+    const walletService = require('../services/walletService');
+    const { getMessageCost } = require('../config/pricingConfig');
+    const messageCost = getMessageCost('SERVICE', chat.phone);
+
+    const hasBalance = await walletService.hasSufficientCredits(tenantId, messageCost);
+    if (!hasBalance) {
+      return res.status(402).json({
+        success: false,
+        message: `Insufficient WCC Credits in wallet. Message cost: ₹${messageCost}. Please recharge your credits in Settings -> WCC Credit.`,
+        errorCode: 'INSUFFICIENT_WCC_CREDITS'
+      });
+    }
+
     // Send via WhatsApp API
     const result = await tenantWhatsAppService.sendTextMessage(chat.phone, text);
 
@@ -1618,6 +1666,14 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
       whatsappMessageId: result.messageId,
       messageType: 'text',
       status: 'sent'
+    });
+
+    // Deduct credits & update category usage
+    await walletService.deductMessageCredits({
+      tenantId,
+      category: 'SERVICE',
+      recipientPhone: chat.phone,
+      messageId: newMessage._id
     });
 
     // Update chat metadata
@@ -1846,6 +1902,33 @@ exports.sendTemplateMessage = async (req, res, next) => {
       }
     }
 
+    // Determine category from DB template or fallback to MARKETING
+    let templateCategory = 'MARKETING';
+    try {
+      const Template = require('../models/Template');
+      const foundTemplate = await Template.findOne({
+        name: templateName,
+        $or: [{ tenantId: effectiveTenantId }, { user: effectiveTenantId }]
+      });
+      if (foundTemplate?.category) {
+        templateCategory = foundTemplate.category.toUpperCase();
+      }
+    } catch (_) {}
+
+    // Pre-flight WCC Wallet Balance Check for Template
+    const walletService = require('../services/walletService');
+    const { getMessageCost } = require('../config/pricingConfig');
+    const templateCost = getMessageCost(templateCategory, recipientPhone);
+
+    const hasBalance = await walletService.hasSufficientCredits(effectiveTenantId, templateCost);
+    if (!hasBalance) {
+      return res.status(402).json({
+        success: false,
+        message: `Insufficient WCC Credits. Sending this ${templateCategory} template costs ₹${templateCost}. Please recharge in Settings -> WCC Credit.`,
+        errorCode: 'INSUFFICIENT_WCC_CREDITS'
+      });
+    }
+
     const result = await tenantWhatsAppService.sendTemplateMessage(
       recipientPhone,
       templateName,
@@ -1893,6 +1976,14 @@ exports.sendTemplateMessage = async (req, res, next) => {
         components
       },
       status: 'sent'
+    });
+
+    // Deduct credits & update category usage for template message
+    await walletService.deductMessageCredits({
+      tenantId: effectiveTenantId,
+      category: templateCategory,
+      recipientPhone,
+      messageId: newMessage._id
     });
 
     chat.phone = recipientPhone;

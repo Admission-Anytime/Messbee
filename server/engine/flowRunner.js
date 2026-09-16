@@ -252,6 +252,21 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       
       metaMessageId = `sim_${Date.now()}`;
     } else {
+      // 💳 Pre-flight WCC Wallet Balance Check for Automation
+      const walletService = (await import('../services/walletService.js')).default || require('../services/walletService.js');
+      const pricingConfig = (await import('../config/pricingConfig.js')).default || require('../config/pricingConfig.js');
+      const { getMessageCost } = pricingConfig;
+      
+      // Determine category (Templates may specify or default to UTILITY for automated notifications)
+      const autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
+      const autoCost = getMessageCost(autoCategory, toPhone);
+
+      const hasBalance = await walletService.hasSufficientCredits(channel.tenantId, autoCost);
+      if (!hasBalance) {
+        console.warn(`[Automation] Skipped outbound message to ${toPhone}. Insufficient WCC Credits for tenant ${channel.tenantId}`);
+        return null;
+      }
+
       const response = await axios.post(url, payload, {
         headers: {
           'Authorization': `Bearer ${channel.metaAccessToken}`,
@@ -261,6 +276,13 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
 
       // Log the outbound message inside Inbox/Contact
       metaMessageId = response.data?.messages?.[0]?.id || null;
+
+      // Deduct WCC credits for successful automated message
+      await walletService.deductMessageCredits({
+        tenantId: channel.tenantId,
+        category: autoCategory,
+        recipientPhone: toPhone
+      });
     }
 
     const logContact = await Contact.findOne({ phone: toPhone, channelId: channel._id });

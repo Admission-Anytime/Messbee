@@ -132,6 +132,32 @@ exports.createCampaign = async (req, res, next) => {
     // If campaign is active, trigger sending process (simulated/async)
     if (campaign.status === 'active') {
       const contacts = await Contact.find({ _id: { $in: campaign.targetAudience } });
+
+      // 💳 Pre-flight Wallet Reservation for auto-send campaigns
+      const walletServiceCc = require('../services/walletService');
+      const { getMessageCost: getMsgCostCc } = require('../config/pricingConfig');
+      let totalAutoEstimate = 0;
+      for (const c of contacts) {
+        totalAutoEstimate += getMsgCostCc('MARKETING', c.phone || '');
+      }
+
+      const autoReservation = await walletServiceCc.reserveCampaignCredits(
+        req.user.id,
+        campaign._id,
+        totalAutoEstimate
+      );
+
+      if (!autoReservation.success) {
+        // Pause campaign if insufficient funds
+        campaign.status = 'paused';
+        await campaign.save();
+        return res.status(402).json({
+          success: false,
+          message: autoReservation.message || 'Insufficient WCC credits. Campaign paused. Please recharge.',
+          errorCode: 'INSUFFICIENT_WCC_CREDITS',
+          data: campaign
+        });
+      }
       
       // We run this in the background (no await) so the response is immediate
       sendBulkMessages(req.user.id, campaign._id, contacts, campaign.messageTemplate)
@@ -144,10 +170,21 @@ exports.createCampaign = async (req, res, next) => {
 
           freshCampaign.status = allFailed ? 'paused' : 'completed';
           await freshCampaign.save();
+
+          // Release reservation and deduct actual sent count
+          await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
+          for (const c of contacts.slice(0, result?.totalProcessed || 0)) {
+            await walletServiceCc.deductMessageCredits({
+              tenantId: req.user.id,
+              category: 'MARKETING',
+              recipientPhone: c.phone || '',
+              campaignId: campaign._id
+            });
+          }
         })
         .catch(async (err) => {
           console.error('Campaign background process failed:', err);
-
+          await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
           const freshCampaign = await Campaign.findById(campaign._id);
           if (!freshCampaign) return;
           freshCampaign.status = 'paused';
@@ -303,6 +340,29 @@ exports.sendCampaign = async (req, res, next) => {
       });
     }
 
+    // 💳 Pre-flight Campaign Wallet Reservation
+    const walletService = require('../services/walletService');
+    const { getMessageCost } = require('../config/pricingConfig');
+    // Calculate total cost for target audience
+    let totalEstimatedCost = 0;
+    for (const recipient of campaign.targetAudience) {
+      totalEstimatedCost += getMessageCost('MARKETING', recipient.phone || recipient);
+    }
+
+    const reservation = await walletService.reserveCampaignCredits(
+      req.user.id,
+      campaign._id,
+      totalEstimatedCost
+    );
+
+    if (!reservation.success) {
+      return res.status(402).json({
+        success: false,
+        message: reservation.message || 'Insufficient WCC credits to launch campaign. Please recharge your wallet.',
+        errorCode: 'INSUFFICIENT_WCC_CREDITS'
+      });
+    }
+
     // Update campaign status to active
     campaign.status = 'active';
     campaign.stats = {
@@ -358,13 +418,26 @@ exports.sendCampaign = async (req, res, next) => {
                 { label: 'Status', value: 'completed' }
               ],
               relatedId: campaign._id,
-              data: { campaignId: campaign._id.toString(), ...result }
             }
           );
+
+          // Release reservation and deduct actual processed count
+          await walletService.releaseCampaignReservation(req.user.id, totalEstimatedCost);
+          
+          for (const recipient of campaign.targetAudience.slice(0, result.totalProcessed)) {
+            await walletService.deductMessageCredits({
+              tenantId: req.user.id,
+              category: 'MARKETING',
+              recipientPhone: recipient.phone || recipient,
+              campaignId: campaign._id
+            });
+          }
         }
       })
       .catch(async (err) => {
         console.error('Campaign sending failed:', err);
+        // Release reservation if failed
+        await walletService.releaseCampaignReservation(req.user.id, totalEstimatedCost);
         const updatedCampaign = await Campaign.findById(campaign._id);
         if (updatedCampaign) {
           updatedCampaign.status = 'failed';

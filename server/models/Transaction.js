@@ -21,7 +21,7 @@ const transactionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['Paid', 'Processing', 'Failed'],
+    enum: ['Paid', 'Processing', 'Failed', 'Verified'],
     default: 'Paid'
   },
   date: {
@@ -45,15 +45,19 @@ const transactionSchema = new mongoose.Schema({
     type: {
       scenario: {
         type: String,
-        enum: ['subscription', 'credit_topup', 'campaign_cost'],
+        enum: ['subscription', 'credit_topup', 'campaign_cost', 'message_deduction', 'refund'],
         description: 'Type of transaction'
       },
+      category: String, // MARKETING, UTILITY, AUTHENTICATION, SERVICE
+      recipientPhone: String,
+      messageId: mongoose.Schema.ObjectId,
       planType: String,
       billingCycle: String,
       topupAmount: Number,
       campaignId: mongoose.Schema.ObjectId,
       paymentMethod: String,
-      failureReason: String
+      failureReason: String,
+      reconciled: { type: Boolean, default: false }
     },
     default: {}
   }

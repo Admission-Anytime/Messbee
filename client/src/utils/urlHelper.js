@@ -45,15 +45,45 @@ export const getBackendFileUrl = (path, fallback = null) => {
       path.startsWith('blob:') ||
       path.startsWith('data:'))
   ) {
+    // If running in browser on messbee production, ensure localhost URLs get converted
+    if (
+      typeof window !== 'undefined' &&
+      window.location &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1' &&
+      (path.includes('localhost:') || path.includes('127.0.0.1:'))
+    ) {
+      const liveBase = getBackendBaseUrl();
+      const relativePart = path.replace(/^https?:\/\/[^/]+/i, '');
+      return `${liveBase}${relativePart}`;
+    }
+
+    // If running in browser on localhost/dev and URL is from documents.messbee.com,
+    // point to local backend uploads since local uploads are stored on this machine
+    const isLocalhost = typeof window !== 'undefined' && window.location && (
+      window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.')
+    );
+    if (isLocalhost && (path.includes('documents.messbee.com') || path.includes('messbee.com/uploads'))) {
+      const filename = path.split('/').pop().split('?')[0];
+      const liveBase = getBackendBaseUrl();
+      return `${liveBase}/uploads/${filename}`;
+    }
+
     return path;
   }
 
   const backendRoot = getBackendBaseUrl();
   const cleanPath = String(path).startsWith('/') ? path : `/${path}`;
   
-  // If the path already has a query string, append timestamp; else add ?t=
-  const separator = cleanPath.includes('?') ? '&' : '?';
   const finalUrl = `${backendRoot}${cleanPath}`;
-  
   return finalUrl;
+};
+
+export const appendCacheBuster = (url) => {
+  if (!url) return url;
+  if (url.startsWith('blob:') || url.startsWith('data:')) return url;
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}t=${Date.now()}`;
 };

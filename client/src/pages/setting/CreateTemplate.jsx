@@ -465,8 +465,8 @@ const CreateTemplate = () => {
     ltoUrl: '',
     headerType: location.state?.templateData?.headerType || 'None',
     headerText: location.state?.templateData?.headerText || '',
-    bodyText: location.state?.templateData?.bodyText || 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!',
-    footerText: location.state?.templateData?.footerText || 'Reply STOP to opt out',
+    bodyText: location.state?.templateData?.bodyText || '',
+    footerText: location.state?.templateData?.footerText || '',
     expirationDate: location.state?.templateData?.expirationDate || '24h',
     customExpirationHours: location.state?.templateData?.customExpirationHours || 24,
     catalogButtonText: location.state?.templateData?.buttons?.[0]?.text || 'View Catalog',
@@ -483,15 +483,16 @@ const CreateTemplate = () => {
   const handleCategoryChange = (cat) => {
     if (formData.category === cat) return; // Skip if no change
     
-    let newBody = '';
-    if (cat === 'Marketing') {
-      newBody = 'Hello {{1}}, our Summer Sale is now live! Use code BUYONEGETONE for 50% off. Shop now!';
-    } else if (cat === 'Utility') {
-      newBody = 'Good news! Your order {{1}} has shipped! Here\'s your tracking information, please check link below.';
-    } else if (cat === 'Authentication') {
-      newBody = '{{1}} is your verification code. For your security, do not share this code.';
+    // Don't auto-fill body — let the user write their own content
+    setFormData({ ...formData, category: cat, bodyText: '' });
+
+    // Reset body editor too
+    if (editorRef.current) {
+      editorRef.current.innerHTML = '';
+      setCharCount(0);
+      setBodyVariables([]);
+      setBodySamples({});
     }
-    setFormData({ ...formData, category: cat, bodyText: newBody });
 
     if (cat === 'Authentication') {
       setTemplateType('OTP');
@@ -1257,6 +1258,36 @@ const CreateTemplate = () => {
           buttons: ltoButtons
         });
       } else if (buttons && buttons.length > 0) {
+        // ── Validate buttons before building payload ──
+        for (const b of buttons) {
+          if ((b.type === 'Visit Website' || b.type === 'Visit website')) {
+            if (!b.value || !b.value.trim()) {
+              failSubmit(`Button "${b.text || 'Visit website'}" is missing a URL. Please enter a valid URL (e.g. https://example.com).`);
+              setIsSubmitting(false);
+              return;
+            }
+            if (!/^https?:\/\//i.test(b.value.trim())) {
+              failSubmit(`Button "${b.text}" URL must start with https:// or http://`);
+              setIsSubmitting(false);
+              return;
+            }
+          }
+          if (b.type === 'Call phone number') {
+            if (!b.value || !b.value.trim()) {
+              failSubmit(`Button "${b.text || 'Call us'}" is missing a phone number.`);
+              setIsSubmitting(false);
+              return;
+            }
+          }
+          if (b.type === 'Copy offer code') {
+            if (!b.value || !b.value.trim()) {
+              failSubmit(`"Copy offer code" button is missing the offer code value.`);
+              setIsSubmitting(false);
+              return;
+            }
+          }
+        }
+
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
             return { type: 'URL', text: (b.text || 'Visit website').trim().substring(0, 25), url: (b.value || '').trim() };
@@ -2185,7 +2216,8 @@ const CreateTemplate = () => {
                             contentEditable
                             suppressContentEditableWarning
                             onInput={syncEditorContent}
-                            className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px]"
+                            data-placeholder="Enter the text for your message here... Use {{1}}, {{2}} etc. for dynamic variables."
+                            className="w-full p-3 md:p-4 outline-none text-sm font-medium text-gray-700 leading-relaxed bg-white min-h-[120px] empty:before:content-[attr(data-placeholder)] empty:before:text-gray-400 empty:before:pointer-events-none"
                             style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
                         />
                     </div>
@@ -2228,7 +2260,24 @@ const CreateTemplate = () => {
                                 <button type="button" onClick={() => applyFormat('bold')} title="Bold"><Bold size={18}/></button>
                                 <button type="button" onClick={() => applyFormat('italic')} title="Italic"><Italic size={18}/></button>
                                 <button type="button" onClick={() => applyFormat('strikeThrough')} title="Strikethrough"><Strikethrough size={18}/></button>
-                                <button type="button" onClick={() => applyFormat('fontName')} title="Monospace"><Link2 size={18}/></button>
+                                {/* Monospace: wrap selection in <code> tags using insertHTML */}
+                                <button
+                                  type="button"
+                                  title="Monospace (code)"
+                                  onClick={() => {
+                                    const sel = window.getSelection();
+                                    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+                                      const range = sel.getRangeAt(0);
+                                      const selectedText = range.toString();
+                                      document.execCommand('insertHTML', false, `<code style="font-family:monospace;background:#f1f5f9;padding:1px 4px;border-radius:3px">${selectedText}</code>`);
+                                    } else {
+                                      document.execCommand('insertHTML', false, `<code style="font-family:monospace;background:#f1f5f9;padding:1px 4px;border-radius:3px">code</code>`);
+                                    }
+                                    syncEditorContent();
+                                  }}
+                                >
+                                  <Link2 size={18} className="hover:text-purple-500 transition-colors"/>
+                                </button>
                             </div>
                             <button type="button" onClick={insertVariable} className="text-sm font-bold text-gray-700 flex items-center gap-1.5 hover:text-blue-600 transition-all">
                                 <Plus size={16}/> Add Variable

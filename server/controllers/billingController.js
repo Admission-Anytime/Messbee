@@ -20,19 +20,21 @@ exports.createTransaction = async (req, res, next) => {
       status: status || 'Paid'
     });
 
-    // Automatically update user WCC credits if this is a top-up or campaign launch
-    // Handle cases where user.credits might be null (which breaks $inc)
-    const userDoc = await User.findById(req.user.id);
-    const currentCredits = userDoc.credits ? Number(userDoc.credits) : 0;
-
+    // SECURITY NOTE:
+    // WCC top-up credits can ONLY be credited through verified Razorpay checkout
+    // (/api/billing/razorpay/verify-payment or webhook). 
+    // Manual POST /transactions cannot inject free credits.
     if (desc && desc.toLowerCase().includes("wcc top-up credit") && wccAmount) {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({
+          success: false,
+          message: 'Top-ups must be processed through verified Razorpay checkout.'
+        });
+      }
+      // Use $inc (atomic) — never $set with pre-fetched balance (race condition)
       await User.findByIdAndUpdate(req.user.id, {
-        $set: { credits: currentCredits + Number(wccAmount) }
-      });
-    } else if (desc && (desc.toLowerCase().includes("campaign launch") || desc.toLowerCase().includes("campaign resend"))) {
-      // Amount is negative for campaigns
-      await User.findByIdAndUpdate(req.user.id, {
-        $set: { credits: currentCredits + Number(amount) }
+        $inc: { credits: Number(wccAmount) },
+        $set: { lowBalanceAlertSent: false }
       });
     }
 
@@ -95,16 +97,31 @@ exports.createRazorpayOrder = async (req, res, next) => {
     // Generate unique transaction ID (receipt)
     const transactionId = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
 
+    // Server-side plan price validation for subscriptions
+    let verifiedAmount = amount;
+    if (scenario === 'subscription' && planType) {
+      const PLAN_BASE_PRICES = { basic: 899, growth: 1299, professional: 2500 };
+      const normalizedPlan = (planType || '').toLowerCase();
+      const base = PLAN_BASE_PRICES[normalizedPlan] || 899;
+      const months = billingCycle === 'yearly' ? 12 : billingCycle === 'quarterly' ? 3 : 1;
+      const expectedPlanAmount = base * months;
+      const expectedTotal = Math.round(expectedPlanAmount * 1.18); // including 18% GST
+      // If amount provided is tampered/lower than expected, use expected server amount
+      if (!amount || amount < expectedTotal) {
+        verifiedAmount = expectedTotal;
+      }
+    }
+
     // Create order with Razorpay
     const orderResult = await razorpayService.createOrder(
-      amount,
+      verifiedAmount,
       'INR',
       transactionId,
       {
         scenario,
         planType,
         billingCycle,
-        topupAmount,
+        topupAmount: scenario === 'credit_topup' ? (topupAmount || amount) : undefined,
         campaignId,
         userId
       }
@@ -115,14 +132,14 @@ exports.createRazorpayOrder = async (req, res, next) => {
       user: userId,
       transactionId,
       desc: `${scenario} - Razorpay Order ${orderResult.orderId}`,
-      amount,
+      amount: verifiedAmount,
       status: 'Processing',
       razorpayOrderId: orderResult.orderId,
       metadata: {
         scenario,
         planType,
         billingCycle,
-        topupAmount,
+        topupAmount: scenario === 'credit_topup' ? (topupAmount || amount) : undefined,
         campaignId
       }
     });
@@ -136,7 +153,16 @@ exports.createRazorpayOrder = async (req, res, next) => {
         amount: orderResult.amount / 100, // Convert paisa to rupees for display
         currency: orderResult.currency,
         keyId: process.env.RAZORPAY_KEY_ID // Client needs this for checkout
-      }
+      },
+      // Backwards-compatible aliases for various frontend callers
+      order: {
+        id: orderResult.orderId,
+        amount: orderResult.amount,
+        currency: orderResult.currency
+      },
+      orderId: orderResult.orderId,
+      transactionId,
+      keyId: process.env.RAZORPAY_KEY_ID
     });
   } catch (error) {
     next(error);
@@ -207,10 +233,28 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
     const { scenario, topupAmount, billingCycle, planType } = transaction.metadata;
 
     if (scenario === 'credit_topup' && topupAmount) {
-      // Add credits for top-up
-      await User.findByIdAndUpdate(userId, {
-        $set: { credits: currentCredits + Number(topupAmount) }
-      });
+      // ✅ Use $inc (not $set) to prevent race condition on concurrent top-ups
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          $inc: { credits: Number(topupAmount) },
+          $set: { lowBalanceAlertSent: false }  // Reset alert so next low-balance fires again
+        },
+        { new: true }
+      );
+
+      // Real-time broadcast so UI reflects the recharged balance immediately
+      try {
+        const { getIO } = require('../config/socket');
+        const io = getIO();
+        if (io) {
+          io.to(`tenant_${userId}`).emit('wallet_updated', {
+            credits: updatedUser.credits,
+            added: Number(topupAmount),
+            scenario: 'credit_topup'
+          });
+        }
+      } catch (_) {}
     } else if (scenario === 'subscription') {
       // Update subscription plan and end date
       const daysToAdd = billingCycle === 'quarterly' ? 90 : billingCycle === 'yearly' ? 365 : 30;
@@ -222,9 +266,9 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
         subscriptionEndDate: newEndDate
       });
     } else if (scenario === 'campaign_cost') {
-      // Deduct credits for campaign
+      // Use $inc to avoid race conditions
       await User.findByIdAndUpdate(userId, {
-        $set: { credits: currentCredits + Number(transaction.amount) }
+        $inc: { credits: Number(transaction.amount) }
       });
     }
 
@@ -235,6 +279,7 @@ exports.verifyRazorpayPayment = async (req, res, next) => {
         transactionId: transaction.transactionId,
         status: transaction.status,
         amount: transaction.amount,
+        newCredits: scenario === 'credit_topup' ? (currentCredits + Number(topupAmount)) : currentCredits,
         paymentId
       }
     });
@@ -564,9 +609,26 @@ async function handlePaymentAuthorized(data) {
   const { scenario, topupAmount, billingCycle, planType } = transaction.metadata;
 
   if (scenario === 'credit_topup' && topupAmount) {
-    await User.findByIdAndUpdate(transaction.user, {
-      $set: { credits: currentCredits + Number(topupAmount) }
-    });
+    // ✅ Use $inc (not $set) to prevent race condition on concurrent webhook deliveries
+    const updatedUser = await User.findByIdAndUpdate(
+      transaction.user,
+      {
+        $inc: { credits: Number(topupAmount) },
+        $set: { lowBalanceAlertSent: false }  // Reset alert so next low-balance fires again
+      },
+      { new: true }
+    );
+    try {
+      const { getIO } = require('../config/socket');
+      const io = getIO();
+      if (io) {
+        io.to(`tenant_${transaction.user}`).emit('wallet_updated', {
+          credits: updatedUser.credits,
+          added: Number(topupAmount),
+          scenario: 'credit_topup'
+        });
+      }
+    } catch (_) {}
   } else if (scenario === 'subscription') {
     const daysToAdd =
       billingCycle === 'quarterly'
@@ -582,8 +644,9 @@ async function handlePaymentAuthorized(data) {
       subscriptionEndDate: newEndDate
     });
   } else if (scenario === 'campaign_cost') {
+    // Use $inc to avoid race conditions
     await User.findByIdAndUpdate(transaction.user, {
-      $set: { credits: currentCredits + Number(transaction.amount) }
+      $inc: { credits: Number(transaction.amount) }
     });
   }
 }

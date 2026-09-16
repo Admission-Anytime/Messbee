@@ -248,7 +248,34 @@ export const isAuthenticated = () => {
  * Clear authentication data
  */
 export const clearAuthData = () => {
+  // 1. Remove all auth credentials & cached states from localStorage
   localStorage.removeItem("user");
   localStorage.removeItem("token");
   localStorage.removeItem("refreshToken");
+  localStorage.removeItem("isNewUser");
+  
+  // 2. Clear sessionStorage
+  try {
+    sessionStorage.clear();
+  } catch (e) {
+    console.warn("Session storage clear error:", e);
+  }
+
+  // 3. Clear cookies accessible to JavaScript as fallback
+  try {
+    const expired = "=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+    document.cookie = "accessToken" + expired;
+    document.cookie = "refreshToken" + expired;
+    
+    // Also try clearing on root hostname if on subdomain
+    const hostname = window.location.hostname;
+    const parts = hostname.split('.');
+    if (parts.length > 1) {
+      const rootDomain = '.' + parts.slice(-2).join('.');
+      document.cookie = "accessToken" + expired + "; domain=" + rootDomain;
+      document.cookie = "refreshToken" + expired + "; domain=" + rootDomain;
+    }
+  } catch (e) {
+    console.warn("Cookie clear error:", e);
+  }
 };
