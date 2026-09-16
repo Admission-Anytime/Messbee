@@ -120,6 +120,17 @@ exports.sendMessageToContact = async (userId, contactId, messageData) => {
     const messageType = messageData?.messageType || 'text';
     const msgTime = formatMessageTime();
 
+    // 💳 Pre-flight WCC Wallet Check
+    const walletService = require('./walletService');
+    const { getMessageCost } = require('../config/pricingConfig');
+    const msgCost = getMessageCost('SERVICE', normalizedPhone);
+    const hasCredits = await walletService.hasSufficientCredits(userId, msgCost);
+    if (!hasCredits) {
+      const err = new Error(`Insufficient WCC Credits. Message cost ₹${msgCost}. Please recharge.`);
+      err.code = 'INSUFFICIENT_WCC_CREDITS';
+      throw err;
+    }
+
     let status = 'sent';
     let whatsappMessageId;
     let error;
@@ -151,6 +162,20 @@ exports.sendMessageToContact = async (userId, contactId, messageData) => {
       lastMsgTime: msgTime,
       lastActivity: new Date()
     });
+
+    // 💸 Deduct credits only on successful send
+    if (whatsappMessageId) {
+      try {
+        await walletService.deductMessageCredits({
+          tenantId: userId,
+          category: 'SERVICE',
+          recipientPhone: normalizedPhone,
+          messageId: message._id
+        });
+      } catch (deductErr) {
+        console.warn('⚠️ Wallet deduction warning:', deductErr.message);
+      }
+    }
 
     return message;
   } catch (error) {

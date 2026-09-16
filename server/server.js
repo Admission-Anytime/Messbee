@@ -2,7 +2,8 @@ const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const path = require('path'); // Added path module
+const path = require('path');
+const fs = require('fs');
 const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const connectDB = require('./config/database');
@@ -164,9 +165,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Static file serving — always mount the local uploads folder so dev works out of the box.
-// In production, the web server (nginx/apache) serves files from UPLOAD_PATH via DOCUMENT_GET_URL.
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Static file serving — mount both the effective upload directory and local uploads fallback.
+// This guarantees that avatar and uploaded media are accessible via /uploads/ regardless of environment.
+const effectiveUploadDir = process.env.UPLOAD_PATH && fs.existsSync(process.env.UPLOAD_PATH)
+  ? process.env.UPLOAD_PATH
+  : path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(effectiveUploadDir));
+if (effectiveUploadDir !== path.join(__dirname, 'uploads')) {
+  app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+}
 
 // ================== SWAGGER DOCS ==================
 

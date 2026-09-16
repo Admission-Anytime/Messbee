@@ -163,6 +163,45 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  reservedCredits: {
+    type: Number,
+    default: 0
+  },
+  // Low balance alert tracking
+  lowBalanceThreshold: {
+    type: Number,
+    default: 200
+  },
+  lowBalanceAlertSent: {
+    type: Boolean,
+    default: false
+  },
+  // Category-wise lifetime and current month counters
+  messageUsage: {
+    marketing: {
+      sentCount: { type: Number, default: 0 },
+      deliveredCount: { type: Number, default: 0 },
+      costDeducted: { type: Number, default: 0 }
+    },
+    utility: {
+      sentCount: { type: Number, default: 0 },
+      deliveredCount: { type: Number, default: 0 },
+      costDeducted: { type: Number, default: 0 }
+    },
+    authentication: {
+      sentCount: { type: Number, default: 0 },
+      deliveredCount: { type: Number, default: 0 },
+      costDeducted: { type: Number, default: 0 }
+    },
+    service: {
+      sentCount: { type: Number, default: 0 },
+      deliveredCount: { type: Number, default: 0 },
+      costDeducted: { type: Number, default: 0 },
+      freeTierUsed: { type: Number, default: 0 }
+    },
+    totalMessages: { type: Number, default: 0 },
+    totalSpent: { type: Number, default: 0 }
+  },
   subscriptionEndDate: {
     type: Date,
     default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ToastContainer, toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import axios from "../../context/axios";
-import { getBackendFileUrl } from "../../utils/urlHelper";
+import { getBackendFileUrl, appendCacheBuster } from "../../utils/urlHelper";
 import "react-toastify/dist/ReactToastify.css";
 
 const UserProfile = () => {
@@ -22,6 +22,7 @@ const UserProfile = () => {
   const fileInputRef = useRef(null);
   const [profileImage, setProfileImage] = useState(user?.avatar || null);
   const [avatarKey, setAvatarKey] = useState(Date.now());
+  const [imgError, setImgError] = useState(false);
   const inputsRef = useRef([]);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [timeLeft, setTimeLeft] = useState(59);
@@ -90,6 +91,7 @@ const handleKeyDown = (e, index) => {
         phone: sanitizedPhone,
       });
       setProfileImage(user.avatar || null);
+      setImgError(false);
       setPreferences({
         timezone: user.timezone || "(GMT+05:30) India Standard Time",
         language: user.language || "English (United States)",
@@ -172,13 +174,16 @@ const handleKeyDown = (e, index) => {
         const newAvatar = response.data.data.avatar || returnedUser.avatar;
         setProfileImage(newAvatar);
         setAvatarKey(Date.now());
+        setImgError(false);
         toast.success("Profile photo updated successfully!");
       }
     } catch (error) {
       console.error("Avatar upload failed:", error);
       let errMsg = "Failed to upload avatar";
       if (error.response?.status === 413) {
-        errMsg = "File size exceeds server upload limit. Please use an image under 1MB.";
+        errMsg = error.response?.data?.message || "File size exceeds server upload limit. Please upload an image under 5MB.";
+      } else if (error.message === "Network Error" || !error.response) {
+        errMsg = "Network Error: Image might be too large or server connection dropped. Please upload an image under 5MB.";
       } else if (error.response?.data?.message) {
         errMsg = error.response.data.message;
       } else if (error.message) {
@@ -225,23 +230,21 @@ useEffect(() => {
         </div>
         <div className="flex flex-col md:flex-row items-center gap-8">
           <div className="relative group">
-            <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden shadow-md bg-green-500 flex items-center justify-center text-4xl font-bold text-white uppercase">
-              {profileImage ? (
+            <div className="w-32 h-32 rounded-full border-4 border-white overflow-hidden shadow-md bg-green-500 flex items-center justify-center text-4xl font-bold text-white uppercase relative">
+              {profileImage && !imgError ? (
                 <img
+                  key={avatarKey}
                   alt="Avatar"
                   className="w-full h-full object-cover"
-                  src={profileImage.startsWith('blob:') || profileImage.startsWith('data:') ? profileImage : `${getBackendFileUrl(profileImage)}?t=${avatarKey || Date.now()}`}
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    if (e.target.nextSibling) {
-                      e.target.nextSibling.style.display = 'flex';
-                    }
-                  }}
+                  src={profileImage.startsWith('blob:') || profileImage.startsWith('data:') ? profileImage : appendCacheBuster(getBackendFileUrl(profileImage))}
+                  onLoad={() => setImgError(false)}
+                  onError={() => setImgError(true)}
                 />
-              ) : null}
-              <div className={`w-full h-full flex items-center justify-center ${profileImage ? 'hidden' : ''}`}>
-                {user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'A'}
-              </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  {user?.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2) : 'A'}
+                </div>
+              )}
             </div>
             <button
               onClick={() => fileInputRef.current.click()}
