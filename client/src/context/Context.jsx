@@ -91,7 +91,7 @@ const Context = (props) => {
     loadUser();
   }, []);
 
-  // Socket: listen for real-time permissions_updated broadcast
+  // Socket: listen for real-time permissions & wallet broadcasts
   useEffect(() => {
     const socket = io(SOCKET_URL, { withCredentials: true });
     socketRef.current = socket;
@@ -102,8 +102,54 @@ const Context = (props) => {
       }
     });
 
+    // Listen for tenant room join & wallet update broadcasts
+    const tenantId = user?._id || user?.tenantId;
+    if (tenantId) {
+      socket.emit('join_tenant', `tenant_${tenantId}`);
+    }
+
+    socket.on("wallet_updated", (data) => {
+      if (data && data.credits !== undefined) {
+        setUser(prev => {
+          if (!prev) return prev;
+          const updatedUsage = { ...(prev.messageUsage || {}) };
+          if (data.category) {
+            const catKey = data.category.toLowerCase();
+            if (updatedUsage[catKey]) {
+              updatedUsage[catKey] = {
+                ...updatedUsage[catKey],
+                sentCount: (updatedUsage[catKey].sentCount || 0) + 1,
+                costDeducted: (updatedUsage[catKey].costDeducted || 0) + (data.deducted || 0)
+              };
+            }
+            updatedUsage.totalMessages = (updatedUsage.totalMessages || 0) + 1;
+            updatedUsage.totalSpent = (updatedUsage.totalSpent || 0) + (data.deducted || 0);
+          }
+          const updated = {
+            ...prev,
+            credits: data.credits,
+            messageUsage: updatedUsage
+          };
+          localStorage.setItem("user", JSON.stringify(updated));
+          return updated;
+        });
+      }
+    });
+
+    // 🔔 Low Balance Alert — show banner when wallet drops below ₹200
+    socket.on('low_balance_alert', (data) => {
+      // Use native browser notification if permission granted, else console warn
+      const msg = data?.message || `⚠️ Low WCC Balance! ₹${data?.credits?.toFixed(2)} remaining. Please recharge.`;
+      // Show a persistent alert toast — you can wire this to your toast library
+      if (typeof window !== 'undefined') {
+        // Dispatch custom event so any component can listen and show a toast
+        window.dispatchEvent(new CustomEvent('wcc_low_balance', { detail: data }));
+        console.warn('[Messbee Wallet]', msg);
+      }
+    });
+
     return () => { socket.disconnect(); };
-  }, []);
+  }, [user?._id, user?.tenantId]);
 
   // Update user data
   const updateUser = useCallback((userData) => {

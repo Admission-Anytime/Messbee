@@ -4,7 +4,8 @@ import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
 import axios from "../../context/axios";
 import { getPresenceInfo } from "../../utils/presence";
-import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates } from "../../services/TemplateApi";
+import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates, getTemplateHeaderPreviewCache } from "../../services/TemplateApi";
+import { getBackendFileUrl } from "../../utils/urlHelper";
 import { formatWhatsAppMarkdown } from "../../utils/markdownParser";
 import {
    PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
@@ -44,6 +45,90 @@ const ChatSkeletonLoader = () => (
       <MessageSkeleton isMe={true} width="w-64" />
    </div>
 );
+
+// Resolve media information with 5-tier fallback and proper URL prefixing
+const resolveTemplateMedia = (msg, template) => {
+   const isRealUrl = (url) => url && typeof url === 'string' && (
+      url.startsWith('http://') || 
+      url.startsWith('https://') || 
+      url.startsWith('/') || 
+      url.startsWith('data:') || 
+      url.startsWith('blob:')
+   ) && !url.startsWith('h_');
+
+   let candidateUrl = null;
+   let candidateType = String(msg?.mediaType || template?.headerType || '').toLowerCase();
+
+   // 1. Direct message mediaUrl if it's a renderable URL
+   if (isRealUrl(msg?.mediaUrl)) {
+      candidateUrl = msg.mediaUrl;
+   }
+
+   // 2. Direct message media object
+   if (!candidateUrl && isRealUrl(msg?.media?.url)) {
+      candidateUrl = msg.media.url;
+      if (msg.media.type) candidateType = String(msg.media.type).toLowerCase();
+   }
+
+   // 3. From template object
+   if (!candidateUrl) {
+      const tplUrl = template?.headerMediaUrlPreview || template?.headerMediaUrl;
+      if (isRealUrl(tplUrl)) {
+         candidateUrl = tplUrl;
+         if (template?.headerType) candidateType = String(template.headerType).toLowerCase();
+      }
+   }
+
+   // 4. From template components example
+   if (!candidateUrl && Array.isArray(template?.components)) {
+      const header = template.components.find(c => String(c?.type || '').toUpperCase() === 'HEADER');
+      if (header) {
+         if (header.format) candidateType = String(header.format).toLowerCase();
+         const cand = header.example?.header_url?.[0] || header.example?.url?.[0] || header.example?.header_handle?.[0];
+         if (isRealUrl(cand)) {
+            candidateUrl = cand;
+         }
+      }
+   }
+
+   // 5. From message metadata components
+   if (!candidateUrl && Array.isArray(msg?.metadata?.components)) {
+      const header = msg.metadata.components.find(c => String(c?.type || '').toLowerCase() === 'header');
+      if (header?.parameters?.[0]) {
+         const param = header.parameters[0];
+         const pType = String(param.type || '').toLowerCase();
+         candidateType = pType;
+         const cand = param[pType]?.link || param[pType]?.url;
+         if (isRealUrl(cand)) {
+            candidateUrl = cand;
+         }
+      }
+   }
+
+   // 6. From localStorage headerPreviewCache by template name
+   if (!candidateUrl) {
+      try {
+         const nameKey = String(msg?.templateName || template?.name || '').trim();
+         if (nameKey) {
+            const cache = getTemplateHeaderPreviewCache();
+            const cached = cache[nameKey] || cache[nameKey.toLowerCase()];
+            const candUrl = typeof cached === 'string' ? cached : cached?.url;
+            const candType = typeof cached === 'object' ? cached?.type : null;
+            if (isRealUrl(candUrl)) {
+               candidateUrl = candUrl;
+               if (candType) candidateType = String(candType).toLowerCase();
+            }
+         }
+      } catch (_) {}
+   }
+
+   // Normalize URL through getBackendFileUrl
+   const finalUrl = candidateUrl ? getBackendFileUrl(candidateUrl) : null;
+   return {
+      url: finalUrl,
+      type: candidateType || 'image'
+   };
+};
 
 // ─── WhatsApp Template Bubble ────────────────────────────────────────────────
 const TemplateBubble = ({ msg, template }) => {
@@ -118,20 +203,55 @@ const TemplateBubble = ({ msg, template }) => {
       return list;
    })();
 
-   const mediaUrl = msg.mediaUrl || template?.headerMediaUrlPreview || template?.headerMediaUrl;
-   const mediaType = msg.mediaType || (template?.headerType ? String(template.headerType).toLowerCase() : null);
+   const { url: mediaUrl, type: rawMediaType } = resolveTemplateMedia(msg, template);
+   const mediaType = String(rawMediaType || '').toLowerCase();
+   const isImageHeader = mediaType === 'image' || (mediaUrl && mediaUrl.match(/\.(jpeg|jpg|gif|png|webp|svg)/i));
+   const isVideoHeader = mediaType === 'video' || (mediaUrl && mediaUrl.match(/\.(mp4|3gp|mov|m4v)/i));
+   const isDocumentHeader = mediaType === 'document' || (mediaUrl && mediaUrl.match(/\.(pdf|doc|docx)/i));
 
    return (
       <div className={`w-full max-w-[290px] bg-white rounded-2xl rounded-br-sm shadow-sm overflow-hidden border ${msg.status === 'failed' ? 'border-rose-300 ring-1 ring-rose-200' : 'border-slate-200/80'} text-slate-800`}>
          {/* Media Header if present */}
-         {mediaUrl && mediaType === 'image' && (
-            <div className="w-full max-h-[160px] overflow-hidden bg-slate-100 border-b border-slate-100">
-               <img src={mediaUrl} alt="Template Header" className="w-full h-full object-cover" />
+         {isImageHeader && (
+            <div className="w-full max-h-[170px] overflow-hidden bg-slate-100 border-b border-slate-100 relative group">
+               {mediaUrl ? (
+                  <img 
+                     src={mediaUrl} 
+                     alt="Template Header" 
+                     className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity" 
+                     onClick={() => window.open(mediaUrl, '_blank')}
+                     onError={(e) => {
+                        e.target.style.display = 'none';
+                        const fallback = e.target.parentElement?.querySelector('.header-fallback-box');
+                        if (fallback) fallback.style.display = 'flex';
+                     }}
+                  />
+               ) : null}
+               <div 
+                  className="header-fallback-box w-full h-28 bg-slate-100 flex-col items-center justify-center gap-1 text-slate-400"
+                  style={{ display: mediaUrl ? 'none' : 'flex' }}
+               >
+                  <PhotoIcon className="w-7 h-7 text-slate-300" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Template Image</span>
+               </div>
             </div>
          )}
-         {mediaUrl && mediaType === 'video' && (
-            <div className="w-full max-h-[160px] overflow-hidden bg-black">
-               <video src={mediaUrl} className="w-full h-full object-cover" controls />
+         {isVideoHeader && (
+            <div className="w-full max-h-[170px] overflow-hidden bg-black border-b border-slate-100">
+               {mediaUrl ? (
+                  <video src={mediaUrl} className="w-full h-full object-cover" controls />
+               ) : (
+                  <div className="w-full h-28 flex flex-col items-center justify-center gap-1 text-white/50">
+                     <FilmIcon className="w-7 h-7 text-white/40" />
+                     <span className="text-[10px] font-bold uppercase tracking-wider text-white/60">Template Video</span>
+                  </div>
+               )}
+            </div>
+         )}
+         {isDocumentHeader && (
+            <div className="mx-3 mt-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl flex items-center gap-2.5">
+               <DocumentIcon className="w-6 h-6 text-red-500 shrink-0" />
+               <span className="text-[11px] font-bold text-slate-700 truncate">{msg.fileName || 'Template Document'}</span>
             </div>
          )}
 
@@ -486,20 +606,9 @@ const Conversion = ({
 
          await handleTemplateSelect(templateToSend);
 
-         // Deduct ₹0.95 WCC credit for the template send (Marketing conversation rate)
-         try {
-            await axios.post("/billing/transactions", {
-               desc: `Template Message - ${confirmTemplate.name}`,
-               amount: -0.95,
-               status: "Paid"
-            });
-            // Sync latest credits from server
-            const userRes = await axios.get("/auth/me");
-            if (userRes.data?.data) updateUser(userRes.data.data);
-         } catch (_billingErr) {
-            // Fallback: deduct locally if server sync fails
-            if (user) updateUser({ ...user, credits: parseFloat((parseFloat(user.credits || 0) - 0.95).toFixed(2)) });
-         }
+         // ✅ Credits are deducted automatically by the backend via sendTemplateMessage → walletService.
+         // The wallet_updated socket event syncs the live balance to the UI in real-time.
+         // No manual deduction needed here.
 
          setIsConfirmTemplateModalOpen(false);
       } finally {
@@ -1340,10 +1449,19 @@ const selectedTemplate = useMemo(() => {
                            <div className={`flex flex-col ${msg.sender === "me" ? "items-end" : "items-start"} gap-0.5`}>
                               <TemplateBubble
                                  msg={msg}
-                                 template={allTemplates.find(t =>
-                                    t.name === msg.templateName ||
-                                    t.name?.toLowerCase() === msg.templateName?.toLowerCase()
-                                 )}
+                                 template={(() => {
+                                    const targetName = String(
+                                       msg.templateName || 
+                                       (msg.text && msg.text.startsWith('Template:') ? msg.text.replace('Template:', '').trim() : '')
+                                    ).toLowerCase().trim();
+                                    return allTemplates.find(t => {
+                                       if (!t) return false;
+                                       const tName = String(t.name || '').toLowerCase().trim();
+                                       const tWaName = String(t.whatsappTemplateName || '').toLowerCase().trim();
+                                       const tMetaName = String(t.metaTemplateName || '').toLowerCase().trim();
+                                       return Boolean(targetName && (tName === targetName || tWaName === targetName || tMetaName === targetName));
+                                    });
+                                 })()}
                               />
                               <div className="flex items-center gap-1.5 pr-1">
                                  {formatMessageTime(msg) && <span className="text-[9px] text-slate-400">{formatMessageTime(msg)}</span>}

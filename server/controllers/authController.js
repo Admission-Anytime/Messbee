@@ -36,19 +36,24 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
  */
 const clearTokenCookies = (res) => {
   const isProduction = process.env.NODE_ENV === 'production';
-  const cookieOptions = {
+  const baseOptions = {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
-    expires: new Date(0)
+    expires: new Date(0),
+    path: '/'
   };
 
-  if (process.env.COOKIE_DOMAIN) {
-    cookieOptions.domain = process.env.COOKIE_DOMAIN;
-  }
+  // Clear host-only cookie
+  res.cookie('accessToken', '', baseOptions);
+  res.cookie('refreshToken', '', baseOptions);
 
-  res.cookie('accessToken', '', cookieOptions);
-  res.cookie('refreshToken', '', cookieOptions);
+  // If COOKIE_DOMAIN configured (e.g. .messbee.com), clear domain-scoped cookie as well
+  if (process.env.COOKIE_DOMAIN) {
+    const domainOptions = { ...baseOptions, domain: process.env.COOKIE_DOMAIN };
+    res.cookie('accessToken', '', domainOptions);
+    res.cookie('refreshToken', '', domainOptions);
+  }
 };
 
 // ==================== SIGNUP FLOW ====================

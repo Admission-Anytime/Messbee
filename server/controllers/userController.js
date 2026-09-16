@@ -303,7 +303,7 @@ exports.updateProfile = async (req, res, next) => {
       'city', 'state', 'country', 'address', 'zipcode', 'currency', 'businessDescription',
       'billingName', 'billingAddress', 'billingCountry', 'billingState', 'billingCity',
       'billingZipcode', 'mobileNumber', 'emailId', 'taxType', 'billingTaxId', 'gst',
-      'website', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified', 'credits'
+      'website', 'company', 'avatar', 'timezone', 'language', 'isPhoneVerified'
     ];
     
     allowed.forEach(key => {
@@ -361,7 +361,11 @@ exports.uploadAvatar = async (req, res, next) => {
       });
     }
 
-    const avatarUrl = `/uploads/${req.file.filename}`;
+    const { getPublicUrl } = require('../middleware/upload');
+    const isLocal = process.platform === 'win32' || process.env.NODE_ENV !== 'production';
+    const avatarUrl = (process.env.DOCUMENT_GET_URL && !isLocal)
+      ? getPublicUrl(req.file.filename) 
+      : `/uploads/${req.file.filename}`;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,

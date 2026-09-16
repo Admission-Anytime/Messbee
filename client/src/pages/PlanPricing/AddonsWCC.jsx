@@ -44,49 +44,85 @@ const AddonsWCC = () => {
 
    const handlePayment = async () => {
       if (finalAmount < 100) {
-         toast.error("Minimum amount should be ₹100", { autoClose: 3000 });
+         toast.error("Minimum recharge amount is ₹100", { autoClose: 3000 });
          return;
       }
 
-      // ✅ Use Toast instead of Alert
-      toast.success(`Processing payment of ${formatCurrency(totalPayable)}...`, {
-         autoClose: 2000
-      });
+      try {
+         const { default: axios } = await import("../../context/axios");
 
-      // Simulate payment delay, then persist to backend
-      setTimeout(async () => {
-         try {
-            const newCredits = parseFloat((balance + finalAmount).toFixed(2));
-            
-            const { default: axios } = await import("../../context/axios");
+         // 1. Create Order via Razorpay
+         const orderRes = await axios.post("/billing/razorpay/create-order", {
+            scenario: "credit_topup",
+            amount: totalPayable,
+            topupAmount: finalAmount
+         });
 
-            // Record the transaction - The backend will now automatically add the credits
-            await axios.post("/billing/transactions", {
-               desc: "WCC Top-up Credit",
-               amount: totalPayable,
-               wccAmount: finalAmount,
-               status: "Paid"
-            });
-            
-            // Fetch latest user data to get accurate credits balance
-            const userRes = await axios.get("/auth/me");
-            
-            // Update local state
-            if (userRes.data && userRes.data.data) {
-               updateUser(userRes.data.data);
-            } else if (user) {
-               updateUser({
-                  ...user,
-                  credits: newCredits
-               });
-            }
-            setIsModalOpen(false);
-            toast.success("Balance updated successfully!");
-         } catch (error) {
-            console.error("Failed to update balance:", error);
-            toast.error("Payment successful but failed to sync balance. Please contact support.");
+         if (!orderRes.data?.success || !orderRes.data?.order) {
+            toast.error(orderRes.data?.message || "Failed to initiate payment order");
+            return;
          }
-      }, 2000);
+
+         const { order, transactionId, keyId } = orderRes.data;
+
+         // Check if Razorpay script is loaded
+         if (!window.Razorpay) {
+            // Load razorpay script dynamically
+            const script = document.createElement("script");
+            script.src = "https://checkout.razorpay.com/v1/checkout.js";
+            script.async = true;
+            document.body.appendChild(script);
+            await new Promise((resolve) => (script.onload = resolve));
+         }
+
+         const options = {
+            key: keyId,
+            amount: order.amount,
+            currency: order.currency || "INR",
+            name: "Messbee WCC Wallet",
+            description: `Recharge ₹${finalAmount} Credits (+ 18% GST)`,
+            order_id: order.id,
+            prefill: {
+               name: user?.name || "",
+               email: user?.email || "",
+               contact: user?.phone || ""
+            },
+            theme: {
+               color: "#10b981"
+            },
+            handler: async (response) => {
+               try {
+                  toast.info("Verifying payment...", { autoClose: 2000 });
+                  const verifyRes = await axios.post("/billing/razorpay/verify-payment", {
+                     orderId: response.razorpay_order_id,
+                     paymentId: response.razorpay_payment_id,
+                     signature: response.razorpay_signature,
+                     transactionId: transactionId
+                  });
+
+                  if (verifyRes.data?.success) {
+                     toast.success("₹" + finalAmount + " Credits added successfully!");
+                     const updatedRes = await axios.get("/users/profile");
+                     if (updatedRes.data?.data) {
+                        updateUser(updatedRes.data.data);
+                     }
+                     setIsModalOpen(false);
+                  } else {
+                     toast.error("Payment verification failed. Please contact support.");
+                  }
+               } catch (verifyErr) {
+                  console.error("Verification error:", verifyErr);
+                  toast.error("Verification failed. If money was deducted, it will reflect within 24h.");
+               }
+            }
+         };
+
+         const rzp = new window.Razorpay(options);
+         rzp.open();
+      } catch (err) {
+         console.error("Payment error:", err);
+         toast.error(err.response?.data?.message || "Payment initiation failed");
+      }
    };
 
    const handleRequestService = () => {
@@ -196,6 +232,36 @@ const AddonsWCC = () => {
                >
                   Request Service
                </button>
+            </div>
+
+            {/* --- REAL-TIME CATEGORY USAGE COUNTERS --- */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+               <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider">WhatsApp Message Category Usage</h3>
+                  <span className="text-xs text-slate-400">Lifetime Sent: <strong className="text-slate-700">{user?.messageUsage?.totalMessages || 0}</strong> msgs</span>
+               </div>
+               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100/60">
+                     <span className="text-[10px] font-bold text-emerald-600 uppercase">Marketing</span>
+                     <div className="text-xl font-extrabold text-slate-900 mt-1">{user?.messageUsage?.marketing?.sentCount || 0}</div>
+                     <span className="text-[10px] text-slate-400 font-medium">₹{Number(user?.messageUsage?.marketing?.costDeducted || 0).toFixed(2)} spent</span>
+                  </div>
+                  <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100/60">
+                     <span className="text-[10px] font-bold text-blue-600 uppercase">Utility</span>
+                     <div className="text-xl font-extrabold text-slate-900 mt-1">{user?.messageUsage?.utility?.sentCount || 0}</div>
+                     <span className="text-[10px] text-slate-400 font-medium">₹{Number(user?.messageUsage?.utility?.costDeducted || 0).toFixed(2)} spent</span>
+                  </div>
+                  <div className="bg-purple-50/60 p-4 rounded-xl border border-purple-100/60">
+                     <span className="text-[10px] font-bold text-purple-600 uppercase">Authentication</span>
+                     <div className="text-xl font-extrabold text-slate-900 mt-1">{user?.messageUsage?.authentication?.sentCount || 0}</div>
+                     <span className="text-[10px] text-slate-400 font-medium">₹{Number(user?.messageUsage?.authentication?.costDeducted || 0).toFixed(2)} spent</span>
+                  </div>
+                  <div className="bg-amber-50/60 p-4 rounded-xl border border-amber-100/60">
+                     <span className="text-[10px] font-bold text-amber-600 uppercase">Service</span>
+                     <div className="text-xl font-extrabold text-slate-900 mt-1">{user?.messageUsage?.service?.sentCount || 0}</div>
+                     <span className="text-[10px] text-slate-400 font-medium">₹{Number(user?.messageUsage?.service?.costDeducted || 0).toFixed(2)} spent</span>
+                  </div>
+               </div>
             </div>
 
             {/* --- FEATURES GRID --- */}

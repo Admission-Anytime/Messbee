@@ -5,7 +5,7 @@ import "react-toastify/dist/ReactToastify.css";
 import defaultLogo from '../../assets/MessBee Logo.png';
 import api from '../../context/axios';
 import { userContext } from '../../context/Context';
-import { getBackendFileUrl as resolveFileUrl } from '../../utils/urlHelper';
+import { getBackendFileUrl as resolveFileUrl, appendCacheBuster } from '../../utils/urlHelper';
 
 const STANDARD_CATEGORIES = [
   "Technology & Software",
@@ -17,7 +17,7 @@ const STANDARD_CATEGORIES = [
   "Travel & Hospitality",
 ];
 
-const getBackendFileUrl = (path) => resolveFileUrl(path, defaultLogo);
+const getBackendFileUrl = (path) => appendCacheBuster(resolveFileUrl(path, defaultLogo));
 
 const BusinessProfile = () => {
   const navigate = useNavigate();
@@ -103,6 +103,15 @@ const BusinessProfile = () => {
 
     fetchProfile();
   }, []);
+
+  // Sync avatar when user in Context changes (e.g. uploaded from sidebar or elsewhere)
+  useEffect(() => {
+    if (user?.avatar) {
+      const full = getBackendFileUrl(user.avatar);
+      setLogoPreview(full);
+      setSavedLogo(full);
+    }
+  }, [user?.avatar]);
 
   const handleEditToggle = (section) => {
     if (activeEdit === section) {
@@ -282,7 +291,7 @@ const BusinessProfile = () => {
 
         if (response.data && response.data.success) {
           const avatarUrl = response.data.data.avatar;
-          const fullAvatar = `${getBackendFileUrl(avatarUrl)}?t=${Date.now()}`;
+          const fullAvatar = getBackendFileUrl(avatarUrl);
           setLogoPreview(fullAvatar);
           setSavedLogo(fullAvatar);
           updateUser(response.data.data.user);
@@ -295,7 +304,9 @@ const BusinessProfile = () => {
         console.error("Upload error:", err);
         let errMsg = "Failed to upload logo";
         if (err.response?.status === 413) {
-          errMsg = "Logo size exceeds server upload limit. Please use an image under 1MB.";
+          errMsg = err.response?.data?.message || "Logo size exceeds server upload limit. Please upload an image under 5MB.";
+        } else if (err.message === "Network Error" || !err.response) {
+          errMsg = "Network Error: Image might be too large or server connection dropped. Please upload an image under 5MB.";
         } else if (err.response?.data?.message) {
           errMsg = err.response.data.message;
         } else if (err.message) {
