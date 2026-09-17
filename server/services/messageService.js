@@ -227,6 +227,26 @@ exports.sendBulkMessages = async (userId, campaignId, contacts, messageTemplate)
       }
     } catch (_) {}
 
+    // 💳 Pre-flight WCC Wallet Check for bulk campaign
+    // Estimate cost based on first contact (all same template/category)
+    const walletServiceBulk = require('./walletService');
+    const pricingBulk = require('../config/pricingConfig');
+    const templateCategoryBulk = (() => {
+      try {
+        // Campaign model may store category directly
+        if (campaign.templateCategory) return String(campaign.templateCategory).toUpperCase();
+        return 'MARKETING'; // Safe default
+      } catch { return 'MARKETING'; }
+    })();
+    const perMsgCost = pricingBulk.getMessageCost(templateCategoryBulk, contacts[0]?.whatsapp || contacts[0]?.phone || '');
+    const totalEstimated = perMsgCost * contacts.length;
+    const bulkHasCredits = await walletServiceBulk.hasSufficientCredits(userId, totalEstimated);
+    if (!bulkHasCredits) {
+      const err = new Error(`Insufficient WCC Credits for campaign. Estimated cost: ₹${totalEstimated.toFixed(2)} for ${contacts.length} contacts. Please recharge.`);
+      err.code = 'INSUFFICIENT_WCC_CREDITS';
+      throw err;
+    }
+
     for (const contact of contacts) {
       try {
         const { chat, normalizedPhone } = await findOrCreateChatForContact(contact);

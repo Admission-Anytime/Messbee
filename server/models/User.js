@@ -19,6 +19,9 @@ const UserSchema = new mongoose.Schema({
   googleId: {
     type: String
   },
+  linkedinId: {
+    type: String
+  },
   email: {
     type: String,
     required: [true, 'Please add an email'],

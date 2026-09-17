@@ -73,7 +73,8 @@ const Login = () => {
         toast.success("Successfully logged in with Facebook!");
         saveAuthData(res);
         loginUser(res.data?.user || res.user || res.data);
-        navigate("/admin/dashboard");
+        // Full window navigation clears previous Facebook Login SDK session state so Embedded Signup SDK initializes cleanly
+        window.location.href = "/admin/dashboard";
       }
     } catch (error) {
       const message = error?.response?.data?.message || "Facebook login failed";
