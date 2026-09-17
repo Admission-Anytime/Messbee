@@ -1,9 +1,27 @@
+const { logRequest } = require('../utils/apiLogger');
+
 exports.errorHandler = (err, req, res, next) => {
   let error = { ...err };
   error.message = err.message;
 
   // Log to console for dev
   console.error(err);
+
+  // Log error to file — safe, non-fatal
+  try {
+    logRequest({
+      method: req.method,
+      url: req.originalUrl || req.url,
+      statusCode: error.statusCode || 500,
+      durationMs: '-',
+      userId: req.user ? (req.user._id || req.user.id || null) : null,
+      ip: req.ip || req.headers['x-forwarded-for'] || '-',
+      errorMessage: err.message,
+      stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
+    });
+  } catch (_) {
+    // Silent fail — logging never crashes the server
+  }
 
   // Mongoose bad ObjectId
   if (err.name === 'CastError') {

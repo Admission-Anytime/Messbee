@@ -319,6 +319,7 @@ router.post('/facebook', facebookLogin);
  *         description: Invalid token
  */
 router.post('/social/:login_type', socialLogin);
+router.post('/user/login/:login_type', socialLogin);
 
 // ==================== TOKEN & SESSION ROUTES ====================
 

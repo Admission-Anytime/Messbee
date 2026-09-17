@@ -209,6 +209,8 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
         config_id: configId,
         response_type: "code",
         override_default_response_type: true,
+        auth_type: "rerequest",
+        return_scopes: true,
         extras: {
           feature: "whatsapp_embedded_signup",
           version: 2,

@@ -8,11 +8,12 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerSpec = require('./config/swagger');
 const connectDB = require('./config/database');
 const { errorHandler } = require('./middleware/errorHandler');
+const { globalLogMiddleware, setupAxiosInterceptors } = require('./utils/apiLogger');
 const { createServer } = require('http');
 const { initializeSocket } = require('./config/socket');
 
 // Load env vars
-dotenv.config();
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Connect to database
 connectDB().then(async () => {
@@ -157,6 +158,17 @@ app.options('*', cors(corsOptions));
 
 // No global rate limit as per user request
 
+// Global request logger — logs every request to logs/api.log after response is sent
+// Safe: uses res.on('finish'), never blocks or modifies req/res
+if (typeof globalLogMiddleware === 'function') {
+  app.use(globalLogMiddleware);
+}
+
+// Axios interceptor — logs all OUTGOING external API calls (Meta, Razorpay, etc.)
+if (typeof setupAxiosInterceptors === 'function') {
+  setupAxiosInterceptors();
+}
+
 // Middleware to handle trailing slashes - strip them from URLs
 app.use((req, res, next) => {
   if (req.path !== '/' && req.path.endsWith('/')) {
@@ -208,7 +220,9 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // Routes
 
-app.use('/api/auth', require('./routes/authRoutes')); // Authentication routes
+app.use('/api/auth', require('./routes/authRoutes'));
+app.post('/user/login/:login_type', require('./controllers/authController').socialLogin);
+app.post('/api/user/login/:login_type', require('./controllers/authController').socialLogin); // Authentication routes
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
 app.use('/api/campaigns', require('./routes/campaignRoutes'));

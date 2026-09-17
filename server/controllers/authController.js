@@ -413,7 +413,13 @@ exports.verifyLoginOTP = async (req, res, next) => {
         try {
           const Channel = require('../models/Channel');
           const tenantId = user.tenantId || user._id;
-          const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+          const channel = await Channel.findOne({
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: user._id }
+        ],
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      });
           tenantWhatsAppConnected = !!channel;
 
           if (tenantWhatsAppConnected) {
@@ -433,8 +439,10 @@ exports.verifyLoginOTP = async (req, res, next) => {
           },
           accessToken,
           refreshToken,
-          data: {
-            tokens: {
+      tenantWhatsAppConnected,
+      data: {
+        tenantWhatsAppConnected,
+        tokens: {
               accessToken,
               refreshToken
             },
@@ -528,7 +536,13 @@ exports.login = async (req, res, next) => {
     try {
       const Channel = require('../models/Channel');
       const tenantId = user.tenantId || user._id;
-      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      const channel = await Channel.findOne({
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: user._id }
+        ],
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      });
       tenantWhatsAppConnected = !!channel;
 
       if (tenantWhatsAppConnected) {
@@ -549,6 +563,7 @@ exports.login = async (req, res, next) => {
       accessToken,
       refreshToken,
       data: {
+        tenantWhatsAppConnected,
         tokens: {
           accessToken,
           refreshToken
@@ -928,7 +943,13 @@ exports.getMe = async (req, res, next) => {
     if (user) {
       const Channel = require('../models/Channel');
       const tenantId = user.tenantId || user._id;
-      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      const channel = await Channel.findOne({
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: user._id }
+        ],
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      });
       
       user.tenantWhatsAppConnected = !!channel;
 
@@ -1038,115 +1059,10 @@ exports.updatePassword = async (req, res, next) => {
  * @access  Public
  */
 exports.facebookLogin = async (req, res, next) => {
-  try {
-    const { accessToken } = req.body;
-
-    if (!accessToken) {
-      return res.status(400).json({ success: false, message: 'Access token is required' });
-    }
-
-    // Verify token with Facebook Graph API
-    const response = await axios.get(`https://graph.facebook.com/me?fields=id,name,email,picture&access_token=${accessToken}`);
-    const { id, name, email, picture } = response.data;
-
-    // Fallback email if Facebook account has no email attached (e.g., registered via phone number)
-    const userEmail = email || `${id}@facebook.com`;
-
-    // Check if user exists by facebookId or email
-    let user = await User.findOne({
-      $or: [{ facebookId: id }, { email: userEmail }]
-    });
-
-    if (user) {
-      // User exists, check if deactivated
-      if (!user.isActive) {
-        return res.status(403).json({ success: false, message: 'Account is deactivated' });
-      }
-
-      // Admin approval no longer blocks login, check removed
-
-      // Ensure Facebook ID is saved if they originally signed up via email
-      if (!user.facebookId) {
-        user.facebookId = id;
-        await user.save();
-      }
-    } else {
-      // Create new user via Facebook
-      user = await User.create({
-        name: name || 'Facebook User',
-        email: userEmail,
-        facebookId: id,
-        authProvider: 'facebook',
-        password: crypto.randomBytes(20).toString('hex'), // Random password for social logins
-        isEmailVerified: true, // Social emails are pre-verified
-        isActive: true
-      });
-      
-      // Wait for admin approval message
-      return res.status(201).json({
-        success: true,
-        message: 'Signup successful! Your account is pending admin approval.',
-        pendingApproval: true,
-        data: {
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email
-          }
-        }
-      });
-    }
-
-    // Generate tokens for login
-    user.lastLogin = Date.now();
-    const token = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
-    
-    user.refreshToken = refreshToken;
-    await user.save();
-
-    setTokenCookies(res, token, refreshToken);
-
-    res.status(200).json({
-      success: true,
-      message: 'Login successful',
-      tokens: {
-        accessToken: token,
-        refreshToken
-      },
-      accessToken: token,
-      refreshToken,
-      data: {
-        tokens: {
-          accessToken: token,
-          refreshToken
-        },
-        accessToken: token,
-        refreshToken,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          avatar: user.avatar,
-          phone: user.phone,
-          company: user.company,
-          businessName: user.businessName,
-          subscriptionPlan: user.subscriptionPlan,
-          credits: user.credits,
-          subscriptionEndDate: user.subscriptionEndDate,
-          lastLogin: user.lastLogin,
-          whatsappConfig: user.whatsappConfig
-        }
-      }
-    });
-  } catch (error) {
-    console.error('Facebook login error:', error.response?.data || error);
-    res.status(401).json({
-      success: false,
-      message: 'Invalid Facebook token or Facebook API error'
-    });
-  }
+  // Delegate to unified socialLogin to guarantee account linking, auto-approval,
+  // tenantId setup, and accurate tenantWhatsAppConnected channel status
+  req.params = { ...req.params, login_type: 'facebook' };
+  return exports.socialLogin(req, res, next);
 };
 
 /**
@@ -1157,7 +1073,7 @@ exports.facebookLogin = async (req, res, next) => {
 exports.socialLogin = async (req, res, next) => {
   try {
     const { login_type } = req.params;
-    const { accessToken } = req.body;
+    const accessToken = req.body.accessToken || req.body.token || req.body.credential || req.body.idToken;
 
     if (!accessToken) {
       return res.status(400).json({ success: false, message: 'Access token is required' });
@@ -1224,19 +1140,37 @@ exports.socialLogin = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Invalid social token' });
     }
 
-    if (!regdata || !regdata.email) {
-      if (login_type.toLowerCase() === 'facebook' && regdata?.id) {
-        regdata.email = `${regdata.id}@facebook.com`;
-      } else {
-        return res.status(400).json({ success: false, message: 'Social account must have an email attached' });
-      }
+        // Clean & normalize email
+    const cleanEmail = regdata?.email ? regdata.email.trim().toLowerCase() : null;
+
+    // Check if user already exists by Provider ID or by Email
+    let existingUser = null;
+    if (login_type.toLowerCase() === 'facebook' && regdata?.id) {
+      existingUser = await User.findOne({ facebookId: regdata.id });
+    } else if (login_type.toLowerCase() === 'google' && regdata?.id) {
+      existingUser = await User.findOne({ googleId: regdata.id });
+    } else if ((login_type.toLowerCase() === 'linkedin' || login_type.toLowerCase() === 'linkdin') && regdata?.id) {
+      existingUser = await User.findOne({ linkedinId: regdata.id });
     }
+
+    if (!existingUser && cleanEmail) {
+      existingUser = await User.findOne({ email: cleanEmail });
+    }
+
+    // Determine final email and query filter
+    const finalEmail = existingUser ? existingUser.email : (cleanEmail || (login_type.toLowerCase() === 'facebook' && regdata?.id ? `${regdata.id}@facebook.com` : null));
+
+    if (!finalEmail) {
+      return res.status(400).json({ success: false, message: 'Social account must have an email attached' });
+    }
+
+    let queryFilter = existingUser ? { _id: existingUser._id } : { email: finalEmail };
 
     const defaultName = regdata.name || (login_type.toLowerCase() === 'google' ? 'Google User' : 'Facebook User');
     const updatePayload = {
       $setOnInsert: {
         name: defaultName,
-        email: regdata.email,
+        email: finalEmail,
         password: null, // Explicitly null for social auth
         authProvider: login_type.toLowerCase(),
         avatar: regdata.picture,
@@ -1249,18 +1183,13 @@ exports.socialLogin = async (req, res, next) => {
       $set: {}
     };
 
-    // Dynamically assign the provider ID to ensure existing accounts get linked properly
-    let queryFilter = { email: regdata.email };
-    if (login_type.toLowerCase() === 'facebook') {
+    // Dynamically assign the provider ID to link existing or new accounts
+    if (login_type.toLowerCase() === 'facebook' && regdata?.id) {
       updatePayload.$set.facebookId = regdata.id;
-      if (regdata.id) {
-        const existingFbUser = await User.findOne({ facebookId: regdata.id });
-        if (existingFbUser) {
-          queryFilter = { _id: existingFbUser._id };
-        }
-      }
-    } else if (login_type.toLowerCase() === 'google') {
+    } else if (login_type.toLowerCase() === 'google' && regdata?.id) {
       updatePayload.$set.googleId = regdata.id;
+    } else if ((login_type.toLowerCase() === 'linkedin' || login_type.toLowerCase() === 'linkdin') && regdata?.id) {
+      updatePayload.$set.linkedinId = regdata.id;
     }
 
     // Use findOneAndUpdate with upsert: true to prevent E11000 race conditions
@@ -1313,7 +1242,13 @@ exports.socialLogin = async (req, res, next) => {
     try {
       const Channel = require('../models/Channel');
       const tenantId = user.tenantId || user._id;
-      const channel = await Channel.findOne({ tenantId, activeWhatsappPhoneNumberId: { $exists: true, $ne: null }, status: { $ne: 'disconnected' } });
+      const channel = await Channel.findOne({
+        $or: [
+          { tenantId: tenantId },
+          { tenantId: user._id }
+        ],
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+      });
       tenantWhatsAppConnected = !!channel;
 
       if (tenantWhatsAppConnected) {
@@ -1328,6 +1263,7 @@ exports.socialLogin = async (req, res, next) => {
       success: true,
       message: 'Login successful',
       isNewUser,
+      tenantWhatsAppConnected,
       tokens: {
         accessToken: token,
         refreshToken
