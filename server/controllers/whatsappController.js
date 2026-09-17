@@ -596,10 +596,23 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     // ── AUTO-REGISTER PHONE NUMBER WITH META ─────────────────────────────────
     // After Embedded Signup, the phone number is in "PENDING" status.
     // We must call /register with a 6-digit PIN to activate it.
-    let phoneRegistered = false;
+    // Check if phone number is ALREADY ACTIVE & CONNECTED on Meta
+    let phoneRegistered = (metaPhoneStatus === 'ACTIVE');
     let autoPin = null;
 
-    if (phoneNumberId && accessToken) {
+    if (phoneRegistered) {
+      console.log(`✅ Phone ${phoneNumberId} is ALREADY ACTIVE & CONNECTED on Meta. Skipping register PIN step.`);
+      const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
+      await Channel.findOneAndUpdate(
+        channelQuery,
+        {
+          $set: {
+            activeWhatsappPhoneNumberId: phoneNumberId,
+            'metadata.phoneStatus': 'ACTIVE'
+          }
+        }
+      );
+    } else if (phoneNumberId && accessToken) {
       // Generate a cryptographically random 6-digit PIN
       const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
       

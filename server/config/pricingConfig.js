@@ -42,21 +42,48 @@ function getMessageCost(category = 'MARKETING', phoneNumber = '') {
   const cat = String(category).toUpperCase();
   const baseRate = WHATSAPP_PRICING.DOMESTIC_RATES[cat] || WHATSAPP_PRICING.DOMESTIC_RATES.MARKETING;
 
-  const cleanedPhone = String(phoneNumber).replace(/\D/g, '');
-  
-  // If Domestic India (+91 or 10 digits starting with 6-9)
-  if (cleanedPhone.startsWith('91') || cleanedPhone.length === 10) {
+  const rawPhone = String(phoneNumber).trim();
+  const hasPlus = rawPhone.startsWith('+');
+  const cleanedPhone = rawPhone.replace(/\D/g, '');
+
+  // 1. Explicit domestic India +91 or 91XXXXXXXXXX (12 digits)
+  if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
     return baseRate;
   }
 
-  // Check international country codes
-  for (const [code, info] of Object.entries(WHATSAPP_PRICING.INTERNATIONAL_RATES)) {
-    if (code !== 'DEFAULT_INTERNATIONAL' && cleanedPhone.startsWith(code)) {
+  // 2. Check known international country codes
+  const internationalCodes = Object.entries(WHATSAPP_PRICING.INTERNATIONAL_RATES)
+    .filter(([code]) => code !== 'DEFAULT_INTERNATIONAL')
+    .sort((a, b) => b[0].length - a[0].length);
+
+  for (const [code, info] of internationalCodes) {
+    if (cleanedPhone.startsWith(code)) {
+      if (code === '1' && cleanedPhone.length !== 11 && !hasPlus) continue;
+      if (code === '65' && cleanedPhone.length === 10) {
+        return parseFloat((baseRate * info.rateMultiplier).toFixed(3));
+      }
+      if (code === '971' && (cleanedPhone.length === 12 || hasPlus)) {
+        return parseFloat((baseRate * info.rateMultiplier).toFixed(3));
+      }
+      if (hasPlus || cleanedPhone.length > 10) {
+        return parseFloat((baseRate * info.rateMultiplier).toFixed(3));
+      }
+    }
+  }
+
+  // 3. 10-digit domestic Indian mobile number (starts with 6, 7, 8, 9 except 65)
+  if (cleanedPhone.length === 10 && /^[6-9]/.test(cleanedPhone) && !cleanedPhone.startsWith('65')) {
+    return baseRate;
+  }
+
+  // 4. Any other matching international code
+  for (const [code, info] of internationalCodes) {
+    if (cleanedPhone.startsWith(code)) {
       return parseFloat((baseRate * info.rateMultiplier).toFixed(3));
     }
   }
 
-  // Fallback international multiplier
+  // 5. Fallback international multiplier
   return parseFloat((baseRate * WHATSAPP_PRICING.INTERNATIONAL_RATES.DEFAULT_INTERNATIONAL).toFixed(3));
 }
 
