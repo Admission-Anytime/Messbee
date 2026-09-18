@@ -1333,7 +1333,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   e.sourceHandle === `${matchedIdx}`
                 );
 
-                if (!matchedEdge && outgoingEdges.length === 1) {
+                if (!matchedEdge && outgoingEdges.length === 1 && (!outgoingEdges[0].sourceHandle || outgoingEdges[0].sourceHandle === 'main-handle' || outgoingEdges[0].sourceHandle === 'default')) {
                   matchedEdge = outgoingEdges[0];
                 }
 
@@ -1648,6 +1648,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           console.log(`[DEBUG Engine] Trying to match incomingPayload '${incomingPayload}' on node ${currentNode?.type}`);
           console.log(`[DEBUG Engine] Available edges for ${session.currentNodeId}:`, JSON.stringify(outgoingEdges));
           
+          let isExplicitChoiceRecognized = false;
+
           let matchedEdge = outgoingEdges.find(e => 
              e.sourceHandle === incomingPayload || 
              e.sourceHandle === `btn-${incomingPayload}` || 
@@ -1697,6 +1699,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                  });
 
                  if (btnIdx !== -1) {
+                    isExplicitChoiceRecognized = true;
                     const btn = buttons[btnIdx];
                     const btnId = btn.id || btnIdx;
                     matchedEdge = outgoingEdges.find(e => 
@@ -1716,6 +1719,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                      (r.postbackId && r.postbackId.toString().toLowerCase() === lowerIncoming)
                    );
                    if (rowIdx !== -1) {
+                      isExplicitChoiceRecognized = true;
                       const row = sec.rows[rowIdx];
                       const rowId = row.postbackId || row.id || rowIdx;
                       matchedEdge = outgoingEdges.find(e => 
@@ -1734,6 +1738,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   idx.toString() === lowerIncoming
                 );
                 if (optIdx !== -1) {
+                  isExplicitChoiceRecognized = true;
                   matchedEdge = outgoingEdges.find(e => 
                     e.sourceHandle === `opt-${optIdx}` || 
                     e.sourceHandle === `${optIdx}`
@@ -1743,36 +1748,33 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 // If customer responds after viewing catalog or payment link, advance via main-handle
                 matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
              }
-              // If still not matched, check if there's only 1 outgoing edge or any edge title contains button text
-              if (!matchedEdge && outgoingEdges.length === 1) {
-                matchedEdge = outgoingEdges[0];
-              } else if (!matchedEdge) {
-                // Try matching button by partial word or case-insensitive contains
-                const foundBtn = currentNode.data?.buttons?.find((b, idx) => {
-                  const bText = (b.text || b.title || b.payload || '').toLowerCase();
-                  return bText && (bText.includes(lowerIncoming) || lowerIncoming.includes(bText));
-                });
-                if (foundBtn) {
-                  const btnIdx = currentNode.data.buttons.indexOf(foundBtn);
-                  const btnId = foundBtn.id || btnIdx;
-                  matchedEdge = outgoingEdges.find(e => 
-                    e.sourceHandle === `btn-${btnId}` || 
-                    e.sourceHandle === `btn-${btnIdx}` ||
-                    e.sourceHandle === btnId ||
-                    e.sourceHandle === `${btnIdx}`
-                  );
-                }
-              }
-           }
-          
+          }
+
           if (!matchedEdge) {
             // Check if flow designer connected to the 'main-handle' (Next step fallback)
             matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
           }
 
-          // If still not matched and there is only 1 outgoing connection, route to it
+          // ⚠️ CRITICAL: If customer explicitly selected a valid choice (e.g. 'left' button)
+          // but that choice has NO connected outgoing edge on the canvas:
+          // It is a terminal choice! Do NOT route to another button's branch.
+          if (isExplicitChoiceRecognized && !matchedEdge) {
+            console.log(`[FlowRunner] User selected choice '${incomingPayload}' on node ${currentNode?.id}, but it has no connected branch. Completing session.`);
+            await markSessionCompleted(session, customerPhone, channelId);
+            return;
+          }
+
+          // Only fallback to a single edge IF that edge is generic (not bound to a specific button like btn-, row-, opt-)
           if (!matchedEdge && outgoingEdges.length === 1) {
-            matchedEdge = outgoingEdges[0];
+            const onlyEdge = outgoingEdges[0];
+            const isSpecificHandle = onlyEdge.sourceHandle && (
+              onlyEdge.sourceHandle.startsWith('btn-') || 
+              onlyEdge.sourceHandle.startsWith('row-') || 
+              onlyEdge.sourceHandle.startsWith('opt-')
+            );
+            if (!isSpecificHandle) {
+              matchedEdge = onlyEdge;
+            }
           }
           
           if (matchedEdge) {
