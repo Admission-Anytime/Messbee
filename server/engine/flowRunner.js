@@ -259,7 +259,9 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       
       // Determine category (Templates may specify or default to UTILITY for automated notifications)
       const autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
-      const autoCost = getMessageCost(autoCategory, toPhone);
+      const User = (await import('../models/User.js')).default || require('../models/User.js');
+      const userPricingDoc = await User.findById(channel.tenantId).select('customPricing').lean();
+      const autoCost = getMessageCost(autoCategory, toPhone, userPricingDoc?.customPricing);
 
       const hasBalance = await walletService.hasSufficientCredits(channel.tenantId, autoCost);
       if (!hasBalance) {
@@ -1020,7 +1022,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 /**
  * Evaluates the incoming message against the current active flow or initiates a new one.
  */
-export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false) {
+export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false, messageContext = {}) {
   try {
     // IMPORTANT: metaAccessToken has `select: false` in schema — must explicitly select it
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
@@ -1238,16 +1240,122 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      // 2. NORMAL TRIGGERS
+      // 2. NORMAL TRIGGERS & TEMPLATE QUICK REPLY TRIGGERS
+      let targetFromButtonEdge = null;
+
       if (!matchedFlow) {
+        // A. Standard Trigger Nodes (Keywords, exact match, regex, etc.)
         for (const flow of allActiveFlows) {
           const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
           if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
             matchedFlow = flow;
             matchedTriggerNode = tNode;
             break;
-          } else if (!tNode && simulatorTargetFlowId && flow._id.toString() === simulatorTargetFlowId.toString()) {
-            // In simulator testing for a flow that starts directly with a templateNode (no triggerNode)
+          }
+        }
+      }
+
+      // B. TEMPLATE QUICK REPLY & INTERACTIVE BUTTON TRIGGERS
+      // When a user taps a quick reply button on a template (sent via campaign, live chat, or automation),
+      // match the button to any active flow's templateNode or interactiveNode.
+      if (!matchedFlow) {
+        const candidatePayloads = [
+          payloadText,
+          messageContext?.buttonText?.trim().toLowerCase(),
+          messageContext?.buttonTitle?.trim().toLowerCase(),
+          messageContext?.buttonPayload?.trim().toLowerCase(),
+          messageContext?.buttonId?.trim().toLowerCase(),
+          messageContext?.listTitle?.trim().toLowerCase(),
+          messageContext?.listId?.trim().toLowerCase()
+        ].filter(Boolean);
+
+        if (candidatePayloads.length > 0) {
+          for (const flow of allActiveFlows) {
+            const interactiveOrTemplateNodes = flow.nodes.filter(n => 
+              n.type === 'templateNode' || 
+              n.type === 'interactiveNode' || 
+              (n.type === 'messageNode' && n.data?.messageType === 'interactive')
+            );
+            
+            for (const node of interactiveOrTemplateNodes) {
+              let buttons = node.data?.buttons || [];
+              if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
+                try {
+                  const { default: Template } = await import('../models/Template.js');
+                  const tmpl = await Template.findOne({
+                    $or: [
+                      { name: node.data.templateName },
+                      { whatsappTemplateName: node.data.templateName }
+                    ]
+                  });
+                  const btnComp = tmpl?.components?.find(c => String(c.type).toUpperCase() === 'BUTTONS');
+                  if (btnComp && Array.isArray(btnComp.buttons)) {
+                    buttons = btnComp.buttons;
+                  }
+                } catch (_) {}
+              }
+
+              const outgoingEdges = flow.edges.filter(e => e.source === node.id);
+              if (outgoingEdges.length === 0) continue;
+
+              let matchedBtn = null;
+              let matchedIdx = -1;
+
+              for (let i = 0; i < buttons.length; i++) {
+                const b = buttons[i];
+                const bCandidates = [
+                  b.text?.trim().toLowerCase(),
+                  b.title?.trim().toLowerCase(),
+                  b.payload?.trim().toLowerCase(),
+                  b.id?.toString().trim().toLowerCase(),
+                  String(i)
+                ].filter(Boolean);
+
+                const isMatch = candidatePayloads.some(cp => 
+                  bCandidates.includes(cp) || bCandidates.some(bc => bc.includes(cp) || cp.includes(bc))
+                );
+
+                if (isMatch) {
+                  matchedBtn = b;
+                  matchedIdx = i;
+                  break;
+                }
+              }
+
+              if (matchedBtn) {
+                const btnId = matchedBtn.id || matchedIdx;
+                let matchedEdge = outgoingEdges.find(e => 
+                  candidatePayloads.includes(e.sourceHandle?.toLowerCase()) ||
+                  e.sourceHandle === `btn-${btnId}` ||
+                  e.sourceHandle === `btn-${matchedIdx}` ||
+                  e.sourceHandle === `btn-btn_${matchedIdx}` ||
+                  e.sourceHandle === btnId ||
+                  e.sourceHandle === `${matchedIdx}`
+                );
+
+                if (!matchedEdge && outgoingEdges.length === 1) {
+                  matchedEdge = outgoingEdges[0];
+                }
+
+                if (matchedEdge) {
+                  console.log(`[FlowRunner] 🎯 Matched button '${payloadText}' on node ${node.id} in flow '${flow.name}'. Next target: ${matchedEdge.target}`);
+                  matchedFlow = flow;
+                  matchedTriggerNode = node;
+                  targetFromButtonEdge = matchedEdge.target;
+                  break;
+                }
+              }
+            }
+            if (matchedFlow) break;
+          }
+        }
+      }
+
+      // C. Flows that start directly with a root templateNode (e.g. simulator testing)
+      if (!matchedFlow) {
+        for (const flow of allActiveFlows) {
+          const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+          if (!tNode && simulatorTargetFlowId && flow._id.toString() === simulatorTargetFlowId.toString()) {
             const rootNode = flow.nodes.find(n => !flow.edges.some(e => e.target === n.id)) || flow.nodes[0];
             matchedFlow = flow;
             matchedTriggerNode = rootNode;
@@ -1295,14 +1403,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         return;
       }
 
+      // If triggered by a button click on a template/interactive node, advance straight along that edge!
       // If triggerNode is an actual trigger (triggerNode/eventTriggerNode), follow outgoing edge.
       // If it is a direct root node (like templateNode), start directly on that node!
-      const isTriggerType = ['triggerNode', 'eventTriggerNode'].includes(triggerNode.type);
-      if (isTriggerType) {
-        const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
-        nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      if (targetFromButtonEdge) {
+        nextNodeId = targetFromButtonEdge;
       } else {
-        nextNodeId = triggerNode.id;
+        const isTriggerType = ['triggerNode', 'eventTriggerNode'].includes(triggerNode.type);
+        if (isTriggerType) {
+          const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
+          nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+        } else {
+          nextNodeId = triggerNode.id;
+        }
       }
 
       if (!nextNodeId) return;
@@ -1311,7 +1424,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         phone: customerPhone,
         channelId,
         activeFlowId: activeFlow._id,
-        currentNodeId: triggerNode.id,
+        currentNodeId: targetFromButtonEdge ? triggerNode.id : triggerNode.id,
         referral: referral,
         lastIncomingMessageId: incomingMessageId
       });
@@ -1544,21 +1657,54 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           // Match by title/label case-insensitively (for both Simulator and WhatsApp)
           if (!matchedEdge) {
              const lowerIncoming = (incomingPayload || '').trim().toLowerCase();
-             if ((currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode') && currentNode.data?.buttons) {
-                 const btnIdx = currentNode.data.buttons.findIndex((b, idx) => 
-                   (b.text && b.text.toLowerCase() === lowerIncoming) ||
-                   (b.title && b.title.toLowerCase() === lowerIncoming) || 
-                   (b.id && b.id.toString().toLowerCase() === lowerIncoming) ||
-                   (b.payload && b.payload.toString().toLowerCase() === lowerIncoming) ||
-                   idx.toString() === lowerIncoming
-                 );
+             const candidateInputs = [
+               lowerIncoming,
+               messageContext?.buttonText?.trim().toLowerCase(),
+               messageContext?.buttonTitle?.trim().toLowerCase(),
+               messageContext?.buttonPayload?.trim().toLowerCase(),
+               messageContext?.buttonId?.trim().toLowerCase()
+             ].filter(Boolean);
+
+             if (currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode') {
+                 let buttons = currentNode.data?.buttons || [];
+                 if ((!buttons || buttons.length === 0) && currentNode.type === 'templateNode' && currentNode.data?.templateName) {
+                   try {
+                     const { default: Template } = await import('../models/Template.js');
+                     const tmpl = await Template.findOne({
+                       $or: [
+                         { name: currentNode.data.templateName },
+                         { whatsappTemplateName: currentNode.data.templateName }
+                       ]
+                     });
+                     const btnComp = tmpl?.components?.find(c => String(c.type).toUpperCase() === 'BUTTONS');
+                     if (btnComp && Array.isArray(btnComp.buttons)) {
+                       buttons = btnComp.buttons;
+                     }
+                   } catch (_) {}
+                 }
+
+                 const btnIdx = (buttons || []).findIndex((b, idx) => {
+                   const bCandidates = [
+                     b.text?.trim().toLowerCase(),
+                     b.title?.trim().toLowerCase(),
+                     b.payload?.trim().toLowerCase(),
+                     b.id?.toString().trim().toLowerCase(),
+                     String(idx)
+                   ].filter(Boolean);
+                   return candidateInputs.some(ci => 
+                     bCandidates.includes(ci) || bCandidates.some(bc => bc.includes(ci) || ci.includes(bc))
+                   );
+                 });
+
                  if (btnIdx !== -1) {
-                    const btn = currentNode.data.buttons[btnIdx];
+                    const btn = buttons[btnIdx];
                     const btnId = btn.id || btnIdx;
                     matchedEdge = outgoingEdges.find(e => 
+                      candidateInputs.includes(e.sourceHandle?.toLowerCase()) ||
                       e.sourceHandle === `btn-${btnId}` || 
                       e.sourceHandle === `btn-${btnIdx}` ||
-                      e.sourceHandle === btnId ||
+                      e.sourceHandle === `btn-btn_${btnIdx}` ||
+                      e.sourceHandle === btnId || 
                       e.sourceHandle === `${btnIdx}`
                     );
                  }

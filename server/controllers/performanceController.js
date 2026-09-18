@@ -162,7 +162,7 @@ exports.getPerformanceOverview = async (req, res) => {
           `https://graph.facebook.com/${wabaConfig.apiVersion}/${wabaConfig.phoneNumberId}`,
           {
             params: {
-              fields: 'quality_rating,messaging_limit_tier,display_phone_number,verified_name,status',
+              fields: 'quality_rating,whatsapp_business_manager_messaging_limit,messaging_limit_tier,display_phone_number,verified_name,status',
               access_token: wabaConfig.accessToken
             },
             timeout: 5000
@@ -170,7 +170,7 @@ exports.getPerformanceOverview = async (req, res) => {
         );
         if (metaRes.data) {
           if (metaRes.data.quality_rating) phoneQuality = metaRes.data.quality_rating;
-          messagingLimit     = metaRes.data.messaging_limit_tier || null;
+          messagingLimit     = metaRes.data.whatsapp_business_manager_messaging_limit || metaRes.data.messaging_limit_tier || null;
           if (metaRes.data.verified_name) verifiedName = metaRes.data.verified_name;
           if (metaRes.data.display_phone_number) displayPhoneNumber = metaRes.data.display_phone_number;
         }
@@ -260,7 +260,7 @@ exports.getWABAConfigDetails = async (req, res) => {
           `https://graph.facebook.com/${wabaConfig.apiVersion}/${wabaConfig.phoneNumberId}`,
           {
             params: {
-              fields: 'quality_rating,messaging_limit_tier,display_phone_number,verified_name,status,name_status',
+              fields: 'quality_rating,whatsapp_business_manager_messaging_limit,messaging_limit_tier,display_phone_number,verified_name,status,name_status',
               access_token: wabaConfig.accessToken
             },
             timeout: 8000

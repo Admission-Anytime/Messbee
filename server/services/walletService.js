@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Transaction = require('../models/Transaction');
 const { getMessageCost, WHATSAPP_PRICING } = require('../config/pricingConfig');
@@ -31,7 +32,8 @@ async function deductMessageCredits({
   try {
     if (!tenantId) return { success: false, reason: 'No tenantId provided' };
 
-    const cost = getMessageCost(category, recipientPhone);
+    const userDoc = await User.findById(tenantId).select('customPricing').lean();
+    const cost = getMessageCost(category, recipientPhone, userDoc?.customPricing);
     const catKey = String(category).toLowerCase();
 
     // Deduct from credits and increment category usage counters atomically
@@ -56,6 +58,8 @@ async function deductMessageCredits({
 
     // Create an audit transaction record
     const transactionId = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const safeMessageId = (messageId && mongoose.Types.ObjectId.isValid(messageId)) ? messageId : undefined;
+    const safeCampaignId = (campaignId && mongoose.Types.ObjectId.isValid(campaignId)) ? campaignId : undefined;
     await Transaction.create({
       user: tenantId,
       transactionId,
@@ -66,8 +70,8 @@ async function deductMessageCredits({
         scenario: 'message_deduction',
         category,
         recipientPhone,
-        messageId,
-        campaignId,
+        messageId: safeMessageId,
+        campaignId: safeCampaignId,
         topupAmount: -cost
       }
     });
@@ -157,7 +161,8 @@ async function releaseCampaignReservation(tenantId, totalEstimatedCost) {
  */
 async function refundFailedMessage(tenantId, messageId, category, recipientPhone) {
   try {
-    const cost = getMessageCost(category, recipientPhone);
+    const userDoc = await User.findById(tenantId).select('customPricing').lean();
+    const cost = getMessageCost(category, recipientPhone, userDoc?.customPricing);
     const catKey = String(category).toLowerCase();
 
     const incObject = {
@@ -177,6 +182,7 @@ async function refundFailedMessage(tenantId, messageId, category, recipientPhone
 
     // Audit log refund transaction
     const transactionId = `REF-${Math.floor(10000000 + Math.random() * 90000000)}`;
+    const safeMessageId = (messageId && mongoose.Types.ObjectId.isValid(messageId)) ? messageId : undefined;
     await Transaction.create({
       user: tenantId,
       transactionId,
@@ -187,7 +193,7 @@ async function refundFailedMessage(tenantId, messageId, category, recipientPhone
         scenario: 'refund',
         category,
         recipientPhone,
-        messageId,
+        messageId: safeMessageId,
         topupAmount: cost
       }
     });

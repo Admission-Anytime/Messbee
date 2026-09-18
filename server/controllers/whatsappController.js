@@ -5,6 +5,7 @@ const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
 const Channel = require('../models/Channel');
+const User = require('../models/User');
 
 const { getIO } = require('../config/socket');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
@@ -1312,6 +1313,18 @@ async function handleIncomingMessage(data) {
         mediaId = message.mediaId;
         break;
         
+      case 'button':
+        // Quick reply button clicks from Meta templates or standard buttons
+        messageText = message?.buttonText || message?.text || message?.buttonPayload || '';
+        lastMsgText = `🔘 ${messageText || 'Button reply'}`;
+        break;
+
+      case 'interactive':
+        // Interactive button clicks or list selections
+        messageText = message?.buttonTitle || message?.buttonId || message?.listTitle || message?.listId || message?.text || '';
+        lastMsgText = `🔘 ${messageText || 'Interactive reply'}`;
+        break;
+
       default:
         messageText = '';
         lastMsgText = 'Unsupported message type';
@@ -1397,12 +1410,18 @@ async function handleIncomingMessage(data) {
     await automationService.processAutomationTrigger(
       'message',
       {
-        message: messageText || lastMsgText, // Send text or media caption/fallback
+        message: messageText || lastMsgText, // Send text, button text or media caption/fallback
         contactPhone: normalizedFrom,
         messageId: newMessage._id,
         messageType: messageType,
         mediaUrl: mediaUrl,
-        isNewContact: isNewContact
+        isNewContact: isNewContact,
+        buttonText: message?.buttonText,
+        buttonPayload: message?.buttonPayload,
+        buttonTitle: message?.buttonTitle,
+        buttonId: message?.buttonId,
+        listTitle: message?.listTitle,
+        listId: message?.listId
       },
       resolvedChannelId // MUST pass channelId, not userId!
     );
@@ -1632,7 +1651,8 @@ exports.sendWhatsAppMessage = async (req, res, next) => {
     // 💳 Pre-flight WCC Wallet Balance Check
     const walletService = require('../services/walletService');
     const { getMessageCost } = require('../config/pricingConfig');
-    const messageCost = getMessageCost('SERVICE', chat.phone);
+    const userPricingDoc = await User.findById(tenantId).select('customPricing').lean();
+    const messageCost = getMessageCost('SERVICE', chat.phone, userPricingDoc?.customPricing);
 
     const hasBalance = await walletService.hasSufficientCredits(tenantId, messageCost);
     if (!hasBalance) {
@@ -1931,7 +1951,8 @@ exports.sendTemplateMessage = async (req, res, next) => {
     // Pre-flight WCC Wallet Balance Check for Template
     const walletService = require('../services/walletService');
     const { getMessageCost } = require('../config/pricingConfig');
-    const templateCost = getMessageCost(templateCategory, recipientPhone);
+    const userPricingDoc = await User.findById(effectiveTenantId).select('customPricing').lean();
+    const templateCost = getMessageCost(templateCategory, recipientPhone, userPricingDoc?.customPricing);
 
     const hasBalance = await walletService.hasSufficientCredits(effectiveTenantId, templateCost);
     if (!hasBalance) {

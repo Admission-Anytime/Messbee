@@ -613,3 +613,164 @@ exports.getSalesInquiries = async (req, res, next) => {
   }
 };
 
+// @desc    Get client WhatsApp template/message pricing (Super Admin / Admin)
+// @route   GET /api/users/:id/pricing (supports either userId or email)
+// @access  Private (Admin only)
+exports.getUserPricing = async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    const { getClientPricingSummary } = require('../config/pricingConfig');
+    
+    const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+    const query = isObjectId ? { _id: req.params.id } : { email: String(req.params.id).trim().toLowerCase() };
+
+    const user = await User.findOne(query)
+      .select('name email businessName company subscriptionPlan customPricing')
+      .lean();
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const pricingSummary = getClientPricingSummary(user.customPricing);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        businessName: user.businessName || user.company || '',
+        subscriptionPlan: user.subscriptionPlan,
+        pricing: pricingSummary,
+        lastUpdated: user.customPricing?.updatedAt || null
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Update client WhatsApp template/message custom pricing (Super Admin / Admin)
+// @route   PUT /api/users/:id/pricing (supports either userId or email)
+// @access  Private (Admin only)
+exports.updateUserPricing = async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    const { getClientPricingSummary } = require('../config/pricingConfig');
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+    const query = isObjectId ? { _id: req.params.id } : { email: String(req.params.id).trim().toLowerCase() };
+
+    const user = await User.findOne(query);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    const { enabled = true, rates = {} } = req.body;
+
+    // Validate rates if provided
+    const validCategories = ['marketing', 'utility', 'authentication', 'service'];
+    const sanitizedRates = {
+      marketing: user.customPricing?.rates?.marketing ?? null,
+      utility: user.customPricing?.rates?.utility ?? null,
+      authentication: user.customPricing?.rates?.authentication ?? null,
+      service: user.customPricing?.rates?.service ?? null
+    };
+
+    for (const cat of validCategories) {
+      if (rates[cat] !== undefined) {
+        if (rates[cat] === null || rates[cat] === '') {
+          sanitizedRates[cat] = null;
+        } else {
+          const num = Number(rates[cat]);
+          if (isNaN(num) || num < 0) {
+            return res.status(400).json({
+              success: false,
+              message: `Invalid rate for ${cat}: must be a non-negative number`
+            });
+          }
+          sanitizedRates[cat] = parseFloat(num.toFixed(4));
+        }
+      }
+    }
+
+    user.customPricing = {
+      enabled: Boolean(enabled),
+      rates: sanitizedRates,
+      updatedAt: new Date(),
+      updatedBy: req.user?._id || req.user?.id
+    };
+
+    await user.save();
+
+    const pricingSummary = getClientPricingSummary(user.customPricing);
+
+    console.log(`💰 Updated Custom Pricing for ${user.email}:`, pricingSummary.effectiveRates);
+
+    res.status(200).json({
+      success: true,
+      message: 'Custom pricing updated successfully',
+      data: {
+        userId: user._id,
+        email: user.email,
+        pricing: pricingSummary,
+        lastUpdated: user.customPricing.updatedAt
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reset client pricing to default Meta rates (Super Admin / Admin)
+// @route   DELETE /api/users/:id/pricing (supports either userId or email)
+// @access  Private (Admin only)
+exports.resetUserPricing = async (req, res, next) => {
+  try {
+    const mongoose = require('mongoose');
+    const { getClientPricingSummary } = require('../config/pricingConfig');
+
+    const isObjectId = mongoose.Types.ObjectId.isValid(req.params.id);
+    const query = isObjectId ? { _id: req.params.id } : { email: String(req.params.id).trim().toLowerCase() };
+
+    const user = await User.findOne(query);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found' });
+    }
+
+    user.customPricing = {
+      enabled: false,
+      rates: {
+        marketing: null,
+        utility: null,
+        authentication: null,
+        service: null
+      },
+      updatedAt: new Date(),
+      updatedBy: req.user?._id || req.user?.id
+    };
+
+    await user.save();
+
+    const pricingSummary = getClientPricingSummary(user.customPricing);
+
+    console.log(`🔄 Reset Pricing to Default Meta Rates for ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Client pricing reset to default Meta rates',
+      data: {
+        userId: user._id,
+        email: user.email,
+        pricing: pricingSummary
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+

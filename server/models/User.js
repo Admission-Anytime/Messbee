@@ -170,6 +170,31 @@ const UserSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
+  // WhatsApp Meta messaging limit tier (e.g., '2,000', 'TIER_2K')
+  messageLimitTier: {
+    type: String
+  },
+  // Custom WhatsApp Template / Conversation Pricing (Overrides Default Meta Rates)
+  customPricing: {
+    enabled: {
+      type: Boolean,
+      default: false
+    },
+    rates: {
+      marketing: { type: Number, default: null },
+      utility: { type: Number, default: null },
+      authentication: { type: Number, default: null },
+      service: { type: Number, default: null }
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    },
+    updatedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    }
+  },
   // Low balance alert tracking
   lowBalanceThreshold: {
     type: Number,
