@@ -10,54 +10,54 @@ import {
 export default function GetStarted() {
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen font-['Urbanist']">
 
       {/* MAIN CONTENT */}
-      <div className="max-w-7xl mx-auto px-8 pt-6 pb-12 flex gap-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-10 flex gap-8">
 
         {/* LEFT ARTICLE */}
         <div className="flex-1 max-w-[720px]">
 
           {/* Breadcrumb */}
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-xs text-gray-400 mb-2">
             Help Center › Getting Started › Connecting Numbers
           </p>
 
           {/* Title */}
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
             How to connect your first phone number?
           </h1>
 
           {/* Meta */}
-          <div className="flex items-center gap-6 text-sm text-gray-500 mb-8">
+          <div className="flex items-center gap-4 text-xs text-gray-400 mb-5">
             <span>5-minute read</span>
             <span>Last updated: Oct 12, 2024</span>
           </div>
 
           {/* Intro */}
-          <p className="text-gray-600 mb-8">
+          <p className="text-xs sm:text-sm text-gray-600 mb-5 leading-relaxed">
             Before you can start sending messages through the MessBee WhatsApp API,
             you need to connect a phone number via the Meta Cloud API. This process
             is handled through our secure Embedded Signup flow.
           </p>
 
           {/* Prerequisites */}
-          <h2 id="prerequisites" className="text-xl font-semibold text-gray-900 mb-3">
+          <h2 id="prerequisites" className="text-sm font-bold text-gray-900 mb-2">
             Prerequisites
           </h2>
 
-          <p className="text-gray-600 mb-4">
+          <p className="text-xs text-gray-600 mb-3">
             To ensure a smooth connection process, please verify you have the following ready:
           </p>
 
-          <ul className="list-disc ml-6 text-gray-600 space-y-2 mb-8">
+          <ul className="list-disc ml-5 text-xs text-gray-600 space-y-1.5 mb-5">
             <li>A Meta Business Suite account with Administrator access.</li>
             <li>A valid phone number that is not currently registered with WhatsApp.</li>
             <li>Ability to receive SMS or voice verification.</li>
           </ul>
 
           {/* Pro Tip */}
-          <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-10 flex gap-3">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-3.5 mb-6 flex gap-2.5">
 
             <CheckCircleIcon className="w-6 h-6 text-green-600 mt-1" />
 
