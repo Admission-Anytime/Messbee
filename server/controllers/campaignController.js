@@ -138,7 +138,7 @@ exports.createCampaign = async (req, res, next) => {
       const { getMessageCost: getMsgCostCc } = require('../config/pricingConfig');
       let totalAutoEstimate = 0;
       for (const c of contacts) {
-        totalAutoEstimate += getMsgCostCc('MARKETING', c.phone || '');
+        totalAutoEstimate += getMsgCostCc('MARKETING', c.phone || '', req.user.customPricing);
       }
 
       const autoReservation = await walletServiceCc.reserveCampaignCredits(
@@ -346,7 +346,7 @@ exports.sendCampaign = async (req, res, next) => {
     // Calculate total cost for target audience
     let totalEstimatedCost = 0;
     for (const recipient of campaign.targetAudience) {
-      totalEstimatedCost += getMessageCost('MARKETING', recipient.phone || recipient);
+      totalEstimatedCost += getMessageCost('MARKETING', recipient.phone || recipient, req.user.customPricing);
     }
 
     const reservation = await walletService.reserveCampaignCredits(

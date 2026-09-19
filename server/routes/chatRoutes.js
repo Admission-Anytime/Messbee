@@ -480,9 +480,11 @@ router.post("/message", async (req, res) => {
 
       // 💳 Pre-flight WCC Wallet Balance Check (text & media both)
       const walletService = require('../services/walletService');
+      const User = require('../models/User');
       const { getMessageCost } = require('../config/pricingConfig');
       const msgCategory = media ? 'SERVICE' : 'SERVICE';
-      const msgCost = getMessageCost(msgCategory, whatsappRecipient);
+      const userPricingDoc = await User.findById(targetTenantId).select('customPricing').lean();
+      const msgCost = getMessageCost(msgCategory, whatsappRecipient, userPricingDoc?.customPricing);
       const hasBal = await walletService.hasSufficientCredits(targetTenantId, msgCost);
       if (!hasBal) {
         return res.status(402).json({

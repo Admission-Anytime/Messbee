@@ -36,11 +36,36 @@ const WHATSAPP_PRICING = {
 };
 
 /**
- * Helper to calculate the rate for a given message category and phone number
+ * Helper to calculate the rate for a given message category and phone number.
+ * Supports optional client-specific custom pricing override.
+ *
+ * @param {string} category - MARKETING | UTILITY | AUTHENTICATION | SERVICE
+ * @param {string} phoneNumber - Recipient phone number (domestic or international)
+ * @param {object|null} customPricing - Optional custom pricing object or rates
+ * @returns {number} Cost in INR (₹)
  */
-function getMessageCost(category = 'MARKETING', phoneNumber = '') {
+function getMessageCost(category = 'MARKETING', phoneNumber = '', customPricing = null) {
   const cat = String(category).toUpperCase();
-  const baseRate = WHATSAPP_PRICING.DOMESTIC_RATES[cat] || WHATSAPP_PRICING.DOMESTIC_RATES.MARKETING;
+  const catLower = cat.toLowerCase();
+
+  // 1. Resolve base rate: check custom pricing first, then fall back to default
+  let baseRate = null;
+  if (customPricing) {
+    const isEnabled = customPricing.enabled !== false;
+    const rates = customPricing.rates || (customPricing.customPricing ? customPricing.customPricing.rates : customPricing);
+
+    if (isEnabled && rates && typeof rates === 'object') {
+      const customVal = rates[catLower] != null ? rates[catLower] : rates[cat];
+      if (customVal != null && !isNaN(Number(customVal)) && Number(customVal) >= 0) {
+        baseRate = Number(customVal);
+      }
+    }
+  }
+
+  // 2. Fallback to default domestic Meta rate if no valid custom rate found
+  if (baseRate == null) {
+    baseRate = WHATSAPP_PRICING.DOMESTIC_RATES[cat] || WHATSAPP_PRICING.DOMESTIC_RATES.MARKETING;
+  }
 
   const rawPhone = String(phoneNumber).trim();
   const hasPlus = rawPhone.startsWith('+');
@@ -87,7 +112,42 @@ function getMessageCost(category = 'MARKETING', phoneNumber = '') {
   return parseFloat((baseRate * WHATSAPP_PRICING.INTERNATIONAL_RATES.DEFAULT_INTERNATIONAL).toFixed(3));
 }
 
+/**
+ * Helper to generate pricing summary (defaults, custom, effective) for admin view
+ */
+function getClientPricingSummary(customPricing = null) {
+  const isCustomEnabled = Boolean(customPricing && customPricing.enabled);
+  const customRates = isCustomEnabled ? (customPricing.rates || {}) : {};
+
+  const defaultRates = {
+    marketing: WHATSAPP_PRICING.DOMESTIC_RATES.MARKETING,
+    utility: WHATSAPP_PRICING.DOMESTIC_RATES.UTILITY,
+    authentication: WHATSAPP_PRICING.DOMESTIC_RATES.AUTHENTICATION,
+    service: WHATSAPP_PRICING.DOMESTIC_RATES.SERVICE,
+  };
+
+  const effectiveRates = {
+    marketing: customRates.marketing != null ? Number(customRates.marketing) : defaultRates.marketing,
+    utility: customRates.utility != null ? Number(customRates.utility) : defaultRates.utility,
+    authentication: customRates.authentication != null ? Number(customRates.authentication) : defaultRates.authentication,
+    service: customRates.service != null ? Number(customRates.service) : defaultRates.service,
+  };
+
+  return {
+    isCustomEnabled,
+    defaultRates,
+    customRates: {
+      marketing: customRates.marketing ?? null,
+      utility: customRates.utility ?? null,
+      authentication: customRates.authentication ?? null,
+      service: customRates.service ?? null,
+    },
+    effectiveRates
+  };
+}
+
 module.exports = {
   WHATSAPP_PRICING,
-  getMessageCost
+  getMessageCost,
+  getClientPricingSummary
 };

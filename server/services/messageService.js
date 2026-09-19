@@ -2,6 +2,7 @@ const Message = require('../models/Message');
 const Contact = require('../models/Contact');
 const Campaign = require('../models/Campaign');
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 const { getTenantWhatsAppService } = require('../controllers/whatsappController');
 const { normalizePhoneNumber } = require('../utils/phoneHelper');
 const { getIO } = require('../config/socket');
@@ -123,7 +124,8 @@ exports.sendMessageToContact = async (userId, contactId, messageData) => {
     // 💳 Pre-flight WCC Wallet Check
     const walletService = require('./walletService');
     const { getMessageCost } = require('../config/pricingConfig');
-    const msgCost = getMessageCost('SERVICE', normalizedPhone);
+    const userPricingDoc = await User.findById(userId).select('customPricing').lean();
+    const msgCost = getMessageCost('SERVICE', normalizedPhone, userPricingDoc?.customPricing);
     const hasCredits = await walletService.hasSufficientCredits(userId, msgCost);
     if (!hasCredits) {
       const err = new Error(`Insufficient WCC Credits. Message cost ₹${msgCost}. Please recharge.`);
@@ -238,7 +240,8 @@ exports.sendBulkMessages = async (userId, campaignId, contacts, messageTemplate)
         return 'MARKETING'; // Safe default
       } catch { return 'MARKETING'; }
     })();
-    const perMsgCost = pricingBulk.getMessageCost(templateCategoryBulk, contacts[0]?.whatsapp || contacts[0]?.phone || '');
+    const userPricingBulkDoc = await User.findById(userId).select('customPricing').lean();
+    const perMsgCost = pricingBulk.getMessageCost(templateCategoryBulk, contacts[0]?.whatsapp || contacts[0]?.phone || '', userPricingBulkDoc?.customPricing);
     const totalEstimated = perMsgCost * contacts.length;
     const bulkHasCredits = await walletServiceBulk.hasSufficientCredits(userId, totalEstimated);
     if (!bulkHasCredits) {
