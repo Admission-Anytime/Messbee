@@ -24,7 +24,16 @@ exports.processAutomationTrigger = async (triggerType, triggerData, channelId) =
         triggerData.referral || null,
         triggerData.messageId || null,
         null, // simulatorTargetFlowId
-        triggerData.isNewContact
+        triggerData.isNewContact,
+        {
+          messageType: triggerData.messageType,
+          buttonText: triggerData.buttonText,
+          buttonPayload: triggerData.buttonPayload,
+          buttonTitle: triggerData.buttonTitle,
+          buttonId: triggerData.buttonId,
+          listTitle: triggerData.listTitle,
+          listId: triggerData.listId
+        }
       );
     } else if (triggerType === 'event') {
       // CRM event triggers (tag added, field updated, etc.)

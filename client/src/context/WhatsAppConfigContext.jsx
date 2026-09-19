@@ -39,7 +39,7 @@ export const WhatsAppConfigProvider = ({ children }) => {
 
   // ── Derived convenience values ────────────────────────────────────────────
   const phoneQuality    = livePhoneData?.quality_rating   || null;   // 'GREEN' | 'YELLOW' | 'RED'
-  const messagingLimit  = livePhoneData?.messaging_limit_tier || null; // 'TIER_1K' | 'TIER_10K' etc.
+  const messagingLimit  = livePhoneData?.whatsapp_business_manager_messaging_limit || livePhoneData?.messaging_limit_tier || null; // 'TIER_2K' | 'TIER_10K' etc.
   const displayPhone    = livePhoneData?.display_phone_number || null;
   const verifiedName    = livePhoneData?.verified_name    || null;
   const phoneStatus     = livePhoneData?.status           || null;   // 'CONNECTED' | etc.
