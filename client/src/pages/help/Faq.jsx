@@ -149,8 +149,116 @@ const Faq = () => {
       id: 20,
       category: "general",
       question: "Is my data secure on Messbee?",
-      answer: "Yes, we take security seriously. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). We're compliant with GDPR.",
+      answer: "Yes, we take security seriously. All data is encrypted in transit (TLS 1.3) and at rest (AES-256). We're compliant with global security standards including GDPR.",
     },
+    {
+      id: 21,
+      category: "messaging",
+      question: "How does the 24-hour customer service window work?",
+      answer: "When a customer sends a message to your WhatsApp business phone number, a 24-hour customer service window opens. Within this window, your business can send free-form session messages without pre-approved templates. Once the 24 hours expire, you can only re-engage the customer using an approved template message.",
+    },
+    {
+      id: 22,
+      category: "messaging",
+      question: "What causes WhatsApp message templates to get rejected?",
+      answer: "Templates are rejected by Meta if they violate Commerce or Business policies. Common reasons include: missing sample variable values, aggressive or misleading promotional language, grammar errors, asking for sensitive personal or banking info, or selecting the wrong category (e.g., submitting marketing content under utility).",
+    },
+    {
+      id: 23,
+      category: "messaging",
+      question: "What are the allowed media file formats and size limits?",
+      answer: "Messbee supports documents (PDF, DOCX up to 100MB), images (JPEG, PNG up to 5MB), audio (AAC, MP3 up to 16MB), and videos (MP4, 3GPP up to 16MB). For best delivery speed, we recommend compressing videos and keeping PDFs under 10MB.",
+    },
+    {
+      id: 24,
+      category: "messaging",
+      question: "How does the Phone Number Quality Rating affect messaging?",
+      answer: "Meta assigns a Quality Rating (High/Green, Medium/Yellow, Low/Red) to your number based on user feedback (blocks, reports, and spam flags). If your rating drops to Red, your messaging tier limit may be restricted. To maintain a High rating, only message opted-in users and avoid sending irrelevant broadcasts.",
+    },
+    {
+      id: 25,
+      category: "messaging",
+      question: "How do Messaging Tier limits scale over time?",
+      answer: "New verified accounts typically start at Tier 1 (1,000 unique recipients per rolling 24-hour period). When you consistently send at least half of your current limit with high quality over 7 days, Meta automatically upgrades your account to Tier 2 (10,000), Tier 3 (100,000), and ultimately Tier 4 (Unlimited).",
+    },
+    {
+      id: 26,
+      category: "billing",
+      question: "What are WhatsApp Conversation Credits (WCC)?",
+      answer: "WCC is your prepaid messaging wallet in Messbee. Every conversation dispatched (Marketing, Utility, Authentication, or Service) automatically deducts the exact Meta rate from your WCC balance. You can top up your wallet anytime via card, UPI, or net banking.",
+    },
+    {
+      id: 27,
+      category: "billing",
+      question: "What happens when my WCC wallet balance runs low?",
+      answer: "When your balance drops below the threshold (default ₹200), an automated real-time alert is triggered in your dashboard and via email. Active campaigns may be paused if your credits reach zero to prevent message delivery failures.",
+    },
+    {
+      id: 28,
+      category: "billing",
+      question: "Do customer-initiated Service conversations cost money?",
+      answer: "Meta provides 1,000 free Service conversations per WhatsApp Business Account every calendar month. Beyond the free tier, customer service conversations are billed at the standard Meta domestic service rate.",
+    },
+    {
+      id: 29,
+      category: "account",
+      question: "How can I get the official WhatsApp Green Tick badge?",
+      answer: "The Green Tick (Official Business Account badge) is granted directly by Meta to verified, notable brands. To apply: your Meta Business Manager must be fully verified, 2FA enabled, and your brand must have strong organic media presence. You can submit your application directly from Settings > WAPI.",
+    },
+    {
+      id: 30,
+      category: "account",
+      question: "Can I migrate an existing WhatsApp number from another BSP to Messbee?",
+      answer: "Yes! You can seamlessly migrate your existing WABA number without losing your phone number or business profile. Simply initiate the 2FA migration process in our Embedded Signup, and your number will transition to Messbee with zero downtime.",
+    },
+    {
+      id: 31,
+      category: "account",
+      question: "What role permissions are supported in Messbee?",
+      answer: "Messbee provides Role-Based Access Control (RBAC): ADMIN (full workspace control, billing, API keys), MANAGER (campaign creation, contact import, template management), and AGENT (live inbox chatting, ticket replies, customer interaction only).",
+    },
+    {
+      id: 32,
+      category: "automation",
+      question: "How do Flow Canvas and Chatbot automations work?",
+      answer: "Our visual drag-and-drop Flow Canvas lets you design multi-step conversational flows, interactive button menus, conditional routing, and automated webhook triggers without writing a single line of code.",
+    },
+    {
+      id: 33,
+      category: "automation",
+      question: "How do I set up automated Away Messages during non-business hours?",
+      answer: "Navigate to Automation > Welcome & Away Messages. Set your working hours and define an automated out-of-office response that immediately notifies customers when your team is offline.",
+    },
+    {
+      id: 34,
+      category: "automation",
+      question: "Can chatbots hand off conversations to human agents?",
+      answer: "Yes. In any automation flow, you can add an 'Agent Assignment' node. When triggered, the bot steps back, assigns the conversation to a designated team or agent, and notifies them in the Unified Inbox.",
+    },
+    {
+      id: 35,
+      category: "contacts",
+      question: "What is WhatsApp Opt-in and why is it mandatory?",
+      answer: "Meta policies strictly require that customers explicitly consent to receive business messages. Opt-in can be collected via website checkboxes, SMS confirmation, or direct customer-initiated WhatsApp messages. Sending un-solicited messages will trigger account bans.",
+    },
+    {
+      id: 36,
+      category: "contacts",
+      question: "How do I handle customer unsubscribes / STOP keywords?",
+      answer: "Messbee automatically recognizes opt-out keywords like STOP, CANCEL, or UNSUBSCRIBE. When received, the contact is flagged as opted-out and automatically excluded from future marketing broadcasts.",
+    },
+    {
+      id: 37,
+      category: "contacts",
+      question: "Can I segment contacts based on custom tags and attributes?",
+      answer: "Yes! You can create dynamic segments using labels, city, lifetime purchase value, or custom field values. Segments automatically update as new contacts matching the criteria are added.",
+    },
+    {
+      id: 38,
+      category: "general",
+      question: "What is the difference between Domestic and International messaging rates?",
+      answer: "Domestic messages (+91 to India) use base Meta conversation pricing. International numbers apply country-specific multipliers (e.g., 1.8x for USA/Canada, 3.8x for UAE) based on Meta's global destination pricing tables.",
+    }
   ];
 
   const filteredFaqs = faqs.filter((faq) => {
@@ -170,38 +278,38 @@ const Faq = () => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-8 p-6 md:p-10">
-      <div className="bg-gradient-to-r from-[#10B981] to-[#059669] rounded-2xl p-8 text-white shadow-lg">
-        <div className="flex items-start gap-4">
-          <div className="bg-white/10 p-3 rounded-xl backdrop-blur-sm">
-            <QuestionMarkCircleIcon className="w-8 h-8" />
+    <div className="w-full max-w-7xl mx-auto space-y-5 p-4 sm:p-6 font-['Urbanist']">
+      <div className="bg-gradient-to-r from-[#10B981] to-[#059669] rounded-xl p-5 sm:p-6 text-white shadow-md">
+        <div className="flex items-start gap-3">
+          <div className="bg-white/10 p-2 rounded-lg backdrop-blur-sm">
+            <QuestionMarkCircleIcon className="w-5 h-5" />
           </div>
           <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-2">Frequently Asked Questions</h1>
-            <p className="text-white/90 text-lg">
+            <h1 className="text-lg sm:text-xl font-bold mb-1">Frequently Asked Questions</h1>
+            <p className="text-white/90 text-xs sm:text-sm">
               Find answers to common questions about Messbee Business.
             </p>
           </div>
         </div>
-        <div className="mt-6">
+        <div className="mt-4">
           <div className="relative">
-            <MagnifyingGlassIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+            <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
               type="text"
               placeholder="Search for answers..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3.5 rounded-xl bg-white/95 backdrop-blur-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-white/30 shadow-lg"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg bg-white/95 backdrop-blur-sm text-xs sm:text-sm text-slate-700 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-white/30 shadow-sm"
             />
           </div>
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-4 gap-8">
+      <div className="grid lg:grid-cols-4 gap-5">
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-xl p-5 shadow-sm border border-slate-200 sticky top-6">
-            <h3 className="text-sm font-bold text-slate-800 mb-3 uppercase tracking-wide">Categories</h3>
-            <div className="space-y-1">
+          <div className="bg-white rounded-xl p-3.5 shadow-sm border border-slate-200 sticky top-4">
+            <h3 className="text-xs font-bold text-slate-800 mb-2 uppercase tracking-wide">Categories</h3>
+            <div className="space-y-0.5">
               {categories.map((category) => {
                 const Icon = category.icon;
                 const isActive = activeCategory === category.id;
@@ -211,24 +319,24 @@ const Faq = () => {
                   <button
                     key={category.id}
                     onClick={() => setActiveCategory(category.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all ${
+                    className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-left transition-all ${
                       isActive ? "bg-emerald-50 text-[#10B981] font-semibold" : "text-slate-600 hover:bg-slate-50"
                     }`}
                   >
-                    <Icon className="w-5 h-5 flex-shrink-0" />
-                    <span className="flex-1 text-sm">{category.label}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${isActive ? "bg-[#10B981] text-white" : "bg-slate-200 text-slate-600"}`}>
+                    <Icon className="w-4 h-4 flex-shrink-0" />
+                    <span className="flex-1 text-xs">{category.label}</span>
+                    <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${isActive ? "bg-[#10B981] text-white" : "bg-slate-200 text-slate-600"}`}>
                       {categoryCount}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <div className="mt-6 pt-6 border-t border-slate-200">
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
-                <h4 className="text-sm font-bold text-blue-900 mb-2">Still Need Help?</h4>
-                <p className="text-xs text-blue-700 mb-3">Our support team is ready to assist you.</p>
-                <a href="/admin/help/support" className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center text-sm font-semibold py-2 rounded-lg transition-colors">
+            <div className="mt-4 pt-4 border-t border-slate-200">
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 border border-blue-200">
+                <h4 className="text-xs font-bold text-blue-900 mb-1">Still Need Help?</h4>
+                <p className="text-[11px] text-blue-700 mb-2.5">Our support team is ready to assist you.</p>
+                <a href="/admin/help/support" className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center text-xs font-semibold py-1.5 rounded-md transition-colors">
                   Contact Support
                 </a>
               </div>
@@ -236,37 +344,37 @@ const Faq = () => {
           </div>
         </div>
 
-        <div className="lg:col-span-3 space-y-6">
+        <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-600">
+            <p className="text-xs text-slate-600">
               Showing <span className="font-semibold text-slate-800">{filteredFaqs.length}</span> {filteredFaqs.length === 1 ? "question" : "questions"}
               {searchQuery && <span> for "<span className="font-semibold">{searchQuery}</span>"</span>}
             </p>
             {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="text-sm text-[#10B981] hover:underline font-medium">Clear search</button>
+              <button onClick={() => setSearchQuery("")} className="text-xs text-[#10B981] hover:underline font-medium">Clear search</button>
             )}
           </div>
 
           {filteredFaqs.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {filteredFaqs.map((faq) => {
                 const isOpen = openFaqId === faq.id;
                 const categoryInfo = categories.find((cat) => cat.id === faq.category);
 
                 return (
-                  <div key={faq.id} className={`bg-white rounded-xl border-2 transition-all ${isOpen ? "border-[#10B981] shadow-md" : "border-slate-200 hover:border-slate-300"}`}>
-                    <button onClick={() => toggleFaq(faq.id)} className="w-full p-5 text-left flex items-start gap-4">
-                      <div className={`flex-shrink-0 mt-1 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
-                        <ChevronDownIcon className={`w-5 h-5 ${isOpen ? "text-[#10B981]" : "text-slate-400"}`} />
+                  <div key={faq.id} className={`bg-white rounded-lg border transition-all ${isOpen ? "border-[#10B981] shadow-sm" : "border-slate-200 hover:border-slate-300"}`}>
+                    <button onClick={() => toggleFaq(faq.id)} className="w-full p-3.5 text-left flex items-start gap-3">
+                      <div className={`flex-shrink-0 mt-0.5 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}>
+                        <ChevronDownIcon className={`w-4 h-4 ${isOpen ? "text-[#10B981]" : "text-slate-400"}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-bold mb-1 ${isOpen ? "text-[#10B981]" : "text-slate-800"}`}>{faq.question}</h3>
-                        {categoryInfo && <span className="inline-block text-xs px-2 py-1 bg-slate-100 text-slate-600 rounded-md">{categoryInfo.label}</span>}
+                        <h3 className={`text-xs sm:text-sm font-semibold mb-1 ${isOpen ? "text-[#10B981]" : "text-slate-800"}`}>{faq.question}</h3>
+                        {categoryInfo && <span className="inline-block text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded">{categoryInfo.label}</span>}
                       </div>
                     </button>
                     {isOpen && (
-                      <div className="px-5 pb-5 pl-14">
-                        <div className="prose prose-sm max-w-none"><p className="text-slate-600 leading-relaxed">{faq.answer}</p></div>
+                      <div className="px-4 pb-3.5 pl-10">
+                        <div className="prose prose-xs max-w-none"><p className="text-xs text-slate-600 leading-relaxed">{faq.answer}</p></div>
                       </div>
                     )}
                   </div>
@@ -274,10 +382,10 @@ const Faq = () => {
               })}
             </div>
           ) : (
-            <div className="bg-white rounded-xl p-12 text-center border-2 border-dashed border-slate-200">
-              <QuestionMarkCircleIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-bold text-slate-800 mb-2">No results found</h3>
-              <p className="text-slate-600 mb-6">We couldn't find any FAQs matching "{searchQuery}".</p>
+            <div className="bg-white rounded-lg p-8 text-center border-2 border-dashed border-slate-200">
+              <QuestionMarkCircleIcon className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+              <h3 className="text-sm font-bold text-slate-800 mb-1">No results found</h3>
+              <p className="text-xs text-slate-600">We couldn't find any FAQs matching "{searchQuery}".</p>
             </div>
           )}
         </div>

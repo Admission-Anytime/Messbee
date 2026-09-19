@@ -19,20 +19,20 @@ const HelpLayout = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 w-full overflow-hidden font-sans">
-      <div className="bg-white border-b border-gray-200 shrink-0 px-6 sm:px-10 z-10 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-6 pb-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center justify-center">
-              <LifebuoyIcon className="w-5 h-5 text-emerald-600" />
+      <div className="bg-white border-b border-gray-200 shrink-0 px-5 sm:px-8 z-10 shadow-sm">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4 pb-1">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 bg-emerald-50 border border-emerald-100 rounded-lg flex items-center justify-center">
+              <LifebuoyIcon className="w-4 h-4 text-emerald-600" />
             </div>
             <div>
-              <h1 className="text-2xl font-extrabold text-slate-900">Help &amp; Support</h1>
-              <p className="text-sm text-slate-500 font-medium mt-1">Everything you need to manage your MessBee account.</p>
+              <h1 className="text-lg font-bold text-slate-900 leading-tight">Help &amp; Support</h1>
+              <p className="text-xs text-slate-500 font-medium">Everything you need to manage your MessBee account.</p>
             </div>
           </div>
         </div>
 
-        <div className="flex overflow-x-auto hide-scrollbar gap-6 mt-4">
+        <div className="flex overflow-x-auto hide-scrollbar gap-4 mt-2.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.includes(item.path);
@@ -41,13 +41,13 @@ const HelpLayout = () => {
               <NavLink
                 key={item.name}
                 to={item.path}
-                className={`flex items-center gap-2 pb-3 text-sm font-bold whitespace-nowrap transition-colors border-b-2 ${
+                className={`flex items-center gap-1.5 pb-2 text-xs font-semibold whitespace-nowrap transition-colors border-b-2 ${
                   isActive
                     ? "border-[#22C55E] text-[#22C55E]"
                     : "border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300"
                 }`}
               >
-                <Icon className={`w-5 h-5 ${isActive ? "text-[#22C55E]" : "text-slate-400"}`} />
+                <Icon className={`w-4 h-4 ${isActive ? "text-[#22C55E]" : "text-slate-400"}`} />
                 {item.name}
               </NavLink>
             );
