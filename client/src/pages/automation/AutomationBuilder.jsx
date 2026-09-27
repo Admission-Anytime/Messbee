@@ -346,49 +346,83 @@ export default function AutomationBuilder() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', fontFamily: 'Outfit, sans-serif' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', maxHeight: '100vh', width: '100%', fontFamily: 'Outfit, sans-serif', overflow: 'hidden' }}>
       <style>{`
         /* Responsive Top Bar */
-        .auto-topbar { padding: 0 20px; }
-        .auto-title-input { width: 300px; }
+        .auto-topbar { padding: 0 16px; }
+        .auto-title-input { width: 220px; max-width: 220px; }
         .auto-btn-text { display: inline; }
-        .auto-toolbar-gap { gap: 12px; }
-        .auto-btn-padding { padding: 8px 20px; }
+        .auto-toolbar-gap { gap: 10px; }
+        .auto-btn-padding { padding: 7px 16px; }
 
-        /* Sidebar Responsiveness */
-        .properties-pane { width: 320px; flex-shrink: 0; }
-        .preview-pane { width: 360px; flex-shrink: 0; }
+        /* Sidebar & Preview Panes Responsiveness */
+        .properties-pane { width: 330px; flex-shrink: 0; }
+        .preview-pane { width: 330px; flex-shrink: 0; }
 
-        @media (max-width: 1536px) {
-          .preview-pane { width: 320px; }
+        /* Sleek custom scrollbars for panes */
+        .properties-pane::-webkit-scrollbar,
+        .preview-pane::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        .properties-pane::-webkit-scrollbar-track,
+        .preview-pane::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .properties-pane::-webkit-scrollbar-thumb,
+        .preview-pane::-webkit-scrollbar-thumb {
+          background: #CBD5E1;
+          border-radius: 4px;
+        }
+        .properties-pane::-webkit-scrollbar-thumb:hover,
+        .preview-pane::-webkit-scrollbar-thumb:hover {
+          background: #94A3B8;
         }
 
-        /* Laptops <= 1400px (13.3", 14", etc.) */
-        @media (max-width: 1400px) {
-          .auto-title-input { width: 200px !important; }
-          .auto-btn-padding { padding: 6px 12px !important; font-size: 12px !important; }
+        /* Laptops 1440px - 1600px */
+        @media (max-width: 1600px) {
+          .properties-pane { width: 310px; }
+          .preview-pane { width: 310px; }
+          .auto-btn-padding { padding: 6px 14px !important; font-size: 13px !important; }
+        }
+
+        /* Laptops <= 1440px (14", 15.6" scaled) */
+        @media (max-width: 1440px) {
+          .auto-title-input { width: 180px !important; max-width: 180px !important; }
+          .auto-btn-padding { padding: 6px 12px !important; font-size: 12.5px !important; }
           .auto-toolbar-gap { gap: 8px !important; }
           .auto-topbar { padding: 0 12px !important; }
           
-          .properties-pane { width: 300px; }
-          .preview-pane { width: 300px; }
+          .properties-pane { width: 295px; }
+          .preview-pane { width: 295px; }
         }
 
-        /* Laptops <= 1200px (11.6", extreme split-screen) */
-        @media (max-width: 1200px) {
-          .auto-title-input { width: 140px !important; }
-          .auto-btn-text.optional { display: none !important; }
-          .auto-btn-padding { padding: 8px !important; } /* Icon only */
+        /* Laptops <= 1300px (13.3", 1366x768 standard) */
+        @media (max-width: 1300px) {
+          .auto-title-input { width: 150px !important; max-width: 150px !important; }
+          .auto-btn-padding { padding: 6px 10px !important; font-size: 12px !important; }
+          .auto-toolbar-gap { gap: 6px !important; }
+          .auto-topbar { padding: 0 10px !important; }
           
           .properties-pane { width: 280px; }
           .preview-pane { width: 280px; }
+        }
+
+        /* Small Laptops / Split screen <= 1120px */
+        @media (max-width: 1120px) {
+          .auto-title-input { width: 120px !important; max-width: 120px !important; }
+          .auto-btn-text.optional { display: none !important; }
+          .auto-btn-padding { padding: 7px 9px !important; }
+          
+          .properties-pane { width: 260px; }
+          .preview-pane { width: 260px; }
         }
       `}</style>
       
       <div className="auto-topbar" style={{
         height: '56px', background: 'white', borderBottom: '1px solid #E5E7EB',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        flexShrink: 0, zIndex: 20
+        flexShrink: 0, zIndex: 20, whiteSpace: 'nowrap'
       }}>
         <div className="auto-toolbar-gap" style={{ display: 'flex', alignItems: 'center' }}>
           <button
@@ -529,8 +563,8 @@ export default function AutomationBuilder() {
         </div>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-        <div style={{ flex: 1, position: 'relative' }}>
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: 1, minWidth: 0, position: 'relative', height: '100%' }}>
           <FlowCanvas 
             activeDebugNodeId={activeDebugNodeId}
             invalidNodeId={invalidNodeId}

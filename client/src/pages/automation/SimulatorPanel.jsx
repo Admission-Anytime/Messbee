@@ -137,7 +137,28 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       }
     }
     if (payload.type === 'template') {
-      const templateText = payload._sim_template_text || '';
+      let templateText = payload._sim_template_text || '';
+      if (templateText && templateText.includes('{{')) {
+        let userName = 'Aayush Kumar';
+        try {
+          const u = JSON.parse(localStorage.getItem('user'));
+          userName = u?.name || u?.tenantName || 'Aayush Kumar';
+        } catch (_) {}
+
+        const bodyComp = payload.template?.components?.find(c => String(c.type).toLowerCase() === 'body');
+        if (bodyComp?.parameters && Array.isArray(bodyComp.parameters)) {
+          bodyComp.parameters.forEach((param, idx) => {
+            let val = param.text || param.value || '';
+            if (!val || val.trim() === '' || val.includes('contact.name') || val.includes('name')) {
+              val = userName;
+            }
+            templateText = templateText.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val);
+          });
+        }
+        templateText = templateText.replace(/\{\{1\}\}/g, userName);
+        templateText = templateText.replace(/\{\{2\}\}/g, 'Special Offer');
+        templateText = templateText.replace(/\{\{(\d+)\}\}/g, '');
+      }
       const templateImage = payload._sim_template_image;
       return (
         <div style={{ padding: '8px', background: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', color: '#92400e', fontSize: '13px' }}>
