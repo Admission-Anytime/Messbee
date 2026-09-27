@@ -115,37 +115,43 @@ export default function MobilePreviewPane() {
       flexDirection: 'column',
       fontFamily: 'Outfit, sans-serif',
       boxShadow: '-4px 0 15px rgba(0,0,0,0.03)',
-      overflowY: 'auto'
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      boxSizing: 'border-box'
     }}>
-      <div style={{ padding: '20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '12px', background: 'white' }}>
-        <div style={{ background: '#FCE7F3', color: '#DB2777', padding: '8px', borderRadius: '8px' }}>
-          <Smartphone size={20} />
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '10px', background: 'white', flexShrink: 0 }}>
+        <div style={{ background: '#FCE7F3', color: '#DB2777', padding: '7px', borderRadius: '8px' }}>
+          <Smartphone size={18} />
         </div>
-        <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>Live Preview</h2>
+        <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>Live Preview</h2>
       </div>
 
-      <div style={{ flex: 1, padding: '24px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#F3F4F6' }}>
+      <div style={{ flex: 1, padding: '16px 12px', display: 'flex', justifyContent: 'center', alignItems: 'center', background: '#F3F4F6', minHeight: 0, overflow: 'hidden' }}>
         {/* iPhone Mockup Frame */}
         <div style={{
-          width: '300px',
-          height: '600px',
+          width: '100%',
+          maxWidth: '280px',
+          height: 'min(570px, calc(100vh - 145px))',
+          minHeight: '430px',
+          maxHeight: '100%',
           background: '#E5DDD5', // WhatsApp background color
-          borderRadius: '40px',
-          border: '8px solid #111827',
+          borderRadius: '36px',
+          border: '7px solid #111827',
           position: 'relative',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          boxSizing: 'border-box'
         }}>
           {/* Dynamic Island / Notch */}
-          <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '120px', height: '25px', background: '#111827', borderBottomLeftRadius: '16px', borderBottomRightRadius: '16px', zIndex: 10 }}></div>
+          <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: '90px', height: '20px', background: '#111827', borderBottomLeftRadius: '14px', borderBottomRightRadius: '14px', zIndex: 10 }}></div>
           
           {/* WhatsApp Header Mock */}
-          <div style={{ height: '70px', background: '#075E54', width: '100%', display: 'flex', alignItems: 'flex-end', padding: '12px 16px', color: 'white', fontSize: '16px', fontWeight: '600' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: 'auto' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#ccc' }}></div>
-              <span>{(() => {
+          <div style={{ height: '58px', background: '#075E54', width: '100%', display: 'flex', alignItems: 'flex-end', padding: '8px 12px', color: 'white', fontSize: '14px', fontWeight: '600', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: 'auto', minWidth: 0 }}>
+              <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#ccc', flexShrink: 0 }}></div>
+              <span style={{ maxWidth: '180px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(() => {
                 try {
                   const u = JSON.parse(localStorage.getItem('user'));
                   return u?.tenantName || u?.businessName || 'MessBee Bot';
@@ -157,7 +163,7 @@ export default function MobilePreviewPane() {
           </div>
 
           {/* Chat Container */}
-          <div style={{ flex: 1, padding: '16px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ flex: 1, padding: '12px 10px', overflowY: 'auto', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
             
             {/* User Incoming Message (if trigger) */}
             {type === 'triggerNode' && (
@@ -212,7 +218,27 @@ export default function MobilePreviewPane() {
                   
                   {((type === 'mediaNode' && ['image', 'video', 'doc', 'document', 'gif'].includes(data.messageType) && data.text) || (type !== 'mediaNode')) && (
                     <div style={{ fontSize: '14px', color: '#111827', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-                      {data.text || (type === 'mediaNode' ? '' : 'Message text here...')}
+                      {(() => {
+                        let txt = data.text || (type === 'mediaNode' ? '' : 'Message text here...');
+                        if (type === 'templateNode' && txt) {
+                          let userName = 'Aayush Kumar';
+                          try {
+                            const u = JSON.parse(localStorage.getItem('user'));
+                            userName = u?.name || u?.tenantName || 'Aayush Kumar';
+                          } catch (_) {}
+                          if (data.variables && Array.isArray(data.variables)) {
+                            data.variables.forEach((v, idx) => {
+                              let val = v?.value || '';
+                              if (val.includes('contact.name') || val.includes('name')) {
+                                val = userName;
+                              }
+                              txt = txt.replace(new RegExp(`\\{\\{${idx + 1}\\}\\}`, 'g'), val || userName);
+                            });
+                          }
+                          txt = txt.replace(/\{\{1\}\}/g, userName);
+                        }
+                        return txt;
+                      })()}
                     </div>
                   )}
 
@@ -242,8 +268,8 @@ export default function MobilePreviewPane() {
           </div>
 
           {/* WhatsApp Footer Mock */}
-          <div style={{ height: '60px', background: '#F0F0F0', width: '100%', display: 'flex', alignItems: 'center', padding: '0 12px' }}>
-            <div style={{ flex: 1, height: '40px', background: 'white', borderRadius: '20px', padding: '0 16px', display: 'flex', alignItems: 'center', color: '#9CA3AF', fontSize: '14px' }}>
+          <div style={{ height: '48px', background: '#F0F0F0', width: '100%', display: 'flex', alignItems: 'center', padding: '0 10px', flexShrink: 0 }}>
+            <div style={{ flex: 1, height: '34px', background: 'white', borderRadius: '17px', padding: '0 12px', display: 'flex', alignItems: 'center', color: '#9CA3AF', fontSize: '13px' }}>
               Type a message
             </div>
           </div>

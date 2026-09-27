@@ -242,6 +242,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         @media (max-width: 1400px) {
           .auto-bottom-pill { bottom: 16px; gap: 4px; padding: 4px; }
           .auto-add-node-btn { padding: 6px 10px; font-size: 12px !important; }
+          .react-flow__minimap { display: none !important; }
         }
         @media (max-width: 1200px) {
           .auto-add-node-text { display: none !important; }
@@ -467,7 +468,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
       </div>
 
       {/* Bottom branding */}
-      <div style={{ position: 'absolute', bottom: '8px', right: '16px', fontSize: '9px', color: '#64748B', fontWeight: '700', zIndex: 5, textAlign: 'right', letterSpacing: '0.05em' }}>
+      <div style={{ position: 'absolute', bottom: '8px', right: '16px', fontSize: '9px', color: '#64748B', fontWeight: '700', zIndex: 5, textAlign: 'right', letterSpacing: '0.05em', pointerEvents: 'none' }}>
         PROUDLY POWERED BY <span style={{ color: '#10B981' }}>MESSBEE</span><br/>
         <span style={{ color: '#94A3B8', fontWeight: '500' }}>Dynamic Engine</span>
       </div>

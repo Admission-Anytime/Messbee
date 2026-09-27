@@ -55,48 +55,48 @@ export default function Campaigns() {
   ];
 
   return (
-    <div className="bg-gray-50 min-h-screen">
+    <div className="bg-gray-50 min-h-screen font-['Urbanist']">
 
-      <div className="max-w-7xl mx-auto px-10 pt-10 pb-16">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-12">
 
         {/* Breadcrumb */}
-        <div className="flex items-center gap-2 text-sm font-semibold mb-6">
+        <div className="flex items-center gap-1.5 text-xs font-semibold mb-3">
 
           <span
             onClick={() => navigate("/admin/help/support")}
-            className="text-gray-500 hover:text-gray-900 cursor-pointer"
+            className="text-gray-400 hover:text-gray-700 cursor-pointer"
           >
             Help Center
           </span>
 
-          <span className="text-gray-400">›</span>
+          <span className="text-gray-300">›</span>
 
-          <span className="text-gray-900">
+          <span className="text-gray-700">
             Campaigns
           </span>
 
         </div>
 
         {/* Title */}
-        <h1 className="text-4xl font-bold text-gray-900 mb-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900 mb-1.5">
           Campaigns
         </h1>
 
-        <p className="text-gray-700 text-lg max-w-2xl mb-8">
+        <p className="text-gray-600 text-xs sm:text-sm max-w-xl mb-5">
           Learn how to create, schedule, and analyze high-impact WhatsApp
           broadcast campaigns to engage your audience effectively.
         </p>
 
         {/* Search */}
-        <div className="max-w-lg mb-10">
+        <div className="max-w-md mb-6">
 
-          <div className="flex items-center bg-white border border-gray-200 rounded-xl px-4 py-3">
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg px-3 py-2">
 
-            <MagnifyingGlassIcon className="w-5 h-5 text-gray-400 mr-3"/>
+            <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 mr-2"/>
 
             <input
               placeholder="Search campaign articles..."
-              className="outline-none text-sm w-full"
+              className="outline-none text-xs w-full"
             />
 
           </div>

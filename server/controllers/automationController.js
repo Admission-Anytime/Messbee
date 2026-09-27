@@ -228,9 +228,10 @@ exports.simulateStart = async (req, res, next) => {
 
     // Upsert a dummy contact for the simulator
     const Contact = require('../models/Contact');
+    const simName = req.user?.name || req.user?.tenantName || 'Aayush Kumar';
     await Contact.findOneAndUpdate(
       { phone: simulatorPhone, tenantId, channelId: automation.channelId },
-      { name: 'Simulator User', isOptedOut: false, lastInteractionAt: new Date() },
+      { name: simName, isOptedOut: false, lastInteractionAt: new Date() },
       { upsert: true, new: true }
     );
 
