@@ -683,7 +683,10 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         return;
       }
     }
-    const contact = await Contact.findOne({ phone: customerPhone, channelId });
+    let contact = await Contact.findOne({ phone: customerPhone, channelId });
+    if (!contact && customerPhone.startsWith('SIMULATOR_')) {
+      contact = await Contact.findOne({ phone: customerPhone });
+    }
 
     let currentNodeId = startNodeId;
     let keepRunning = true;
@@ -722,16 +725,29 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         }
       }
 
+      const isSim = typeof customerPhone === 'string' && customerPhone.startsWith('SIMULATOR_');
+      let defaultSimName = '';
+      if (isSim) {
+        defaultSimName = 'Aayush Kumar';
+        try {
+          const { default: User } = await import('../models/User.js');
+          if (channel.tenantId) {
+            const u = await User.findOne({ tenantId: channel.tenantId });
+            if (u?.name) defaultSimName = u.name;
+          }
+        } catch (_) {}
+      }
+
       const contextData = {
         contact: contact ? {
           id: contact._id.toString(),
           tenantId: contact.tenantId ? contact.tenantId.toString() : null,
           phone: contact.phone,
-          name: contact.name || '',
+          name: contact.name || (isSim ? defaultSimName : ''),
           email: contact.email || '',
           tags: contact.tags || [],
           ...contactFields
-        } : { phone: customerPhone, id: session._id },
+        } : { phone: customerPhone, id: session._id, name: isSim ? defaultSimName : '' },
         tenantSettings: tenantSettings || {},
         ...sessionVars
       };
@@ -824,6 +840,40 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
             // If template text still not found from DB, fallback to node text or placeholder
             if (!payload._sim_template_text) {
               payload._sim_template_text = currentNode.data?.text || currentNode.data?.headline || `Template: ${tmplName}`;
+            }
+
+            // Replace all {{1}}, {{2}} in payload._sim_template_text with evaluated variables
+            if (payload._sim_template_text && typeof payload._sim_template_text === 'string') {
+              let resolvedText = payload._sim_template_text;
+              const vars = currentNode.data?.variables || [];
+              vars.forEach((v, index) => {
+                const paramNum = index + 1;
+                const rawVal = v?.value || '';
+                let evaluatedVal = parseDynamicVariables(rawVal, contextData);
+
+                if (!evaluatedVal || evaluatedVal.trim() === '') {
+                  if (rawVal.includes('contact.name') || rawVal.includes('name')) {
+                    evaluatedVal = contextData?.contact?.name || defaultSimName || 'Aayush Kumar';
+                  } else if (rawVal.includes('contact.phone') || rawVal.includes('phone')) {
+                    evaluatedVal = contextData?.contact?.phone || '+91 9876543210';
+                  } else if (rawVal.includes('contact.email') || rawVal.includes('email')) {
+                    evaluatedVal = contextData?.contact?.email || 'contact@example.com';
+                  } else if (rawVal) {
+                    evaluatedVal = rawVal.replace(/[{}]/g, '').trim();
+                  } else {
+                    evaluatedVal = contextData?.contact?.name || defaultSimName || 'Aayush Kumar';
+                  }
+                }
+
+                resolvedText = resolvedText.replace(new RegExp(`\\{\\{${paramNum}\\}\\}`, 'g'), evaluatedVal);
+              });
+
+              // Clean up any remaining {{1}}, {{2}} placeholders
+              resolvedText = resolvedText.replace(/\{\{1\}\}/g, contextData?.contact?.name || defaultSimName || 'Aayush Kumar');
+              resolvedText = resolvedText.replace(/\{\{2\}\}/g, 'Special Offer');
+              resolvedText = resolvedText.replace(/\{\{(\d+)\}\}/g, '');
+
+              payload._sim_template_text = resolvedText;
             }
 
             // Always ensure buttons from node are present if DB didn't provide any

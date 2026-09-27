@@ -189,9 +189,9 @@ const Templates = ({ activeTab }) => {
       const templatesArray = whatsappTemplates.data?.data || [];
       const formatted = mergeTemplates(templatesArray, []);
       
-      // Filter out locally deleted templates
-      const deletedNames = getDeletedNames();
-      const visibleTemplates = formatted.filter(t => !deletedNames.includes(t.name));
+      // Trust Meta/server as source of truth — only hide templates that server marks DELETED
+      // Do NOT use localStorage to permanently hide templates (breaks multi-account sync)
+      const visibleTemplates = formatted.filter(t => t.status !== 'DELETED');
       
       setTemplates(visibleTemplates);
       

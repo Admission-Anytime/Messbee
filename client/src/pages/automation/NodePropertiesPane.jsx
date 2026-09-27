@@ -127,10 +127,10 @@ function LocationPicker({ localData, setLocalData, updateNodeData, id }) {
 }
 const inputStyle = {
   width: '100%',
-  padding: '10px 12px',
+  padding: '8px 11px',
   border: '1px solid #D1D5DB',
   borderRadius: '8px',
-  fontSize: '14px',
+  fontSize: '13px',
   color: '#1F2937',
   outline: 'none',
   transition: 'border-color 0.2s',
@@ -143,6 +143,9 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [uploadMode, setUploadMode] = useState('url');
   const [isUploading, setIsUploading] = useState(false);
   const [channelPhone, setChannelPhone] = useState('');
+  const [approvedTemplates, setApprovedTemplates] = useState([]);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [loadingTemplates, setLoadingTemplates] = useState(false);
 
   useEffect(() => {
     if (currentChannelId) {
@@ -156,15 +159,32 @@ export default function NodePropertiesPane({ currentChannelId }) {
     }
   }, [currentChannelId]);
 
+
+
   const selectedNode = nodes.find(n => n.selected);
 
   useEffect(() => {
     if (selectedNode) {
       setLocalData(selectedNode.data);
+      setTemplateSearch('');
     } else {
       setLocalData(null);
     }
   }, [selectedNode?.id]);
+
+  // Fetch approved templates when a templateNode is selected
+  useEffect(() => {
+    if (selectedNode?.type === 'templateNode' && approvedTemplates.length === 0) {
+      setLoadingTemplates(true);
+      api.get('/whatsapp/templates')
+        .then(res => {
+          const all = res.data?.approvedTemplates || res.data?.data?.data || [];
+          setApprovedTemplates(all.filter(t => t.status === 'APPROVED' || !t.status));
+        })
+        .catch(() => {})
+        .finally(() => setLoadingTemplates(false));
+    }
+  }, [selectedNode?.id, selectedNode?.type]);
 
   if (!selectedNode || !localData) {
     return (
@@ -369,18 +389,20 @@ export default function NodePropertiesPane({ currentChannelId }) {
       flexDirection: 'column',
       fontFamily: 'Outfit, sans-serif',
       boxShadow: '-4px 0 15px rgba(0,0,0,0.03)',
-      overflowY: 'auto'
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      boxSizing: 'border-box'
     }}>
       {type !== 'triggerNode' && (
-        <div style={{ padding: '20px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ background: '#EFF6FF', color: '#2563EB', padding: '8px', borderRadius: '8px' }}>
-            <Settings size={20} />
+        <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          <div style={{ background: '#EFF6FF', color: '#2563EB', padding: '7px', borderRadius: '8px' }}>
+            <Settings size={18} />
           </div>
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>Configuration</h2>
+          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>Configuration</h2>
         </div>
       )}
 
-      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
 
         {/* Common Field */}
         <div>
@@ -1203,85 +1225,193 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </div>
         )}
 
-        {type === 'templateNode' && (
-          <>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Template Name</label>
-              <input type="text" name="templateName" value={localData.templateName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. welcome_msg" />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Language Code</label>
-              <input type="text" name="templateLanguage" value={localData.templateLanguage || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. en_US" />
-            </div>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Variables</label>
-              </div>
-              {(localData.variables || []).map((v, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                  <div style={{ padding: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', color: '#64748b' }}>{`{{${idx+1}}}`}</div>
-                  <input type="text" value={v.value || ''} onChange={(e) => {
-                    const newVars = [...(localData.variables || [])];
-                    newVars[idx] = { ...newVars[idx], value: e.target.value };
-                    setLocalData(prev => ({ ...prev, variables: newVars }));
-                  }} onBlur={() => updateNodeData(id, { variables: localData.variables })} style={{ ...inputStyle }} placeholder="Variable Value" />
-                </div>
-              ))}
-              <button onClick={() => {
-                const newVars = [...(localData.variables || []), { id: `var_${Date.now()}`, value: '' }];
-                setLocalData(prev => ({ ...prev, variables: newVars }));
-                updateNodeData(id, { variables: newVars });
-              }} style={{ background: 'transparent', color: '#8b5cf6', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
-                + Add Variable
-              </button>
-            </div>
+        {type === 'templateNode' && (() => {
+          // Helper to pick template and auto-populate node data
+          const applyTemplate = (tmpl) => {
+            if (!tmpl) return;
+            let variables = [];
+            let templateButtons = [];
+            const bodyComp = (tmpl.components || []).find(c => c.type === 'BODY');
+            if (bodyComp?.example?.body_text?.[0]) {
+              variables = bodyComp.example.body_text[0].map(() => ({ value: '' }));
+            }
+            const btnComp = (tmpl.components || []).find(c => c.type === 'BUTTONS');
+            if (btnComp?.buttons) {
+              templateButtons = btnComp.buttons.map((b, i) => ({
+                id: b.payload || b.id || `btn_${i}`,
+                type: (b.type || 'QUICK_REPLY').toLowerCase(),
+                text: b.text || b.title || `Button ${i + 1}`,
+                title: b.text || b.title || `Button ${i + 1}`,
+                url: b.url,
+                phoneNumber: b.phone_number,
+                payload: b.payload
+              }));
+            } else if (Array.isArray(tmpl.buttons)) {
+              templateButtons = tmpl.buttons.map((b, i) => ({
+                id: b.payload || b.id || `btn_${i}`,
+                type: (b.type || 'quick_reply').toLowerCase(),
+                text: b.text || b.title || `Button ${i + 1}`,
+                title: b.text || b.title || `Button ${i + 1}`
+              }));
+            }
+            const langCode = tmpl.language && tmpl.language !== 'en' ? tmpl.language : 'en_US';
+            const updates = {
+              templateName: tmpl.name,
+              templateLanguage: langCode,
+              variables,
+              buttons: templateButtons
+            };
+            setLocalData(prev => ({ ...prev, ...updates }));
+            updateNodeData(id, updates);
+          };
 
-            <div style={{ marginTop: '16px', borderTop: '1px solid #E5E7EB', paddingTop: '16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Template Buttons</label>
-              </div>
-              <p style={{ fontSize: '12px', color: '#6B7280', marginBottom: '12px' }}>Define the buttons that exist in this template to branch from them.</p>
-              
-              {(localData.buttons || []).map((btn, idx) => (
-                <div key={btn.id || idx} style={{ background: '#F9FAFB', padding: '12px', borderRadius: '8px', border: '1px solid #E5E7EB', marginBottom: '12px', position: 'relative' }}>
-                  <button 
-                    onClick={() => {
-                      const newBtns = localData.buttons.filter((_, i) => i !== idx);
-                      setLocalData(prev => ({ ...prev, buttons: newBtns }));
-                      updateNodeData(id, { buttons: newBtns });
-                    }}
-                    style={{ position: 'absolute', top: '8px', right: '8px', background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer' }}
-                  >
-                    ×
-                  </button>
-                  <div style={{ marginBottom: '8px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#6B7280', marginBottom: '4px' }}>Payload ID</label>
-                    <input type="text" value={btn.id || ''} onChange={(e) => {
-                      const newBtns = [...localData.buttons];
-                      newBtns[idx] = { ...newBtns[idx], id: e.target.value };
-                      setLocalData(prev => ({ ...prev, buttons: newBtns }));
-                    }} onBlur={() => updateNodeData(id, { buttons: localData.buttons })} style={{ ...inputStyle, background: 'white' }} placeholder="Button ID/Payload" />
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '12px', color: '#6B7280', marginBottom: '4px' }}>Button Title</label>
-                    <input type="text" value={btn.title || ''} onChange={(e) => {
-                      const newBtns = [...localData.buttons];
-                      newBtns[idx] = { ...newBtns[idx], title: e.target.value };
-                      setLocalData(prev => ({ ...prev, buttons: newBtns }));
-                    }} onBlur={() => updateNodeData(id, { buttons: localData.buttons })} style={{ ...inputStyle, background: 'white' }} placeholder="Title" />
-                  </div>
+          const filteredTpls = approvedTemplates.filter(t =>
+            (t.name || '').toLowerCase().includes((templateSearch || '').toLowerCase())
+          );
+
+          return (
+            <>
+              {/* Template Selector */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#111827', marginBottom: '6px' }}>Select Template</label>
+                <div style={{ position: 'relative', marginBottom: '12px' }}>
+                  <input
+                    type="text"
+                    value={templateSearch}
+                    onChange={e => setTemplateSearch(e.target.value)}
+                    placeholder={loadingTemplates ? 'Loading templates...' : 'Search approved templates...'}
+                    style={{ ...inputStyle, paddingRight: '32px' }}
+                    disabled={loadingTemplates}
+                  />
+                  {loadingTemplates && (
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#9CA3AF' }}>⏳</span>
+                  )}
                 </div>
-              ))}
-              <button onClick={() => {
-                const newBtns = [...(localData.buttons || []), { id: `btn_${Date.now()}`, title: 'New Button', type: 'reply' }];
-                setLocalData(prev => ({ ...prev, buttons: newBtns }));
-                updateNodeData(id, { buttons: newBtns });
-              }} style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
-                + Add Button
-              </button>
-            </div>
-          </>
-        )}
+                {(templateSearch || filteredTpls.length > 0) && (
+                  <div style={{ border: '1px solid #E5E7EB', borderRadius: '8px', maxHeight: '200px', overflowY: 'auto', background: 'white', marginBottom: '12px' }}>
+                    {filteredTpls.length === 0 ? (
+                      <div style={{ padding: '12px', fontSize: '12px', color: '#9CA3AF', textAlign: 'center' }}>No approved templates found</div>
+                    ) : filteredTpls.map(t => (
+                      <div
+                        key={t.id || t.name}
+                        onClick={() => { applyTemplate(t); setTemplateSearch(''); }}
+                        style={{
+                          padding: '10px 12px', cursor: 'pointer', fontSize: '13px', fontWeight: '500',
+                          color: localData.templateName === t.name ? '#10B981' : '#111827',
+                          background: localData.templateName === t.name ? '#ECFDF5' : 'white',
+                          borderBottom: '1px solid #F3F4F6',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        }}
+                        onMouseOver={e => { if (localData.templateName !== t.name) e.currentTarget.style.background = '#F9FAFB'; }}
+                        onMouseOut={e => { if (localData.templateName !== t.name) e.currentTarget.style.background = 'white'; }}
+                      >
+                        <span>{t.name}</span>
+                        <span style={{ fontSize: '10px', background: '#ECFDF5', color: '#059669', padding: '2px 6px', borderRadius: '100px', fontWeight: '700', textTransform: 'uppercase' }}>{t.language || 'en'}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Show selected template name */}
+                {localData.templateName && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: '#ECFDF5', borderRadius: '8px', border: '1px solid #A7F3D0', marginBottom: '12px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>✓ Selected:</span>
+                    <span style={{ fontSize: '12px', color: '#065F46', fontFamily: 'monospace' }}>{localData.templateName}</span>
+                    <button
+                      onClick={() => { setLocalData(p => ({...p, templateName: '', templateLanguage: '', variables: [], buttons: []})); updateNodeData(id, { templateName: '', templateLanguage: '', variables: [], buttons: [] }); }}
+                      style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
+                      title="Clear selection"
+                    >×</button>
+                  </div>
+                )}
+              </div>
+
+              {/* Language Code (auto-filled, editable) */}
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Language Code</label>
+                <input type="text" name="templateLanguage" value={localData.templateLanguage || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. en_US" />
+              </div>
+
+              {/* Variables */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Variables</label>
+                  <span style={{ fontSize: '11px', color: '#6B7280' }}>Auto-filled from template</span>
+                </div>
+                {(localData.variables || []).map((v, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                    <div style={{ padding: '8px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap', flexShrink: 0 }}>{`{{${idx+1}}}`}</div>
+                    <input type="text" value={v.value || ''} onChange={(e) => {
+                      const newVars = [...(localData.variables || [])];
+                      newVars[idx] = { ...newVars[idx], value: e.target.value };
+                      setLocalData(prev => ({ ...prev, variables: newVars }));
+                      updateNodeData(id, { variables: newVars });
+                    }} style={{ ...inputStyle, flex: 1, minWidth: 0 }} placeholder={`Value for {{${idx+1}}}`} />
+                    <button
+                      onClick={() => { const nv = (localData.variables||[]).filter((_,i) => i!==idx); setLocalData(p => ({...p, variables: nv})); updateNodeData(id, { variables: nv }); }}
+                      style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '18px', lineHeight: 1, flexShrink: 0 }}
+                    >×</button>
+                  </div>
+                ))}
+                <button onClick={() => {
+                  const newVars = [...(localData.variables || []), { id: `var_${Date.now()}`, value: '' }];
+                  setLocalData(prev => ({ ...prev, variables: newVars }));
+                  updateNodeData(id, { variables: newVars });
+                }} style={{ background: 'transparent', color: '#8b5cf6', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
+                  + Add Variable
+                </button>
+              </div>
+
+              {/* Template Buttons (auto-filled from template, editable for branching) */}
+              <div style={{ marginTop: '16px', borderTop: '1px solid #E5E7EB', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Template Buttons</label>
+                  <span style={{ fontSize: '10px', color: '#6B7280' }}>Auto-filled from template</span>
+                </div>
+                <p style={{ fontSize: '12px', color: '#6B7280', marginBottom: '12px', lineHeight: '1.4' }}>
+                  Buttons are auto-loaded when you select a template. Each button creates a branch to connect next steps.
+                </p>
+                {(localData.buttons || []).map((btn, idx) => (
+                  <div key={btn.id || idx} style={{ background: '#F9FAFB', padding: '12px', borderRadius: '8px', border: '1px solid #E5E7EB', marginBottom: '10px', position: 'relative' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '10px', background: btn.type === 'url' ? '#EFF6FF' : btn.type === 'phone_number' || btn.type === 'phone' ? '#F0FDF4' : '#F3E8FF', color: btn.type === 'url' ? '#2563EB' : btn.type === 'phone_number' || btn.type === 'phone' ? '#16A34A' : '#7C3AED', padding: '2px 6px', borderRadius: '4px', fontWeight: '700', textTransform: 'uppercase' }}>
+                        {btn.type === 'url' ? '🔗 URL' : btn.type === 'phone_number' || btn.type === 'phone' ? '📞 PHONE' : '⚡ QUICK REPLY'}
+                      </span>
+                      <button
+                        onClick={() => { const nb = localData.buttons.filter((_, i) => i !== idx); setLocalData(p => ({...p, buttons: nb})); updateNodeData(id, { buttons: nb }); }}
+                        style={{ marginLeft: 'auto', background: 'transparent', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
+                      >×</button>
+                    </div>
+                    <div style={{ marginBottom: '6px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#6B7280', marginBottom: '3px', fontWeight: '600' }}>Button Text</label>
+                      <input type="text" value={btn.text || btn.title || ''} onChange={(e) => {
+                        const nb = [...localData.buttons];
+                        nb[idx] = { ...nb[idx], text: e.target.value, title: e.target.value };
+                        setLocalData(prev => ({ ...prev, buttons: nb }));
+                        updateNodeData(id, { buttons: nb });
+                      }} style={{ ...inputStyle, background: 'white', fontSize: '12px', padding: '8px 10px' }} placeholder="Button text" />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#6B7280', marginBottom: '3px', fontWeight: '600' }}>Payload / Branch ID</label>
+                      <input type="text" value={btn.id || btn.payload || ''} onChange={(e) => {
+                        const nb = [...localData.buttons];
+                        nb[idx] = { ...nb[idx], id: e.target.value, payload: e.target.value };
+                        setLocalData(prev => ({ ...prev, buttons: nb }));
+                        updateNodeData(id, { buttons: nb });
+                      }} style={{ ...inputStyle, background: 'white', fontSize: '12px', padding: '8px 10px', fontFamily: 'monospace' }} placeholder="e.g. btn_yes" />
+                    </div>
+                  </div>
+                ))}
+                <button onClick={() => {
+                  const nb = [...(localData.buttons || []), { id: `btn_${Date.now()}`, type: 'quick_reply', text: 'Quick Reply', title: 'Quick Reply' }];
+                  setLocalData(prev => ({ ...prev, buttons: nb }));
+                  updateNodeData(id, { buttons: nb });
+                }} style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
+                  + Add Button
+                </button>
+              </div>
+            </>
+          );
+        })()}
 
         {type === 'reactionNode' && (
           <div>

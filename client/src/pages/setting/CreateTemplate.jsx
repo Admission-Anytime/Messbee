@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useState, useEffect, useRef, useContext } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { RotateCw, ArrowLeft, Image as ImageIcon, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap, Lock, Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { RotateCw, ArrowLeft, Image as ImageIcon, Plus, ChevronRight, ExternalLink, Trash2, Globe, X, Clock, Bold, Italic, Link2, Strikethrough, Smile, Info, Copy, Zap, Lock, Sparkles, ArrowRight, AlertCircle, Phone } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { createWhatsAppTemplate, updateWhatsAppTemplate, saveTemplateHeaderPreview, uploadTemplateMedia, uploadTemplateMediaByUrl, resolveMediaUrlForDev, fetchWhatsAppTemplates } from '../../services/TemplateApi';
 import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
@@ -46,6 +46,101 @@ const getExpirationPreviewText = (expirationDate = '24h', customHours = 24) => {
     default: return '23:59:59';
   }
 };
+
+/**
+ * Standard list of countries for WhatsApp Call Phone Number button
+ */
+const COUNTRY_CODES = [
+  { code: '+91', name: 'India', flag: '🇮🇳', iso: 'IN' },
+  { code: '+1', name: 'USA / Canada', flag: '🇺🇸', iso: 'US' },
+  { code: '+44', name: 'UK', flag: '🇬🇧', iso: 'GB' },
+  { code: '+971', name: 'UAE', flag: '🇦🇪', iso: 'AE' },
+  { code: '+966', name: 'Saudi Arabia', flag: '🇸🇦', iso: 'SA' },
+  { code: '+65', name: 'Singapore', flag: '🇸🇬', iso: 'SG' },
+  { code: '+61', name: 'Australia', flag: '🇦🇺', iso: 'AU' },
+  { code: '+49', name: 'Germany', flag: '🇩🇪', iso: 'DE' },
+  { code: '+33', name: 'France', flag: '🇫🇷', iso: 'FR' },
+  { code: '+81', name: 'Japan', flag: '🇯🇵', iso: 'JP' },
+  { code: '+86', name: 'China', flag: '🇨🇳', iso: 'CN' },
+  { code: '+55', name: 'Brazil', flag: '🇧🇷', iso: 'BR' },
+  { code: '+880', name: 'Bangladesh', flag: '🇧🇩', iso: 'BD' },
+  { code: '+977', name: 'Nepal', flag: '🇳🇵', iso: 'NP' },
+  { code: '+92', name: 'Pakistan', flag: '🇵🇰', iso: 'PK' },
+  { code: '+94', name: 'Sri Lanka', flag: '🇱🇰', iso: 'LK' },
+  { code: '+60', name: 'Malaysia', flag: '🇲🇾', iso: 'MY' },
+  { code: '+62', name: 'Indonesia', flag: '🇮🇩', iso: 'ID' },
+  { code: '+27', name: 'South Africa', flag: '🇿🇦', iso: 'ZA' },
+  { code: '+234', name: 'Nigeria', flag: '🇳🇬', iso: 'NG' },
+  { code: '+254', name: 'Kenya', flag: '🇰🇪', iso: 'KE' },
+  { code: '+7', name: 'Russia', flag: '🇷🇺', iso: 'RU' },
+  { code: '+34', name: 'Spain', flag: '🇪🇸', iso: 'ES' },
+  { code: '+39', name: 'Italy', flag: '🇮🇹', iso: 'IT' },
+  { code: '+31', name: 'Netherlands', flag: '🇳🇱', iso: 'NL' },
+  { code: '+968', name: 'Oman', flag: '🇴🇲', iso: 'OM' },
+  { code: '+974', name: 'Qatar', flag: '🇶🇦', iso: 'QA' },
+  { code: '+965', name: 'Kuwait', flag: '🇰🇼', iso: 'KW' },
+  { code: '+973', name: 'Bahrain', flag: '🇧🇭', iso: 'BH' }
+];
+
+/**
+ * Parses and sanitizes a phone button data object so that country code and national digits are cleanly separated
+ */
+const parsePhoneButtonData = (btn) => {
+  let countryCode = btn.countryCode || '+91';
+  let phoneVal = String(btn.value || btn.phone_number || '').trim();
+
+  // If phoneVal starts with '+', extract matching country code
+  if (phoneVal.startsWith('+')) {
+    const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+    const matched = sortedCodes.find(c => phoneVal.startsWith(c.code));
+    if (matched) {
+      countryCode = matched.code;
+      phoneVal = phoneVal.substring(matched.code.length);
+    } else {
+      phoneVal = phoneVal.replace(/^\+/, '');
+    }
+  }
+
+  // Strip all non-digits
+  let cleanDigits = phoneVal.replace(/\D/g, '');
+
+  // If countryCode is +91 and digits has 12 digits starting with 91, strip the country code 91
+  if (countryCode === '+91' && cleanDigits.length === 12 && cleanDigits.startsWith('91')) {
+    cleanDigits = cleanDigits.substring(2);
+  } else if (cleanDigits.length === 11 && cleanDigits.startsWith('0')) {
+    cleanDigits = cleanDigits.replace(/^0+/, '');
+  }
+
+  return {
+    ...btn,
+    countryCode,
+    value: cleanDigits
+  };
+};
+
+/**
+ * Formats a phone number for Meta API payload: +<countryCode><digits>
+ */
+const formatPhoneNumberForMeta = (countryCode = '+91', rawValue = '') => {
+  let code = String(countryCode || '+91').trim();
+  if (!code.startsWith('+')) code = `+${code}`;
+  
+  let digits = String(rawValue || '').replace(/\D/g, '');
+  const codeDigits = code.replace(/\D/g, '');
+  
+  if (code === '+91' && digits.length === 12 && digits.startsWith('91')) {
+    digits = digits.substring(2);
+  } else if (digits.startsWith(codeDigits) && digits.length >= codeDigits.length + 7) {
+    digits = digits.substring(codeDigits.length);
+  }
+  
+  if (digits.startsWith('0')) {
+    digits = digits.replace(/^0+/, '');
+  }
+  
+  return `${code}${digits}`;
+};
+
 
 /**
  * Checks media file size and dimensions.
@@ -476,9 +571,63 @@ const CreateTemplate = () => {
   // Prepopulate buttons if editing
   useEffect(() => {
     if (location.state?.templateData?.buttons) {
-      setButtons(location.state.templateData.buttons);
+      const sanitized = location.state.templateData.buttons.map(b => {
+        if (b.type === 'Call phone number' || b.type === 'PHONE_NUMBER') {
+          return parsePhoneButtonData({ ...b, type: 'Call phone number' });
+        }
+        return b;
+      });
+      setButtons(sanitized);
     }
   }, [location.state]);
+
+  // Handle phone input changes with dynamic country code detection for all countries
+  const handlePhoneInputChange = (btnId, rawInput, currentCountryCode = '+91') => {
+    let val = String(rawInput || '').trim();
+    let selectedCode = currentCountryCode || '+91';
+
+    // 1. If user typed or pasted with '+' (e.g. +971 501234567, +91 9162034567, +1 555 123 4567)
+    const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.code.length - a.code.length);
+    if (val.startsWith('+')) {
+      const matched = sortedCodes.find(c => val.startsWith(c.code));
+      if (matched) {
+        selectedCode = matched.code;
+        val = val.substring(matched.code.length);
+      } else {
+        val = val.replace(/^\+/, '');
+      }
+    }
+
+    // 2. Strip non-digits
+    let cleanDigits = val.replace(/\D/g, '');
+
+    // 3. Dynamic country code deduction for ANY country code (India, UAE, USA, UK, etc.)
+    for (const c of sortedCodes) {
+      const codeDigits = c.code.replace(/\D/g, '');
+      if (cleanDigits.startsWith(codeDigits) && cleanDigits.length >= codeDigits.length + 7) {
+        if (selectedCode === c.code || cleanDigits.length > 10) {
+          selectedCode = c.code;
+          cleanDigits = cleanDigits.substring(codeDigits.length);
+          break;
+        }
+      }
+    }
+
+    // 4. Strip leading 0 if any
+    if (cleanDigits.startsWith('0') && cleanDigits.length > 9) {
+      cleanDigits = cleanDigits.replace(/^0+/, '');
+    }
+
+    // 5. Max 15 digits according to E.164
+    cleanDigits = cleanDigits.substring(0, 15);
+
+    setButtons(prev => prev.map(b => b.id === btnId ? {
+      ...b,
+      countryCode: selectedCode,
+      value: cleanDigits
+    } : b));
+  };
+
 
   const handleCategoryChange = (cat) => {
     if (formData.category === cat) return; // Skip if no change
@@ -1165,7 +1314,8 @@ const CreateTemplate = () => {
       };
 
       // Add HEADER component only if valid
-      if (formData.headerType && formData.headerType !== 'None') {
+      // ⚠️ CATALOG templates do NOT support custom headers — Meta auto-uses the product thumbnail
+      if (formData.headerType && formData.headerType !== 'None' && templateType !== 'CATALOG') {
         if (formData.headerType === 'Text') {
           const headerComponent = { 
             type: 'HEADER', 
@@ -1226,7 +1376,7 @@ const CreateTemplate = () => {
           buttons: [
             {
               type: 'CATALOG',
-              text: (formData.catalogButtonText || 'View Catalog').trim().substring(0, 20)
+              text: 'View catalog' // Meta mandate: CATALOG button text MUST always be exactly "View catalog" — cannot be modified
             }
           ]
         });
@@ -1271,10 +1421,26 @@ const CreateTemplate = () => {
               setIsSubmitting(false);
               return;
             }
+            if (b.urlType === 'dynamic' && !b.value.includes('{{1}}')) {
+              failSubmit(`Button "${b.text}" is set to Dynamic URL but URL doesn't contain {{1}}. Example: https://site.com/page/{{1}}`);
+              setIsSubmitting(false);
+              return;
+            }
+            if (b.urlType === 'dynamic' && (!b.urlExample || !b.urlExample.trim())) {
+              failSubmit(`Button "${b.text}" has a Dynamic URL — provide an Example Value for {{1}} (required by Meta for approval).`);
+              setIsSubmitting(false);
+              return;
+            }
           }
           if (b.type === 'Call phone number') {
-            if (!b.value || !b.value.trim()) {
+            const cleanDigits = String(b.value || '').replace(/\D/g, '');
+            if (!cleanDigits) {
               failSubmit(`Button "${b.text || 'Call us'}" is missing a phone number.`);
+              setIsSubmitting(false);
+              return;
+            }
+            if (cleanDigits.length < 7 || cleanDigits.length > 15) {
+              failSubmit(`Button "${b.text || 'Call us'}" phone number must be between 7 and 15 digits.`);
               setIsSubmitting(false);
               return;
             }
@@ -1290,10 +1456,19 @@ const CreateTemplate = () => {
 
         const waButtons = buttons.map(b => {
           if (b.type === 'Visit Website' || b.type === 'Visit website') {
-            return { type: 'URL', text: (b.text || 'Visit website').trim().substring(0, 25), url: (b.value || '').trim() };
+            const isDynamic = b.urlType === 'dynamic';
+            const btnObj = { 
+              type: 'URL', 
+              text: (b.text || 'Visit website').trim().substring(0, 25), 
+              url: (b.value || '').trim() 
+            };
+            if (isDynamic) {
+              btnObj.example = [(b.urlExample || '').trim() || (b.value || '').replace('{{1}}', 'example')];
+            }
+            return btnObj;
           }
           if (b.type === 'Call phone number') {
-            const fullPhone = `${b.countryCode || '+91'}${b.value}`.replace(/[^\d+]/g, '');
+            const fullPhone = formatPhoneNumberForMeta(b.countryCode || '+91', b.value);
             return { type: 'PHONE_NUMBER', text: (b.text || 'Call us').trim().substring(0, 25), phone_number: fullPhone };
           }
           if (b.type === 'Copy offer code') {
@@ -1781,6 +1956,14 @@ const CreateTemplate = () => {
                                 key={type} 
                                 onClick={() => {
                                   setTemplateType(type);
+                                  if (type === 'CATALOG') {
+                                    // Meta does NOT allow any custom header on CATALOG templates
+                                    setFormData(prev => ({ ...prev, headerType: 'None' }));
+                                    setHeaderMedia(null);
+                                    setUploadedMediaUrl(null);
+                                    setUploadedMetaHandle(null);
+                                    if (headerFileRef.current) headerFileRef.current.value = '';
+                                  }
                                   if (type === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
                                     setFormData(prev => ({ ...prev, headerType: 'Text', headerText: prev.headerText || 'Featured Products' }));
                                   }
@@ -1980,8 +2163,12 @@ const CreateTemplate = () => {
                     <div ref={headerRef} className={`mb-8 border-b pb-6 transition-all duration-300 ${headerError ? 'p-5 bg-red-50/70 border-2 border-red-400 rounded-xl shadow-sm' : 'border-gray-100'}`}>
                         <div className="flex flex-col gap-1 mb-3">
                             <h3 className="text-sm md:text-base font-bold text-gray-800 flex items-center gap-2">
-                                Header 
-                                {templateType === 'MPM' ? (
+                                Header
+                                {templateType === 'CATALOG' ? (
+                                  <span className="text-emerald-800 bg-emerald-100 border border-emerald-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full tracking-wide">
+                                    AUTO — PRODUCT THUMBNAIL
+                                  </span>
+                                ) : templateType === 'MPM' ? (
                                   <span className="text-amber-800 bg-amber-100/90 border border-amber-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full tracking-wide">
                                     REQUIRED FOR MPM
                                   </span>
@@ -1990,56 +2177,77 @@ const CreateTemplate = () => {
                                 )}
                             </h3>
                             <p className="text-xs text-gray-500">
-                              {templateType === 'MPM'
+                              {templateType === 'CATALOG'
+                                ? 'Meta automatically uses your connected product catalog thumbnail as the header — no upload needed.'
+                                : templateType === 'MPM'
                                 ? 'Meta WhatsApp strictly requires a Header (Text or Media) for Multi-Product Messages.'
                                 : "Add a title or choose which type of media you'll use for this header."}
                             </p>
                         </div>
 
-                        {templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None') && (
-                          <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2.5">
-                            <Info size={16} className="shrink-0 text-amber-600 mt-0.5" />
-                            <div>
-                              <p className="font-bold">Header Required for Multi-Product Messages</p>
-                              <p className="text-[11px] text-amber-700 mt-0.5">
-                                WhatsApp requires a Header (Text, Image, Video, or Document) for Multi-Product templates. Please change &quot;None&quot; to &quot;Text&quot; or another media type below.
+                        {/* CATALOG: Meta forbids any custom header — show info block only */}
+                        {templateType === 'CATALOG' ? (
+                          <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-start gap-3 text-emerald-800">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 border border-emerald-200 flex items-center justify-center shrink-0 mt-0.5">
+                              <span className="text-base">🛍️</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-bold text-sm text-emerald-900">Header is Managed by Meta</p>
+                              <p className="text-[12px] text-emerald-700 mt-0.5 leading-relaxed">
+                                WhatsApp Catalog templates do <strong>not</strong> support custom headers (Image, Video, Text, or Document). Meta automatically displays your connected product catalog thumbnail. You cannot upload or set a header for this template type.
+                              </p>
+                              <p className="text-[11px] text-emerald-600 mt-2 font-medium">
+                                ✅ Make sure your WhatsApp Business Account has a Meta Catalog connected in Commerce Manager.
                               </p>
                             </div>
                           </div>
-                        )}
+                        ) : (
+                          <>
+                            {templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None') && (
+                              <div className="mb-3 p-3 bg-amber-50 border border-amber-300 rounded-lg text-amber-900 text-xs flex items-start gap-2.5">
+                                <Info size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                                <div>
+                                  <p className="font-bold">Header Required for Multi-Product Messages</p>
+                                  <p className="text-[11px] text-amber-700 mt-0.5">
+                                    WhatsApp requires a Header (Text, Image, Video, or Document) for Multi-Product templates. Please change &quot;None&quot; to &quot;Text&quot; or another media type below.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
 
-                        {headerError && (
-                          <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-xs flex items-center gap-2">
-                            <AlertCircle size={16} className="shrink-0 text-red-600" />
-                            <span className="font-semibold">Please select a Text or Media header before submitting.</span>
-                          </div>
-                        )}
+                            {headerError && (
+                              <div className="mb-3 p-3 bg-red-100 border border-red-300 rounded-lg text-red-800 text-xs flex items-center gap-2">
+                                <AlertCircle size={16} className="shrink-0 text-red-600" />
+                                <span className="font-semibold">Please select a Text or Media header before submitting.</span>
+                              </div>
+                            )}
 
-                        <select 
-                            className={`w-full p-4 border rounded-lg text-sm font-medium outline-none bg-white transition-all ${headerError ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-200 focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]'}`} 
-                            value={formData.headerType} 
-                            onChange={(e) => {
-                              setFormData({...formData, headerType: e.target.value});
-                              // Clear previous media when header type changes
-                              setHeaderMedia(null);
-                              setUploadedMediaUrl(null);
-                              setHeaderError(false);
-                              setSubmitError(null);
-                              if (headerFileRef.current) {
-                                headerFileRef.current.value = '';
-                              }
-                            }}
-                        >
-                            <option value="None">{templateType === 'MPM' ? 'None (Header is required for MPM)' : 'None'}</option>
-                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Text">Text</option>}
-                            <option value="Image">Image</option>
-                            <option value="Video">Video</option>
-                            {templateType !== 'LIMITED_TIME_OFFER' && <option value="Document">Document</option>}
-                        </select>
-                        {templateType === 'LIMITED_TIME_OFFER' && (
-                          <p className="text-[11px] text-gray-500 mt-2">
-                            WhatsApp allows <strong>Image</strong> or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
-                          </p>
+                            <select
+                                className={`w-full p-4 border rounded-lg text-sm font-medium outline-none bg-white transition-all ${headerError ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500' : 'border-gray-200 focus:border-[#10B981] focus:ring-1 focus:ring-[#10B981]'}`}
+                                value={formData.headerType}
+                                onChange={(e) => {
+                                  setFormData({...formData, headerType: e.target.value});
+                                  setHeaderMedia(null);
+                                  setUploadedMediaUrl(null);
+                                  setHeaderError(false);
+                                  setSubmitError(null);
+                                  if (headerFileRef.current) {
+                                    headerFileRef.current.value = '';
+                                  }
+                                }}
+                            >
+                                <option value="None">{templateType === 'MPM' ? 'None (Header is required for MPM)' : 'None'}</option>
+                                {templateType !== 'LIMITED_TIME_OFFER' && <option value="Text">Text</option>}
+                                <option value="Image">Image</option>
+                                <option value="Video">Video</option>
+                                {templateType !== 'LIMITED_TIME_OFFER' && <option value="Document">Document</option>}
+                            </select>
+                            {templateType === 'LIMITED_TIME_OFFER' && (
+                              <p className="text-[11px] text-gray-500 mt-2">
+                                WhatsApp allows <strong>Image</strong> or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
+                              </p>
+                            )}
+                          </>
                         )}
 
                         {formData.headerType === 'Text' && (
@@ -2364,35 +2572,69 @@ const CreateTemplate = () => {
 
                     <div className="pt-8 border-t border-gray-100 mt-6">
                         {templateType === 'CATALOG' ? (
-                            <div>
-                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Catalog Button</h3>
-                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
-                                                Open Catalog
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
-                                            <div className="relative">
-                                                <input 
-                                                    type="text" 
-                                                    value={formData.catalogButtonText || ''} 
-                                                    onChange={(e) => setFormData({...formData, catalogButtonText: e.target.value})}
-                                                    maxLength={20}
-                                                    className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-[#10B981] transition-all" 
-                                                    placeholder="View Catalog"
-                                                />
-                                                <div className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] font-medium text-gray-400">
-                                                    {(formData.catalogButtonText || '').length}/20
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
+                            <div className="space-y-5">
+                                {/* Meta Catalog Requirements Banner */}
+                                <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-blue-100 border border-blue-200 flex items-center justify-center shrink-0 mt-0.5">
+                                    <span className="text-base">ℹ️</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-bold text-sm text-blue-900">Meta Catalog Template Requirements</p>
+                                    <ul className="text-[12px] text-blue-700 mt-1.5 space-y-1 leading-relaxed list-none">
+                                      <li>✅ <strong>No custom header</strong> — Meta auto-uses your connected catalog product thumbnail</li>
+                                      <li>✅ <strong>Body text</strong> — Required (up to 1024 chars, variables supported)</li>
+                                      <li>✅ <strong>Footer</strong> — Optional (up to 60 chars)</li>
+                                      <li>✅ <strong>One CATALOG button</strong> — Required, opens your WhatsApp catalog inline</li>
+                                      <li>✅ <strong>Category</strong> — Must be MARKETING (auto-set)</li>
+                                      <li>⚠️ <strong>Catalog must be connected</strong> to your WABA in Meta Commerce Manager</li>
+                                    </ul>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">This button will open your WhatsApp Commerce catalog when clicked by the user.</p>
+
+                                <div>
+                                  <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1">Catalog Button <span className="text-[11px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full ml-1">Required by Meta</span></h3>
+                                  <p className="text-xs text-gray-500 mb-4">This button opens your WhatsApp Business Catalog directly inside the chat. Exactly one CATALOG button is allowed per template — no other buttons can be added.</p>
+                                  <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl shadow-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                                      <div>
+                                        <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                          Button Type
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded-full normal-case">
+                                            <Lock size={9} /> Fixed by Meta
+                                          </span>
+                                        </label>
+                                        <div className="w-full p-3 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center gap-2">
+                                          <span className="text-base">🛍️</span>
+                                          <span>Open Catalog</span>
+                                        </div>
+                                        <p className="text-[11px] text-gray-400 mt-1">This button type is fixed by Meta and cannot be changed.</p>
+                                      </div>
+                                      <div>
+                                        <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                          Button Label Text
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-red-100 text-red-700 border border-red-200 px-1.5 py-0.5 rounded-full normal-case">
+                                            <Lock size={9} /> Locked by Meta
+                                          </span>
+                                        </label>
+                                        <div className="w-full p-3 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between">
+                                          <span>View catalog</span>
+                                          <span className="text-[10px] font-medium text-gray-400">12/20</span>
+                                        </div>
+                                        <p className="text-[11px] text-red-600 mt-1 font-medium">
+                                          ⚠️ Meta mandates this text must always be exactly <strong>&quot;View catalog&quot;</strong> and cannot be changed.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* No additional buttons allowed */}
+                                <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-2.5">
+                                  <Info size={16} className="shrink-0 text-amber-600 mt-0.5" />
+                                  <p className="text-[12px] text-amber-800 leading-relaxed">
+                                    <strong>No additional buttons allowed.</strong> Meta only permits exactly one CATALOG button on this template type. You cannot add Quick Reply, Phone, or Website URL buttons.
+                                  </p>
+                                </div>
                             </div>
                         ) : templateType === 'MPM' ? (
                             <div>
@@ -2736,105 +2978,204 @@ const CreateTemplate = () => {
 
                         <div className="space-y-4">
                             {buttons.map((btn) => (
-                                <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-center gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
-                                    <div className={`grid grid-cols-1 ${btn.type === 'Call phone number' ? 'md:grid-cols-4' : btn.type === 'Custom' || btn.type === 'Marketing opt-out' ? 'md:grid-cols-2' : btn.type === 'Copy offer code' ? 'md:grid-cols-2' : 'md:grid-cols-3'} gap-4 md:gap-6 flex-1`}>
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700">
-                                              {btn.type}
+                                <div key={btn.id} className="p-4 md:p-5 bg-white border border-gray-200 rounded-xl flex items-start gap-3 md:gap-4 relative group hover:border-gray-300 transition-all shadow-sm">
+                                    {btn.type === 'Call phone number' ? (
+                                      <div className="flex-1 space-y-3">
+                                        {/* Row 1: Action Type & Button Text */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                                          <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 flex items-center gap-2">
+                                              <span>📞</span>
+                                              <span>Call phone number</span>
                                             </div>
-                                        </div>
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Button Text</label>
+                                          </div>
+                                          <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Button Text</label>
                                             <div className="relative">
                                               <input 
                                                 type="text" 
                                                 value={btn.text} 
                                                 maxLength={25}
                                                 onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
-                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                placeholder={
-                                                  btn.type === 'Marketing opt-out' ? 'Stop promotions' :
-                                                  btn.type === 'Custom' ? 'e.g. Yes, Interested' : 
-                                                  btn.type === 'Call phone number' ? 'Call us' : 
-                                                  btn.type === 'Copy offer code' ? 'Copy offer code' :
-                                                  'Visit website'
-                                                }
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all pr-12" 
+                                                placeholder="Call us"
                                               />
-                                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
+                                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
                                                 {(btn.text || '').length}/25
                                               </span>
                                             </div>
+                                          </div>
                                         </div>
-                                        
-                                        {btn.type === 'Call phone number' ? (
-                                          <>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Country Code</label>
-                                                <select
-                                                  value={btn.countryCode || '+91'}
-                                                  onChange={(e) => updateButton(btn.id, 'countryCode', e.target.value)}
-                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
-                                                >
-                                                  <option value="+91">🇮🇳 +91 (India)</option>
-                                                  <option value="+1">🇺🇸 +1 (USA)</option>
-                                                  <option value="+44">🇬🇧 +44 (UK)</option>
-                                                  <option value="+971">🇦🇪 +971 (UAE)</option>
-                                                  <option value="+61">🇦🇺 +61 (Australia)</option>
-                                                  <option value="+49">🇩🇪 +49 (Germany)</option>
-                                                  <option value="+33">🇫🇷 +33 (France)</option>
-                                                  <option value="+81">🇯🇵 +81 (Japan)</option>
-                                                  <option value="+86">🇨🇳 +86 (China)</option>
-                                                  <option value="+55">🇧🇷 +55 (Brazil)</option>
-                                                </select>
+
+                                        {/* Row 2: Country Code & Phone Number */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 md:gap-4">
+                                          <div className="sm:col-span-4">
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Country Code</label>
+                                            <select
+                                              value={btn.countryCode || '+91'}
+                                              onChange={(e) => updateButton(btn.id, 'countryCode', e.target.value)}
+                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all cursor-pointer"
+                                            >
+                                              {COUNTRY_CODES.map((c) => (
+                                                <option key={c.code + c.iso} value={c.code}>
+                                                  {c.code} ({c.name})
+                                                </option>
+                                              ))}
+                                            </select>
+                                          </div>
+                                          <div className="sm:col-span-8">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                              <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Phone Number</label>
+                                              <span className="text-[10px] text-gray-400 font-medium">
+                                                {(btn.value || '').length > 0 ? `${(btn.value || '').length} digits` : '10-15 digits'}
+                                              </span>
                                             </div>
-                                            <div>
-                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Phone Number</label>
-                                                <div className="relative">
-                                                  <div className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
-                                                    <span className="text-sm font-bold text-gray-500">{btn.countryCode || '+91'}</span>
-                                                  </div>
-                                                  <input 
-                                                    type="text" 
-                                                    value={btn.value} 
-                                                    onChange={(e) => updateButton(btn.id, 'value', e.target.value.replace(/\D/g, ''))}
-                                                    className="w-full pl-12 p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                    placeholder="9876543210"
-                                                  />
-                                                </div>
+                                            <div className="relative">
+                                              <input 
+                                                type="tel" 
+                                                value={btn.value || ''} 
+                                                onChange={(e) => handlePhoneInputChange(btn.id, e.target.value, btn.countryCode)}
+                                                className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all placeholder:text-gray-400 placeholder:font-normal" 
+                                                placeholder="e.g. 6203459821"
+                                              />
                                             </div>
-                                          </>
-                                        ) : btn.type === 'Copy offer code' ? (
+                                            <div className="flex items-center justify-between mt-1 text-[11px] text-gray-500">
+                                              <span>Meta format: <strong className="text-emerald-600 font-mono font-bold">{(btn.countryCode || '+91')}{btn.value || ''}</strong></span>
+                                              <span className="text-gray-400">Auto-detects country code</span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (btn.type === 'Visit website' || btn.type === 'Visit Website') ? (
+                                      <div className="flex-1 space-y-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                                           <div>
-                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
-                                                <span>Coupon / Offer Code</span>
-                                                <span className="text-[10px] text-gray-400">{(btn.value || '').length}/15</span>
-                                              </label>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 flex items-center gap-2">
+                                              <span>🔗</span>
+                                              <span>Visit website</span>
+                                            </div>
+                                          </div>
+                                          <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
                                               <input 
                                                 type="text" 
-                                                value={btn.value} 
-                                                maxLength={15}
-                                                onChange={(e) => updateButton(btn.id, 'value', e.target.value.toUpperCase())}
-                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold uppercase bg-white outline-none focus:border-blue-400 transition-all" 
-                                                placeholder="OFFER20"
+                                                value={btn.text} 
+                                                maxLength={25}
+                                                onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all pr-12" 
+                                                placeholder="Visit website"
                                               />
+                                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
+                                                {(btn.text || '').length}/25
+                                              </span>
+                                            </div>
                                           </div>
-                                        ) : (btn.type === 'Custom' || btn.type === 'Marketing opt-out') ? null : (
+                                        </div>
+                                        <div>
+                                          <div className="flex items-center justify-between mb-1.5">
+                                            <label className="text-[11px] font-bold text-gray-600 uppercase tracking-wide">Website URL</label>
+                                            <div className="flex items-center gap-1 bg-gray-100 rounded-md p-0.5">
+                                              <button type="button" onClick={() => updateButton(btn.id, 'urlType', 'static')} className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-all ${(btn.urlType || 'static') === 'static' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Static</button>
+                                              <button type="button" onClick={() => updateButton(btn.id, 'urlType', 'dynamic')} className={`text-[10px] font-bold px-2 py-0.5 rounded cursor-pointer transition-all ${btn.urlType === 'dynamic' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500'}`}>Dynamic</button>
+                                            </div>
+                                          </div>
+                                          <div className="relative">
+                                            <input 
+                                              type="text" 
+                                              value={btn.value} 
+                                              onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
+                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
+                                              placeholder={btn.urlType === 'dynamic' ? 'https://example.com/page/{{1}}' : 'https://example.com'}
+                                            />
+                                          </div>
+                                          {btn.urlType === 'dynamic' && (
+                                            <div className="mt-2">
+                                              <label className="text-[11px] font-bold text-gray-500 block mb-1.5 uppercase tracking-wide">Example Value for {'{{1}}'}</label>
+                                              <input
+                                                type="text"
+                                                value={btn.urlExample || ''}
+                                                onChange={(e) => updateButton(btn.id, 'urlExample', e.target.value)}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm bg-white outline-none focus:border-blue-400 transition-all"
+                                                placeholder="e.g. product-123 (for Meta review)"
+                                              />
+                                              <p className="text-[10px] text-gray-400 mt-1">Required by Meta — provide a sample value to fill {'{{1}}'} during template review.</p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ) : btn.type === 'Copy offer code' ? (
+                                      <div className="flex-1 space-y-3">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
                                           <div>
-                                              <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Website URL</label>
-                                              <div className="relative">
-                                                <input 
-                                                  type="text" 
-                                                  value={btn.value} 
-                                                  onChange={(e) => updateButton(btn.id, 'value', e.target.value)}
-                                                  className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all" 
-                                                  placeholder="https://example.com"
-                                                />
-                                              </div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Type of Action</label>
+                                            <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 flex items-center gap-2">
+                                              <span>📋</span>
+                                              <span>Copy offer code</span>
+                                            </div>
                                           </div>
-                                        )}
-                                    </div>
-                                    <button type="button" onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-gray-800 transition-colors cursor-pointer">
+                                          <div>
+                                            <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Button Text</label>
+                                            <div className="relative">
+                                              <input 
+                                                type="text" 
+                                                value={btn.text} 
+                                                maxLength={25}
+                                                onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
+                                                className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all pr-12" 
+                                                placeholder="Copy offer code"
+                                              />
+                                              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
+                                                {(btn.text || '').length}/25
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide flex items-center justify-between">
+                                            <span>Coupon / Offer Code</span>
+                                            <span className="text-[10px] text-gray-400">{(btn.value || '').length}/15</span>
+                                          </label>
+                                          <input 
+                                            type="text" 
+                                            value={btn.value} 
+                                            maxLength={15}
+                                            onChange={(e) => updateButton(btn.id, 'value', e.target.value.toUpperCase())}
+                                            className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold uppercase bg-white outline-none focus:border-blue-400 transition-all" 
+                                            placeholder="OFFER20"
+                                          />
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4">
+                                        <div>
+                                          <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Type of Action</label>
+                                          <div className="w-full p-2.5 border border-gray-100 rounded-lg text-sm font-semibold bg-gray-50 text-gray-700 flex items-center gap-2">
+                                            <span>⚡</span>
+                                            <span>{btn.type}</span>
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <label className="text-[11px] font-bold text-gray-600 block mb-1.5 uppercase tracking-wide">Button Text</label>
+                                          <div className="relative">
+                                            <input 
+                                              type="text" 
+                                              value={btn.text} 
+                                              maxLength={25}
+                                              onChange={(e) => updateButton(btn.id, 'text', e.target.value)}
+                                              className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-white outline-none focus:border-blue-400 transition-all pr-12" 
+                                              placeholder={btn.type === 'Marketing opt-out' ? 'Stop promotions' : 'e.g. Yes, Interested'}
+                                            />
+                                            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 font-medium">
+                                              {(btn.text || '').length}/25
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    <button type="button" onClick={() => removeButton(btn.id)} className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0 self-start mt-5" title="Remove button">
                                         <X size={20}/>
                                     </button>
                                 </div>
@@ -2902,7 +3243,7 @@ const CreateTemplate = () => {
             footer={(formData.category === 'Authentication' || templateType === 'LIMITED_TIME_OFFER') ? '' : formData.footerText} 
             headerMedia={headerMedia}
             headerType={formData.headerType}
-            showImage={formData.category !== 'Authentication' && formData.headerType !== 'None'} 
+            showImage={formData.category !== 'Authentication' && formData.headerType !== 'None' && templateType !== 'CATALOG'} 
             offer={formData.offerTitle} 
             isLimited={templateType === 'LIMITED_TIME_OFFER'}
             limitedTimeOfferText={formData.limitedTimeOfferText}
@@ -3081,23 +3422,32 @@ const MobilePreview = ({
       <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
          <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
-            {/* Header Media */}
-            {headerType !== 'None' && (
+            {/* Header Media — CATALOG uses auto product thumbnail, others use uploaded media */}
+            {isCatalog ? (
+              <div className="w-full relative bg-gradient-to-br from-emerald-50 to-teal-100 flex flex-col items-center justify-center shrink-0 border-b border-emerald-100 overflow-hidden" style={{height: '100px'}}>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-2xl">🛍️</span>
+                  <span className="text-xl">📦</span>
+                  <span className="text-2xl">👟</span>
+                </div>
+                <p className="text-[9px] font-semibold text-emerald-700 bg-white/70 px-2 py-0.5 rounded-full border border-emerald-200">Product Thumbnail (auto by Meta)</p>
+              </div>
+            ) : headerType !== 'None' ? (
               <div className="w-full relative bg-gray-100 flex items-center justify-center shrink-0 border-b border-gray-50 overflow-hidden">
                 {headerMedia?.preview ? (
                   <>
                     {headerType === 'Image' && (
-                      <img 
-                        src={headerMedia.preview} 
-                        alt="Header preview" 
-                        className="w-full h-auto max-h-[180px] object-cover" 
+                      <img
+                        src={headerMedia.preview}
+                        alt="Header preview"
+                        className="w-full h-auto max-h-[180px] object-cover"
                       />
                     )}
                     {headerType === 'Video' && (
-                      <video 
-                        src={headerMedia.preview} 
-                        className="w-full h-auto max-h-[180px] object-cover" 
-                        controls 
+                      <video
+                        src={headerMedia.preview}
+                        className="w-full h-auto max-h-[180px] object-cover"
+                        controls
                       />
                     )}
                     {headerType === 'Document' && (
@@ -3113,7 +3463,7 @@ const MobilePreview = ({
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
             
             <div className="p-4 flex flex-col">
                {name && <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name}]</p>}
@@ -3150,8 +3500,9 @@ const MobilePreview = ({
             {isCatalog || isMpm ? (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   <div className="w-full py-3 flex items-center justify-center gap-2">
-                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-2">
-                       {isCatalog ? (catalogButtonText || 'View Catalog') : 'View items'}
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5">
+                       {isCatalog ? <span className="text-[11px]">🛍️</span> : <span className="text-[11px]">📋</span>}
+                       {isCatalog ? '🛍️ View catalog' : 'View items'}
                      </span>
                   </div>
                </div>
@@ -3178,7 +3529,7 @@ const MobilePreview = ({
                           {btn.type === 'Visit Website' || btn.type === 'Visit website' ? (
                             <ExternalLink size={11} className="text-[#25d366]"/>
                           ) : btn.type === 'Call phone number' ? (
-                            <span className="text-[10px]">📞</span>
+                            <Phone size={11} className="text-[#25d366]"/>
                           ) : btn.type === 'Copy offer code' || (btn.text && btn.text.toLowerCase().includes('copy')) ? (
                             <Copy size={11} className="text-[#25d366]"/>
                           ) : null} 

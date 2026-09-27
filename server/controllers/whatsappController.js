@@ -2131,22 +2131,14 @@ exports.getTemplates = async (req, res, next) => {
       }
     });
 
-    // ONLY SHOW TEMPLATES CREATED BY THIS LOGGED-IN USER / TENANT:
-    // Filter Meta API templates to strictly those that match templates created by this user
+    // Include all templates from the tenant's connected WhatsApp Business Account,
+    // excluding only those explicitly marked DELETED in the local DB.
     let matchedMetaTemplates = allTemplates.filter(t => {
       const metaNameKey = String(t.name).trim().toLowerCase();
       const idKey = t.id ? String(t.id).trim() : null;
-      return Boolean(
-        userTemplatesByMetaName[metaNameKey] ||
-        (idKey && userTemplatesById[idKey]) ||
-        (userTemplatesByName[metaNameKey] && (!userTemplatesByName[metaNameKey].whatsappTemplateName || userTemplatesByName[metaNameKey].whatsappTemplateName === t.name))
-      );
+      const localTemplate = userTemplatesByMetaName[metaNameKey] || (idKey && userTemplatesById[idKey]) || userTemplatesByName[metaNameKey];
+      return !localTemplate || localTemplate.status !== 'DELETED';
     });
-
-    // If no templates match local DB yet (e.g. initial load or local development), display all available WABA templates
-    if (matchedMetaTemplates.length === 0 && allTemplates.length > 0) {
-      matchedMetaTemplates = allTemplates;
-    }
 
     const processedTemplateNames = new Set();
 
