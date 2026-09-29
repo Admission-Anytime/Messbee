@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -165,12 +165,25 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
   useEffect(() => {
     if (selectedNode) {
-      setLocalData(selectedNode.data);
+      let data = { ...selectedNode.data };
+      // If template is already chosen, ensure isLimitedTimeOffer is only true if template actually has LIMITED_TIME_OFFER
+      if (data.isLimitedTimeOffer && approvedTemplates.length > 0) {
+        const matchingTmpl = approvedTemplates.find(t => t.name === data.templateName);
+        if (matchingTmpl) {
+          const hasLto = (matchingTmpl.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || matchingTmpl.isLimitedTimeOffer === true;
+          if (!hasLto) {
+            data.isLimitedTimeOffer = false;
+            data.customExpirationHours = null;
+            updateNodeData(selectedNode.id, { isLimitedTimeOffer: false, customExpirationHours: null });
+          }
+        }
+      }
+      setLocalData(data);
       setTemplateSearch('');
     } else {
       setLocalData(null);
     }
-  }, [selectedNode?.id]);
+  }, [selectedNode?.id, approvedTemplates]);
 
   // Fetch approved templates when a templateNode is selected
   useEffect(() => {
@@ -571,6 +584,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
                     <option value="contains">Contains</option>
                     <option value="starts_with">Starts With</option>
                     <option value="ends_with">Ends With</option>
+                    <option value="any_message">Any Message (Reply to Template)</option>
+                    <option value="template_reply">Template Button Reply (Keyword)</option>
                     <option value="media_any">Media Received (Any)</option>
                     <option value="image_received">Image Received</option>
                     <option value="video_received">Video Received</option>
@@ -579,7 +594,6 @@ export default function NodePropertiesPane({ currentChannelId }) {
                     <option value="location_received">Location Received</option>
                     <option value="contact_shared">Contact Shared</option>
                     <option value="reaction">Reaction Received</option>
-                    <option value="template_reply">Template Reply</option>
                     <option disabled>--- System & API Triggers ---</option>
                     <option value="api_webhook">API Webhook</option>
                     <option value="crm_event">CRM Event</option>
@@ -1254,12 +1268,50 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 title: b.text || b.title || `Button ${i + 1}`
               }));
             }
+
+            // Header media / text
+            let headerType = null;
+            let headerText = '';
+            let mediaUrl = '';
+            const headerComp = (tmpl.components || []).find(c => c.type === 'HEADER');
+            if (headerComp) {
+              if (headerComp.format === 'TEXT') {
+                headerType = 'text';
+                headerText = headerComp.text || '';
+              } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerComp.format)) {
+                headerType = headerComp.format.toLowerCase();
+                mediaUrl = headerComp.example?.header_handle?.[0] || headerComp.example?.header_url?.[0] || '';
+              }
+            }
+
+            // Limited Time Offer (LTO)
+            const hasLtoComp = (tmpl.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+            const isLimitedTimeOffer = hasLtoComp || tmpl.isLimitedTimeOffer === true;
+            const customExpirationHours = isLimitedTimeOffer ? (tmpl.customExpirationHours || 72) : null;
+            const expirationDate = isLimitedTimeOffer ? (tmpl.expirationDate || '') : '';
+
+            // Coupon / Offer Code
+            let offerCode = tmpl.offerCode || '';
+            if (!offerCode && btnComp?.buttons) {
+              const copyCodeBtn = btnComp.buttons.find(b => b.type === 'COPY_CODE');
+              if (copyCodeBtn?.example) {
+                offerCode = Array.isArray(copyCodeBtn.example) ? copyCodeBtn.example[0] : copyCodeBtn.example;
+              }
+            }
+
             const langCode = tmpl.language && tmpl.language !== 'en' ? tmpl.language : 'en_US';
             const updates = {
               templateName: tmpl.name,
               templateLanguage: langCode,
               variables,
-              buttons: templateButtons
+              buttons: templateButtons,
+              headerType,
+              headerText,
+              mediaUrl,
+              isLimitedTimeOffer,
+              customExpirationHours,
+              expirationDate,
+              offerCode
             };
             setLocalData(prev => ({ ...prev, ...updates }));
             updateNodeData(id, updates);
@@ -1317,7 +1369,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                     <span style={{ fontSize: '12px', fontWeight: '700', color: '#059669' }}>✓ Selected:</span>
                     <span style={{ fontSize: '12px', color: '#065F46', fontFamily: 'monospace' }}>{localData.templateName}</span>
                     <button
-                      onClick={() => { setLocalData(p => ({...p, templateName: '', templateLanguage: '', variables: [], buttons: []})); updateNodeData(id, { templateName: '', templateLanguage: '', variables: [], buttons: [] }); }}
+                      onClick={() => { setLocalData(p => ({...p, templateName: '', templateLanguage: '', variables: [], buttons: [], isLimitedTimeOffer: false, customExpirationHours: null, offerCode: '', mediaUrl: '', headerType: null})); updateNodeData(id, { templateName: '', templateLanguage: '', variables: [], buttons: [], isLimitedTimeOffer: false, customExpirationHours: null, offerCode: '', mediaUrl: '', headerType: null }); }}
                       style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: '16px', lineHeight: 1 }}
                       title="Clear selection"
                     >×</button>
@@ -1330,6 +1382,130 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Language Code</label>
                 <input type="text" name="templateLanguage" value={localData.templateLanguage || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. en_US" />
               </div>
+
+              {/* Header Media URL if image/video/document */}
+              {localData.headerType && ['image', 'video', 'document'].includes(localData.headerType) && (
+                <div style={{ background: '#f8fafc', padding: '14px', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <ImageIcon size={14} color="#6366f1" />
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b' }}>
+                      Header {localData.headerType.toUpperCase()}
+                    </label>
+                  </div>
+
+                  {/* Direct File Upload */}
+                  <div style={{ marginBottom: '10px' }}>
+                    <input 
+                      type="file" 
+                      onChange={handleFileUpload}
+                      disabled={isUploading}
+                      accept={localData.headerType === 'document' ? '.pdf' : localData.headerType === 'video' ? 'video/mp4,video/3gpp' : 'image/jpeg,image/png'}
+                      style={{ width: '100%', padding: '10px', background: 'white', border: '1px dashed #CBD5E1', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', color: '#64748B' }} 
+                    />
+                    {isUploading && <div style={{ fontSize: '11px', color: '#3B82F6', marginTop: '4px', fontWeight: '600' }}>Uploading to server...</div>}
+                    {localData.mediaUrl && !isUploading && (
+                      <div style={{ fontSize: '11px', color: '#10B981', marginTop: '6px', fontWeight: '600', wordBreak: 'break-all' }}>
+                        ✓ Uploaded: {localData.mediaUrl.split('/').pop()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '4px' }}>Or enter media URL manually:</div>
+                  <input
+                    type="text"
+                    value={localData.mediaUrl || ''}
+                    onChange={(e) => {
+                      setLocalData(p => ({ ...p, mediaUrl: e.target.value }));
+                      updateNodeData(id, { mediaUrl: e.target.value });
+                    }}
+                    style={{ ...inputStyle, fontSize: '12px', background: 'white' }}
+                    placeholder={`https://example.com/media.${localData.headerType === 'video' ? 'mp4' : localData.headerType === 'document' ? 'pdf' : 'jpg'}`}
+                  />
+                  <span style={{ fontSize: '10px', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                    Auto-injected into WhatsApp header component when sending.
+                  </span>
+                </div>
+              )}
+
+              {/* Limited Time Offer (LTO) Configuration */}
+              {localData.isLimitedTimeOffer && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fef3c7', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}>
+                    <Clock size={14} color="#d97706" />
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>
+                      Offer Expiration Duration (LTO)
+                    </label>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                    {[
+                      { label: '24h (1d)', hours: 24 },
+                      { label: '48h (2d)', hours: 48 },
+                      { label: '72h (3d)', hours: 72 },
+                      { label: '7 Days', hours: 168 }
+                    ].map(opt => (
+                      <button
+                        key={opt.hours}
+                        type="button"
+                        onClick={() => {
+                          setLocalData(p => ({ ...p, customExpirationHours: opt.hours }));
+                          updateNodeData(id, { customExpirationHours: opt.hours });
+                        }}
+                        style={{
+                          flex: 1, padding: '5px 4px', fontSize: '11px', fontWeight: '600',
+                          borderRadius: '6px', cursor: 'pointer',
+                          background: Number(localData.customExpirationHours) === opt.hours ? '#d97706' : '#fef3c7',
+                          color: Number(localData.customExpirationHours) === opt.hours ? 'white' : '#92400e',
+                          border: 'none', transition: 'all 0.15s'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <input
+                      type="number"
+                      min="1"
+                      max="720"
+                      value={localData.customExpirationHours || ''}
+                      onChange={(e) => {
+                        const h = parseInt(e.target.value) || 0;
+                        setLocalData(p => ({ ...p, customExpirationHours: h }));
+                        updateNodeData(id, { customExpirationHours: h });
+                      }}
+                      style={{ ...inputStyle, width: '90px', background: 'white', fontSize: '12px', padding: '6px 8px' }}
+                      placeholder="Hours"
+                    />
+                    <span style={{ fontSize: '11px', color: '#78350f' }}>Hours from send time (Default: 72h / 3 days)</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Coupon / Offer Code Configuration */}
+              {(localData.offerCode || (localData.buttons || []).some(b => b.type === 'copy_code')) && (
+                <div style={{ background: '#f5f3ff', border: '1px solid #ede9fe', borderRadius: '8px', padding: '12px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+                    <Tag size={14} color="#7c3aed" />
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#5b21b6' }}>
+                      Coupon / Offer Code (COPY_CODE)
+                    </label>
+                  </div>
+                  <input
+                    type="text"
+                    value={localData.offerCode || ''}
+                    onChange={(e) => {
+                      const cleanCode = e.target.value.replace(/[^a-zA-Z0-9_-]/g, '');
+                      setLocalData(p => ({ ...p, offerCode: cleanCode }));
+                      updateNodeData(id, { offerCode: cleanCode });
+                    }}
+                    style={{ ...inputStyle, background: 'white', fontFamily: 'monospace', fontSize: '12px' }}
+                    placeholder="e.g. SAVE20 or FLAT50"
+                  />
+                  <span style={{ fontSize: '10px', color: '#6d28d9', marginTop: '4px', display: 'block' }}>
+                    User taps button to copy this code to clipboard. Alphanumeric only.
+                  </span>
+                </div>
+              )}
 
               {/* Variables */}
               <div>
@@ -1514,15 +1690,36 @@ export default function NodePropertiesPane({ currentChannelId }) {
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Action Type</label>
               <select name="actionType" value={localData.actionType || 'update_contact'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
-                <option value="opt_in">Marketing Opt-in</option>
-                <option value="opt_out">Marketing Opt-out</option>
-                <option value="update_contact">Update Field</option>
-                <option value="assign_team">Assign to Team Member</option>
-                <option value="human_handoff">General Human Handoff</option>
-                <option value="round_robin_assign">Round-Robin Agent Handoff</option>
-                <option value="unassign_team">Unassign Team Member</option>
+                <option value="add_tag">🏷️ Add Tag to Contact</option>
+                <option value="remove_tag">🗑️ Remove Tag from Contact</option>
+                <option value="update_contact">✏️ Update Field / Custom Data</option>
+                <option value="human_handoff">👤 General Human Handoff</option>
+                <option value="assign_team">👥 Assign to Team Member</option>
+                <option value="round_robin_assign">🔄 Round-Robin Agent Handoff</option>
+                <option value="opt_in">✅ Marketing Opt-in</option>
+                <option value="opt_out">⛔ Marketing Opt-out</option>
+                <option value="unassign_team">❌ Unassign Team Member</option>
               </select>
             </div>
+            {['add_tag', 'remove_tag'].includes(localData.actionType) && (
+              <div>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                  {localData.actionType === 'add_tag' ? 'Tag to Add' : 'Tag to Remove'}
+                </label>
+                <input 
+                  type="text" 
+                  name="tagValue" 
+                  value={localData.tagValue || localData.tag || ''} 
+                  onChange={(e) => {
+                    handleLocalChange(e);
+                    setLocalData(prev => ({ ...prev, tagValue: e.target.value, tag: e.target.value }));
+                  }} 
+                  onBlur={() => updateNodeData(id, { tagValue: localData.tagValue || localData.tag, tag: localData.tagValue || localData.tag })} 
+                  style={inputStyle} 
+                  placeholder="e.g. VIP, Demo Requested, Qualified" 
+                />
+              </div>
+            )}
             {localData.actionType === 'update_contact' && (
               <>
                 <div>

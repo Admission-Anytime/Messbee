@@ -317,7 +317,21 @@ const CreateTemplate = () => {
     isEditing ? 'content' : (isDuplicate || location.state?.fromGallery ? 'setup' : 'choose')
   );
 
-  const [templateType, setTemplateType] = useState('CUSTOM');
+  const [templateType, setTemplateType] = useState(() => {
+    const comps = location.state?.templateData?.components || [];
+    if (comps.some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')) {
+      return 'LIMITED_TIME_OFFER';
+    }
+    const btnsComp = comps.find(c => String(c?.type || '').toUpperCase() === 'BUTTONS');
+    const btns = btnsComp?.buttons || [];
+    if (btns.some(b => String(b?.type || '').toUpperCase() === 'MPM')) {
+      return 'MPM';
+    }
+    if (btns.some(b => String(b?.type || '').toUpperCase() === 'CATALOG')) {
+      return 'CATALOG';
+    }
+    return location.state?.templateData?.subType || 'CUSTOM';
+  });
   const [authExpirationMinutes, setAuthExpirationMinutes] = useState(10);
   const [authSecurityRecommendation, setAuthSecurityRecommendation] = useState(true);
   const [buttons, setButtons] = useState([]);
@@ -325,6 +339,7 @@ const CreateTemplate = () => {
   const [menuPlacement, setMenuPlacement] = useState('up');
   const buttonMenuRef = useRef(null);
   const editorRef = useRef(null);
+  const headerFileRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [charCount, setCharCount] = useState(0);
   const [bodyVariables, setBodyVariables] = useState([]);
@@ -353,7 +368,40 @@ const CreateTemplate = () => {
 
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const headerFileRef = useRef(null);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [selectedLtoProduct, setSelectedLtoProduct] = useState(null);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  // Fetch real user products from Commerce Catalog / Inventory
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        setLoadingProducts(true);
+        let prods = [];
+        try {
+          const res = await axios.get('/commerce/products');
+          prods = res.data?.data || res.data?.products || (Array.isArray(res.data) ? res.data : []);
+        } catch (_) {}
+
+        if (!prods || prods.length === 0) {
+          try {
+            const res2 = await axios.get('/products?limit=50');
+            prods = res2.data?.data || res2.data?.products || (Array.isArray(res2.data) ? res2.data : []);
+          } catch (_) {}
+        }
+
+        if (Array.isArray(prods) && prods.length > 0) {
+          setCatalogProducts(prods);
+          setSelectedLtoProduct(prods[0]);
+        }
+      } catch (err) {
+        console.warn('Error fetching catalog products for template preview:', err);
+      } finally {
+        setLoadingProducts(false);
+      }
+    };
+    fetchCatalog();
+  }, []);
 
   const EMOJIS = [
     '😀','😂','🥰','😍','🤩','😊','🎉','🔥',
@@ -554,10 +602,10 @@ const CreateTemplate = () => {
     offerTitle: '20% OFF',
     limitedTimeOfferText: location.state?.templateData?.limitedTimeOfferText || 'Expiring offer!',
     hasExpiration: true,
-    offerCode: location.state?.templateData?.offerCode || 'SALE20',
+    offerCode: location.state?.templateData?.offerCode || '',
     ltoHasUrlButton: false,
     ltoUrlText: 'Shop Now',
-    ltoUrl: '',
+    ltoUrl: location.state?.templateData?.ltoUrl || '',
     headerType: location.state?.templateData?.headerType || 'None',
     headerText: location.state?.templateData?.headerText || '',
     bodyText: location.state?.templateData?.bodyText || '',
@@ -1248,14 +1296,20 @@ const CreateTemplate = () => {
       return;
     }
 
-    if (templateType === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
-      failSubmit("A Header is mandatory for Multi-Product Messages. Please select a Text or Media header above.", true);
-      return;
+    if (templateType === 'MPM') {
+      if (!formData.headerType || formData.headerType !== 'Text') {
+        failSubmit("Meta WhatsApp strictly requires a Text header for Multi-Product Messages to act as the collection title. Please select a Text header above.", true);
+        return;
+      }
+      if (!formData.headerText || !formData.headerText.trim()) {
+        failSubmit("Please enter a Header Title for your Multi-Product Message (e.g. Featured Products).", true);
+        return;
+      }
     }
 
     if (templateType === 'LIMITED_TIME_OFFER') {
-      if (formData.headerType === 'Text' || formData.headerType === 'Document') {
-        failSubmit("Limited-Time Offer templates only support Image or Video headers (or None). Please select None, Image, or Video.", true);
+      if (formData.headerType === 'Document') {
+        failSubmit("Limited-Time Offer templates do not support Document headers. Please select None, Text, Image, or Video.", true);
         return;
       }
       if (!formData.limitedTimeOfferText || !formData.limitedTimeOfferText.trim()) {
@@ -1267,7 +1321,11 @@ const CreateTemplate = () => {
         return;
       }
       if (!formData.offerCode || !formData.offerCode.trim()) {
-        failSubmit("Please enter an Offer / Coupon Code for the Copy Code button (max 15 characters, e.g. SALE20).");
+        failSubmit("Please enter an Offer / Coupon Code for the Copy Code button (max 15 characters, e.g. 20OFF).");
+        return;
+      }
+      if (!/^[A-Za-z0-9_-]{1,15}$/.test(formData.offerCode.trim())) {
+        failSubmit("Coupon Code can only contain letters and numbers without spaces or special symbols like '%' (e.g. 20OFF or FLAT50).");
         return;
       }
       if (formData.offerCode.trim().length > 15) {
@@ -1395,12 +1453,12 @@ const CreateTemplate = () => {
         const ltoButtons = [
           {
             type: 'COPY_CODE',
-            example: (formData.offerCode || 'SALE20').trim().substring(0, 15)
+            example: (formData.offerCode || '').trim().substring(0, 15)
           },
           {
             type: 'URL',
             text: (formData.ltoUrlText || 'Shop Now').trim().substring(0, 25),
-            url: (formData.ltoUrl || 'https://example.com').trim()
+            url: (formData.ltoUrl || '').trim()
           }
         ];
         components.push({
@@ -1495,6 +1553,8 @@ const CreateTemplate = () => {
         category: formData.category.toUpperCase(),
         language: formData.language === 'English (US)' ? 'en_US' : (formData.language === 'Hindi' ? 'hi_IN' : 'en_US'),
         components: components,
+        expirationDate: formData.expirationDate || '24h',
+        customExpirationHours: formData.customExpirationHours || 24,
         allow_category_change: true
       };
 
@@ -1614,25 +1674,31 @@ const CreateTemplate = () => {
         });
         return;
       }
-      const waError = error?.response?.data?.error || {};
-      const nestedWaError = waError?.error || {};
-      const errorSubcode = nestedWaError?.error_subcode ?? nestedWaError?.errorSubcode ?? waError?.error_subcode ?? waError?.errorSubcode;
-      const errorMsg =
-        nestedWaError?.message ||
-        waError?.message ||
-        nestedWaError?.error_user_msg ||
-        waError?.error_user_msg ||
-        nestedWaError?.error_data?.details ||
-        waError?.error_data?.details ||
-        error?.response?.data?.message;
-      const suggestedName = waError?.suggestedName;
-      
-      // Default error message
-      let errorMessage =
-        errorMsg ||
-        error?.response?.data?.message ||
-        error?.message ||
-        "Failed to create template on WhatsApp. Please try again.";
+      const rawWaError = error?.response?.data?.error || {};
+      const nestedWaError = rawWaError?.error || rawWaError;
+      const errorSubcode = nestedWaError?.error_subcode ?? nestedWaError?.errorSubcode ?? rawWaError?.error_subcode ?? rawWaError?.errorSubcode;
+      const userMsg = nestedWaError?.error_user_msg || rawWaError?.error_user_msg;
+      const errorDetails = nestedWaError?.error_data?.details || rawWaError?.error_data?.details;
+      const blameField = nestedWaError?.error_data?.blame_field_specs?.[0]?.[0] || rawWaError?.error_data?.blame_field_specs?.[0]?.[0];
+      const rawMessage = error?.response?.data?.message || nestedWaError?.message || rawWaError?.message;
+      const suggestedName = nestedWaError?.suggestedName || rawWaError?.suggestedName;
+
+      // Extract specific, human-understandable message
+      let errorMessage = '';
+
+      if (errorSubcode === 2593027 || (userMsg && userMsg.toLowerCase().includes('button example')) || blameField === 'example') {
+        errorMessage = 'Coupon Code is invalid: WhatsApp does not allow special characters like "%" in coupon codes. Please use letters and numbers only (e.g. 20OFF or FLAT50).';
+      } else if (userMsg && userMsg !== 'Invalid parameter') {
+        errorMessage = userMsg + (blameField ? ` (Field: ${blameField})` : '');
+      } else if (errorDetails && errorDetails !== 'Invalid parameter') {
+        errorMessage = errorDetails;
+      } else if (rawMessage && !rawMessage.toLowerCase().includes('invalid parameter')) {
+        errorMessage = rawMessage;
+      } else if (blameField) {
+        errorMessage = `Invalid parameter in "${blameField}". Please check that this field meets Meta guidelines.`;
+      } else {
+        errorMessage = 'Invalid parameter: Please verify that all button values, variables, and links follow WhatsApp rules.';
+      }
       
       // Handle specific user-facing errors
       if (!error?.response && (error?.code === 'ENOTFOUND' || error?.message?.includes('ENOTFOUND') || error?.message?.includes('getaddrinfo'))) {
@@ -1688,8 +1754,29 @@ const CreateTemplate = () => {
       toast.error("Template name is mandatory");
       return;
     }
+    if (templateType === 'MPM') {
+      setFormData(prev => ({
+        ...prev,
+        headerType: (!prev.headerType || prev.headerType === 'None') ? 'Text' : prev.headerType,
+        headerText: prev.headerText || 'Featured Products',
+        bodyText: prev.bodyText && prev.bodyText.trim() 
+          ? prev.bodyText 
+          : 'Explore our latest collection of handpicked items. Tap below to browse products, view details, and place your order directly on WhatsApp!'
+      }));
+    } else if (templateType === 'LIMITED_TIME_OFFER') {
+      setFormData(prev => ({
+        ...prev,
+        limitedTimeOfferText: prev.limitedTimeOfferText || 'Expiring offer!',
+        offerCode: prev.offerCode || '',
+        ltoUrlText: prev.ltoUrlText || 'Shop Now',
+        ltoUrl: prev.ltoUrl || '',
+        bodyText: prev.bodyText && prev.bodyText.trim() 
+          ? prev.bodyText 
+          : 'Special Offer! Enjoy an exclusive discount on your next order. Tap below to copy your discount code and start shopping before time runs out!'
+      }));
+    }
     setView('content');
-  }
+  };
 
   useEffect(() => {
     const link = document.createElement('link');
@@ -1964,18 +2051,21 @@ const CreateTemplate = () => {
                                     setUploadedMetaHandle(null);
                                     if (headerFileRef.current) headerFileRef.current.value = '';
                                   }
-                                  if (type === 'MPM' && (!formData.headerType || formData.headerType === 'None')) {
-                                    setFormData(prev => ({ ...prev, headerType: 'Text', headerText: prev.headerText || 'Featured Products' }));
+                                  if (type === 'MPM') {
+                                    // Meta requires a header for MPM
+                                    if (!formData.headerType || formData.headerType === 'None') {
+                                      setFormData(prev => ({ ...prev, headerType: 'Text', headerText: prev.headerText || 'Featured Products' }));
+                                    }
                                   }
                                   if (type === 'LIMITED_TIME_OFFER') {
-                                    if (formData.headerType === 'Text' || formData.headerType === 'Document') {
+                                    if (formData.headerType === 'Document') {
                                       setFormData(prev => ({ ...prev, headerType: 'None' }));
                                     }
                                   }
                                   setSubmitError(null);
                                   setHeaderError(false);
                                 }} 
-                                className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30' : 'border border-gray-200 bg-white hover:border-gray-300'}`}
+                                className={`p-4 rounded-xl cursor-pointer transition-all duration-200 ${templateType === type ? 'border-2 border-[#10B981] bg-[#F0FDF4]/30 shadow-xs' : 'border border-gray-200 bg-white hover:border-gray-300'}`}
                               >
                                 <div className="flex items-start gap-4">
                                     {templateType === type ? (
@@ -1986,15 +2076,47 @@ const CreateTemplate = () => {
                                       <div className="mt-1 w-4 h-4 shrink-0 rounded-full border-2 border-gray-300" />
                                     )}
                                     <div className="flex-1">
-                                      <span className="text-[13px] font-bold text-gray-800 block mb-1 tracking-wide">
-                                        {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : type === 'MPM' ? 'MULTI-PRODUCT MESSAGE' : 'LIMITED TIME OFFER'}
-                                      </span>
+                                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                        <span className="text-[13px] font-bold text-gray-800 tracking-wide">
+                                          {type === 'CUSTOM' ? 'CUSTOM' : type === 'CATALOG' ? 'CATALOG' : type === 'MPM' ? 'MULTI-PRODUCT MESSAGE' : 'LIMITED TIME OFFER'}
+                                        </span>
+                                        {type === 'MPM' && (
+                                          <span className="text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200 px-2 py-0.5 rounded-full">
+                                            Meta Commerce
+                                          </span>
+                                        )}
+                                        {type === 'LIMITED_TIME_OFFER' && (
+                                          <span className="text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                            ⏱️ Countdown Timer
+                                          </span>
+                                        )}
+                                        {type === 'CATALOG' && (
+                                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-full">
+                                            Full Catalog
+                                          </span>
+                                        )}
+                                      </div>
                                       <p className="text-[13px] text-gray-500 leading-relaxed">
-                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements') 
-                                          : type === 'CATALOG' ? 'Display your entire product catalog'
-                                          : type === 'MPM' ? 'Showcase up to 30 specific products'
-                                          : 'Send an offer with a countdown timer to drive urgency'}
+                                          {type === 'CUSTOM' ? (formData.category === 'Utility' ? 'Send messages about an existing order or account.' : 'Send promotional offers & announcements with custom buttons.') 
+                                          : type === 'CATALOG' ? 'Display your entire product catalog in chat. Meta automatically uses your catalog thumbnail.'
+                                          : type === 'MPM' ? 'Showcase up to 30 specific products from your Meta Commerce Catalog with a native "View items" button.'
+                                          : 'Send an offer with a native countdown timer, coupon code, and website CTA to drive urgency.'}
                                       </p>
+                                      {type === 'MPM' && (
+                                        <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] text-teal-700 font-medium">
+                                          <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-100">✓ Up to 30 Products</span>
+                                          <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-100">✓ Mandatory Header</span>
+                                          <span className="bg-teal-50 px-2 py-0.5 rounded border border-teal-100">✓ Locked "View items" Button</span>
+                                        </div>
+                                      )}
+                                      {type === 'LIMITED_TIME_OFFER' && (
+                                        <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px] text-amber-800 font-medium">
+                                          <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-100">✓ Native Expiration Countdown</span>
+                                          <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-100">✓ Native Copy Code</span>
+                                          <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-100">✓ Website CTA</span>
+                                          <span className="bg-amber-50 px-2 py-0.5 rounded border border-amber-100">✓ No Footer (Meta Rule)</span>
+                                        </div>
+                                      )}
                                     </div>
                                 </div>
                               </div>
@@ -2236,15 +2358,20 @@ const CreateTemplate = () => {
                                   }
                                 }}
                             >
-                                <option value="None">{templateType === 'MPM' ? 'None (Header is required for MPM)' : 'None'}</option>
-                                {templateType !== 'LIMITED_TIME_OFFER' && <option value="Text">Text</option>}
-                                <option value="Image">Image</option>
-                                <option value="Video">Video</option>
-                                {templateType !== 'LIMITED_TIME_OFFER' && <option value="Document">Document</option>}
+                                {templateType !== 'MPM' && <option value="None">None</option>}
+                                <option value="Text">{templateType === 'MPM' ? 'Text (Mandatory for MPM)' : 'Text'}</option>
+                                {templateType !== 'MPM' && <option value="Image">{templateType === 'LIMITED_TIME_OFFER' ? 'Image (Recommended for LTO)' : 'Image'}</option>}
+                                {templateType !== 'MPM' && <option value="Video">Video</option>}
+                                {templateType !== 'LIMITED_TIME_OFFER' && templateType !== 'MPM' && <option value="Document">Document</option>}
                             </select>
+                            {templateType === 'MPM' && (
+                              <p className="text-[11px] text-teal-700 mt-2 font-medium">
+                                ℹ️ Meta strictly mandates a <strong>Text-only</strong> header for Multi-Product Message templates to serve as the collection headline.
+                              </p>
+                            )}
                             {templateType === 'LIMITED_TIME_OFFER' && (
-                              <p className="text-[11px] text-gray-500 mt-2">
-                                WhatsApp allows <strong>Image</strong> or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
+                              <p className="text-[11px] text-amber-800 mt-2 font-medium">
+                                ℹ️ WhatsApp supports <strong>Text</strong>, <strong>Image</strong>, or <strong>Video</strong> headers (or <strong>None</strong>) for Limited-Time Offers.
                               </p>
                             )}
                           </>
@@ -2637,36 +2764,131 @@ const CreateTemplate = () => {
                                 </div>
                             </div>
                         ) : templateType === 'MPM' ? (
-                            <div>
-                                <h3 className="text-sm md:text-base font-bold text-gray-800 mb-4">Multi-Product Button</h3>
-                                <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl flex items-center gap-4 relative shadow-sm">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
-                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed">
-                                                View Items
-                                            </div>
+                            <div className="space-y-5">
+                                {/* Meta MPM Requirements Banner */}
+                                <div className="p-4 bg-teal-50 border border-teal-200 rounded-xl flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-teal-100 border border-teal-200 flex items-center justify-center shrink-0 mt-0.5">
+                                    <span className="text-base">📋</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-bold text-sm text-teal-900">Meta Multi-Product Message (MPM) Guidelines</p>
+                                    <ul className="text-[12px] text-teal-700 mt-1.5 space-y-1 leading-relaxed list-none">
+                                      <li>✅ <strong>Header is Mandatory</strong> — Meta strictly requires a Text-only header (configured above) to serve as your collection title.</li>
+                                      <li>✅ <strong>Connected Meta Catalog</strong> — Requires an active e-commerce catalog linked to your WhatsApp Business Account in Meta Commerce Manager.</li>
+                                      <li>✅ <strong>Up to 30 Products</strong> — Showcase up to 30 curated products organized into up to 10 sections.</li>
+                                      <li>✅ <strong>Locked &quot;View items&quot; Button</strong> — Meta mandates exactly one native button labeled &quot;View items&quot;. No other buttons can be added.</li>
+                                      <li>✅ <strong>Category: MARKETING</strong> — Meta automatically classifies all MPM templates under Marketing.</li>
+                                    </ul>
+                                  </div>
+                                </div>
+
+                                {/* Connected Catalog & Product Section Showcase */}
+                                <div className="p-4 bg-white border border-teal-200 rounded-xl space-y-3 shadow-xs">
+                                  <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-base">🏬</span>
+                                      <div>
+                                        <h4 className="text-xs font-bold text-gray-800">Connected Meta Commerce Catalog</h4>
+                                        <p className="text-[11px] text-gray-500">Products are pulled dynamically from your linked Facebook/Meta Commerce Manager catalog.</p>
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                      WABA Linked
+                                    </span>
+                                  </div>
+
+                                  <div className="bg-teal-50/50 rounded-lg p-3 border border-teal-100/80">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-[11px] font-bold text-teal-900 uppercase tracking-wide">Section Structure (Up to 10 Sections)</span>
+                                      <span className="text-[10px] font-semibold text-teal-700">Max 30 products total</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="bg-white p-2.5 rounded-md border border-teal-200/60 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-xs">📁</span>
+                                          <span className="text-xs font-semibold text-gray-700">Section 1: Featured Collection</span>
                                         </div>
-                                        <div>
-                                            <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
-                                                Button Text
-                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
-                                                    <Lock size={9} /> Locked by WhatsApp
-                                                </span>
-                                            </label>
-                                            <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between">
-                                                <span>View items</span>
-                                                <Lock size={13} className="text-gray-400" />
+                                        <span className="text-[10px] text-gray-400 font-mono">e.g. 10 products</span>
+                                      </div>
+                                      <div className="bg-white/90 p-2.5 rounded-lg border border-teal-200 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-base">🛍️</span>
+                                          <div>
+                                            <p className="text-xs font-bold text-teal-900">Commerce Catalog Linked</p>
+                                            <p className="text-[11px] text-teal-700">
+                                              {catalogProducts && catalogProducts.length > 0 
+                                                ? `${catalogProducts.length} dynamic products linked from your catalog` 
+                                                : 'Products in Commerce Catalog will automatically appear here'}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <span className="text-xs font-mono font-bold bg-teal-100 text-teal-800 px-2 py-0.5 rounded-full border border-teal-200">
+                                          {catalogProducts ? catalogProducts.length : 0} Products
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div>
+                                    <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
+                                      Multi-Product Button
+                                      <span className="text-[11px] font-bold bg-teal-100 text-teal-700 border border-teal-200 px-2 py-0.5 rounded-full">
+                                        Locked by Meta
+                                      </span>
+                                    </h3>
+                                    <p className="text-xs text-gray-500 mb-4">
+                                      When clicked by the customer, this native WhatsApp button opens your curated product list directly in the chat.
+                                    </p>
+                                    <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl relative shadow-sm">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 flex-1">
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide">Type of Action</label>
+                                                <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center gap-2">
+                                                    <span>📋</span>
+                                                    <span>Open Multi-Product List</span>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                                                    Button Text
+                                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded-full normal-case tracking-normal">
+                                                        <Lock size={9} /> Locked by WhatsApp
+                                                    </span>
+                                                </label>
+                                                <div className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-semibold bg-gray-50 text-gray-500 cursor-not-allowed flex items-center justify-between">
+                                                    <span>View items</span>
+                                                    <Lock size={13} className="text-gray-400" />
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
+                                    <p className="text-[11px] text-gray-400 mt-2">
+                                        Meta strictly enforces that the button text must be <strong>&quot;View items&quot;</strong> and no additional buttons can be added to an MPM template.
+                                    </p>
                                 </div>
-                                <p className="text-xs text-gray-500 mt-2">
-                                    WhatsApp mandates the button text is always <strong>&quot;View items&quot;</strong> for Multi-Product Messages — this cannot be changed.
-                                </p>
                             </div>
                         ) : templateType === 'LIMITED_TIME_OFFER' ? (
                             <div className="space-y-6">
+                                {/* Meta LTO Requirements Banner */}
+                                <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center shrink-0 mt-0.5">
+                                    <span className="text-base">⏱️</span>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="font-bold text-sm text-amber-900">Meta Limited-Time Offer (LTO) Guidelines</p>
+                                    <ul className="text-[12px] text-amber-800 mt-1.5 space-y-1 leading-relaxed list-none">
+                                      <li>✅ <strong>Live Countdown Timer</strong> — WhatsApp natively renders a dynamic expiration timer that turns red in the final hour!</li>
+                                      <li>✅ <strong>Offer Heading Text</strong> — Headline describing your offer (max 16 characters, e.g. &quot;Expiring offer!&quot; or &quot;20% OFF&quot;).</li>
+                                      <li>✅ <strong>Mandatory Copy Code Button</strong> — Allows customers to copy the coupon code (max 15 characters) directly to clipboard.</li>
+                                      <li>✅ <strong>Mandatory Website URL Button</strong> — Direct call-to-action button linking to your shop or landing page (must start with https://).</li>
+                                      <li>⚠️ <strong>Footer Forbidden by Meta</strong> — Meta strictly prohibits footer text on Limited-Time Offer templates.</li>
+                                      <li>✅ <strong>Category: MARKETING</strong> — Must be categorized as Marketing.</li>
+                                    </ul>
+                                  </div>
+                                </div>
+
                                 <div>
                                     <h3 className="text-sm md:text-base font-bold text-gray-800 mb-1 flex items-center gap-2">
                                         Limited-Time Offer Details
@@ -2679,6 +2901,49 @@ const CreateTemplate = () => {
                                     </p>
 
                                     <div className="p-4 md:p-5 bg-white border border-[#10B981] rounded-xl space-y-5 shadow-sm">
+                                        {/* Dynamic Featured Catalog Product Selector */}
+                                        <div className="p-3 bg-gradient-to-r from-red-50 to-orange-50/60 rounded-xl border border-red-200">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <label className="text-[11px] font-bold text-red-800 uppercase tracking-wide flex items-center gap-1.5">
+                                                    <span>🏷️ Featured Product from Catalog</span>
+                                                    <span className="text-[10px] font-medium text-red-600 bg-white px-1.5 py-0.5 rounded border border-red-100">
+                                                      Dynamic Deal
+                                                    </span>
+                                                </label>
+                                                <span className="text-[10px] font-bold bg-white text-red-600 px-2 py-0.5 rounded-full border border-red-100">
+                                                    {catalogProducts ? catalogProducts.length : 0} in Catalog
+                                                </span>
+                                            </div>
+                                            {catalogProducts && catalogProducts.length > 0 ? (
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                                                    <select
+                                                        value={selectedLtoProduct?._id || ''}
+                                                        onChange={(e) => {
+                                                            const chosen = catalogProducts.find(p => p._id === e.target.value);
+                                                            setSelectedLtoProduct(chosen || null);
+                                                        }}
+                                                        className="flex-1 p-2 bg-white border border-red-200 rounded-lg text-xs font-semibold text-gray-800 outline-none focus:border-red-400"
+                                                    >
+                                                        <option value="">-- Choose a catalog product to feature in deal --</option>
+                                                        {catalogProducts.map(p => (
+                                                            <option key={p._id} value={p._id}>
+                                                                {p.name} — ₹{Number(p.sellingPrice || 0).toLocaleString('en-IN')}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    {selectedLtoProduct && (
+                                                        <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200 shrink-0 text-center">
+                                                            ✓ Selected: ₹{Number(selectedLtoProduct.sellingPrice || 0).toLocaleString('en-IN')}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <p className="text-[11px] text-gray-500">
+                                                    Products added in your Commerce Catalog will automatically sync and appear here.
+                                                </p>
+                                            )}
+                                        </div>
+
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                                             <div>
                                                 <label className="text-[11px] font-bold text-gray-600 block mb-2 uppercase tracking-wide flex items-center justify-between">
@@ -2829,12 +3094,15 @@ const CreateTemplate = () => {
                                                     <input 
                                                         type="text" 
                                                         value={formData.offerCode || ''} 
-                                                        onChange={(e) => setFormData({...formData, offerCode: e.target.value.toUpperCase()})}
+                                                        onChange={(e) => {
+                                                            const clean = e.target.value.replace(/[^A-Za-z0-9_-]/g, '').toUpperCase();
+                                                            setFormData({...formData, offerCode: clean});
+                                                        }}
                                                         maxLength={15}
                                                         className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-mono font-bold bg-white outline-none focus:border-[#10B981] transition-all uppercase" 
-                                                        placeholder="SALE20"
+                                                        placeholder="e.g. 20OFF or DEAL50"
                                                     />
-                                                    <p className="text-[11px] text-gray-400 mt-1">Copied to clipboard when tapped (Max 15 characters)</p>
+                                                    <p className="text-[11px] text-gray-400 mt-1">Letters and numbers only, max 15 chars (no '%' or symbols allowed by Meta)</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -2878,7 +3146,7 @@ const CreateTemplate = () => {
                                                         value={formData.ltoUrl || ''} 
                                                         onChange={(e) => setFormData({...formData, ltoUrl: e.target.value})}
                                                         className="w-full p-2.5 border border-gray-200 rounded-lg text-sm font-medium bg-white outline-none focus:border-[#10B981] transition-all" 
-                                                        placeholder="https://example.com/offers"
+                                                        placeholder="https://yourwebsite.com/deal"
                                                     />
                                                     <p className="text-[11px] text-gray-400 mt-1">Web address opened when tapped (Must start with https://)</p>
                                                 </div>
@@ -3243,6 +3511,7 @@ const CreateTemplate = () => {
             footer={(formData.category === 'Authentication' || templateType === 'LIMITED_TIME_OFFER') ? '' : formData.footerText} 
             headerMedia={headerMedia}
             headerType={formData.headerType}
+            headerText={formData.headerText}
             showImage={formData.category !== 'Authentication' && formData.headerType !== 'None' && templateType !== 'CATALOG'} 
             offer={formData.offerTitle} 
             isLimited={templateType === 'LIMITED_TIME_OFFER'}
@@ -3258,6 +3527,9 @@ const CreateTemplate = () => {
             mpmButtonText={formData.mpmButtonText}
             buttons={formData.category === 'Authentication' ? [] : buttons} 
             isSetupView={view === 'setup'}
+            templateType={templateType}
+            catalogProducts={catalogProducts}
+            selectedLtoProduct={selectedLtoProduct}
           />
             </div>
         </div>
@@ -3345,7 +3617,7 @@ const MobilePreview = ({
   limitedTimeOfferText = 'Expiring offer!',
   hasExpiration = true,
   expirationPreviewText = '23:59:59',
-  offerCode = 'SALE20',
+  offerCode = '',
   ltoHasUrlButton = false,
   ltoUrlText = 'Shop Now',
   isCatalog = false, 
@@ -3355,82 +3627,321 @@ const MobilePreview = ({
   buttons = [], 
   headerMedia = null, 
   headerType = 'None', 
-  isSetupView = false 
+  headerText = '',
+  isSetupView = false,
+  templateType = 'CUSTOM',
+  catalogProducts = [],
+  selectedLtoProduct = null
 }) => {
+  const activeIsMpm = isMpm || templateType === 'MPM';
+  const activeIsLimited = isLimited || templateType === 'LIMITED_TIME_OFFER';
+  const activeIsCatalog = isCatalog || templateType === 'CATALOG';
+
   if (isSetupView) {
     return (
-      <div className="relative w-[260px] h-[525px] bg-white rounded-[2rem] border-[6px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
+      <div className="relative w-[265px] h-[535px] bg-white rounded-[2rem] border-[6px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
         {/* Notch */}
         <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
            <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
         </div>
         
+        {/* WhatsApp App Bar */}
+        <div className="w-full bg-[#075e54] text-white pt-6 pb-2 px-3 flex items-center justify-between shrink-0 shadow-xs z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
+              MB
+            </div>
+            <div>
+              <p className="text-[11px] font-bold leading-tight">MessBee Business</p>
+              <p className="text-[8px] text-green-200">Official Business Account</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-white/80">
+            <span>📞</span>
+            <span>⋮</span>
+          </div>
+        </div>
+
         {/* Screen Background */}
-        <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
-           {/* Message Bubble Card */}
-           <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
-              
-              {/* Header Image CSS Art */}
-              <div className="w-full h-[140px] relative bg-[#1d8a83] flex items-end justify-center shrink-0 overflow-hidden">
-                 {/* Person Head */}
-                 <div className="absolute bottom-[46px] flex flex-col items-center z-10">
-                    {/* Hat Top */}
-                    <div className="w-[56px] h-[36px] bg-[#2c3546] rounded-t-[30px]"></div>
-                    {/* Hat Brim */}
-                    <div className="w-[74px] h-[14px] bg-[#525d6e] rounded-[4px] -mt-1 z-20"></div>
-                    {/* Face */}
-                    <div className="w-[16px] h-[10px] bg-[#f2cdab] rounded-b-full"></div>
-                 </div>
-                 {/* Person Body */}
-                 <div className="w-[52px] h-[46px] bg-[#5197a9] rounded-t-[26px] absolute bottom-[30px] z-0"></div>
-                 {/* Laptop */}
-                 <div className="w-[86px] h-[30px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
-              </div>
+        <div className="w-full h-full bg-[#e5ddd5] p-3 overflow-y-auto custom-scrollbar flex flex-col justify-start">
+           
+           {/* MPM (Multi-Product Message) Setup Preview */}
+           {activeIsMpm ? (
+             <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0 animate-in fade-in duration-300">
+                {/* Text Header */}
+                <div className="p-3 bg-gradient-to-r from-teal-50 to-emerald-50 border-b border-teal-100">
+                  <span className="text-[10px] font-extrabold text-teal-800 uppercase tracking-wider block">
+                    {headerText || 'Featured Products'}
+                  </span>
+                  <span className="text-[8px] font-semibold text-teal-600 flex items-center gap-1 mt-0.5">
+                    🛍️ Meta Commerce Catalog Linked
+                  </span>
+                </div>
 
-              {/* Message Details */}
-              <div className="p-4 flex flex-col">
-                 <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[YOUR_TEMPLATE]</p>
-                 <p className="text-[9px] text-[#333] font-normal leading-relaxed">
-                   Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.
-                 </p>
-                 
-                 <div className="flex justify-end mt-2">
-                    <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
-                 </div>
-              </div>
+                {/* Body Text */}
+                <div className="p-3 flex flex-col">
+                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                     [{name || 'YOUR_TEMPLATE'}]
+                   </p>
+                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
+                     {body || 'Explore our latest collection of handpicked items. Tap below to browse products, view details, and place your order directly on WhatsApp!'}
+                   </p>
+                   
+                   {/* Meta Multi-Product Interactive Showcase Widget */}
+                   <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                     <div className="flex items-center justify-between text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">
+                       <span>Catalog Showcase</span>
+                       <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 font-mono">
+                         {catalogProducts && catalogProducts.length > 0 ? `${catalogProducts.length} Items` : '30 Items Max'}
+                       </span>
+                     </div>
+                     {catalogProducts && catalogProducts.length > 0 ? (
+                       <div className="space-y-1.5">
+                         {catalogProducts.slice(0, 2).map((prod, idx) => (
+                           <div key={prod._id || idx} className="flex items-center justify-between bg-white p-1.5 rounded border border-gray-100 shadow-xs">
+                             <div className="flex items-center gap-2 min-w-0">
+                               {prod.productImage ? (
+                                 <img src={prod.productImage} alt={prod.name} className="w-5 h-5 rounded object-cover border border-gray-100 shrink-0" />
+                               ) : (
+                                 <span className="text-xs shrink-0">{idx === 0 ? '📦' : '✨'}</span>
+                               )}
+                               <span className="text-[9px] font-semibold text-gray-800 truncate">{prod.name}</span>
+                             </div>
+                             <span className="text-[9px] font-bold text-teal-700 shrink-0 ml-1">₹{Number(prod.sellingPrice || 0).toLocaleString('en-IN')}</span>
+                           </div>
+                         ))}
+                         {catalogProducts.length > 2 && (
+                           <div className="mt-1.5 text-center text-[8px] font-medium text-teal-700 bg-teal-50/80 py-0.5 rounded border border-teal-100">
+                             + {catalogProducts.length - 2} more products in your catalog
+                           </div>
+                         )}
+                       </div>
+                     ) : (
+                       <div className="py-2.5 px-2 text-center bg-white rounded border border-dashed border-teal-200">
+                         <p className="text-[9px] font-bold text-teal-800">Linked to Meta Commerce Catalog</p>
+                         <p className="text-[8px] text-gray-500 mt-0.5">Your catalog products will automatically display here</p>
+                       </div>
+                     )}
+                   </div>
 
-              {/* Action Button */}
-              <div className="border-t border-gray-100 w-full bg-[#fafafa]">
-                 <div className="w-full py-3 flex items-center justify-center gap-2">
-                    <span className="text-[#25d366] font-bold text-[9px]">Visit Website</span>
-                 </div>
-              </div>
-           </div>
+                   <div className="flex justify-end mt-2">
+                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
+                   </div>
+                </div>
+
+                {/* Locked MPM Action Button */}
+                <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                   <div className="w-full py-2.5 flex items-center justify-center gap-1.5">
+                      <span className="text-[#25d366] font-bold text-[10px] flex items-center gap-1">
+                        📋 View items
+                      </span>
+                   </div>
+                </div>
+             </div>
+           ) : activeIsLimited ? (
+             /* Limited-Time Offer Setup Preview */
+             <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0 animate-in fade-in duration-300">
+                {/* Header Banner */}
+                <div className="w-full h-24 bg-gradient-to-br from-red-500 via-rose-600 to-amber-500 flex flex-col items-center justify-center text-white relative overflow-hidden">
+                   <span className="text-2xl mb-0.5">⚡</span>
+                   <span className="text-xs font-black tracking-widest uppercase text-center px-2 truncate w-full">{headerText || (name ? name.replace(/_/g, " ") : "Limited-Time Offer")}</span>
+                   <span className="text-[9px] font-medium opacity-90">WhatsApp Native Countdown Timer</span>
+                </div>
+
+                {/* Body & LTO Urgency Section */}
+                <div className="p-3 flex flex-col">
+                   <p className="text-[11px] text-red-600 font-bold mb-1 uppercase tracking-wide">
+                     [{name || 'YOUR_TEMPLATE'}]
+                   </p>
+
+                   {/* Native Urgency Countdown Banner */}
+                   <div className="mb-2 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
+                      <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-red-600 tracking-tight flex items-center gap-1">
+                            🔥 {limitedTimeOfferText || 'Expiring offer!'}
+                          </span>
+                          <span className="text-[9px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-0.5">
+                            ⏱ 23:59:59
+                          </span>
+                      </div>
+                      <div className="flex items-center justify-between bg-white px-2 py-1 rounded border border-dashed border-red-300">
+                        <span className="text-[9px] font-medium text-gray-500">Coupon:</span>
+                        <span className="text-[10px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded flex items-center gap-1">
+                          {offerCode || (name ? name.slice(0, 6).toUpperCase() + 'OFF' : 'OFFER_CODE')} <Copy size={9} className="text-gray-400" />
+                        </span>
+                      </div>
+                   </div>
+
+                   {/* Dynamic Featured Catalog Deal Product */}
+                   {(selectedLtoProduct || (catalogProducts && catalogProducts.length > 0)) && (
+                     <div className="mb-2 p-1.5 bg-white rounded-lg border border-red-100 shadow-2xs flex items-center justify-between">
+                       <div className="flex items-center gap-2 min-w-0">
+                         {(selectedLtoProduct || catalogProducts[0])?.productImage ? (
+                           <img 
+                             src={(selectedLtoProduct || catalogProducts[0]).productImage} 
+                             alt="Featured deal" 
+                             className="w-7 h-7 rounded object-cover border border-gray-100 shrink-0" 
+                           />
+                         ) : (
+                           <div className="w-7 h-7 rounded bg-red-50 text-red-500 flex items-center justify-center text-xs shrink-0 font-bold">
+                             🏷️
+                           </div>
+                         )}
+                         <div className="min-w-0 flex flex-col">
+                           <span className="text-[9px] font-bold text-gray-800 truncate">
+                             {(selectedLtoProduct || catalogProducts[0])?.name}
+                           </span>
+                           <span className="text-[7.5px] text-red-600 font-semibold">Special Catalog Deal</span>
+                         </div>
+                       </div>
+                       <div className="text-right shrink-0 ml-1">
+                         <span className="text-[8px] text-gray-400 line-through block">
+                           ₹{Math.round(Number((selectedLtoProduct || catalogProducts[0])?.sellingPrice || 1000) * 1.25).toLocaleString('en-IN')}
+                         </span>
+                         <span className="text-[10px] font-bold text-red-600 block">
+                           ₹{Number((selectedLtoProduct || catalogProducts[0])?.sellingPrice || 0).toLocaleString('en-IN')}
+                         </span>
+                       </div>
+                     </div>
+                   )}
+
+                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
+                     {body || 'Special Offer! Enjoy an exclusive discount on your next order. Tap below to copy your discount code and start shopping before time runs out!'}
+                   </p>
+                   
+                   <div className="flex justify-end mt-2">
+                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
+                   </div>
+                </div>
+
+                {/* Mandated Buttons: Copy Code + Website CTA */}
+                <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                   <div className="w-full py-2 flex items-center justify-center gap-1.5 border-b border-gray-100">
+                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1">
+                        <Copy size={11} className="text-[#25d366]" /> Copy code
+                      </span>
+                   </div>
+                   <div className="w-full py-2 flex items-center justify-center gap-1.5">
+                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1">
+                        <ExternalLink size={11} className="text-[#25d366]" /> {ltoUrlText || 'Shop Now'}
+                      </span>
+                   </div>
+                </div>
+             </div>
+           ) : activeIsCatalog ? (
+             /* Catalog Setup Preview */
+             <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0 animate-in fade-in duration-300">
+                <div className="w-full h-24 bg-gradient-to-br from-emerald-100 to-teal-100 flex flex-col items-center justify-center text-emerald-800 border-b border-emerald-200">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="text-xl">🛍️</span>
+                    <span className="text-lg">📦</span>
+                    <span className="text-xl">👟</span>
+                  </div>
+                  <span className="text-[9px] font-bold bg-white/80 px-2 py-0.5 rounded-full border border-emerald-300">Product Thumbnail (Auto by Meta)</span>
+                </div>
+                <div className="p-3 flex flex-col">
+                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                     [{name || 'YOUR_TEMPLATE'}]
+                   </p>
+                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
+                     {body || 'Browse our complete catalog of products and services right inside WhatsApp!'}
+                   </p>
+                   <div className="flex justify-end mt-2">
+                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
+                   </div>
+                </div>
+                <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                   <div className="w-full py-2.5 flex items-center justify-center gap-1.5">
+                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1">
+                        🛍️ View catalog
+                      </span>
+                   </div>
+                </div>
+             </div>
+           ) : (
+             /* Custom Setup Preview */
+             <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0 animate-in fade-in duration-300">
+                {/* Header Image CSS Art */}
+                <div className="w-full h-[120px] relative bg-[#1d8a83] flex items-end justify-center shrink-0 overflow-hidden">
+                   <div className="absolute bottom-[36px] flex flex-col items-center z-10">
+                      <div className="w-[48px] h-[30px] bg-[#2c3546] rounded-t-[25px]"></div>
+                      <div className="w-[64px] h-[12px] bg-[#525d6e] rounded-[4px] -mt-1 z-20"></div>
+                      <div className="w-[14px] h-[8px] bg-[#f2cdab] rounded-b-full"></div>
+                   </div>
+                   <div className="w-[46px] h-[40px] bg-[#5197a9] rounded-t-[22px] absolute bottom-[24px] z-0"></div>
+                   <div className="w-[76px] h-[26px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
+                </div>
+
+                <div className="p-3 flex flex-col">
+                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                     [{name || 'YOUR_TEMPLATE'}]
+                   </p>
+                   <p className="text-[9px] text-[#333] font-normal leading-relaxed">
+                     {body || 'Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.'}
+                   </p>
+                   
+                   <div className="flex justify-end mt-2">
+                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
+                   </div>
+                </div>
+
+                <div className="border-t border-gray-100 w-full bg-[#fafafa]">
+                   <div className="w-full py-2.5 flex items-center justify-center gap-1.5">
+                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1">
+                        <ExternalLink size={11} className="text-[#25d366]" /> Visit Website
+                      </span>
+                   </div>
+                </div>
+             </div>
+           )}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="relative w-[255px] h-[520px] bg-white rounded-[2rem] border-[5px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
+    <div className="relative w-[265px] h-[535px] bg-white rounded-[2rem] border-[5px] border-[#1e293b] shadow-xl overflow-hidden font-sans flex flex-col items-center">
       {/* Notch */}
       <div className="absolute top-0 w-28 h-[18px] bg-[#1e293b] rounded-b-[14px] z-20 flex justify-center">
          <div className="w-10 h-1 bg-white/20 rounded-full mt-1"></div>
       </div>
       
+      {/* WhatsApp App Bar */}
+      <div className="w-full bg-[#075e54] text-white pt-6 pb-2 px-3 flex items-center justify-between shrink-0 shadow-xs z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center text-[10px] font-bold">
+            MB
+          </div>
+          <div>
+            <p className="text-[11px] font-bold leading-tight">MessBee Business</p>
+            <p className="text-[8px] text-green-200">Official Business Account</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] text-white/80">
+          <span>📞</span>
+          <span>⋮</span>
+        </div>
+      </div>
+
       {/* Screen Background */}
-      <div className="w-full h-full bg-[#e5ddd5] pt-12 pb-6 px-3.5 overflow-y-auto custom-scrollbar flex flex-col">
+      <div className="w-full h-full bg-[#e5ddd5] p-3 overflow-y-auto custom-scrollbar flex flex-col">
          {/* Message Bubble Card */}
-         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden mt-2 flex flex-col w-full shrink-0">
+         <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0">
             {/* Header Media — CATALOG uses auto product thumbnail, others use uploaded media */}
-            {isCatalog ? (
-              <div className="w-full relative bg-gradient-to-br from-emerald-50 to-teal-100 flex flex-col items-center justify-center shrink-0 border-b border-emerald-100 overflow-hidden" style={{height: '100px'}}>
+            {activeIsCatalog ? (
+              <div className="w-full relative bg-gradient-to-br from-emerald-50 to-teal-100 flex flex-col items-center justify-center shrink-0 border-b border-emerald-100 overflow-hidden py-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-2xl">🛍️</span>
-                  <span className="text-xl">📦</span>
-                  <span className="text-2xl">👟</span>
+                  <span className="text-xl">🛍️</span>
+                  <span className="text-lg">📦</span>
+                  <span className="text-xl">👟</span>
                 </div>
-                <p className="text-[9px] font-semibold text-emerald-700 bg-white/70 px-2 py-0.5 rounded-full border border-emerald-200">Product Thumbnail (auto by Meta)</p>
+                <p className="text-[8px] font-semibold text-emerald-700 bg-white/80 px-2 py-0.5 rounded-full border border-emerald-200">Product Thumbnail (Auto by Meta)</p>
+              </div>
+            ) : headerType === 'Text' ? (
+              <div className="px-3.5 py-2.5 bg-gradient-to-r from-gray-50 to-slate-100 border-b border-gray-100">
+                <p className="text-xs font-bold text-gray-900 leading-tight">
+                  {headerText || (activeIsMpm ? 'Featured Products' : 'Header Title')}
+                </p>
               </div>
             ) : headerType !== 'None' ? (
               <div className="w-full relative bg-gray-100 flex items-center justify-center shrink-0 border-b border-gray-50 overflow-hidden">
@@ -3440,83 +3951,164 @@ const MobilePreview = ({
                       <img
                         src={headerMedia.preview}
                         alt="Header preview"
-                        className="w-full h-auto max-h-[180px] object-cover"
+                        className="w-full h-auto max-h-[160px] object-cover"
                       />
                     )}
                     {headerType === 'Video' && (
                       <video
                         src={headerMedia.preview}
-                        className="w-full h-auto max-h-[180px] object-cover"
+                        className="w-full h-auto max-h-[160px] object-cover"
                         controls
                       />
                     )}
                     {headerType === 'Document' && (
-                      <div className="w-full h-24 bg-red-50 flex items-center justify-center gap-2">
+                      <div className="w-full h-20 bg-red-50 flex items-center justify-center gap-2">
                         <span className="text-2xl">📄</span>
-                        <div className="text-3xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
+                        <div className="text-2xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
                       </div>
                     )}
                   </>
                 ) : (
-                  <div className="w-full h-32 bg-gray-100 flex items-center justify-center text-gray-400">
-                    {headerType === 'Image' ? <ImageIcon size={28}/> : headerType === 'Video' ? <span className="text-2xl">▶️</span> : headerType === 'Document' ? <span className="text-2xl">📄</span> : <ImageIcon size={28}/>}
+                  <div className="w-full h-28 bg-gray-100 flex items-center justify-center text-gray-400">
+                    {headerType === 'Image' ? <ImageIcon size={26}/> : headerType === 'Video' ? <span className="text-xl">▶️</span> : <span className="text-xl">📄</span>}
                   </div>
                 )}
               </div>
             ) : null}
             
-            <div className="p-4 flex flex-col">
-               {name && <p className="text-[11px] text-[#10B981] font-bold mb-2 uppercase tracking-wide">[{name}]</p>}
-               <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
+            <div className="p-3 flex flex-col">
+               {name && <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">[{name}]</p>}
                
-               {isLimited && (
-                  <div className="mt-3 p-2.5 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
+               {/* LTO Urgency Offer Banner */}
+               {activeIsLimited && (
+                  <div className="mb-2 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
                       <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-bold text-red-600 tracking-tight">
-                            {limitedTimeOfferText || 'Expiring offer!'}
+                          <span className="text-[10px] font-bold text-red-600 tracking-tight flex items-center gap-1">
+                            🔥 {limitedTimeOfferText || 'Expiring offer!'}
                           </span>
                           {hasExpiration && (
-                            <span className="text-[9px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-xs border border-red-100 flex items-center gap-0.5">
                               ⏱ {expirationPreviewText || '23:59:59'}
                             </span>
                           )}
                       </div>
-                      {offerCode && (
-                        <div className="flex items-center justify-between bg-white/90 px-2 py-1 rounded border border-dashed border-red-300">
-                          <span className="text-[9px] font-medium text-gray-500">Code:</span>
-                          <span className="text-[10px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">{offerCode}</span>
+                      {offerCode ? (
+                        <div className="flex items-center justify-between bg-white px-2 py-1 rounded border border-dashed border-red-300">
+                          <span className="text-[8px] font-medium text-gray-500">Coupon Code:</span>
+                          <span className="text-[10px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded flex items-center gap-1">
+                            {offerCode} <Copy size={9} className="text-gray-400" />
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between bg-white/70 px-2 py-1 rounded border border-dashed border-gray-300">
+                          <span className="text-[8px] font-medium text-gray-400">Coupon Code:</span>
+                          <span className="text-[9px] font-mono italic text-gray-400">[Enter code in editor]</span>
                         </div>
                       )}
                   </div>
                )}
 
-               {footer && <p className="text-[10px] text-gray-400 mt-3 font-medium">{footer}</p>}
+               {/* Dynamic Featured Catalog Deal Product for LTO */}
+               {activeIsLimited && (selectedLtoProduct || (catalogProducts && catalogProducts.length > 0)) && (
+                 <div className="mb-2 p-1.5 bg-white rounded-lg border border-red-100 shadow-2xs flex items-center justify-between">
+                   <div className="flex items-center gap-2 min-w-0">
+                     {(selectedLtoProduct || catalogProducts[0])?.productImage ? (
+                       <img 
+                         src={(selectedLtoProduct || catalogProducts[0]).productImage} 
+                         alt="Featured deal" 
+                         className="w-7 h-7 rounded object-cover border border-gray-100 shrink-0" 
+                       />
+                     ) : (
+                       <div className="w-7 h-7 rounded bg-red-50 text-red-500 flex items-center justify-center text-xs shrink-0 font-bold">
+                         🏷️
+                       </div>
+                     )}
+                     <div className="min-w-0 flex flex-col">
+                       <span className="text-[9px] font-bold text-gray-800 truncate">
+                         {(selectedLtoProduct || catalogProducts[0])?.name}
+                       </span>
+                       <span className="text-[7.5px] text-red-600 font-semibold">Special Catalog Deal</span>
+                     </div>
+                   </div>
+                   <div className="text-right shrink-0 ml-1">
+                     <span className="text-[8px] text-gray-400 line-through block">
+                       ₹{Math.round(Number((selectedLtoProduct || catalogProducts[0])?.sellingPrice || 1000) * 1.25).toLocaleString('en-IN')}
+                     </span>
+                     <span className="text-[10px] font-bold text-red-600 block">
+                       ₹{Number((selectedLtoProduct || catalogProducts[0])?.sellingPrice || 0).toLocaleString('en-IN')}
+                     </span>
+                   </div>
+                 </div>
+               )}
+
+               <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
+               
+               {/* MPM Product Showcase Widget (Dynamic) */}
+               {activeIsMpm && (
+                  <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                    <div className="flex items-center justify-between text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">
+                      <span>Catalog Showcase</span>
+                      <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 font-mono">
+                        {catalogProducts && catalogProducts.length > 0 ? `${catalogProducts.length} Items` : '30 Items Max'}
+                      </span>
+                    </div>
+                    {catalogProducts && catalogProducts.length > 0 ? (
+                      <div className="space-y-1.5">
+                        {catalogProducts.slice(0, 2).map((prod, idx) => (
+                          <div key={prod._id || idx} className="flex items-center justify-between bg-white p-1.5 rounded border border-gray-100 shadow-xs">
+                            <div className="flex items-center gap-2 min-w-0">
+                              {prod.productImage ? (
+                                <img src={prod.productImage} alt={prod.name} className="w-5 h-5 rounded object-cover border border-gray-100 shrink-0" />
+                              ) : (
+                                <span className="text-xs shrink-0">{idx === 0 ? '📦' : '✨'}</span>
+                              )}
+                              <span className="text-[9px] font-semibold text-gray-800 truncate">{prod.name}</span>
+                            </div>
+                            <span className="text-[9px] font-bold text-teal-700 shrink-0 ml-1">₹{Number(prod.sellingPrice || 0).toLocaleString('en-IN')}</span>
+                          </div>
+                        ))}
+                        {catalogProducts.length > 2 && (
+                          <div className="mt-1.5 text-center text-[8px] font-medium text-teal-700 bg-teal-50/80 py-0.5 rounded border border-teal-100">
+                            + {catalogProducts.length - 2} more products in your catalog
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="py-2.5 px-2 text-center bg-white rounded border border-dashed border-teal-200">
+                        <p className="text-[9px] font-bold text-teal-800">Linked to Meta Commerce Catalog</p>
+                        <p className="text-[8px] text-gray-500 mt-0.5">Your catalog products will automatically display here</p>
+                      </div>
+                    )}
+                  </div>
+               )}
+
+               {!activeIsLimited && footer && <p className="text-[9px] text-gray-400 mt-2 font-medium">{footer}</p>}
 
                <div className="flex justify-end mt-2">
-                  <span className="text-[10px] text-gray-400 font-semibold">11:59</span>
+                  <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
                </div>
             </div>
             
-            {isCatalog || isMpm ? (
+            {activeIsCatalog || activeIsMpm ? (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
-                  <div className="w-full py-3 flex items-center justify-center gap-2">
+                  <div className="w-full py-2.5 flex items-center justify-center gap-2">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5">
-                       {isCatalog ? <span className="text-[11px]">🛍️</span> : <span className="text-[11px]">📋</span>}
-                       {isCatalog ? '🛍️ View catalog' : 'View items'}
+                       {activeIsCatalog ? <span className="text-[11px]">🛍️</span> : <span className="text-[11px]">📋</span>}
+                       {activeIsCatalog ? 'View catalog' : 'View items'}
                      </span>
                   </div>
                </div>
-            ) : isLimited ? (
+            ) : activeIsLimited ? (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
-                  <div className="w-full py-2.5 flex items-center justify-center gap-2 border-b border-gray-100">
+                  <div className="w-full py-2 flex items-center justify-center gap-1.5 border-b border-gray-100">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                       <Copy size={12} className="text-[#25d366]"/>
+                       <Copy size={11} className="text-[#25d366]"/>
                        Copy code
                      </span>
                   </div>
-                  <div className="w-full py-2.5 flex items-center justify-center gap-2">
+                  <div className="w-full py-2 flex items-center justify-center gap-1.5">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
-                       <ExternalLink size={12} className="text-[#25d366]"/>
+                       <ExternalLink size={11} className="text-[#25d366]"/>
                        {ltoUrlText || 'Shop Now'}
                      </span>
                   </div>
@@ -3524,14 +4116,14 @@ const MobilePreview = ({
             ) : buttons && buttons.length > 0 && (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   {buttons.map((btn) => (
-                     <div key={btn.id} className="w-full py-3 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
+                     <div key={btn.id} className="w-full py-2.5 flex items-center justify-center gap-2 border-b border-gray-100 last:border-b-0">
                         <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5 hover:opacity-80 transition-opacity">
                           {btn.type === 'Visit Website' || btn.type === 'Visit website' ? (
-                            <ExternalLink size={11} className="text-[#25d366]"/>
+                            <ExternalLink size={10} className="text-[#25d366]"/>
                           ) : btn.type === 'Call phone number' ? (
-                            <Phone size={11} className="text-[#25d366]"/>
+                            <Phone size={10} className="text-[#25d366]"/>
                           ) : btn.type === 'Copy offer code' || (btn.text && btn.text.toLowerCase().includes('copy')) ? (
-                            <Copy size={11} className="text-[#25d366]"/>
+                            <Copy size={10} className="text-[#25d366]"/>
                           ) : null} 
                           {btn.text || (btn.type === 'Copy offer code' ? 'Copy offer code' : 'Button')}
                         </span>
@@ -3546,3 +4138,4 @@ const MobilePreview = ({
 };
 
 export default CreateTemplate;
+

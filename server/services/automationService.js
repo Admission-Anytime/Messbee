@@ -6,7 +6,17 @@
  * from other parts of the Messbee2 codebase (contacts, webhooks, etc.).
  */
 
-const { executeWorkflowStep, startFlowManually, triggerAutomationFromEvent } = require('../engine/flowRunner');
+// NOTE: flowRunner.js is an ES Module (uses `export`), so we MUST use
+// dynamic import() — not require(). Using require() silently returns {}
+// causing executeWorkflowStep to be undefined and automation to never fire.
+let _flowRunner = null;
+async function getFlowRunner() {
+  if (!_flowRunner) {
+    _flowRunner = await import('../engine/flowRunner.js');
+  }
+  return _flowRunner;
+}
+
 const Automation = require('../models/Automation');
 
 /**
@@ -15,11 +25,24 @@ const Automation = require('../models/Automation');
  */
 exports.processAutomationTrigger = async (triggerType, triggerData, channelId) => {
   try {
-    if (triggerType === 'message' && triggerData.message && triggerData.contactPhone) {
+    const { executeWorkflowStep, triggerAutomationFromEvent } = await getFlowRunner();
+
+    if (triggerType === 'message' && triggerData.contactPhone) {
+      // Build the payload string: prefer button text/id for interactive messages
+      const incomingPayload = triggerData.buttonText
+        || triggerData.buttonTitle
+        || triggerData.buttonId
+        || triggerData.listTitle
+        || triggerData.listId
+        || triggerData.message
+        || '';
+
+      console.log(`[AutomationService] Triggering flow for ${triggerData.contactPhone} | payload: "${incomingPayload}" | type: ${triggerData.messageType}`);
+
       // Route to the flow engine
       await executeWorkflowStep(
         triggerData.contactPhone,
-        triggerData.message,
+        incomingPayload,
         channelId,
         triggerData.referral || null,
         triggerData.messageId || null,
@@ -55,6 +78,7 @@ exports.processAutomationTrigger = async (triggerType, triggerData, channelId) =
  */
 exports.startFlow = async (contactPhone, channelId, flowId, eventData = {}) => {
   try {
+    const { startFlowManually } = await getFlowRunner();
     await startFlowManually(contactPhone, channelId, flowId, eventData);
     return { success: true, message: 'Flow started successfully' };
   } catch (error) {
@@ -68,6 +92,7 @@ exports.startFlow = async (contactPhone, channelId, flowId, eventData = {}) => {
  */
 exports.testAutomation = async (automationId, testData) => {
   try {
+    const { startFlowManually } = await getFlowRunner();
     const automation = await Automation.findById(automationId);
     
     if (!automation) {

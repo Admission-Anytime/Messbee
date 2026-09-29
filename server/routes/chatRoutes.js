@@ -630,6 +630,26 @@ router.post("/message", async (req, res) => {
       if (chat.teamMember === 'Unassigned' && req.user?.name) {
         chatUpdateFields.teamMember = req.user.name;
       }
+
+      // 🛑 Pause bot automation & handoff active bot sessions so the bot doesn't speak over human agent!
+      if (sender === "me" && whatsappRecipient) {
+        try {
+          const CustomerSession = (await import('../models/CustomerSession.js')).default || require('../models/CustomerSession');
+          const Contact = (await import('../models/Contact.js')).default || require('../models/Contact');
+          await CustomerSession.updateMany(
+            { phone: whatsappRecipient, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } },
+            { $set: { status: 'HANDOFF' } }
+          );
+          await Contact.updateMany(
+            { phone: whatsappRecipient },
+            { $set: { isBotPaused: true, status: 'HANDOFF' } }
+          );
+          chatUpdateFields.isBotPaused = true;
+        } catch (botPauseErr) {
+          console.error('Error auto-pausing bot on agent reply:', botPauseErr.message);
+        }
+      }
+
       await Chat.findByIdAndUpdate(chatId, chatUpdateFields);
 
       // Emit socket event to all clients in the chat room
@@ -1419,6 +1439,44 @@ router.get("/activity/:chatId", async (req, res) => {
   } catch (error) {
     console.error("Error fetching activity log:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Toggle Bot Pause / Resume for a chat
+router.post("/:chatId/toggle-bot", async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { isBotPaused } = req.body;
+    const chat = await Chat.findById(chatId);
+    if (!chat) return res.status(404).json({ success: false, message: 'Chat not found' });
+
+    const newBotState = typeof isBotPaused === 'boolean' ? isBotPaused : !chat.isBotPaused;
+    chat.isBotPaused = newBotState;
+    await chat.save();
+
+    const recipientPhone = chat.whatsappId || chat.phone;
+    if (recipientPhone) {
+      const Contact = (await import('../models/Contact.js')).default || require('../models/Contact');
+      const CustomerSession = (await import('../models/CustomerSession.js')).default || require('../models/CustomerSession');
+      await Contact.updateMany({ phone: recipientPhone }, { $set: { isBotPaused: newBotState } });
+      if (newBotState) {
+        await CustomerSession.updateMany(
+          { phone: recipientPhone, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } },
+          { $set: { status: 'HANDOFF' } }
+        );
+      }
+    }
+
+    const io = getIO();
+    if (io) {
+      io.to(chatId.toString()).emit("chat_updated", chat);
+      const tenantRoom = `tenant_${chat.user?.toString() || req.user?.tenantId || req.user?._id}`;
+      io.to(tenantRoom).emit("chat_updated", chat);
+    }
+
+    return res.json({ success: true, isBotPaused: newBotState, chat });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 });
 

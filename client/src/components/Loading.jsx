@@ -1,7 +1,7 @@
 import React from "react";
 import LodingLogo from "../assets/MessBee logo with name.png";
 
-export default function Loading() {
+const Loading = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen w-full bg-[#fcfdfd]">
       <div className="flex flex-col items-center max-w-md text-center">
@@ -34,4 +34,6 @@ export default function Loading() {
       </div>
     </div>
   );
-}
+};
+
+export default Loading;

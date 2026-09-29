@@ -241,8 +241,8 @@ app.use('/api/commerce', require('./routes/commerceRoutes'));
 app.use('/api/dev', require('./routes/devApiRoutes'));
 app.use('/api/billing', require('./routes/billingRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes')); // Notification routes
-app.use('/api/performance', require('./routes/performanceRoutes')); // Dashboard Performance Overview
-app.use('/api/webhook', require('./routes/webhookRoutes')); // Webhook routes
+app.use('/api/webhook', require('./routes/webhookRoutes')); // Webhook routes (/api/webhook)
+app.use('/webhook', require('./routes/webhookRoutes')); // Root webhook fallback (/webhook)
 
 // ================== INVENTORY & BILLING ROUTES ==================
 app.use('/api/categories', require('./routes/categoryRoutes'));

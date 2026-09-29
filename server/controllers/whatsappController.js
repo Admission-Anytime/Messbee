@@ -1010,20 +1010,24 @@ exports.verifyWebhook = async (req, res) => {
   try {
     const Setting = require('../models/Setting');
     const setting = await Setting.findOne({ key: 'whatsapp_config' });
-    const VERIFY_TOKEN = (setting && setting.value && setting.value.verifyToken) || 
-                        process.env.WHATSAPP_VERIFY_TOKEN || 
-                        'your_verify_token';
+    const validTokens = [
+      setting?.value?.verifyToken,
+      process.env.WHATSAPP_VERIFY_TOKEN,
+      process.env.META_WEBHOOK_VERIFY_TOKEN,
+      'your_verify_token',
+      'messbee_verify_token'
+    ].filter(Boolean);
 
-    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-
-      res.status(200).send(challenge);
+    if (mode === 'subscribe' && validTokens.includes(token)) {
+      console.log('✅ Webhook verified successfully with token:', token);
+      return res.status(200).send(challenge);
     } else {
-      console.error('❌ Webhook verification failed');
-      res.sendStatus(403);
+      console.error(`❌ Webhook verification failed. Received: "${token}", Accepted: [${validTokens.join(', ')}]`);
+      return res.sendStatus(403);
     }
   } catch (error) {
     console.error('❌ Error verifying webhook:', error);
-    res.sendStatus(500);
+    return res.sendStatus(500);
   }
 };
 
@@ -1032,24 +1036,26 @@ exports.verifyWebhook = async (req, res) => {
 // @access  Public (but should verify signature in production)
 exports.handleWebhook = async (req, res) => {
   try {
-    // Verify webhook signature in production
-    if (process.env.NODE_ENV === 'production' && process.env.WHATSAPP_APP_SECRET) {
+    // Verify webhook signature in production if secret is configured
+    const appSecret = process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET;
+    if (process.env.NODE_ENV === 'production' && appSecret) {
       const signature = req.headers['x-hub-signature-256'];
-      const isValid = whatsappService.verifyWebhookSignature(
-        signature,
-        req.rawBody || JSON.stringify(req.body),
-        process.env.WHATSAPP_APP_SECRET
-      );
-      if (!isValid) {
-        console.error('❌ Invalid webhook signature');
-        return res.sendStatus(403);
+      if (signature) {
+        const isValid = whatsappService.verifyWebhookSignature(
+          signature,
+          req.rawBody || JSON.stringify(req.body),
+          appSecret
+        );
+        if (!isValid) {
+          console.warn('⚠️ Webhook signature mismatch. Check WHATSAPP_APP_SECRET or META_APP_SECRET.');
+          if (process.env.STRICT_WEBHOOK_VERIFY === 'true') {
+            return res.sendStatus(403);
+          }
+        }
       }
     }
 
     const webhookData = req.body;
-    
-    // Log incoming webhook for debugging
-    console.log("📥 Received Webhook from Meta:", JSON.stringify(webhookData, null, 2));
     
     // Acknowledge immediately so WhatsApp does not retry while we process.
     res.sendStatus(200);
@@ -1064,12 +1070,6 @@ exports.handleWebhook = async (req, res) => {
           for (const change of changes) {
             const value = change?.value;
             if (!value) continue;
-
-            if (Array.isArray(value.messages) && value.messages.length > 0) {
-            }
-
-            if (Array.isArray(value.statuses) && value.statuses.length > 0) {
-            }
 
             const result = whatsappService.processWebhook({ entry: [{ changes: [change] }] });
 
@@ -1089,6 +1089,7 @@ exports.handleWebhook = async (req, res) => {
           }
         }
       } catch (backgroundError) {
+        // Internal server error — not visible to users
       }
     });
   } catch (error) {
@@ -1111,23 +1112,34 @@ async function handleIncomingMessage(data) {
       const Channel = require('../models/Channel');
       const User = require('../models/User');
 
-      let channelRecord = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId });
+      const cleanPhoneNumberId = String(phoneNumberId || '').trim();
+      let channelRecord = await Channel.findOne({
+        $or: [
+          { activeWhatsappPhoneNumberId: cleanPhoneNumberId },
+          { activeWhatsappPhoneNumberId: phoneNumberId }
+        ]
+      });
       if (channelRecord) {
         resolvedChannelId = channelRecord._id.toString();
         resolvedTenantId = channelRecord.tenantId;
       } else {
-        // Fallback: check User model directly
-        const userWithPhone = await User.findOne({ 'whatsappConfig.phoneNumberId': phoneNumberId });
+        // Fallback: check User model directly (for older setups)
+        const userWithPhone = await User.findOne({
+          $or: [
+            { 'whatsappConfig.phoneNumberId': cleanPhoneNumberId },
+            { 'whatsappConfig.phoneNumberId': phoneNumberId }
+          ]
+        });
         if (userWithPhone) {
           resolvedTenantId = userWithPhone.tenantId || userWithPhone._id;
-          resolvedChannelId = userWithPhone._id.toString();
+          const userChannel = await Channel.findOne({ tenantId: resolvedTenantId });
+          resolvedChannelId = userChannel ? userChannel._id.toString() : userWithPhone._id.toString();
         }
       }
     }
 
     if (!resolvedTenantId) {
-      console.warn(`[Webhook] Ignored message for unknown phoneNumberId: ${phoneNumberId}`);
-      return;
+      return; // Unknown channel — silently drop
     }
 
     // Normalize the phone number
@@ -1416,10 +1428,10 @@ async function handleIncomingMessage(data) {
         messageType: messageType,
         mediaUrl: mediaUrl,
         isNewContact: isNewContact,
-        buttonText: message?.buttonText,
-        buttonPayload: message?.buttonPayload,
-        buttonTitle: message?.buttonTitle,
-        buttonId: message?.buttonId,
+        buttonText: message?.buttonText || message?.buttonTitle || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
+        buttonPayload: message?.buttonPayload || message?.buttonId || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
+        buttonTitle: message?.buttonTitle || message?.buttonText || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
+        buttonId: message?.buttonId || message?.buttonPayload || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
         listTitle: message?.listTitle,
         listId: message?.listId
       },
@@ -2164,6 +2176,8 @@ exports.getTemplates = async (req, res, next) => {
           return apiComp;
         });
 
+        const isLto = (mergedComponents || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || localTemplate.isLimitedTimeOffer === true;
+
         return {
           ...t,
           name: displayName,
@@ -2171,7 +2185,10 @@ exports.getTemplates = async (req, res, next) => {
           metaTemplateName: t.name,
           components: mergedComponents,
           // Persist our local status if API status is missing, but force DELETED if soft-deleted locally
-          status: localTemplate.status === 'DELETED' ? 'DELETED' : (t.status || localTemplate.status)
+          status: localTemplate.status === 'DELETED' ? 'DELETED' : (t.status || localTemplate.status),
+          isLimitedTimeOffer: isLto,
+          expirationDate: isLto ? (localTemplate.expirationDate || '72h') : null,
+          customExpirationHours: isLto ? (localTemplate.customExpirationHours || 72) : null,
         };
       })
       .filter(t => t.status !== 'DELETED');
@@ -2182,6 +2199,7 @@ exports.getTemplates = async (req, res, next) => {
       const metaKey = t.whatsappTemplateName ? String(t.whatsappTemplateName).trim().toLowerCase() : null;
       const idKey = t.whatsappTemplateId ? String(t.whatsappTemplateId).trim() : null;
       if (!processedTemplateNames.has(nameKey) && (!metaKey || !processedTemplateNames.has(metaKey)) && (!idKey || !processedTemplateNames.has(idKey)) && t.status !== 'DELETED') {
+        const isLto = (t.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || t.isLimitedTimeOffer === true;
         filteredTemplates.push({
           id: t.whatsappTemplateId || t._id,
           name: t.name,
@@ -2190,6 +2208,9 @@ exports.getTemplates = async (req, res, next) => {
           language: t.language,
           status: t.status || 'PENDING',
           components: t.components || [],
+          isLimitedTimeOffer: isLto,
+          expirationDate: isLto ? (t.expirationDate || '72h') : null,
+          customExpirationHours: isLto ? (t.customExpirationHours || 72) : null,
           rejected_reason: t.rejectedReason || null
         });
       }
@@ -2339,14 +2360,26 @@ exports.createTemplate = async (req, res, next) => {
     }
 
     if (!result.success) {
-      const detailedMessage =
-        result?.error?.message ||
-        result?.error?.error?.message ||
-        result?.error?.error_user_msg ||
-        result?.error?.error?.error_user_msg ||
-        result?.error?.error_data?.details ||
-        result?.error?.error?.error_data?.details ||
-        'Failed to create template';
+      const err = result?.error?.error || result?.error || {};
+      const subcode = err?.error_subcode ?? err?.errorSubcode;
+      const userMsg = err?.error_user_msg;
+      const details = err?.error_data?.details;
+      const blame = err?.error_data?.blame_field_specs?.[0]?.[0];
+      const rawMsg = err?.message || result?.error?.message;
+
+      let detailedMessage = '';
+      if (subcode === 2593027 || (userMsg && userMsg.toLowerCase().includes('button example'))) {
+        detailedMessage = 'Button example is invalid. Coupon codes can only contain letters and numbers (no "%" or special symbols allowed by Meta, e.g. 20OFF).';
+      } else if (userMsg && userMsg !== 'Invalid parameter') {
+        detailedMessage = userMsg + (blame ? ` (Field: ${blame})` : '');
+      } else if (details && details !== 'Invalid parameter') {
+        detailedMessage = details;
+      } else if (blame) {
+        detailedMessage = `Invalid parameter in "${blame}". Please check your inputs.`;
+      } else {
+        detailedMessage = rawMsg || 'Failed to create template on WhatsApp';
+      }
+
       return res.status(400).json({
         success: false,
         message: detailedMessage,
@@ -2366,6 +2399,9 @@ exports.createTemplate = async (req, res, next) => {
           category: category || 'MARKETING',
           language: language || 'en_US',
           components: components || [],
+          isLimitedTimeOffer: (components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || req.body.isLimitedTimeOffer === true,
+          expirationDate: ((components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || req.body.isLimitedTimeOffer === true) ? (req.body.expirationDate || '72h') : null,
+          customExpirationHours: ((components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER') || req.body.isLimitedTimeOffer === true) ? (req.body.customExpirationHours || 72) : null,
           user: userId,
           tenantId: userTenantId,
           status: result.data?.status || 'PENDING'

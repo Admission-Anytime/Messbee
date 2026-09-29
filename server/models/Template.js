@@ -30,6 +30,18 @@ const templateSchema = new mongoose.Schema({
     type: Array,
     default: []
   },
+  isLimitedTimeOffer: {
+    type: Boolean,
+    default: false
+  },
+  expirationDate: {
+    type: String,
+    default: null
+  },
+  customExpirationHours: {
+    type: Number,
+    default: null
+  },
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',

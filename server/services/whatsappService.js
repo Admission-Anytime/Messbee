@@ -630,6 +630,30 @@ class WhatsAppService {
         });
       }
 
+      // AUTO-INJECT MISSING BODY VARIABLES IF REQUIRED BY TEMPLATE
+      const expectedBodyParamCount = this.getBodyTemplateParamCount(template);
+      if (expectedBodyParamCount > 0) {
+        let bodyComp = components.find(c => String(c?.type || '').toLowerCase() === 'body');
+        if (!bodyComp) {
+          bodyComp = { type: 'body', parameters: [] };
+          components.push(bodyComp);
+        }
+        if (!Array.isArray(bodyComp.parameters)) {
+          bodyComp.parameters = [];
+        }
+        const bodyTemplateComponent = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'BODY');
+        const exampleValues = bodyTemplateComponent?.example?.body_text?.[0] || [];
+
+        while (bodyComp.parameters.length < expectedBodyParamCount) {
+          const missingIdx = bodyComp.parameters.length;
+          const fallbackVal = exampleValues[missingIdx] || 'Customer';
+          bodyComp.parameters.push({
+            type: 'text',
+            text: String(fallbackVal)
+          });
+        }
+      }
+
       // AUTO-INJECT / NORMALIZE LIMITED_TIME_OFFER expiration_time_ms
       const ltoComp = (template.components || []).find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
       if (ltoComp) {
@@ -1297,6 +1321,70 @@ class WhatsAppService {
             success: false,
             error: {
               message: 'Text header must be at least 3 characters'
+            }
+          };
+        }
+      }
+
+      // Meta MPM Compliance: Multi-Product Message templates strictly mandate a TEXT Header
+      const hasMpmButton = preparedComponents.some(c => 
+        String(c.type || '').toUpperCase() === 'BUTTONS' &&
+        Array.isArray(c.buttons) &&
+        c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')
+      );
+      if (hasMpmButton) {
+        const hComp = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'HEADER') || headerComponent;
+        if (!hComp) {
+          return {
+            success: false,
+            error: {
+              message: 'Meta WhatsApp strictly requires a Text header for Multi-Product Message templates.'
+            }
+          };
+        }
+        if (hComp.format && String(hComp.format).toUpperCase() !== 'TEXT') {
+          return {
+            success: false,
+            error: {
+              message: 'Meta WhatsApp strictly requires the Header of a Multi-Product Message template to be TEXT format only (media headers are not supported for MPM).'
+            }
+          };
+        }
+        // Normalize MPM button text to "View items" as strictly mandated by Meta
+        const btnsComp = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'BUTTONS');
+        if (btnsComp && Array.isArray(btnsComp.buttons)) {
+          btnsComp.buttons.forEach(b => {
+            if (String(b?.type || '').toUpperCase() === 'MPM') {
+              b.text = 'View items';
+            }
+          });
+        }
+      }
+
+      // Meta Limited-Time Offer Compliance: No FOOTER permitted, must have COPY_CODE and valid heading
+      const ltoComponent = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+      if (ltoComponent) {
+        // Purge any FOOTER component (Meta strictly rejects LTO templates with a footer)
+        const footerIdx = preparedComponents.findIndex(c => String(c.type || '').toUpperCase() === 'FOOTER');
+        if (footerIdx !== -1) {
+          preparedComponents.splice(footerIdx, 1);
+        }
+        const ltoText = String(ltoComponent?.limited_time_offer?.text || '').trim();
+        if (!ltoText || ltoText.length > 16) {
+          return {
+            success: false,
+            error: {
+              message: 'Limited-Time Offer heading text is required and cannot exceed 16 characters.'
+            }
+          };
+        }
+        const btnsComp = preparedComponents.find(c => String(c.type || '').toUpperCase() === 'BUTTONS');
+        const hasCopyCode = btnsComp && Array.isArray(btnsComp.buttons) && btnsComp.buttons.some(b => String(b?.type || '').toUpperCase() === 'COPY_CODE');
+        if (!hasCopyCode) {
+          return {
+            success: false,
+            error: {
+              message: 'Limited-Time Offer templates mandate a Copy Code button for the offer coupon.'
             }
           };
         }
