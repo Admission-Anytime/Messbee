@@ -15,6 +15,7 @@ export default function AddNextStepModal({ onClose, onSelectStep }) {
     {
       group: 'WHATSAPP MESSAGES',
       items: [
+        { id: 'template', label: 'Template Message', icon: <LayoutTemplate size={16} />, color: '#059669', bg: '#ecfdf5' },
         { id: 'interactive_msg', label: 'Interactive', icon: <MousePointerClick size={16} />, color: '#059669', bg: '#ecfdf5' },
         { id: 'button_msg', label: 'Button', icon: <MousePointerClick size={16} />, color: '#059669', bg: '#ecfdf5' },
         { id: 'menu_msg', label: 'Menu Message', icon: <Menu size={16} />, color: '#059669', bg: '#ecfdf5' },
@@ -71,6 +72,9 @@ export default function AddNextStepModal({ onClose, onSelectStep }) {
     {
       group: 'ACTIONS',
       items: [
+        { id: 'add_tag', label: 'Add Tag', icon: <Tag size={16} />, color: '#10b981', bg: '#d1fae5' },
+        { id: 'remove_tag', label: 'Remove Tag', icon: <Tag size={16} />, color: '#ef4444', bg: '#fee2e2' },
+        { id: 'human_handoff', label: 'Human Handoff', icon: <UserPlus size={16} />, color: '#6366f1', bg: '#e0e7ff' },
         { id: 'opt_in', label: 'Marketing Opt-in', icon: <BellRing size={16} />, color: '#10b981', bg: '#d1fae5' },
         { id: 'opt_out', label: 'Marketing Opt-out', icon: <BellOff size={16} />, color: '#ef4444', bg: '#fee2e2' },
         { id: 'update_contact', label: 'Update contact fields', icon: <Edit3 size={16} />, color: '#f59e0b', bg: '#fef3c7' },

@@ -7,6 +7,7 @@ import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates, getTemplateHeaderPreviewCache } from "../../services/TemplateApi";
 import { getBackendFileUrl } from "../../utils/urlHelper";
 import { formatWhatsAppMarkdown } from "../../utils/markdownParser";
+import { showToast } from "../../utils/showToast";
 import {
    PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
@@ -564,6 +565,26 @@ const Conversion = ({
       }
    };
 
+   const getTemplateExpiryHours = (template) => {
+      if (!template) return 24;
+      if (template.offerExpiryHours) return Number(template.offerExpiryHours);
+      if (template.customExpirationHours && Number(template.customExpirationHours) > 0) {
+         return Number(template.customExpirationHours);
+      }
+      const exp = template.expirationDate || 
+                  template.components?.find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')?.limited_time_offer?.expirationDate ||
+                  template.components?.find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')?.limited_time_offer?.expiration_date;
+
+      if (exp === '1h') return 1;
+      if (exp === '6h') return 6;
+      if (exp === '12h') return 12;
+      if (exp === '24h' || exp === '1d') return 24;
+      if (exp === '48h' || exp === '2d') return 48;
+      if (exp === '72h' || exp === '3d') return 72;
+      if (exp === '7d') return 168;
+      return 24;
+   };
+
    const openConfirmTemplateModal = (template) => {
       if (!template?.name) return;
       setConfirmTemplate(template);
@@ -571,7 +592,7 @@ const Conversion = ({
       setScheduleDate("");
       setScheduleTime("12:00");
       setConfirmSendError("");
-      setOfferExpiryHours(24);
+      setOfferExpiryHours(getTemplateExpiryHours(template));
       setShowTemplates(false);
       setIsConfirmTemplateModalOpen(true);
    };
@@ -1346,6 +1367,32 @@ const selectedTemplate = useMemo(() => {
                         </button>
                      )}
 
+                     {/* Bot Pause / Active Status Badge & Toggle */}
+                     {data?.source === 'whatsapp' && (
+                        <button
+                           onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                 const res = await axios.post(`/chats/${data._id || data.id}/toggle-bot`, { isBotPaused: !data.isBotPaused });
+                                 if (res.data?.success) {
+                                    setData(prev => ({ ...prev, isBotPaused: res.data.isBotPaused }));
+                                    showToast.success('Bot Automation', res.data.isBotPaused ? 'Bot paused for this chat.' : 'Bot resumed for this chat.');
+                                 }
+                              } catch (err) {
+                                 showToast.error('Error', 'Failed to toggle bot status');
+                              }
+                           }}
+                           className={`h-7 px-2.5 rounded-lg border flex items-center gap-1.5 text-[10px] lg:text-[11px] font-bold tracking-wide transition-all shadow-sm ${
+                              data?.isBotPaused 
+                                 ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' 
+                                 : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                           }`}
+                           title={data?.isBotPaused ? 'Automation is PAUSED. Click to Resume.' : 'Automation is ACTIVE. Click to Pause.'}
+                        >
+                           <span>{data?.isBotPaused ? '⏸️ Bot Paused' : '🤖 Bot Active'}</span>
+                        </button>
+                     )}
+
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
                            <EllipsisVerticalIcon className="w-5 h-5 sm:w-6 sm:h-6 cursor-pointer" />
@@ -1386,6 +1433,21 @@ const selectedTemplate = useMemo(() => {
 
                               <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
                                  <Pin className={`w-4 h-4 shrink-0 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
+                              </button>
+
+                              <button onClick={async () => {
+                                 setIsMenuOpen(false);
+                                 try {
+                                    const res = await axios.post(`/chats/${data._id || data.id}/toggle-bot`, { isBotPaused: !data.isBotPaused });
+                                    if (res.data?.success) {
+                                       setData(prev => ({ ...prev, isBotPaused: res.data.isBotPaused }));
+                                       showToast.success('Bot Automation', res.data.isBotPaused ? 'Bot paused for this chat.' : 'Bot resumed for this chat.');
+                                    }
+                                 } catch (err) {
+                                    showToast.error('Error', 'Failed to toggle bot status');
+                                 }
+                              }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
+                                 <BoltIcon className="w-4 h-4 shrink-0 text-slate-400" /> {data?.isBotPaused ? 'Resume Bot Automation' : 'Pause Bot Automation'}
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>

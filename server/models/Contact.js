@@ -16,6 +16,10 @@ const contactSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  isBotPaused: {
+    type: Boolean,
+    default: false
+  },
   tags: [{
     type: String
   }],

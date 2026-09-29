@@ -307,10 +307,30 @@ export default function AutomationBuilder() {
       }));
     }
 
+    const templateNodeId = `template_node_${Date.now()}`;
+
+    // Detect quick reply buttons (exclude URL and phone-number buttons — they don't reply to the bot)
+    const hasQuickReplies = templateButtons.some(
+      b => b.type !== 'url' && b.type !== 'phone_number' && b.type !== 'phone'
+    );
+
+    const hasLtoComp = (template.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+    const isLimitedTimeOffer = hasLtoComp || template.isLimitedTimeOffer === true;
+    const customExpirationHours = isLimitedTimeOffer ? (template.customExpirationHours || 72) : null;
+    const expirationDate = isLimitedTimeOffer ? (template.expirationDate || '') : '';
+    let offerCode = template.offerCode || '';
+    if (!offerCode && template.components) {
+      const btnComp = template.components.find(c => c.type === 'BUTTONS');
+      const copyCodeBtn = btnComp?.buttons?.find(b => b.type === 'COPY_CODE');
+      if (copyCodeBtn?.example) {
+        offerCode = Array.isArray(copyCodeBtn.example) ? copyCodeBtn.example[0] : copyCodeBtn.example;
+      }
+    }
+
     const templateNode = {
-      id: `template_node_${Date.now()}`,
+      id: templateNodeId,
       type: 'templateNode',
-      position: { x: 250, y: 150 },
+      position: { x: 250, y: 120 },
       data: {
         label: 'Template Message',
         templateName: template.name,
@@ -320,12 +340,20 @@ export default function AutomationBuilder() {
         headerType: headerType,
         headline: headerText,
         mediaUrl: mediaUrl,
-        buttons: templateButtons
+        buttons: templateButtons,
+        isLimitedTimeOffer,
+        customExpirationHours,
+        expirationDate,
+        offerCode
       }
     };
 
-    // Start with template directly without creating a dummy triggerNode
-    setFlowData([templateNode], []);
+    // ─── CAMPAIGN TRIGGER (START WITH TEMPLATE) ───────────────────────────
+    // The Template itself is the Root Trigger Node!
+    // Outbound template is sent via Broadcast/Campaign; when customer taps
+    // any Quick Reply or CTA button on WhatsApp, the automation
+    // executes from that button's outgoing connection.
+    setFlowData([{ ...templateNode, position: { x: 180, y: 120 } }], []);
     
     setIsTemplateModalOpen(false);
   };

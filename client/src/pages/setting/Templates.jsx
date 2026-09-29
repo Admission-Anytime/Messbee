@@ -671,6 +671,15 @@ const Templates = ({ activeTab }) => {
                   selectedTemplate?.components?.flatMap(c => c?.buttons || [])?.find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example ||
                   ''
                 }
+                isMpm={Boolean(
+                  selectedTemplate?.isMpm ||
+                  selectedTemplate?.components?.some(c => 
+                    String(c?.type || '').toUpperCase() === 'BUTTONS' && 
+                    Array.isArray(c.buttons) && 
+                    c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')
+                  ) ||
+                  selectedTemplate?.buttons?.some(b => String(b?.type || '').toUpperCase() === 'MPM')
+                )}
               />
             </div>
             
@@ -711,7 +720,8 @@ const MobilePreview = ({
   isLimited = false,
   limitedTimeOfferText = 'Expiring offer!',
   hasExpiration = true,
-  offerCode = ''
+  offerCode = '',
+  isMpm = false
 }) => {
   const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
   const isTextHeader = headerType === 'Text';
@@ -820,6 +830,39 @@ const MobilePreview = ({
               </div>
             )}
 
+            {isMpm && (
+              <div className="mt-2.5 p-2 bg-gradient-to-br from-teal-50/90 to-emerald-50/70 rounded-xl border border-teal-200/80 shadow-xs">
+                <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-teal-200/50">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs">🛍️</span>
+                    <span className="text-[10px] font-bold text-teal-900 uppercase tracking-tight">Catalog Showcase</span>
+                  </div>
+                  <span className="text-[8.5px] font-semibold text-teal-700 bg-teal-100/80 px-1.5 py-0.5 rounded-full">
+                    Up to 30 items
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="bg-white p-1.5 rounded-lg border border-teal-100 shadow-2xs flex flex-col">
+                    <div className="w-full h-11 bg-teal-100/50 rounded-md flex items-center justify-center text-teal-600 mb-1">
+                      <span className="text-base">📦</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-gray-800 truncate">Featured Item</span>
+                    <span className="text-[8px] font-semibold text-teal-700">$29.99</span>
+                  </div>
+                  <div className="bg-white p-1.5 rounded-lg border border-teal-100 shadow-2xs flex flex-col">
+                    <div className="w-full h-11 bg-teal-100/50 rounded-md flex items-center justify-center text-teal-600 mb-1">
+                      <span className="text-base">✨</span>
+                    </div>
+                    <span className="text-[9px] font-bold text-gray-800 truncate">Top Pick</span>
+                    <span className="text-[8px] font-semibold text-teal-700">$49.99</span>
+                  </div>
+                </div>
+                <div className="mt-1.5 text-center">
+                  <span className="text-[8px] text-teal-600 font-medium">+ up to 28 more products</span>
+                </div>
+              </div>
+            )}
+
             {!isLimited && footerText && (
               <p className="text-[9px] sm:text-[10px] text-gray-400 font-medium mt-1.5 leading-tight">{footerText}</p>
             )}
@@ -828,7 +871,17 @@ const MobilePreview = ({
               <CheckCheck size={11} className="text-[#34b7f1]" />
             </div>
           </div>
-          {buttons && buttons.length > 0 && buttons.map((btn, idx) => (
+          {isMpm ? (
+            <div className="bg-gray-50/80 p-2 border-t border-gray-100">
+              <button 
+                type="button"
+                className="text-xs text-[#008069] font-bold flex items-center justify-center gap-1.5 w-full py-2 bg-white rounded-lg shadow-xs border border-teal-200/80 hover:bg-teal-50/40 transition-colors"
+              >
+                <span>📋</span>
+                <span>View items</span>
+              </button>
+            </div>
+          ) : buttons && buttons.length > 0 && buttons.map((btn, idx) => (
             <div key={idx} className="bg-gray-50 p-2 border-t border-gray-100">
                <button className="text-sm text-[#008069] font-bold flex items-center justify-center gap-2 w-full py-2.5 md:py-3 bg-white rounded-xl shadow-sm border border-gray-100 hover:bg-[#f8fffd] transition-colors">
                   {btn.type === 'Visit Website' || btn.type === 'Visit website' ? <span className="text-[14px]">↗</span> : 
