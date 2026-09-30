@@ -18,6 +18,10 @@ import Contact from '../models/Contact.js';
 import RoutingRule from '../models/RoutingRule.js';
 import TenantSettings from '../models/TenantSettings.js';
 import { getIO } from '../config/socket.js';
+import { createRequire } from 'module';
+const _require = createRequire(import.meta.url);
+const logger = _require('../utils/logger.js');
+
 
 async function markSessionCompleted(session, customerPhone, channelId) {
   if (!session) return;
@@ -25,7 +29,7 @@ async function markSessionCompleted(session, customerPhone, channelId) {
   try {
     await session.save();
   } catch (err) {
-    console.error('Error saving completed session:', err.message);
+    logger.error('Error saving completed session:', err.message);
   }
 
   try {
@@ -106,14 +110,34 @@ async function markSessionCompleted(session, customerPhone, channelId) {
             customFields: cFieldsObj,
             sessionVariables: sessionVarsObj
           };
-          await axios.post(settings.crmSync.webhookUrl, payload, { timeout: 5000 }).catch(e => console.error('CRM Webhook Post error:', e.message));
+          await axios.post(settings.crmSync.webhookUrl, payload, { timeout: 5000 }).catch(e => logger.error('CRM Webhook Post error:', e.message));
         }
       } catch (err) {
-        console.error('Failed to execute CRM sync:', err.message);
+        logger.error('Failed to execute CRM sync:', err.message);
       }
     }
   } catch(e) {
-    console.error('Failed to sync CRM fields:', e);
+    logger.error('Failed to sync CRM fields:', e);
+  }
+}
+
+/**
+ * Synchronizes session variables into contextData so subsequent nodes can access them dynamically
+ */
+function syncContextVariables(session, contextData) {
+  if (!session || !contextData) return;
+  if (session.sessionVariables) {
+    const entries = typeof session.sessionVariables.entries === 'function'
+      ? session.sessionVariables.entries()
+      : Object.entries(session.sessionVariables);
+    for (const [k, v] of entries) {
+      contextData[k] = v;
+      if (k.startsWith('contact.')) {
+        const field = k.replace(/^contact\./, '');
+        if (!contextData.contact) contextData.contact = {};
+        contextData.contact[field] = v;
+      }
+    }
   }
 }
 
@@ -123,29 +147,31 @@ async function markSessionCompleted(session, customerPhone, channelId) {
 function isFlowTriggerMatch(tNode, payloadText) {
   if (!tNode || !tNode.data) return false;
   const matchType = tNode.data.triggerType || 'exact_match';
-  const kw = (tNode.data.keyword || '').toLowerCase();
+  const kw = (tNode.data.keyword || '').toLowerCase().trim();
+  const lowerPayload = (payloadText || '').toLowerCase().trim();
+  const cleanPayload = lowerPayload.replace(/[!.,?]+$/g, '').trim();
   
   if (['exact_match', 'qr_link', 'whatsapp_ad', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
-    const keywords = kw.split(',').map(k => k.trim());
-    return keywords.includes(payloadText);
+    const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    return keywords.includes(lowerPayload) || (cleanPayload && keywords.includes(cleanPayload));
   } else if (matchType === 'contains' && kw !== '') {
-    const keywords = kw.split(',').map(k => k.trim());
-    return keywords.some(k => payloadText.includes(k));
+    const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    return keywords.some(k => lowerPayload.includes(k) || (cleanPayload && cleanPayload.includes(k)));
   } else if (matchType === 'starts_with' && kw !== '') {
-    const keywords = kw.split(',').map(k => k.trim());
-    return keywords.some(k => payloadText.startsWith(k));
+    const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    return keywords.some(k => lowerPayload.startsWith(k) || (cleanPayload && cleanPayload.startsWith(k)));
   } else if (matchType === 'ends_with' && kw !== '') {
-    const keywords = kw.split(',').map(k => k.trim());
-    return keywords.some(k => payloadText.endsWith(k));
-  } else if (matchType === 'any_message' && payloadText && !payloadText.startsWith('[__media_')) return true;
-  else if (matchType === 'image_received' && payloadText === '[__media_image__]') return true;
-  else if (matchType === 'video_received' && payloadText === '[__media_video__]') return true;
-  else if (matchType === 'document_received' && payloadText === '[__media_document__]') return true;
-  else if (matchType === 'voice_received' && payloadText === '[__media_audio__]') return true;
-  else if (matchType === 'location_received' && payloadText === '[__media_location__]') return true;
-  else if (matchType === 'contact_shared' && payloadText === '[__media_contact__]') return true;
-  else if (matchType === 'reaction' && payloadText === '[__reaction__]') return true;
-  else if (['media_any', 'media_received'].includes(matchType) && ['[__media_image__]', '[__media_video__]', '[__media_document__]', '[__media_audio__]'].includes(payloadText)) return true;
+    const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    return keywords.some(k => lowerPayload.endsWith(k) || (cleanPayload && cleanPayload.endsWith(k)));
+  } else if (matchType === 'any_message' && lowerPayload && !lowerPayload.startsWith('[__media_')) return true;
+  else if (matchType === 'image_received' && lowerPayload === '[__media_image__]') return true;
+  else if (matchType === 'video_received' && lowerPayload === '[__media_video__]') return true;
+  else if (matchType === 'document_received' && lowerPayload === '[__media_document__]') return true;
+  else if (matchType === 'voice_received' && lowerPayload === '[__media_audio__]') return true;
+  else if (matchType === 'location_received' && lowerPayload === '[__media_location__]') return true;
+  else if (matchType === 'contact_shared' && lowerPayload === '[__media_contact__]') return true;
+  else if (matchType === 'reaction' && lowerPayload === '[__reaction__]') return true;
+  else if (['media_any', 'media_received'].includes(matchType) && ['[__media_image__]', '[__media_video__]', '[__media_document__]', '[__media_audio__]'].includes(lowerPayload)) return true;
   return false;
 }
 
@@ -153,7 +179,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
   try {
     // ---- SIMULATOR INTERCEPTION ----
     if (toPhone.startsWith('SIMULATOR_')) {
-      console.log(`[SIMULATOR] Intercepted outbound message to ${toPhone}`);
+      logger.log(`[SIMULATOR] Intercepted outbound message to ${toPhone}`);
       const io = getIO();
       if (io) {
         const msgId = `sim_msg_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -176,7 +202,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
     const contact = await Contact.findOne({ phone: toPhone, tenantId: channel.tenantId });
     if (!forceBypassOptOut) {
       if (contact && contact.isOptedOut) {
-        console.log(`[Compliance] Blocked outbound message to ${toPhone} because they are opted out.`);
+        logger.log(`[Compliance] Blocked outbound message to ${toPhone} because they are opted out.`);
         return null;
       }
     }
@@ -214,12 +240,12 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
         }
         
         if (isQuiet) {
-          console.log(`[Delivery Rules] Blocked message to ${toPhone} due to Quiet Hours (${settings.deliveryRules.quietHoursStart} - ${settings.deliveryRules.quietHoursEnd})`);
+          logger.log(`[Delivery Rules] Blocked message to ${toPhone} due to Quiet Hours (${settings.deliveryRules.quietHoursStart} - ${settings.deliveryRules.quietHoursEnd})`);
           return null; // Don't send the message
         }
       }
     } catch (e) {
-      console.error('Error checking delivery rules:', e.message);
+      logger.error('Error checking delivery rules:', e.message);
     }
 
     // 2. 24-Hour Rule Compliance (Meta blocks non-templates after 24h)
@@ -227,7 +253,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
       const timeSinceInteraction = Date.now() - new Date(contact.lastInteractionAt).getTime();
       if (timeSinceInteraction > TWENTY_FOUR_HOURS) {
-        console.warn(`[Compliance] Blocked free-form message to ${toPhone}. Last interaction > 24h ago.`);
+        logger.warn(`[Compliance] Blocked free-form message to ${toPhone}. Last interaction > 24h ago.`);
         return null;
       }
     }
@@ -235,8 +261,8 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
     let metaMessageId = null;
 
     if (toPhone.startsWith('SIMULATOR_')) {
-      console.log(`\n[SIMULATION MODE] Intercepted message to ${toPhone}:`);
-      console.log(JSON.stringify(payload, null, 2));
+      logger.log(`\n[SIMULATION MODE] Intercepted message to ${toPhone}:`);
+      logger.log(JSON.stringify(payload, null, 2));
       
       const io = getIO();
       if (io) {
@@ -245,39 +271,77 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
           payload: payload,
           timestamp: new Date()
         });
-        console.log(`[SIMULATOR] Emitted simulator_message to room ${channel._id.toString()}`);
+        logger.log(`[SIMULATOR] Emitted simulator_message to room ${channel._id.toString()}`);
       } else {
-        console.warn('[SIMULATOR] Socket.io not initialized, cannot send simulator message to frontend');
+        logger.warn('[SIMULATOR] Socket.io not initialized, cannot send simulator message to frontend');
       }
       
       metaMessageId = `sim_${Date.now()}`;
     } else {
       // 💳 Pre-flight WCC Wallet Balance Check for Automation
-      const walletService = (await import('../services/walletService.js')).default || require('../services/walletService.js');
-      const pricingConfig = (await import('../config/pricingConfig.js')).default || require('../config/pricingConfig.js');
-      const { getMessageCost } = pricingConfig;
-      
-      // Determine category (Templates may specify or default to UTILITY for automated notifications)
-      const autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
-      const User = (await import('../models/User.js')).default || require('../models/User.js');
-      const userPricingDoc = await User.findById(channel.tenantId).select('customPricing').lean();
-      const autoCost = getMessageCost(autoCategory, toPhone, userPricingDoc?.customPricing);
+      try {
+        const walletService = (await import('../services/walletService.js')).default || require('../services/walletService.js');
+        const pricingConfig = (await import('../config/pricingConfig.js')).default || require('../config/pricingConfig.js');
+        const { getMessageCost } = pricingConfig;
+        
+        // Determine category (Templates may specify or default to UTILITY for automated notifications)
+        const autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
+        const User = (await import('../models/User.js')).default || require('../models/User.js');
+        const userPricingDoc = await User.findOne({
+          $or: [{ _id: channel.tenantId }, { tenantId: channel.tenantId }]
+        }).select('customPricing').lean();
+        const autoCost = getMessageCost(autoCategory, toPhone, userPricingDoc?.customPricing);
 
-      const hasBalance = await walletService.hasSufficientCredits(channel.tenantId, autoCost);
-      if (!hasBalance) {
-        console.warn(`[Automation] Skipped outbound message to ${toPhone}. Insufficient WCC Credits for tenant ${channel.tenantId}`);
-        return null;
+        const hasBalance = await walletService.hasSufficientCredits(channel.tenantId, autoCost);
+        // Do not block SERVICE auto-responses (Meta provides 1,000 free service conversations/month)
+        if (!hasBalance && autoCategory !== 'SERVICE') {
+          logger.warn(`[Automation] Skipped outbound marketing/template message to ${toPhone}. Insufficient WCC Credits for tenant ${channel.tenantId}`);
+          return null;
+        }
+      } catch (balErr) {
+        logger.warn('[Automation] Wallet check warning (allowing send):', balErr.message);
       }
 
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Authorization': `Bearer ${channel.metaAccessToken}`,
-          'Content-Type': 'application/json'
+      if (payload.type === 'template' && payload.template?.name) {
+        try {
+          const { getTenantWhatsAppService } = await import('../controllers/whatsappController.js');
+          const tenantWhatsAppService = await getTenantWhatsAppService(channel.tenantId);
+          let sent = false;
+          if (tenantWhatsAppService) {
+            const sendResult = await tenantWhatsAppService.sendTemplateMessage(
+              toPhone,
+              payload.template.name,
+              payload.template.language?.code || 'en_US',
+              payload.template.components || []
+            );
+            if (sendResult && sendResult.success) {
+              metaMessageId = sendResult.messageId || null;
+              sent = true;
+            }
+          }
+          if (!sent) {
+            const response = await axios.post(url, payload, {
+              headers: {
+                'Authorization': `Bearer ${channel.metaAccessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            metaMessageId = response.data?.messages?.[0]?.id || null;
+          }
+        } catch (tmplErr) {
+          logger.error(`[flowRunner] Template send error for ${payload.template.name}:`, tmplErr.message);
+          throw tmplErr;
         }
-      });
-
-      // Log the outbound message inside Inbox/Contact
-      metaMessageId = response.data?.messages?.[0]?.id || null;
+      } else {
+        const response = await axios.post(url, payload, {
+          headers: {
+            'Authorization': `Bearer ${channel.metaAccessToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        // Log the outbound message inside Inbox/Contact
+        metaMessageId = response.data?.messages?.[0]?.id || null;
+      }
 
       // Deduct WCC credits for successful automated message
       await walletService.deductMessageCredits({
@@ -304,7 +368,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
     }
 
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+    logger.error('Error sending WhatsApp message:', error.response?.data || error.message);
     throw new Error('Failed to send WhatsApp message');
   }
 }
@@ -443,16 +507,94 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       }
     };
 
+    const components = [];
+
+    // 1. Header component (Media or dynamic text)
+    if (nodeData.mediaUrl && ['image', 'video', 'document'].includes(nodeData.headerType)) {
+      const parsedUrl = parseDynamicVariables(nodeData.mediaUrl, contextData);
+      if (parsedUrl) {
+        components.push({
+          type: 'header',
+          parameters: [{
+            type: nodeData.headerType,
+            [nodeData.headerType]: { link: parsedUrl }
+          }]
+        });
+      }
+    } else if (nodeData.headerType === 'text' && nodeData.headerVariables && nodeData.headerVariables.length > 0) {
+      components.push({
+        type: 'header',
+        parameters: nodeData.headerVariables.map(v => ({
+          type: 'text',
+          text: parseDynamicVariables(v.value, contextData) || ' '
+        }))
+      });
+    }
+
+    // 2. Body component (Variables {{1}}, {{2}})
     if (nodeData.variables && nodeData.variables.length > 0) {
-      payload.template.components = [
-        {
-          type: 'body',
-          parameters: nodeData.variables.map(v => ({
+      components.push({
+        type: 'body',
+        parameters: nodeData.variables.map((v, vIdx) => {
+          let evaluated = parseDynamicVariables(v?.value, contextData);
+          if (!evaluated || evaluated.trim() === '') {
+            const raw = String(v?.value || '').toLowerCase();
+            if (raw.includes('name')) evaluated = contextData.contact?.name || 'Customer';
+            else if (raw.includes('phone')) evaluated = contextData.contact?.phone || '-';
+            else if (raw.includes('email')) evaluated = contextData.contact?.email || '-';
+            else evaluated = contextData.contact?.name || 'Customer';
+          }
+          return {
             type: 'text',
-            text: parseDynamicVariables(v.value, contextData) || ' '
-          }))
-        }
-      ];
+            text: evaluated
+          };
+        })
+      });
+    }
+
+    // 3. Limited Time Offer (LTO)
+    if (nodeData.isLimitedTimeOffer === true) {
+      let expirationMs = null;
+      if (nodeData.expirationDate) {
+        expirationMs = new Date(nodeData.expirationDate).getTime();
+      } else if (nodeData.customExpirationHours) {
+        expirationMs = Date.now() + Number(nodeData.customExpirationHours) * 60 * 60 * 1000;
+      } else {
+        // Default 72h (3 days) for LTO templates
+        expirationMs = Date.now() + 72 * 60 * 60 * 1000;
+      }
+
+      if (expirationMs && expirationMs > Date.now()) {
+        components.push({
+          type: 'limited_time_offer',
+          parameters: [{
+            type: 'limited_time_offer',
+            limited_time_offer: {
+              expiration_time_ms: Math.floor(expirationMs)
+            }
+          }]
+        });
+      }
+    }
+
+    // 4. Coupon Code Button (COPY_CODE)
+    if (nodeData.offerCode || nodeData.couponCode) {
+      const code = parseDynamicVariables(nodeData.offerCode || nodeData.couponCode, contextData);
+      if (code) {
+        components.push({
+          type: 'button',
+          sub_type: 'copy_code',
+          index: '0',
+          parameters: [{
+            type: 'coupon_code',
+            coupon_code: code.trim().replace(/[^a-zA-Z0-9_-]/g, '')
+          }]
+        });
+      }
+    }
+
+    if (components.length > 0) {
+      payload.template.components = components;
     }
 
     return payload;
@@ -659,11 +801,17 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export async function processSpecificNode(customerPhone, channelId, startNodeId) {
   try {
-    const session = await CustomerSession.findOne({ 
+    let session = await CustomerSession.findOne({ 
       phone: customerPhone, 
       channelId, 
       status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
     });
+    if (!session) {
+      session = await CustomerSession.findOne({ 
+        phone: customerPhone, 
+        status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
+      }).sort({ updatedAt: -1 });
+    }
     if (!session) return;
 
     const activeFlow = await Automation.findById(session.activeFlowId);
@@ -676,14 +824,49 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
 
     if (!channel) {
+      // Fallback 1: check if channelId is actually a tenantId
+      channel = await Channel.findOne({ tenantId: channelId }).select('+metaAccessToken');
+    }
+
+    if (!channel && activeFlow?.channelId) {
+      // Fallback 2: check if activeFlow has channelId
+      channel = await Channel.findById(activeFlow.channelId).select('+metaAccessToken');
+    }
+
+    if (!channel && activeFlow?.tenantId) {
+      // Fallback 3: check if activeFlow has tenantId
+      channel = await Channel.findOne({ tenantId: activeFlow.tenantId }).select('+metaAccessToken');
+    }
+
+    if (!channel) {
+      try {
+        const User = (await import('../models/User.js')).default || require('../models/User.js');
+        const userDoc = await User.findById(channelId).select('+whatsappConfig.accessToken');
+        if (userDoc && userDoc.whatsappConfig?.phoneNumberId) {
+          channel = {
+            _id: userDoc._id,
+            tenantId: userDoc.tenantId || userDoc._id,
+            activeWhatsappPhoneNumberId: userDoc.whatsappConfig.phoneNumberId,
+            metaAccessToken: userDoc.whatsappConfig.accessToken
+          };
+        }
+      } catch (err) {
+        logger.warn('[FlowRunner] User fallback error in processSpecificNode:', err.message);
+      }
+    }
+
+    if (!channel) {
       if (customerPhone.startsWith('SIMULATOR_')) {
         channel = { _id: channelId, tenantId: activeFlow.tenantId, activeWhatsappPhoneNumberId: 'mock_phone' };
       } else {
-        console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
+        logger.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
         return;
       }
     }
-    let contact = await Contact.findOne({ phone: customerPhone, channelId });
+    let contact = await Contact.findOne({ phone: customerPhone, channelId: channel._id });
+    if (!contact) {
+      contact = await Contact.findOne({ phone: customerPhone, channelId });
+    }
     if (!contact && customerPhone.startsWith('SIMULATOR_')) {
       contact = await Contact.findOne({ phone: customerPhone });
     }
@@ -696,7 +879,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     const { default: TenantSettings } = await import('../models/TenantSettings.js');
     const tenantSettings = channel.tenantId ? await TenantSettings.findOne({ tenantId: channel.tenantId }).lean() : null;
 
-    console.log(`[DEBUG Engine] processSpecificNode started for ${customerPhone} on node ${startNodeId}`);
+    logger.log(`[DEBUG Engine] processSpecificNode started for ${customerPhone} on node ${startNodeId}`);
 
     while (keepRunning && currentNodeId && steps < MAX_STEPS) {
       steps++;
@@ -751,6 +934,10 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         tenantSettings: tenantSettings || {},
         ...sessionVars
       };
+
+      // Always sync latest session variables into contextData so EVERY node
+      // can access answers from Ask Question nodes, action results, etc.
+      syncContextVariables(session, contextData);
       
       session.currentNodeId = currentNodeId;
       session.lastInteractionAt = Date.now();
@@ -768,7 +955,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         break;
       }
 
-      console.log(`Executing node: ${currentNode.type} (${currentNode.id})`);
+      logger.log(`Executing node: ${currentNode.type} (${currentNode.id})`);
       
       // --- Visual Debugger / Real-time Socket Event ---
       try {
@@ -782,7 +969,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           });
         }
       } catch (e) {
-        console.error('Failed to emit debug event:', e);
+        logger.error('Failed to emit debug event:', e);
       }
       
       // Determine the default next node by following an outgoing edge with no specific handle (e.g. text message output)
@@ -881,7 +1068,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
               payload._sim_template_buttons = currentNode.data.buttons;
             }
           } catch (e) {
-            console.error('Failed to inject simulator template data:', e);
+            logger.error('Failed to inject simulator template data:', e);
             if (currentNode.data?.buttons) {
               payload._sim_template_buttons = currentNode.data.buttons;
             }
@@ -891,7 +1078,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         try {
           await sendWhatsAppMessage(customerPhone, payload, channel);
         } catch (err) {
-          console.error(`Failed to send message at node ${currentNode.id}, aborting flow. Exact Error:`, err);
+          logger.error(`Failed to send message at node ${currentNode.id}, aborting flow. Exact Error:`, err);
           keepRunning = false;
           break;
         }
@@ -920,7 +1107,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         ) {
           if (outgoingEdges.length === 0) {
             // Leaf interactive node! Nothing follows; complete the session so user is not trapped.
-            console.log(`[FlowRunner] Leaf interactive node reached (${currentNode.id}). Completing session.`);
+            logger.log(`[FlowRunner] Leaf interactive node reached (${currentNode.id}). Completing session.`);
             await markSessionCompleted(session, customerPhone, channelId);
             keepRunning = false;
             break;
@@ -932,7 +1119,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         } else {
           // Non-interactive text, media, template messages
           if (outgoingEdges.length === 0) {
-            console.log(`[FlowRunner] Leaf message node reached (${currentNode.id}). Completing session.`);
+            logger.log(`[FlowRunner] Leaf message node reached (${currentNode.id}). Completing session.`);
             await markSessionCompleted(session, customerPhone, channelId);
             keepRunning = false;
             break;
@@ -960,26 +1147,19 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
       else if (currentNode.type === 'apiNode') {
         const status = await executeApiCallNode(session, currentNode, contextData);
+        syncContextVariables(session, contextData); // API response data may have been saved to session
         const apiEdge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
         nextNodeId = apiEdge ? apiEdge.target : null;
       }
       else if (currentNode.type === 'actionNode') {
-        const result = await executeActionNode(session, currentNode, contextData);
+        await executeActionNode(session, currentNode, contextData);
+        syncContextVariables(session, contextData);
         const edge = outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'aiNode') {
         const result = await executeAiNode(session, currentNode, contextData);
-        // Refresh context data with potentially new session variables safely
-        if (session.sessionVariables) {
-          const entries = typeof session.sessionVariables.entries === 'function'
-            ? session.sessionVariables.entries()
-            : Object.entries(session.sessionVariables);
-          for (const [k, v] of entries) {
-            contextData[k] = v;
-          }
-        }
-        
+        syncContextVariables(session, contextData);
         const edge = outgoingEdges.find(e => e.sourceHandle === `ai-${result}` || e.sourceHandle === 'main-handle') || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
@@ -1061,11 +1241,11 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
     }
 
     if (steps >= MAX_STEPS) {
-      console.warn(`Maximum execution steps (${MAX_STEPS}) reached for session ${session._id}. Possible infinite loop detected.`);
+      logger.warn(`Maximum execution steps (${MAX_STEPS}) reached for session ${session._id}. Possible infinite loop detected.`);
     }
 
   } catch (error) {
-    console.error('Error in processSpecificNode:', error);
+    logger.error('Error in processSpecificNode:', error);
   }
 }
 
@@ -1078,6 +1258,29 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
 
     if (!channel) {
+      // Fallback 1: check if channelId is actually a tenantId
+      channel = await Channel.findOne({ tenantId: channelId }).select('+metaAccessToken');
+    }
+
+    if (!channel) {
+      // Fallback 2: check User model for direct WhatsApp configuration
+      try {
+        const User = (await import('../models/User.js')).default || require('../models/User.js');
+        const userDoc = await User.findById(channelId).select('+whatsappConfig.accessToken');
+        if (userDoc && userDoc.whatsappConfig?.phoneNumberId) {
+          channel = {
+            _id: userDoc._id,
+            tenantId: userDoc.tenantId || userDoc._id,
+            activeWhatsappPhoneNumberId: userDoc.whatsappConfig.phoneNumberId,
+            metaAccessToken: userDoc.whatsappConfig.accessToken
+          };
+        }
+      } catch (err) {
+        logger.warn('[FlowRunner] User fallback error:', err.message);
+      }
+    }
+
+    if (!channel) {
       if (simulatorTargetFlowId || customerPhone.startsWith('SIMULATOR_')) {
         let dynamicTenantId = null;
         if (simulatorTargetFlowId) {
@@ -1087,7 +1290,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
         channel = { _id: channelId, tenantId: dynamicTenantId, activeWhatsappPhoneNumberId: 'mock_phone' };
       } else {
-        console.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
+        logger.error(`[Error] Channel with ID ${channelId} not found in DB! Cannot process flow.`);
         return;
       }
     }
@@ -1103,7 +1306,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     if (session && session.lastInteractionAt) {
       const inactiveDuration = Date.now() - new Date(session.lastInteractionAt).getTime();
       if (inactiveDuration > SESSION_TTL_MS) {
-        console.log(`[FlowRunner] Active session ${session._id} expired (${Math.round(inactiveDuration / 60000)}m inactive). Completing session.`);
+        logger.log(`[FlowRunner] Active session ${session._id} expired (${Math.round(inactiveDuration / 60000)}m inactive). Completing session.`);
         await markSessionCompleted(session, customerPhone, channelId);
         session = null;
       }
@@ -1185,16 +1388,41 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       const simFlow = await Automation.findById(simulatorTargetFlowId);
       if (simFlow) allActiveFlows = [simFlow];
     } else {
-      allActiveFlows = await Automation.find({ channelId, isActive: true });
+      allActiveFlows = await Automation.find({
+        $or: [
+          { channelId: channel._id },
+          { channelId: channelId },
+          ...(channel.tenantId ? [{ tenantId: channel.tenantId }] : [])
+        ],
+        isActive: true
+      });
     }
 
     const payloadText = typeof incomingPayload === 'string' ? incomingPayload.trim().toLowerCase() : '';
+    const ESCAPE_KEYWORDS = ['restart', 'reset', 'menu', 'main menu', 'start', 'exit', 'cancel'];
+    const isEscapeWord = ESCAPE_KEYWORDS.includes(payloadText);
+
+    // 🛑 Check if Contact has bot paused (Agent in Live Chat is handling this contact)
+    try {
+      const ContactModel = (await import('../models/Contact.js')).default || require('../models/Contact');
+      const existingContact = await ContactModel.findOne({
+        phone: customerPhone,
+        ...(channel.tenantId ? { tenantId: channel.tenantId } : {})
+      });
+
+      if (existingContact?.isBotPaused && !isEscapeWord) {
+        logger.log(`[FlowRunner] Bot is paused for contact ${customerPhone} (agent handoff active). Ignoring incoming message.`);
+        return;
+      }
+      if (existingContact?.isBotPaused && isEscapeWord) {
+        await ContactModel.updateMany({ phone: customerPhone }, { $set: { isBotPaused: false, status: 'ACTIVE' } });
+      }
+    } catch (e) {
+      logger.error('[FlowRunner] Error checking isBotPaused:', e.message);
+    }
 
     // If an existing session is found, check if customer is attempting to restart or trigger another automation
     if (session) {
-      const ESCAPE_KEYWORDS = ['restart', 'reset', 'menu', 'main menu', 'start', 'exit', 'cancel'];
-      const isEscapeWord = ESCAPE_KEYWORDS.includes(payloadText);
-
       let matchesAnyFlow = false;
       for (const flow of allActiveFlows) {
         const tNode = flow.nodes.find(n => n.type === 'triggerNode');
@@ -1208,7 +1436,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       // Do NOT break out on general text matching other flows, because user is answering the input question (e.g. NEET score, name, etc.)
       const isWaitingInput = session.status === 'WAITING_FOR_INPUT';
       if (isEscapeWord || (!isWaitingInput && matchesAnyFlow)) {
-        console.log(`[FlowRunner] Interruption detected for user ${customerPhone} (keyword: "${incomingPayload}"). Completing existing session.`);
+        logger.log(`[FlowRunner] Interruption detected for user ${customerPhone} (keyword: "${incomingPayload}"). Completing existing session.`);
         await markSessionCompleted(session, customerPhone, channelId);
         session = null;
       }
@@ -1220,95 +1448,15 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     if (!session) {
       let matchedFlow = null;
       let matchedTriggerNode = null;
-
-      const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
-      
-      // 0. WELCOME MESSAGE PRIORITY
-      // Triggers if contact is new OR if customer explicitly greets ('hi', 'hello', 'hey', 'start')
-      const isGreetingWord = ['hi', 'hello', 'hey', 'start', 'namaste'].includes(payloadText);
-      if ((isNewContact || isGreetingWord) && settings && settings.welcomeMessage && settings.welcomeMessage.enabled) {
-        if (settings.welcomeMessage.automationId) {
-          const welcomeFlow = await Automation.findById(settings.welcomeMessage.automationId);
-          if (welcomeFlow && welcomeFlow.isActive) {
-            matchedFlow = welcomeFlow;
-            matchedTriggerNode = welcomeFlow.nodes.find(n => n.type === 'triggerNode') || welcomeFlow.nodes[0];
-          }
-        }
-        // Fallback to default welcome text message if no flow is attached or flow is inactive
-        if (!matchedFlow) {
-          const welcomeText = settings.welcomeMessage.textMessage || 'Welcome! How can we help you today?';
-          const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: welcomeText } };
-          await sendWhatsAppMessage(customerPhone, payload, channel);
-          return;
-        }
-      }
-
-      // 1. AWAY MESSAGE PRIORITY
-      let isOutOfOffice = false;
-      let configuredAwayAutomationId = null;
-
-      if (!matchedFlow && settings && settings.awayMessage && settings.awayMessage.enabled) {
-        configuredAwayAutomationId = settings.awayMessage.automationId;
-        
-        if (settings.awayMessage.holidayMode) {
-          isOutOfOffice = true;
-        } else {
-          // Calculate time based on timezone
-          const tz = settings.awayMessage.timezone || 'UTC';
-          const nowStr = new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
-          const parts = nowStr.split(', ');
-          const dayName = parts[0].toLowerCase(); // e.g. "monday"
-          const timeStr = parts[1]; // e.g. "14:30"
-
-          const dayConfig = settings.awayMessage.workingHours?.get(dayName) || (settings.awayMessage.workingHours && settings.awayMessage.workingHours[dayName]);
-          if (dayConfig) {
-            if (!dayConfig.isOpen) {
-              isOutOfOffice = true;
-            } else if (dayConfig.open && dayConfig.close) {
-              if (timeStr < dayConfig.open || timeStr > dayConfig.close) {
-                isOutOfOffice = true;
-              }
-            }
-          }
-        }
-      }
-      
-      if (isOutOfOffice && !matchedFlow) {
-        if (configuredAwayAutomationId) {
-          const awayFlow = await Automation.findById(configuredAwayAutomationId);
-          if (awayFlow && awayFlow.isActive) {
-            matchedFlow = awayFlow;
-            matchedTriggerNode = awayFlow.nodes.find(n => n.type === 'triggerNode') || awayFlow.nodes[0];
-          }
-        }
-        // If out of office and no flow or flow not active, send away text message!
-        if (!matchedFlow) {
-          const awayText = settings.awayMessage.textMessage || 'We are currently away and will get back to you as soon as possible!';
-          const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: awayText } };
-          await sendWhatsAppMessage(customerPhone, payload, channel);
-          return;
-        }
-      }
-
-      // 2. NORMAL TRIGGERS & TEMPLATE QUICK REPLY TRIGGERS
       let targetFromButtonEdge = null;
 
-      if (!matchedFlow) {
-        // A. Standard Trigger Nodes (Keywords, exact match, regex, etc.)
-        for (const flow of allActiveFlows) {
-          const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
-          if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
-            matchedFlow = flow;
-            matchedTriggerNode = tNode;
-            break;
-          }
-        }
-      }
+      // Detect if this is a button tap (template quick reply or interactive button).
+      const isButtonTap = !!(messageContext?.buttonText || messageContext?.buttonId || messageContext?.buttonPayload ||
+                              messageContext?.listId || messageContext?.listTitle);
 
-      // B. TEMPLATE QUICK REPLY & INTERACTIVE BUTTON TRIGGERS
-      // When a user taps a quick reply button on a template (sent via campaign, live chat, or automation),
-      // match the button to any active flow's templateNode or interactiveNode.
-      if (!matchedFlow) {
+      // ─── PATH B (run FIRST for button taps) ─────────────────────────────────
+      // Match template/interactive node buttons to outgoing edges.
+      if (!matchedFlow && isButtonTap) {
         const candidatePayloads = [
           payloadText,
           messageContext?.buttonText?.trim().toLowerCase(),
@@ -1321,12 +1469,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         if (candidatePayloads.length > 0) {
           for (const flow of allActiveFlows) {
-            const interactiveOrTemplateNodes = flow.nodes.filter(n => 
-              n.type === 'templateNode' || 
-              n.type === 'interactiveNode' || 
+            const interactiveOrTemplateNodes = flow.nodes.filter(n =>
+              n.type === 'templateNode' ||
+              n.type === 'interactiveNode' ||
               (n.type === 'messageNode' && n.data?.messageType === 'interactive')
             );
-            
+
             for (const node of interactiveOrTemplateNodes) {
               let buttons = node.data?.buttons || [];
               if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
@@ -1361,7 +1509,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   String(i)
                 ].filter(Boolean);
 
-                const isMatch = candidatePayloads.some(cp => 
+                const isMatch = candidatePayloads.some(cp =>
                   bCandidates.includes(cp) || bCandidates.some(bc => bc.includes(cp) || cp.includes(bc))
                 );
 
@@ -1374,7 +1522,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
               if (matchedBtn) {
                 const btnId = matchedBtn.id || matchedIdx;
-                let matchedEdge = outgoingEdges.find(e => 
+                let matchedEdge = outgoingEdges.find(e =>
                   candidatePayloads.includes(e.sourceHandle?.toLowerCase()) ||
                   e.sourceHandle === `btn-${btnId}` ||
                   e.sourceHandle === `btn-${matchedIdx}` ||
@@ -1388,7 +1536,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 }
 
                 if (matchedEdge) {
-                  console.log(`[FlowRunner] 🎯 Matched button '${payloadText}' on node ${node.id} in flow '${flow.name}'. Next target: ${matchedEdge.target}`);
+                  logger.log(`[FlowRunner] 🎯 [PATH-B-PRIORITY] Matched button '${payloadText}' on node ${node.id} in flow '${flow.name}'. Next: ${matchedEdge.target}`);
                   matchedFlow = flow;
                   matchedTriggerNode = node;
                   targetFromButtonEdge = matchedEdge.target;
@@ -1401,7 +1549,21 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      // C. Flows that start directly with a root templateNode (e.g. simulator testing)
+      // ─── PATH A. Standard Trigger Nodes (Keywords, exact match, contains, any_message, etc.) ───
+      // If customer sent ANY normal message (e.g. 'hello', 'hi', 'demo'), match active flows first!
+      if (!matchedFlow) {
+        for (const flow of allActiveFlows) {
+          const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+          if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
+            logger.log(`[FlowRunner] 🎯 [PATH-A] Matched keyword '${payloadText}' on trigger ${tNode.id} in flow '${flow.name}'`);
+            matchedFlow = flow;
+            matchedTriggerNode = tNode;
+            break;
+          }
+        }
+      }
+
+      // ─── PATH C. Flows that start directly with a root templateNode (e.g. simulator testing) ───
       if (!matchedFlow) {
         for (const flow of allActiveFlows) {
           const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
@@ -1410,6 +1572,74 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             matchedFlow = flow;
             matchedTriggerNode = rootNode;
             break;
+          }
+        }
+      }
+
+      // ─── PATH D. Dynamic Welcome & Away Messages (Fallback when NO custom flow keyword matched) ───
+      const settings = await TenantSettings.findOne({ tenantId: channel.tenantId });
+      
+      if (!matchedFlow && settings) {
+        // D1. AWAY / OUT-OF-OFFICE CHECK
+        let isOutOfOffice = false;
+        let configuredAwayAutomationId = null;
+
+        if (settings.awayMessage && settings.awayMessage.enabled) {
+          configuredAwayAutomationId = settings.awayMessage.automationId;
+          if (settings.awayMessage.holidayMode) {
+            isOutOfOffice = true;
+          } else {
+            const tz = settings.awayMessage.timezone || 'UTC';
+            const nowStr = new Date().toLocaleString('en-US', { timeZone: tz, weekday: 'long', hour: '2-digit', minute: '2-digit', hour12: false });
+            const parts = nowStr.split(', ');
+            const dayName = parts[0].toLowerCase();
+            const timeStr = parts[1];
+            const dayConfig = settings.awayMessage.workingHours?.get(dayName) || (settings.awayMessage.workingHours && settings.awayMessage.workingHours[dayName]);
+            if (dayConfig) {
+              if (!dayConfig.isOpen) {
+                isOutOfOffice = true;
+              } else if (dayConfig.open && dayConfig.close) {
+                if (timeStr < dayConfig.open || timeStr > dayConfig.close) {
+                  isOutOfOffice = true;
+                }
+              }
+            }
+          }
+        }
+
+        if (isOutOfOffice) {
+          if (configuredAwayAutomationId) {
+            const awayFlow = await Automation.findById(configuredAwayAutomationId);
+            if (awayFlow && awayFlow.isActive) {
+              matchedFlow = awayFlow;
+              matchedTriggerNode = awayFlow.nodes.find(n => n.type === 'triggerNode') || awayFlow.nodes[0];
+            }
+          }
+          if (!matchedFlow) {
+            const awayText = settings.awayMessage.textMessage || 'We are currently away and will get back to you as soon as possible!';
+            const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: awayText } };
+            await sendWhatsAppMessage(customerPhone, payload, channel);
+            return;
+          }
+        }
+
+        // D2. WELCOME MESSAGE (Only if no specific keyword flow matched and customer greets or is new contact)
+        if (!matchedFlow && settings.welcomeMessage && settings.welcomeMessage.enabled) {
+          const isGreetingWord = ['hi', 'hello', 'hey', 'start', 'namaste'].includes(payloadText);
+          if (isNewContact || isGreetingWord) {
+            if (settings.welcomeMessage.automationId) {
+              const welcomeFlow = await Automation.findById(settings.welcomeMessage.automationId);
+              if (welcomeFlow && welcomeFlow.isActive) {
+                matchedFlow = welcomeFlow;
+                matchedTriggerNode = welcomeFlow.nodes.find(n => n.type === 'triggerNode') || welcomeFlow.nodes[0];
+              }
+            }
+            if (!matchedFlow) {
+              const welcomeText = settings.welcomeMessage.textMessage || 'Welcome! How can we help you today?';
+              const payload = { messaging_product: 'whatsapp', recipient_type: 'individual', to: customerPhone, type: 'text', text: { body: welcomeText } };
+              await sendWhatsAppMessage(customerPhone, payload, channel);
+              return;
+            }
           }
         }
       }
@@ -1448,7 +1678,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               await startFlowManually(customerPhone, channel._id, fallbackRule.flowId);
            }
         } else {
-           console.log(`No flow triggered for payload: ${incomingPayload} and no fallback found.`);
+           logger.log(`No flow triggered for payload: ${incomingPayload} and no fallback found.`);
         }
         return;
       }
@@ -1470,9 +1700,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
       if (!nextNodeId) return;
 
+      const effectiveChannelId = channel._id ? channel._id.toString() : channelId;
+
       session = new CustomerSession({
         phone: customerPhone,
-        channelId,
+        channelId: effectiveChannelId,
         activeFlowId: activeFlow._id,
         currentNodeId: targetFromButtonEdge ? triggerNode.id : triggerNode.id,
         referral: referral,
@@ -1481,7 +1713,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       await session.save();
       
       // Start processing the nodes in the flow!
-      await processSpecificNode(customerPhone, channelId, nextNodeId);
+      await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
       return; // Prevent double execution
 
     } else {
@@ -1498,7 +1730,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
   
       // If the session was waiting for an event (e.g. any_message), resume it on the "event_happened" edge
       if (session.status === 'WAITING_FOR_EVENT' && session.expectedEvent === 'any_message') {
-        console.log(`[FlowRunner] Resuming session ${session._id} from WAITING_FOR_EVENT`);
+        logger.log(`[FlowRunner] Resuming session ${session._id} from WAITING_FOR_EVENT`);
         session.status = 'ACTIVE';
         session.expectedEvent = null;
         await session.save();
@@ -1617,7 +1849,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               await dbContact.save();
             }
           } catch (e) {
-            console.error('Failed to sync contact field from inputNode:', e);
+            logger.error('Failed to sync contact field from inputNode:', e);
           }
         } else {
           session.sessionVariables[`contact.${rawVarName}`] = incomingPayload;
@@ -1650,7 +1882,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               await dbContact.save();
             }
           } catch (e) {
-            console.error('Failed to sync non-prefixed contact field from inputNode:', e);
+            logger.error('Failed to sync non-prefixed contact field from inputNode:', e);
           }
         }
         session.markModified('sessionVariables');
@@ -1673,7 +1905,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         if (currentNode?.type === 'delayNode') {
           // If the flow is paused at a delay, ignore incoming messages for this flow.
           // The delay queue will resume execution when the timer finishes.
-          console.log(`User ${customerPhone} sent a message during a delay node. Ignoring to preserve flow state.`);
+          logger.log(`User ${customerPhone} sent a message during a delay node. Ignoring to preserve flow state.`);
           return;
         }
 
@@ -1689,14 +1921,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         if (isInteractiveNode) {
           // If the interactive node has no outgoing edges, it's terminal. Complete the session!
           if (outgoingEdges.length === 0) {
-            console.log(`[FlowRunner] Interactive node ${currentNode?.id} has no outgoing edges. Completing session.`);
+            logger.log(`[FlowRunner] Interactive node ${currentNode?.id} has no outgoing edges. Completing session.`);
             await markSessionCompleted(session, customerPhone, channelId);
             return;
           }
 
           // For interactive nodes, the reply MUST match a specific button/list ID (sourceHandle)
-          console.log(`[DEBUG Engine] Trying to match incomingPayload '${incomingPayload}' on node ${currentNode?.type}`);
-          console.log(`[DEBUG Engine] Available edges for ${session.currentNodeId}:`, JSON.stringify(outgoingEdges));
+          logger.log(`[DEBUG Engine] Trying to match incomingPayload '${incomingPayload}' on node ${currentNode?.type}`);
+          logger.log(`[DEBUG Engine] Available edges for ${session.currentNodeId}:`, JSON.stringify(outgoingEdges));
           
           let isExplicitChoiceRecognized = false;
 
@@ -1809,7 +2041,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           // but that choice has NO connected outgoing edge on the canvas:
           // It is a terminal choice! Do NOT route to another button's branch.
           if (isExplicitChoiceRecognized && !matchedEdge) {
-            console.log(`[FlowRunner] User selected choice '${incomingPayload}' on node ${currentNode?.id}, but it has no connected branch. Completing session.`);
+            logger.log(`[FlowRunner] User selected choice '${incomingPayload}' on node ${currentNode?.id}, but it has no connected branch. Completing session.`);
             await markSessionCompleted(session, customerPhone, channelId);
             return;
           }
@@ -1828,7 +2060,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           }
           
           if (matchedEdge) {
-            console.log(`[DEBUG Engine] Matched edge to target: ${matchedEdge.target}`);
+            logger.log(`[DEBUG Engine] Matched edge to target: ${matchedEdge.target}`);
             nextNodeId = matchedEdge.target;
             session.validationRetries = 0;
             await session.save();
@@ -1842,7 +2074,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
             // If user repeatedly fails to select an option (2 attempts), end the session gracefully
             if (session.validationRetries >= 2) {
-              console.log(`[FlowRunner] User ${customerPhone} repeatedly failed interactive choice. Ending session.`);
+              logger.log(`[FlowRunner] User ${customerPhone} repeatedly failed interactive choice. Ending session.`);
               await markSessionCompleted(session, customerPhone, channelId);
               await sendWhatsAppMessage(customerPhone, {
                 messaging_product: 'whatsapp',
@@ -1877,10 +2109,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     }
 
     // 3. Delegate to the recursive node processor
-    await processSpecificNode(customerPhone, channelId, nextNodeId);
+    const effectiveChannelId = channel._id ? channel._id.toString() : channelId;
+    await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
 
   } catch (error) {
-    console.error('Workflow Entry Error:', error);
+    logger.error('Workflow Entry Error:', error);
   }
 }
 
@@ -1897,7 +2130,7 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     }
     const activeFlow = await Automation.findOne(query);
     if (!activeFlow) {
-      console.warn(`Flow ${flowId} not found or inactive. Cannot start manually.`);
+      logger.warn(`Flow ${flowId} not found or inactive. Cannot start manually.`);
       return;
     }
 
@@ -1909,7 +2142,7 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     }
 
     if (!rootNode) {
-      console.warn(`Flow ${flowId} has no nodes.`);
+      logger.warn(`Flow ${flowId} has no nodes.`);
       return;
     }
 
@@ -1921,7 +2154,7 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
       const outgoingEdges = activeFlow.edges.filter(e => e.source === rootNode.id);
       startNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
       if (!startNodeId) {
-        console.warn(`Flow ${flowId} trigger node is not connected to anything.`);
+        logger.warn(`Flow ${flowId} trigger node is not connected to anything.`);
         return;
       }
     } else {
@@ -1949,7 +2182,7 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     await processSpecificNode(customerPhone, channelId, startNodeId);
 
   } catch (error) {
-    console.error('Error in startFlowManually:', error);
+    logger.error('Error in startFlowManually:', error);
   }
 }
 
@@ -2018,7 +2251,7 @@ export async function triggerAutomationFromEvent(contact, triggerType, triggerVa
 
     await startFlowManually(contact.phone, contact.channelId, activeFlow._id, eventData);
   } catch (error) {
-    console.error('Error triggering automation from event:', error);
+    logger.error('Error triggering automation from event:', error);
   }
 }
 

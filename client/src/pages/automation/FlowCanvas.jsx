@@ -153,7 +153,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if (stepItem.id === 'call_chatgpt' || stepItem.id === 'garvik_ai') {
       type = 'aiNode';
       dataPayload = { systemPrompt: '', saveVariable: '' };
-    } else if (['opt_in', 'opt_out', 'update_contact', 'assign_team', 'unassign_team', 'round_robin_assign'].includes(stepItem.id)) {
+    } else if (['opt_in', 'opt_out', 'update_contact', 'assign_team', 'unassign_team', 'round_robin_assign', 'add_tag', 'remove_tag', 'human_handoff'].includes(stepItem.id)) {
       type = 'actionNode';
       dataPayload = { actionType: stepItem.id };
     } else if (stepItem.id === 'randomizer') {

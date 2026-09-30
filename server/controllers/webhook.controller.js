@@ -56,12 +56,13 @@ export const handleIncomingMessage = async (req, res) => {
     if (body.object === 'whatsapp_business_account') {
       for (const entry of body.entry) {
         for (const change of entry.changes) {
-          if (change.value && change.value.messages) {
-            const message = change.value.messages[0];
-            const customerPhone = message.from; // Phone number of the user sending the message
-            const phoneNumberId = change.value.metadata.phone_number_id; // The channel receiving it
+          if (change.value && Array.isArray(change.value.messages)) {
+            for (const message of change.value.messages) {
+              const customerPhone = message.from; // Phone number of the user sending the message
+              const phoneNumberId = change.value.metadata?.phone_number_id; // The channel receiving it
 
-            let incomingPayload = '';
+              let incomingPayload = '';
+              let messageContext = {}; // Rich context for button/template reply matching
 
             // Extract the payload depending on message type
             if (message.type === 'text') {
@@ -69,13 +70,34 @@ export const handleIncomingMessage = async (req, res) => {
             } else if (message.type === 'interactive') {
               const interactiveType = message.interactive.type;
               if (interactiveType === 'button_reply') {
-                incomingPayload = message.interactive.button_reply.id;
+                const btnReply = message.interactive.button_reply;
+                incomingPayload = btnReply.id;
+                // Pass both id and title so flowRunner can match by either
+                messageContext = {
+                  buttonId: btnReply.id,
+                  buttonText: btnReply.title,
+                  buttonTitle: btnReply.title,
+                  buttonPayload: btnReply.id
+                };
               } else if (interactiveType === 'list_reply') {
-                incomingPayload = message.interactive.list_reply.id;
+                const listReply = message.interactive.list_reply;
+                incomingPayload = listReply.id;
+                messageContext = {
+                  listId: listReply.id,
+                  listTitle: listReply.title,
+                  listDescription: listReply.description
+                };
               }
             } else if (message.type === 'button') {
-              // Template reply
-              incomingPayload = message.button.payload;
+              // Template quick reply button tap — payload is the button's payload/id
+              const btn = message.button;
+              incomingPayload = btn.payload || btn.text || '';
+              messageContext = {
+                buttonText: btn.text,
+                buttonTitle: btn.text,
+                buttonPayload: btn.payload,
+                buttonId: btn.payload // Meta sends payload as the button identifier
+              };
             } else if (message.type === 'image') {
               incomingPayload = '[__MEDIA_IMAGE__]';
             } else if (message.type === 'video') {
@@ -103,8 +125,13 @@ export const handleIncomingMessage = async (req, res) => {
             console.log(`Received message from ${customerPhone}: ${incomingPayload}`);
 
             // Find the channel internally based on the Meta Phone Number ID
-            // IMPORTANT: metaAccessToken is `select: false` — must explicitly select it for sending messages
-            const channel = await Channel.findOne({ activeWhatsappPhoneNumberId: phoneNumberId }).select('+metaAccessToken');
+            const cleanPhoneNumberId = String(phoneNumberId || '').trim();
+            const channel = await Channel.findOne({
+              $or: [
+                { activeWhatsappPhoneNumberId: cleanPhoneNumberId },
+                { activeWhatsappPhoneNumberId: phoneNumberId }
+              ]
+            }).select('+metaAccessToken');
             
             if (channel) {
               let profileName = 'Unknown';
@@ -184,7 +211,7 @@ export const handleIncomingMessage = async (req, res) => {
                 console.error('Error clearing pending delayed jobs:', e);
               }
 
-              enqueueWebhookPayload(customerPhone, incomingPayload, channel._id, referral, message.id, null, Boolean(contact?._isNewContact));
+              enqueueWebhookPayload(customerPhone, incomingPayload, channel._id, referral, message.id, null, Boolean(contact?._isNewContact), messageContext);
             } else {
               console.warn(`No registered channel found for Phone Number ID: ${phoneNumberId}`);
             }
@@ -192,6 +219,7 @@ export const handleIncomingMessage = async (req, res) => {
         }
       }
     }
+  }
   } catch (error) {
     console.error('Error handling webhook payload:', error);
   }

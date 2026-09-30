@@ -49,35 +49,65 @@ function safeGetSessionVariable(session, key) {
  * Supports system variables: {{system.date}}, {{system.time}}
  */
 module.exports.parseDynamicVariables = function parseDynamicVariables(text, contextData = {}) {
-  if (!text) return text;
+  if (!text || typeof text !== 'string') return text;
   
   // Inject system variables automatically
   const now = new Date();
   contextData.system = {
     date: now.toLocaleDateString(),
-    time: now.toLocaleTimeString(),
+    time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     day: now.toLocaleDateString('en-US', { weekday: 'long' })
   };
 
   return text.replace(/\{\{([\w._]+)(?:\|([^}]+))?\}\}/g, (match, path, fallback) => {
-    const keys = path.split('.');
-    let value = contextData;
-    for (const key of keys) {
-      if (value && typeof value === 'object') {
-        value = value[key];
-      } else {
-        value = undefined;
-        break;
+    const rawPath = path.trim();
+    const lowerPath = rawPath.toLowerCase();
+
+    // 1. Direct deep lookup in contextData
+    let value = deepGet(contextData, rawPath);
+    if (value === undefined) {
+      value = deepGet(contextData, lowerPath);
+    }
+
+    // 2. Contact field aliases (name, phone, email, tags)
+    if (value === undefined && contextData.contact) {
+      if (['name', 'first_name', 'customer_name', 'contact_name', 'contact.name'].includes(lowerPath)) {
+        value = contextData.contact.name;
+      } else if (['phone', 'mobile', 'phone_number', 'contact_phone', 'contact.phone'].includes(lowerPath)) {
+        value = contextData.contact.phone;
+      } else if (['email', 'contact_email', 'contact.email'].includes(lowerPath)) {
+        value = contextData.contact.email;
+      } else if (['tags', 'tag', 'contact.tags'].includes(lowerPath)) {
+        value = Array.isArray(contextData.contact.tags) ? contextData.contact.tags.join(', ') : contextData.contact.tags;
+      } else if (contextData.contact.customFields) {
+        if (contextData.contact.customFields instanceof Map) {
+          value = contextData.contact.customFields.get(rawPath) || contextData.contact.customFields.get(lowerPath);
+        } else if (Array.isArray(contextData.contact.customFields)) {
+          const found = contextData.contact.customFields.find(f => f.key === rawPath || f.key === lowerPath || f.name === rawPath || f.name === lowerPath);
+          if (found) value = found.value;
+        } else if (typeof contextData.contact.customFields === 'object') {
+          value = contextData.contact.customFields[rawPath] || contextData.contact.customFields[lowerPath];
+        }
       }
     }
-    
-    if (value !== undefined && value !== null && value !== '') {
-      return value;
+
+    // 3. System aliases
+    if (value === undefined) {
+      if (['date', 'current_date', 'today', 'system.date'].includes(lowerPath)) value = contextData.system.date;
+      else if (['time', 'current_time', 'system.time'].includes(lowerPath)) value = contextData.system.time;
+      else if (['day', 'system.day'].includes(lowerPath)) value = contextData.system.day;
+    }
+
+    // 4. Fallback or resolved value
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value);
     } else if (fallback !== undefined) {
       return fallback;
+    } else if (['name', 'contact.name', 'first_name', 'customer_name'].includes(lowerPath)) {
+      return contextData.contact?.phone ? `User` : 'there';
     }
     
-    return ''; // if no fallback and missing value, render nothing
+    return '';
   });
 }
 
@@ -179,19 +209,76 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
  * Executes an action node (e.g. Add Tag, Human Handoff)
  */
 module.exports.executeActionNode = async function executeActionNode(session, node, contextData) {
-  const { actionType, tagValue } = node.data;
+  const { actionType, tagValue, tag } = node.data;
+  const rawTag = tagValue || tag;
+  const targetPhone = contextData?.contact?.phone || session.phone;
 
-  if (actionType === 'add_tag' && tagValue) {
-    const parsedTag = parseDynamicVariables(tagValue, contextData);
-    if (parsedTag && !session.tags.includes(parsedTag)) {
-      session.tags.push(parsedTag);
+  if (actionType === 'add_tag' && rawTag) {
+    const parsedTag = parseDynamicVariables(rawTag, contextData);
+    if (parsedTag) {
+      if (!session.tags) session.tags = [];
+      if (!session.tags.includes(parsedTag)) {
+        session.tags.push(parsedTag);
+      }
+      if (targetPhone) {
+        try {
+          await Contact.updateMany(
+            { phone: targetPhone },
+            { $addToSet: { tags: parsedTag, labels: parsedTag } }
+          );
+        } catch (e) {
+          console.error('Failed to sync add_tag to contact:', e);
+        }
+      }
     }
     return 'success';
   }
 
-  if (actionType === 'remove_tag' && tagValue) {
-    const parsedTag = parseDynamicVariables(tagValue, contextData);
-    session.tags = session.tags.filter(t => t !== parsedTag);
+  if (actionType === 'remove_tag' && rawTag) {
+    const parsedTag = parseDynamicVariables(rawTag, contextData);
+    if (parsedTag) {
+      if (session.tags) {
+        session.tags = session.tags.filter(t => t !== parsedTag);
+      }
+      if (targetPhone) {
+        try {
+          await Contact.updateMany(
+            { phone: targetPhone },
+            { $pull: { tags: parsedTag, labels: parsedTag } }
+          );
+        } catch (e) {
+          console.error('Failed to sync remove_tag from contact:', e);
+        }
+      }
+    }
+    return 'success';
+  }
+
+  if (actionType === 'opt_in') {
+    if (targetPhone) {
+      try {
+        await Contact.updateMany(
+          { phone: targetPhone },
+          { $set: { optInStatus: 'OPTED_IN', isOptedOut: false } }
+        );
+      } catch (e) {
+        console.error('Failed to update opt_in on contact:', e);
+      }
+    }
+    return 'success';
+  }
+
+  if (actionType === 'opt_out') {
+    if (targetPhone) {
+      try {
+        await Contact.updateMany(
+          { phone: targetPhone },
+          { $set: { optInStatus: 'OPTED_OUT', isOptedOut: true } }
+        );
+      } catch (e) {
+        console.error('Failed to update opt_out on contact:', e);
+      }
+    }
     return 'success';
   }
 
@@ -199,6 +286,17 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
     session.status = 'HANDOFF';
     session.assignedTo = parseDynamicVariables(node.data.assignTo, contextData) || 'Unassigned Inbox';
     
+    if (targetPhone) {
+      try {
+        await Contact.updateMany(
+          { phone: targetPhone },
+          { $set: { status: 'HANDOFF', isBotPaused: true } }
+        );
+      } catch (e) {
+        console.error('Failed to update isBotPaused on handoff:', e);
+      }
+    }
+
     // Live Inbox Alert: Emit socket notification to the Tenant/Agent
     if (contextData?.contact?.tenantId) {
       try {
@@ -228,6 +326,14 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
     
     session.status = 'HANDOFF';
     session.assignedTo = selectedAgent;
+    if (targetPhone) {
+      try {
+        await Contact.updateMany(
+          { phone: targetPhone },
+          { $set: { status: 'HANDOFF', isBotPaused: true } }
+        );
+      } catch (e) {}
+    }
     return 'success';
   }
 

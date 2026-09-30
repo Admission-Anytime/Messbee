@@ -9,8 +9,14 @@ const { getIO } = require('../config/socket');
  */
 async function hasSufficientCredits(tenantId, requiredCost) {
   if (!tenantId) return false;
-  const user = await User.findById(tenantId).select('credits reservedCredits');
-  if (!user) return false;
+  // Look up user either by primary key (_id) or by tenantId field
+  const user = await User.findOne({
+    $or: [{ _id: tenantId }, { tenantId: tenantId }]
+  }).select('credits reservedCredits role');
+  if (!user) return true; // Don't block if user lookup is ambiguous
+
+  // Admin or superadmin has unlimited bypass
+  if (user.role === 'admin' || user.role === 'superadmin') return true;
 
   const currentCredits = Number(user.credits) || 0;
   const reserved = Number(user.reservedCredits) || 0;
@@ -32,7 +38,9 @@ async function deductMessageCredits({
   try {
     if (!tenantId) return { success: false, reason: 'No tenantId provided' };
 
-    const userDoc = await User.findById(tenantId).select('customPricing').lean();
+    const userDoc = await User.findOne({
+      $or: [{ _id: tenantId }, { tenantId: tenantId }]
+    }).select('customPricing').lean();
     const cost = getMessageCost(category, recipientPhone, userDoc?.customPricing);
     const catKey = String(category).toLowerCase();
 
@@ -48,8 +56,8 @@ async function deductMessageCredits({
       incObject[`messageUsage.${catKey}.costDeducted`] = cost;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      tenantId,
+    const updatedUser = await User.findOneAndUpdate(
+      { $or: [{ _id: tenantId }, { tenantId: tenantId }] },
       { $inc: incObject },
       { new: true }
     );

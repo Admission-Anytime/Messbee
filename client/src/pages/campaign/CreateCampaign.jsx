@@ -828,15 +828,75 @@ const CreateCampaign = () => {
                                                         )
                                                     )}
                                                 </p>
+
+                                                {/* Limited-Time Offer Urgency Banner */}
+                                                {(activeTemplate?.isLimited || activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')) && (
+                                                    <div className="mb-2 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1 shadow-2xs">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[10px] font-bold text-red-600">
+                                                                {activeTemplate?.components?.find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')?.limited_time_offer?.text || 'Expiring offer!'}
+                                                            </span>
+                                                            <span className="text-[8.5px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-2xs border border-red-100 flex items-center gap-1">
+                                                                ⏱ 23:59:59
+                                                            </span>
+                                                        </div>
+                                                        {activeTemplate?.components?.flatMap(c => c?.buttons || [])?.find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example && (
+                                                            <div className="flex items-center justify-between bg-white/90 px-1.5 py-0.5 rounded border border-dashed border-red-300">
+                                                                <span className="text-[8px] font-medium text-gray-500">Code:</span>
+                                                                <span className="text-[8.5px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">
+                                                                    {activeTemplate.components.flatMap(c => c?.buttons || []).find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* MPM Catalog Showcase */}
+                                                {(activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'BUTTONS' && Array.isArray(c.buttons) && c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')) || activeTemplate?.buttons?.some(b => String(b?.type || '').toUpperCase() === 'MPM')) && (
+                                                    <div className="mb-2 p-2 bg-gradient-to-br from-teal-50/90 to-emerald-50/70 rounded-xl border border-teal-200/80 shadow-2xs">
+                                                        <div className="flex items-center justify-between pb-1 mb-1 border-b border-teal-200/50">
+                                                            <div className="flex items-center gap-1">
+                                                                <span className="text-xs">🛍️</span>
+                                                                <span className="text-[9.5px] font-bold text-teal-900 uppercase">Catalog Showcase</span>
+                                                            </div>
+                                                            <span className="text-[8px] font-semibold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded-full">
+                                                                Up to 30 items
+                                                            </span>
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-1.5">
+                                                            <div className="bg-white p-1 rounded-lg border border-teal-100 flex flex-col">
+                                                                <div className="w-full h-8 bg-teal-100/50 rounded flex items-center justify-center text-teal-600 mb-1">
+                                                                    <span className="text-sm">📦</span>
+                                                                </div>
+                                                                <span className="text-[8.5px] font-bold text-gray-800 truncate">Featured Item</span>
+                                                                <span className="text-[7.5px] font-semibold text-teal-700">$29.99</span>
+                                                            </div>
+                                                            <div className="bg-white p-1 rounded-lg border border-teal-100 flex flex-col">
+                                                                <div className="w-full h-8 bg-teal-100/50 rounded flex items-center justify-center text-teal-600 mb-1">
+                                                                    <span className="text-sm">✨</span>
+                                                                </div>
+                                                                <span className="text-[8.5px] font-bold text-gray-800 truncate">Top Pick</span>
+                                                                <span className="text-[7.5px] font-semibold text-teal-700">$49.99</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 <div className="flex justify-end">
                                                     <span className="text-[9px] text-gray-400">12:45 PM</span>
                                                 </div>
                                                 {/* Action Buttons */}
-                                                {activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
+                                                {activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'BUTTONS' && Array.isArray(c.buttons) && c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')) ? (
+                                                    <div className="mt-3 pt-2 border-t border-gray-100">
+                                                        <button className="w-full py-2 text-center text-[#00a884] font-bold text-[11px] border border-teal-200 rounded-lg bg-teal-50/30 flex justify-center items-center gap-1.5">
+                                                            📋 View items
+                                                        </button>
+                                                    </div>
+                                                ) : activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
                                                     <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
                                                         {activeTemplate.buttons.map(btn => (
                                                             <button key={btn.id} className="w-full py-2 text-center text-[#00a884] font-bold text-[11px] border border-gray-100 rounded bg-gray-50/50 flex justify-center items-center gap-1.5">
-                                                                {btn.type.includes('Visit') ? '🌐' : btn.type.includes('Call') ? '📞' : '↩️'} {btn.text}
+                                                                {btn.type?.includes('COPY') || btn.type?.includes('copy') ? '📋' : btn.type?.includes('Visit') ? '🌐' : btn.type?.includes('Call') ? '📞' : '↩️'} {btn.text || (btn.type?.includes('COPY') ? 'Copy code' : 'Action Button')}
                                                             </button>
                                                         ))}
                                                     </div>
