@@ -32,13 +32,21 @@ const customerSessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['ACTIVE', 'PAUSED', 'COMPLETED', 'FAILED', 'HANDOFF', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'CANCELLED'],
+    enum: [
+      'ACTIVE', 'PAUSED', 'COMPLETED', 'FAILED', 'HANDOFF', 
+      'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'CANCELLED',
+      'active', 'paused', 'completed', 'failed', 'handoff', 'cancelled'
+    ],
     default: 'ACTIVE',
     index: true
   },
   expectedValidation: {
     type: String,
-    enum: ['text', 'email', 'phone', 'mobile', 'number', 'date', 'boolean', 'url', 'location', 'photo', 'audio', 'pdf', 'address']
+    enum: [
+      'text', 'email', 'phone', 'mobile', 'number', 'date', 'boolean', 'url', 
+      'location', 'photo', 'image', 'audio', 'voice', 'pdf', 'document', 'video', 
+      'address', 'any', 'string', 'custom', 'regex'
+    ]
   },
   validationRetries: {
     type: Number,

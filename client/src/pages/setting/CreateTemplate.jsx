@@ -3930,12 +3930,23 @@ const MobilePreview = ({
             {/* Header Media — CATALOG uses auto product thumbnail, others use uploaded media */}
             {activeIsCatalog ? (
               <div className="w-full relative bg-gradient-to-br from-emerald-50 to-teal-100 flex flex-col items-center justify-center shrink-0 border-b border-emerald-100 overflow-hidden py-3">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl">🛍️</span>
-                  <span className="text-lg">📦</span>
-                  <span className="text-xl">👟</span>
-                </div>
-                <p className="text-[8px] font-semibold text-emerald-700 bg-white/80 px-2 py-0.5 rounded-full border border-emerald-200">Product Thumbnail (Auto by Meta)</p>
+                {catalogProducts && catalogProducts.length > 0 && catalogProducts[0].productImage ? (
+                  <>
+                    <img src={catalogProducts[0].productImage} className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-multiply" />
+                    <div className="relative z-10 flex flex-col items-center">
+                      <p className="text-[8px] font-semibold text-emerald-700 bg-white/90 backdrop-blur-sm px-2 py-0.5 rounded-full border border-emerald-200 shadow-sm">Product Thumbnail (Auto by Meta)</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xl">🛍️</span>
+                      <span className="text-lg">📦</span>
+                      <span className="text-xl">👟</span>
+                    </div>
+                    <p className="text-[8px] font-semibold text-emerald-700 bg-white/80 px-2 py-0.5 rounded-full border border-emerald-200">Product Thumbnail (Auto by Meta)</p>
+                  </>
+                )}
               </div>
             ) : headerType === 'Text' ? (
               <div className="px-3.5 py-2.5 bg-gradient-to-r from-gray-50 to-slate-100 border-b border-gray-100">
@@ -4043,11 +4054,11 @@ const MobilePreview = ({
 
                <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
                
-               {/* MPM Product Showcase Widget (Dynamic) */}
-               {activeIsMpm && (
+               {/* MPM/Catalog Product Showcase Widget (Dynamic) */}
+               {(activeIsMpm || activeIsCatalog) && (
                   <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
                     <div className="flex items-center justify-between text-[8px] font-bold text-gray-500 uppercase tracking-wider mb-1.5 border-b border-gray-200 pb-1">
-                      <span>Catalog Showcase</span>
+                      <span>{activeIsCatalog ? 'Opens on Click:' : 'Catalog Showcase'}</span>
                       <span className="text-teal-600 bg-teal-50 px-1.5 py-0.5 rounded border border-teal-200 font-mono">
                         {catalogProducts && catalogProducts.length > 0 ? `${catalogProducts.length} Items` : '30 Items Max'}
                       </span>

@@ -7,7 +7,8 @@ export default function MessageNode({ id, data, selected }) {
   const isInteractive = data.messageType === 'interactive';
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
-  const isValid = !!data.text;
+  const hasValidButtons = !isInteractive || (Array.isArray(data.buttons) && data.buttons.length > 0 && data.buttons.every(b => b.title && b.title.trim()));
+  const isValid = !!data.text && hasValidButtons;
   const borderColor = isValid ? '#10b981' : '#ef4444';
 
   return (
@@ -84,7 +85,12 @@ export default function MessageNode({ id, data, selected }) {
                       />
                     </div>
                   ))
-                ) : null}
+                ) : (
+                  <div style={{ padding: '8px 10px', background: 'rgba(239, 68, 68, 0.15)', border: '1px dashed #ef4444', borderRadius: '6px', fontSize: '11px', color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <AlertTriangle size={13} color="#ef4444" style={{ flexShrink: 0 }} />
+                    <span>No buttons added. Click to configure.</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

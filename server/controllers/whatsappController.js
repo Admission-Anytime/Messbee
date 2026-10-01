@@ -1058,6 +1058,7 @@ exports.handleWebhook = async (req, res) => {
     const webhookData = req.body;
     
     // Acknowledge immediately so WhatsApp does not retry while we process.
+    console.log('\n📥 [Meta Webhook Inbound] Received event:', JSON.stringify(webhookData?.entry?.[0]?.changes?.[0]?.value?.messages?.[0] || webhookData?.entry?.[0]?.changes?.[0]?.field || 'other'));
     res.sendStatus(200);
 
     setImmediate(async () => {
@@ -1089,7 +1090,7 @@ exports.handleWebhook = async (req, res) => {
           }
         }
       } catch (backgroundError) {
-        // Internal server error — not visible to users
+        console.error('❌ Webhook background processing error:', backgroundError);
       }
     });
   } catch (error) {
@@ -1139,7 +1140,28 @@ async function handleIncomingMessage(data) {
     }
 
     if (!resolvedTenantId) {
-      return; // Unknown channel — silently drop
+      console.warn(`⚠️ [Webhook] Could not resolve channel for phoneNumberId: "${phoneNumberId}". Attempting fallback to default active channel...`);
+      const Channel = require('../models/Channel');
+      const fallbackChannel = await Channel.findOne({}).sort({ updatedAt: -1 });
+      if (fallbackChannel) {
+        resolvedChannelId = fallbackChannel._id.toString();
+        resolvedTenantId = fallbackChannel.tenantId;
+        console.log(`[Webhook] Using fallback channel: ${fallbackChannel.name} (${fallbackChannel._id})`);
+      }
+    }
+
+    if (!resolvedTenantId) {
+      console.error(`❌ [Webhook] Dropping message: No valid channel or tenant found for phoneNumberId "${phoneNumberId}".`);
+      return;
+    }
+
+    // Deduplication check: ignore duplicate webhooks from Meta
+    if (messageId) {
+      const existingMsg = await Message.findOne({ whatsappMessageId: messageId });
+      if (existingMsg) {
+        console.log(`[Webhook] Duplicate message ${messageId} ignored (already processed).`);
+        return;
+      }
     }
 
     // Normalize the phone number
@@ -1337,10 +1359,25 @@ async function handleIncomingMessage(data) {
         lastMsgText = `🔘 ${messageText || 'Interactive reply'}`;
         break;
 
+      case 'reaction':
+        messageText = message?.reaction?.emoji || message?.text || '👍';
+        lastMsgText = `Reacted ${messageText}`;
+        break;
+
       default:
-        messageText = '';
-        lastMsgText = 'Unsupported message type';
+        messageText = message?.text || '';
+        lastMsgText = messageText || 'Unsupported message type';
     }
+
+    // Sanitize messageType to prevent Mongoose enum crashes on unexpected Meta types
+    const allowedMessageTypes = [
+      'text', 'image', 'video', 'document', 'audio', 'voice',
+      'interactive', 'button', 'button_reply', 'quick_reply', 'list_reply',
+      'sticker', 'template', 'location', 'contacts', 'contact',
+      'reaction', 'order', 'catalog', 'poll', 'poll_update',
+      'system', 'ephemeral', 'referral', 'unsupported', 'unknown'
+    ];
+    const safeMessageType = allowedMessageTypes.includes(messageType) ? messageType : 'unknown';
 
     // Create message record
     const newMessage = await Message.create({
@@ -1348,13 +1385,13 @@ async function handleIncomingMessage(data) {
       user: chat.user, // Associate message with chat's owner
       text: messageText,
       sender: 'them',
-      time: new Date(parseInt(timestamp) * 1000).toLocaleTimeString([], { 
+      time: (!isNaN(parseInt(timestamp)) ? new Date(parseInt(timestamp) * 1000) : new Date()).toLocaleTimeString([], { 
         hour: '2-digit', 
         minute: '2-digit',
         hour12: true
       }).toLowerCase(),
       whatsappMessageId: messageId,
-      messageType: messageType,
+      messageType: safeMessageType,
       mediaUrl: mediaUrl,
       mediaId: mediaId,
       mediaType: mediaTypeStr,
@@ -1370,6 +1407,28 @@ async function handleIncomingMessage(data) {
     chat.unread = (chat.unread || 0) + 1;
     chat.lastInboundAt = new Date(parseInt(timestamp) * 1000);
     await chat.save();
+
+    // Update Contact interaction timestamp so 24h compliance window is refreshed for automations
+    try {
+      await Contact.updateMany(
+        {
+          $or: [
+            { phone: normalizedFrom },
+            { whatsapp: normalizedFrom },
+            { phone: from },
+            { whatsapp: from }
+          ]
+        },
+        {
+          $set: {
+            lastInteractionAt: new Date(parseInt(timestamp) * 1000 || Date.now()),
+            lastMessageAt: new Date(parseInt(timestamp) * 1000 || Date.now())
+          }
+        }
+      );
+    } catch (contactErr) {
+      console.warn('Failed to update contact interaction timestamp:', contactErr.message);
+    }
 
     // Create notification for incoming message if chat has an owner
     if (chat.user) {
@@ -1427,6 +1486,9 @@ async function handleIncomingMessage(data) {
         messageId: newMessage._id,
         messageType: messageType,
         mediaUrl: mediaUrl,
+        mediaId: mediaId,
+        fileName: fileName,
+        location: location,
         isNewContact: isNewContact,
         buttonText: message?.buttonText || message?.buttonTitle || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
         buttonPayload: message?.buttonPayload || message?.buttonId || (messageType === 'button' ? (messageText || lastMsgText) : undefined),

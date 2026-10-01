@@ -45,3 +45,15 @@ export const updateMetaSettings = async (settingsData) => {
   const response = await axios.put(`${import.meta.env.VITE_API_URL}/tenant-settings`, settingsData, { withCredentials: true });
   return response.data;
 };
+
+export const uploadMedia = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await axios.post(`${import.meta.env.VITE_API_URL}/media`, formData, {
+    withCredentials: true,
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};

@@ -32,7 +32,7 @@ const automationSchema = new mongoose.Schema({
     default: {}
   },
   triggers: [{
-    type: { type: String, enum: ['KEYWORD_MATCH', 'TAG_ADDED', 'FIELD_UPDATED', 'NEW_CONTACT', 'API_EVENT'], required: true },
+    type: { type: String, required: false },
     value: { type: mongoose.Schema.Types.Mixed } // e.g., 'Pricing', or 'VIP', or { field: 'ltv' }
   }],
   // React flow 'nodes' array

@@ -108,6 +108,10 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
 
     if (stepItem.id === 'interactive_msg' || stepItem.id === 'button_msg' || stepItem.id === 'quick_reply') {
       messageType = 'interactive';
+      dataPayload = {
+        text: 'Please select an option:',
+        buttons: [{ id: `btn_${Date.now()}`, title: 'Option 1', type: 'reply' }]
+      };
     } else if (stepItem.id === 'menu_msg' || stepItem.id === 'list_msg') {
       type = 'menuNode';
       messageType = 'menu';

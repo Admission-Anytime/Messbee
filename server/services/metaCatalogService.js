@@ -1,6 +1,7 @@
 const axios = require('axios');
 const TenantSettings = require('../models/TenantSettings');
 const Product = require('../models/Product');
+const Channel = require('../models/Channel');
 
 /**
  * Syncs a single product to Meta Commerce Catalog via Graph API Batch request.
@@ -11,12 +12,30 @@ const Product = require('../models/Product');
 exports.syncProductToMeta = async (product, tenantId, method = 'CREATE') => {
   try {
     const settings = await TenantSettings.findOne({ tenantId });
-    if (!settings || !settings.metaCommerce || !settings.metaCommerce.catalogId || !settings.metaCommerce.systemUserToken) {
-      console.log(`[MetaCatalogSync] Missing catalog credentials for tenant ${tenantId}. Skipping sync.`);
+    
+    // Catalog ID is strictly required
+    const catalogId = settings?.metaCommerce?.catalogId;
+    if (!catalogId) {
+      console.log(`[MetaCatalogSync] Missing catalog ID for tenant ${tenantId}. Skipping sync.`);
       return;
     }
 
-    const { catalogId, systemUserToken } = settings.metaCommerce;
+    // Determine the access token to use: 
+    // 1. Try to get it from settings (if manually provided)
+    // 2. Fallback to the Channel's metaAccessToken (obtained via Embedded Signup)
+    let systemUserToken = settings?.metaCommerce?.systemUserToken;
+    
+    if (!systemUserToken) {
+      const channel = await Channel.findOne({ tenantId });
+      if (channel && channel.metaAccessToken) {
+        systemUserToken = channel.metaAccessToken;
+      }
+    }
+
+    if (!systemUserToken) {
+      console.log(`[MetaCatalogSync] Missing Meta access token for tenant ${tenantId}. Ensure embedded signup is completed. Skipping sync.`);
+      return;
+    }
     
     // Meta requires retailer_id, name, description, brand, price, currency, url, image_url
     const productData = {
