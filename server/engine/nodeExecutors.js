@@ -127,11 +127,36 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
   }
   
   let result = false;
+  const strVal = value !== undefined && value !== null ? String(value).trim() : '';
+  const userStr = userValue !== undefined && userValue !== null ? String(userValue).trim() : '';
+
   switch (operator) {
-    case 'equals': result = userValue == value; break;
-    case 'contains': result = userValue?.includes(value); break;
-    case 'greater_than': result = Number(userValue) > Number(value); break;
-    default: result = false;
+    case 'equals':
+      result = (userStr.toLowerCase() === strVal.toLowerCase()) || (userValue == value);
+      break;
+    case 'not_equals':
+    case 'does_not_equal':
+      result = (userStr.toLowerCase() !== strVal.toLowerCase()) && (userValue != value);
+      break;
+    case 'contains':
+      result = userStr.toLowerCase().includes(strVal.toLowerCase());
+      break;
+    case 'greater_than':
+      result = !isNaN(Number(userValue)) && !isNaN(Number(value)) && (Number(userValue) > Number(value));
+      break;
+    case 'less_than':
+      result = !isNaN(Number(userValue)) && !isNaN(Number(value)) && (Number(userValue) < Number(value));
+      break;
+    case 'not_empty':
+    case 'is_not_empty':
+    case 'exists':
+      result = userValue !== undefined && userValue !== null && userStr !== '';
+      break;
+    case 'is_empty':
+      result = userValue === undefined || userValue === null || userStr === '';
+      break;
+    default:
+      result = userValue == value;
   }
 
   return result ? 'true_path' : 'false_path';

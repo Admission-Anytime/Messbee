@@ -1066,6 +1066,26 @@ class WhatsAppService {
           buttonText: btn?.text
         };
       }
+      case 'reaction': {
+        const reaction = message.reaction;
+        return {
+          text: reaction?.emoji || '👍',
+          reaction: reaction
+        };
+      }
+      case 'order': {
+        const order = message.order;
+        return {
+          text: `Order from catalog (${order?.catalog_id || ''})`,
+          order: order
+        };
+      }
+      case 'system': {
+        return {
+          text: message.system?.body || 'System message',
+          system: message.system
+        };
+      }
       default:
         return {
           text: message[message.type]?.body || message[message.type]?.text || 'Unsupported message type'

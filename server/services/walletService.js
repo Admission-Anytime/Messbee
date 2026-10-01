@@ -15,8 +15,9 @@ async function hasSufficientCredits(tenantId, requiredCost) {
   }).select('credits reservedCredits role');
   if (!user) return true; // Don't block if user lookup is ambiguous
 
-  // Admin or superadmin has unlimited bypass
-  if (user.role === 'admin' || user.role === 'superadmin') return true;
+  // Admin or superadmin has unlimited bypass (case-insensitive)
+  const roleUpper = String(user.role || '').toUpperCase();
+  if (roleUpper === 'ADMIN' || roleUpper === 'SUPERADMIN') return true;
 
   const currentCredits = Number(user.credits) || 0;
   const reserved = Number(user.reservedCredits) || 0;

@@ -173,10 +173,25 @@ export default function AutomationBuilder() {
         setInvalidNodeId(node.id);
         return;
       }
-      if (node.type === 'messageNode' && !node.data?.text) {
-        toast.error(`Message node is missing text content`);
-        setInvalidNodeId(node.id);
-        return;
+      if (node.type === 'messageNode') {
+        if (!node.data?.text || !node.data.text.trim()) {
+          toast.error(`Message node "${node.data?.label || node.id}" is missing text content`);
+          setInvalidNodeId(node.id);
+          return;
+        }
+        if (node.data?.messageType === 'interactive') {
+          const btns = node.data?.buttons || [];
+          if (btns.length === 0) {
+            toast.error(`Interactive message node "${node.data?.label || node.id}" must have at least one button`);
+            setInvalidNodeId(node.id);
+            return;
+          }
+          if (btns.some(b => !b.title || !b.title.trim())) {
+            toast.error(`All buttons in interactive message node "${node.data?.label || node.id}" must have a title`);
+            setInvalidNodeId(node.id);
+            return;
+          }
+        }
       }
       if (node.type === 'inputNode' && (!node.data?.text && !node.data?.question)) {
         toast.error(`"Ask Question" node is missing question text`);

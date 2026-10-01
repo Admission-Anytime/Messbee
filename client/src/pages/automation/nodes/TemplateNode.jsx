@@ -196,8 +196,9 @@ export default function TemplateNode({ id, data, selected }) {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {data.buttons.map((btn, idx) => {
-                  const isUrl = btn.type === 'url';
-                  const isPhone = btn.type === 'phone_number' || btn.type === 'phone';
+                  const bType = String(btn.type || '').toLowerCase();
+                  const isUrl = bType === 'url';
+                  const isPhone = bType === 'phone_number' || bType === 'phone';
                   const isQuickReply = !isUrl && !isPhone;
                   const buttonHandleId = getButtonHandleId(btn, idx);
                   const connected = isButtonConnected(btn, idx);

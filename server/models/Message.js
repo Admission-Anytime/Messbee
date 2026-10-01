@@ -21,17 +21,23 @@ const messageSchema = new mongoose.Schema({
   },
   direction: {
     type: String,
-    enum: ['INBOUND', 'OUTBOUND'],
+    enum: ['INBOUND', 'OUTBOUND', 'inbound', 'outbound'],
     required: false
   },
   senderType: {
     type: String,
-    enum: ['CUSTOMER', 'BOT', 'HUMAN_AGENT'],
+    enum: ['CUSTOMER', 'BOT', 'HUMAN_AGENT', 'customer', 'bot', 'agent', 'human_agent', 'system', 'admin'],
     required: false
   },
   messageType: {
     type: String,
-    enum: ['text', 'image', 'video', 'document', 'audio', 'interactive', 'template', 'location', 'contacts', 'reaction', 'unknown'],
+    enum: [
+      'text', 'image', 'video', 'document', 'audio', 'voice',
+      'interactive', 'button', 'button_reply', 'quick_reply', 'list_reply',
+      'sticker', 'template', 'location', 'contacts', 'contact',
+      'reaction', 'order', 'catalog', 'poll', 'poll_update',
+      'system', 'ephemeral', 'referral', 'unsupported', 'unknown'
+    ],
     default: 'text'
   },
   content: {
@@ -58,7 +64,7 @@ const messageSchema = new mongoose.Schema({
   deletedAt: { type: Date },
   status: {
     type: String,
-    enum: ['pending', 'sent', 'delivered', 'read', 'failed', 'received'],
+    enum: ['pending', 'sent', 'delivered', 'read', 'failed', 'received', 'deleted', 'warning', 'processing', 'queued', 'unknown'],
     default: 'sent'
   },
   statusTimestamp: { type: Date },

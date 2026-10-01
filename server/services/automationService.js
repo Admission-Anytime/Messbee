@@ -50,6 +50,10 @@ exports.processAutomationTrigger = async (triggerType, triggerData, channelId) =
         triggerData.isNewContact,
         {
           messageType: triggerData.messageType,
+          mediaUrl: triggerData.mediaUrl,
+          mediaId: triggerData.mediaId,
+          fileName: triggerData.fileName,
+          location: triggerData.location,
           buttonText: triggerData.buttonText,
           buttonPayload: triggerData.buttonPayload,
           buttonTitle: triggerData.buttonTitle,
@@ -100,7 +104,8 @@ exports.testAutomation = async (automationId, testData) => {
     }
 
     if (testData.phone) {
-      await startFlowManually(testData.phone, automation.user, automationId, testData);
+      const channelToUse = automation.channelId || automation.tenantId || automation.user;
+      await startFlowManually(testData.phone, channelToUse, automationId, testData);
     }
 
     return {

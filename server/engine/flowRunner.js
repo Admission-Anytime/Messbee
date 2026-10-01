@@ -144,17 +144,43 @@ function syncContextVariables(session, contextData) {
 /**
  * Evaluates whether incoming text/media matches an automation trigger node
  */
-function isFlowTriggerMatch(tNode, payloadText) {
+function isFlowTriggerMatch(tNode, payloadText, messageContext = {}, isNewContact = false) {
   if (!tNode || !tNode.data) return false;
-  const matchType = tNode.data.triggerType || 'exact_match';
+  let matchType = String(tNode.data.matchType || tNode.data.triggerType || 'exact_match').toLowerCase().trim();
+  if (matchType === 'keyword') {
+    matchType = (tNode.data.matchType && tNode.data.matchType !== 'keyword') ? String(tNode.data.matchType).toLowerCase() : 'contains';
+  }
   const kw = (tNode.data.keyword || '').toLowerCase().trim();
   const lowerPayload = (payloadText || '').toLowerCase().trim();
   const cleanPayload = lowerPayload.replace(/[!.,?]+$/g, '').trim();
-  
-  if (['exact_match', 'qr_link', 'whatsapp_ad', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
+  const msgType = String(messageContext?.messageType || '').toLowerCase();
+
+  // Media triggers (match both payload placeholders and real messageType)
+  const isImage = msgType === 'image' || lowerPayload === '[__media_image__]';
+  const isVideo = msgType === 'video' || lowerPayload === '[__media_video__]';
+  const isDoc = msgType === 'document' || lowerPayload === '[__media_document__]';
+  const isAudio = ['audio', 'voice'].includes(msgType) || lowerPayload === '[__media_audio__]';
+  const isLocation = msgType === 'location' || lowerPayload === '[__media_location__]';
+  const isContact = ['contacts', 'contact'].includes(msgType) || lowerPayload === '[__media_contact__]';
+  const isReaction = msgType === 'reaction' || lowerPayload === '[__reaction__]';
+  const isOrder = msgType === 'order' || lowerPayload === '[__order__]';
+
+  if (matchType === 'image_received') return isImage;
+  if (matchType === 'video_received') return isVideo;
+  if (matchType === 'document_received') return isDoc;
+  if (matchType === 'voice_received') return isAudio;
+  if (matchType === 'location_received') return isLocation;
+  if (matchType === 'contact_shared') return isContact;
+  if (matchType === 'reaction') return isReaction;
+  if (['media_any', 'media_received'].includes(matchType)) return isImage || isVideo || isDoc || isAudio;
+  if (['order_created', 'order'].includes(matchType)) return isOrder;
+  if (['new_subscriber', 'new_contact'].includes(matchType)) return !!isNewContact;
+
+  // Keyword-based matching
+  if (['exact_match', 'exact', 'qr_link', 'whatsapp_ad', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     return keywords.includes(lowerPayload) || (cleanPayload && keywords.includes(cleanPayload));
-  } else if (matchType === 'contains' && kw !== '') {
+  } else if (['contains', 'contain', 'includes'].includes(matchType) && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     return keywords.some(k => lowerPayload.includes(k) || (cleanPayload && cleanPayload.includes(k)));
   } else if (matchType === 'starts_with' && kw !== '') {
@@ -163,15 +189,17 @@ function isFlowTriggerMatch(tNode, payloadText) {
   } else if (matchType === 'ends_with' && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     return keywords.some(k => lowerPayload.endsWith(k) || (cleanPayload && cleanPayload.endsWith(k)));
-  } else if (matchType === 'any_message' && lowerPayload && !lowerPayload.startsWith('[__media_')) return true;
-  else if (matchType === 'image_received' && lowerPayload === '[__media_image__]') return true;
-  else if (matchType === 'video_received' && lowerPayload === '[__media_video__]') return true;
-  else if (matchType === 'document_received' && lowerPayload === '[__media_document__]') return true;
-  else if (matchType === 'voice_received' && lowerPayload === '[__media_audio__]') return true;
-  else if (matchType === 'location_received' && lowerPayload === '[__media_location__]') return true;
-  else if (matchType === 'contact_shared' && lowerPayload === '[__media_contact__]') return true;
-  else if (matchType === 'reaction' && lowerPayload === '[__reaction__]') return true;
-  else if (['media_any', 'media_received'].includes(matchType) && ['[__media_image__]', '[__media_video__]', '[__media_document__]', '[__media_audio__]'].includes(lowerPayload)) return true;
+  } else if (matchType === 'any_message') {
+    return lowerPayload !== '' || ['text', 'image', 'video', 'document', 'audio', 'voice', 'location', 'contacts', 'button', 'interactive'].includes(msgType);
+  }
+  
+  // Safe keyword fallback: if a keyword is provided, match if payload contains it
+  if (kw !== '') {
+    const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+    if (keywords.some(k => lowerPayload.includes(k) || (cleanPayload && cleanPayload.includes(k)))) {
+      return true;
+    }
+  }
   return false;
 }
 
@@ -248,11 +276,31 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       logger.error('Error checking delivery rules:', e.message);
     }
 
+    const cleanToPhone = toPhone.toString().replace(/\D/g, '');
+    if (payload && payload.to) {
+      payload.to = payload.to.toString().replace(/\D/g, '');
+    }
+
     // 2. 24-Hour Rule Compliance (Meta blocks non-templates after 24h)
-    if (payload.type !== 'template' && contact && contact.lastInteractionAt) {
+    if (payload.type !== 'template') {
       const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-      const timeSinceInteraction = Date.now() - new Date(contact.lastInteractionAt).getTime();
-      if (timeSinceInteraction > TWENTY_FOUR_HOURS) {
+      let mostRecentInteraction = contact?.lastInteractionAt ? new Date(contact.lastInteractionAt).getTime() : 0;
+
+      // If contact interaction is missing or old, check if there was a recent inbound message on the chat
+      if (!mostRecentInteraction || Date.now() - mostRecentInteraction > TWENTY_FOUR_HOURS) {
+        try {
+          const { default: Chat } = await import('../models/Chat.js');
+          const recentChat = await Chat.findOne({
+            $or: [{ phone: toPhone }, { whatsappId: toPhone }, { phone: cleanToPhone }, { whatsappId: cleanToPhone }]
+          }).select('lastInboundAt').lean();
+          if (recentChat?.lastInboundAt) {
+            mostRecentInteraction = Math.max(mostRecentInteraction, new Date(recentChat.lastInboundAt).getTime());
+          }
+        } catch (_) {}
+      }
+
+      // Only block if we have a confirmed past interaction and it is truly > 24 hours ago
+      if (mostRecentInteraction > 0 && (Date.now() - mostRecentInteraction > TWENTY_FOUR_HOURS)) {
         logger.warn(`[Compliance] Blocked free-form message to ${toPhone}. Last interaction > 24h ago.`);
         return null;
       }
@@ -279,13 +327,14 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
       metaMessageId = `sim_${Date.now()}`;
     } else {
       // 💳 Pre-flight WCC Wallet Balance Check for Automation
+      let walletService = null;
+      let autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
       try {
-        const walletService = (await import('../services/walletService.js')).default || require('../services/walletService.js');
+        walletService = (await import('../services/walletService.js')).default || require('../services/walletService.js');
         const pricingConfig = (await import('../config/pricingConfig.js')).default || require('../config/pricingConfig.js');
         const { getMessageCost } = pricingConfig;
         
         // Determine category (Templates may specify or default to UTILITY for automated notifications)
-        const autoCategory = payload.type === 'template' ? 'UTILITY' : 'SERVICE';
         const User = (await import('../models/User.js')).default || require('../models/User.js');
         const userPricingDoc = await User.findOne({
           $or: [{ _id: channel.tenantId }, { tenantId: channel.tenantId }]
@@ -333,24 +382,32 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
           throw tmplErr;
         }
       } else {
+        logger.log(`\n📤 [WhatsApp API] Sending ${payload.type || 'message'} to: ${toPhone}`);
         const response = await axios.post(url, payload, {
           headers: {
             'Authorization': `Bearer ${channel.metaAccessToken}`,
             'Content-Type': 'application/json'
           }
         });
-        // Log the outbound message inside Inbox/Contact
         metaMessageId = response.data?.messages?.[0]?.id || null;
+        logger.log(`✅ [WhatsApp API] Send Success! Message ID: ${metaMessageId}\n`);
       }
 
       // Deduct WCC credits for successful automated message
-      await walletService.deductMessageCredits({
-        tenantId: channel.tenantId,
-        category: autoCategory,
-        recipientPhone: toPhone
-      });
+      if (walletService) {
+        try {
+          await walletService.deductMessageCredits({
+            tenantId: channel.tenantId,
+            category: autoCategory,
+            recipientPhone: toPhone
+          });
+        } catch (deductErr) {
+          logger.warn('[Automation] Deduct credits warning:', deductErr.message);
+        }
+      }
     }
 
+    // 1. Log to Contact message logs if contact exists
     const logContact = await Contact.findOne({ phone: toPhone, channelId: channel._id });
     if (logContact) {
       let content = payload.type === 'text' ? payload.text.body : JSON.stringify(payload[payload.type] || payload);
@@ -365,6 +422,99 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
         metaMessageId,
         status: 'sent'
       });
+    }
+
+    // 2. Also log to Chat and Message collection so it appears live in the Chat inbox!
+    try {
+      const { default: Chat } = await import('../models/Chat.js');
+      const { default: Message } = await import('../models/Message.js');
+      const { normalizePhoneNumber } = await import('../utils/phoneHelper.js');
+      const normalizedTo = normalizePhoneNumber ? normalizePhoneNumber(toPhone) : toPhone.replace(/\D/g, '');
+
+      let chat = await Chat.findOne({
+        ...(channel.tenantId ? { user: channel.tenantId } : {}),
+        $or: [
+          { phone: normalizedTo },
+          { whatsappId: normalizedTo },
+          { phone: toPhone },
+          { whatsappId: toPhone }
+        ]
+      });
+
+      if (!chat) {
+        chat = await Chat.findOne({
+          $or: [
+            { phone: normalizedTo },
+            { whatsappId: normalizedTo },
+            { phone: toPhone },
+            { whatsappId: toPhone }
+          ]
+        });
+      }
+
+      if (!chat && channel.tenantId) {
+        try {
+          chat = await Chat.create({
+            phone: normalizedTo,
+            whatsappId: normalizedTo,
+            name: toPhone,
+            user: channel.tenantId,
+            unread: 0,
+            status: 'active'
+          });
+        } catch (_) {}
+      }
+
+      if (chat) {
+        let outboundText = '';
+        if (payload.type === 'text') {
+          outboundText = payload.text?.body || '';
+        } else if (payload.type === 'interactive') {
+          const bodyText = payload.interactive?.body?.text || '';
+          const buttonsText = (payload.interactive?.action?.buttons || [])
+            .map(b => b.reply?.title)
+            .filter(Boolean)
+            .join(' | ');
+          outboundText = buttonsText ? `${bodyText}\n[Buttons: ${buttonsText}]` : bodyText;
+        } else if (payload.type === 'template') {
+          outboundText = payload._sim_template_text || `Template: ${payload.template?.name}`;
+        } else {
+          outboundText = payload[payload.type]?.caption || `[${payload.type}]`;
+        }
+
+        const msgTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+        const savedOutbound = await Message.create({
+          chatId: chat._id,
+          user: chat.user || channel.tenantId,
+          text: outboundText,
+          sender: 'me',
+          time: msgTime,
+          whatsappMessageId: metaMessageId,
+          messageType: payload.type === 'interactive' ? 'interactive' : (payload.type === 'template' ? 'template' : 'text'),
+          status: 'sent',
+          metadata: payload
+        });
+
+        chat.lastMsg = outboundText || chat.lastMsg;
+        chat.lastMsgTime = msgTime;
+        chat.lastActivity = new Date();
+        await chat.save();
+
+        try {
+          const io = getIO();
+          if (io) {
+            const tenantRoom = `tenant_${chat.user?.toString() || channel.tenantId?.toString()}`;
+            io.to(chat._id.toString()).to(tenantRoom).emit('receive_message', {
+              chatId: chat._id,
+              message: savedOutbound,
+              chat: chat
+            });
+            io.to(tenantRoom).emit('chat_updated', chat);
+          }
+        } catch (sErr) {}
+      }
+    } catch (chatLogErr) {
+      logger.warn('[FlowRunner] Outbound chat logging warning:', chatLogErr.message);
     }
 
   } catch (error) {
@@ -398,13 +548,19 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       type: 'button',
       body: { text: parsedText || 'Select an option' },
       action: {
-        buttons: btns.slice(0, 3).map(btn => ({
-          type: 'reply',
-          reply: { 
-            id: parseDynamicVariables(btn.id, contextData) || btn.id || 'btn', 
-            title: parseDynamicVariables(btn.title || btn.text, contextData) || 'Button'
-          }
-        }))
+        buttons: btns.slice(0, 3).map((btn, idx) => {
+          const rawId = parseDynamicVariables(btn.id, contextData) ?? btn.id;
+          const btnId = (rawId !== undefined && rawId !== null && String(rawId).trim() !== '') ? String(rawId) : `btn_${idx}`;
+          const rawTitle = parseDynamicVariables(btn.title || btn.text, contextData) || btn.title || btn.text || `Option ${idx + 1}`;
+          const btnTitle = String(rawTitle).trim().substring(0, 20);
+          return {
+            type: 'reply',
+            reply: { 
+              id: btnId, 
+              title: btnTitle
+            }
+          };
+        })
       }
     };
 
@@ -449,13 +605,13 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         body: { text: parsedText || 'Please select an option' },
         footer: nodeData.footer ? { text: parseDynamicVariables(nodeData.footer, contextData) } : undefined,
         action: {
-          button: parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Menu',
+          button: (parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Menu').substring(0, 20),
           sections: validSections.map(sec => ({
-            title: parseDynamicVariables(sec.title, contextData) || 'Options',
-            rows: (sec.rows || []).slice(0, 10).map(row => ({
-              id: parseDynamicVariables(row.postbackId, contextData) || row.id || `row_${Date.now()}`,
-              title: parseDynamicVariables(row.title, contextData) || 'Option',
-              description: parseDynamicVariables(row.description, contextData) || undefined
+            title: (parseDynamicVariables(sec.title, contextData) || 'Options').substring(0, 24),
+            rows: (sec.rows || []).slice(0, 10).map((row, rIdx) => ({
+              id: (parseDynamicVariables(row.postbackId, contextData) || row.id || `row_${rIdx}`).substring(0, 200),
+              title: (parseDynamicVariables(row.title, contextData) || `Option ${rIdx + 1}`).substring(0, 24),
+              description: row.description ? (parseDynamicVariables(row.description, contextData) || '').substring(0, 72) : undefined
             }))
           }))
         }
@@ -801,17 +957,16 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  */
 export async function processSpecificNode(customerPhone, channelId, startNodeId) {
   try {
+    const phoneVariants = [
+      customerPhone,
+      String(customerPhone).replace(/\D/g, ''),
+      '+' + String(customerPhone).replace(/\D/g, '')
+    ].filter(Boolean);
+
     let session = await CustomerSession.findOne({ 
-      phone: customerPhone, 
-      channelId, 
+      phone: { $in: phoneVariants }, 
       status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
-    });
-    if (!session) {
-      session = await CustomerSession.findOne({ 
-        phone: customerPhone, 
-        status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
-      }).sort({ updatedAt: -1 });
-    }
+    }).sort({ updatedAt: -1 });
     if (!session) return;
 
     const activeFlow = await Automation.findById(session.activeFlowId);
@@ -1099,22 +1254,31 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           currentNode.type === 'catalogNode' ||
           currentNode.type === 'pollNode' ||
           currentNode.type === 'carouselNode' ||
-          (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-')))) ||
+          (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.length > 0)) ||
           (currentNode.type === 'commerceNode' && currentNode.data?.commerceType === 'payment') ||
           (currentNode.type === 'messageNode' && currentNode.data?.messageType === 'interactive') ||
           currentNode.data?.messageType === 'interactive' ||
           currentNode.data?.messageType === 'menu'
         ) {
+          const hasInteractiveOptions = (currentNode.data?.buttons && currentNode.data.buttons.length > 0) ||
+                                        (currentNode.data?.interactiveButtons && currentNode.data.interactiveButtons.length > 0) ||
+                                        (currentNode.data?.sections && currentNode.data.sections.length > 0) ||
+                                        ['pollNode', 'catalogNode', 'carouselNode'].includes(currentNode.type) ||
+                                        (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.length > 0));
+
           if (outgoingEdges.length === 0) {
             // Leaf interactive node! Nothing follows; complete the session so user is not trapped.
             logger.log(`[FlowRunner] Leaf interactive node reached (${currentNode.id}). Completing session.`);
             await markSessionCompleted(session, customerPhone, channelId);
             keepRunning = false;
             break;
-          } else {
+          } else if (hasInteractiveOptions) {
             // Interactive nodes with outgoing edges block execution and wait for user reply
             isBlockingNode = true;
             keepRunning = false;
+          } else {
+            // Degraded to text message (no buttons configured) — do not trap user, advance to next step!
+            await sleep(500);
           }
         } else {
           // Non-interactive text, media, template messages
@@ -1199,8 +1363,11 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         if (unit === 'Hours') delayMs = amount * 60 * 60000;
         else if (unit === 'Days') delayMs = amount * 24 * 60 * 60000;
 
-        if (nextNodeId) {
-          await scheduleDelayedNode(customerPhone, channelId, nextNodeId, delayMs);
+        const edge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
+        const targetNodeId = edge ? edge.target : null;
+
+        if (targetNodeId) {
+          await scheduleDelayedNode(customerPhone, channelId, targetNodeId, delayMs);
         }
         // Halt execution; the queue worker will resume it
         keepRunning = false;
@@ -1211,10 +1378,15 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           session.activeFlowId = targetFlowId;
           const targetFlow = await Automation.findById(targetFlowId);
           if (targetFlow) {
-             const triggerNode = targetFlow.nodes.find(n => n.type === 'triggerNode') || targetFlow.nodes[0];
+             const triggerNode = targetFlow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode') || targetFlow.nodes[0];
              if (triggerNode) {
-               const targetEdges = targetFlow.edges.filter(e => e.source === triggerNode.id);
-               const newNextNodeId = targetEdges.length > 0 ? targetEdges[0].target : null;
+               let newNextNodeId = null;
+               if (triggerNode.type === 'triggerNode' || triggerNode.type === 'eventTriggerNode') {
+                 const targetEdges = targetFlow.edges.filter(e => e.source === triggerNode.id);
+                 newNextNodeId = targetEdges.length > 0 ? targetEdges[0].target : null;
+               } else {
+                 newNextNodeId = triggerNode.id;
+               }
                
                if (newNextNodeId) {
                  session.currentNodeId = newNextNodeId;
@@ -1295,14 +1467,36 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       }
     }
 
-    let session = await CustomerSession.findOne({ 
-      phone: customerPhone, 
+    const possibleChannelIds = [
       channelId, 
+      channelId?.toString(), 
+      channel._id, 
+      channel._id?.toString(), 
+      channel.tenantId, 
+      channel.tenantId?.toString()
+    ].filter(Boolean);
+
+    const phoneVariants = [
+      customerPhone,
+      String(customerPhone).replace(/\D/g, ''),
+      '+' + String(customerPhone).replace(/\D/g, '')
+    ].filter(Boolean);
+
+    let session = await CustomerSession.findOne({ 
+      phone: { $in: phoneVariants }, 
+      channelId: { $in: possibleChannelIds }, 
       status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
-    });
+    }).sort({ updatedAt: -1 });
+
+    if (!session) {
+      session = await CustomerSession.findOne({ 
+        phone: { $in: phoneVariants }, 
+        status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] } 
+      }).sort({ updatedAt: -1 });
+    }
     
-    // Check for session expiration due to inactivity (TTL: 15 minutes)
-    const SESSION_TTL_MS = 15 * 60 * 1000;
+    // Check for session expiration due to inactivity (TTL: 24 hours, aligned with Meta customer service window)
+    const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
     if (session && session.lastInteractionAt) {
       const inactiveDuration = Date.now() - new Date(session.lastInteractionAt).getTime();
       if (inactiveDuration > SESSION_TTL_MS) {
@@ -1392,15 +1586,38 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         $or: [
           { channelId: channel._id },
           { channelId: channelId },
-          ...(channel.tenantId ? [{ tenantId: channel.tenantId }] : [])
+          { channel: channel._id },
+          { channel: channelId },
+          ...(channel.tenantId ? [{ tenantId: channel.tenantId }, { user: channel.tenantId }] : [])
         ],
-        isActive: true
+        $and: [
+          {
+            $or: [
+              { isActive: true },
+              { status: { $in: ['active', 'published', 'enabled'] } },
+              { isActive: { $exists: false } }
+            ]
+          }
+        ]
       });
     }
 
     const payloadText = typeof incomingPayload === 'string' ? incomingPayload.trim().toLowerCase() : '';
     const ESCAPE_KEYWORDS = ['restart', 'reset', 'menu', 'main menu', 'start', 'exit', 'cancel'];
     const isEscapeWord = ESCAPE_KEYWORDS.includes(payloadText);
+    const isButtonTap = !!(
+      messageContext?.buttonText ||
+      messageContext?.buttonId ||
+      messageContext?.buttonPayload ||
+      messageContext?.buttonTitle ||
+      messageContext?.listId ||
+      messageContext?.listTitle ||
+      messageContext?.messageType === 'button' ||
+      messageContext?.messageType === 'interactive' ||
+      messageContext?.messageType === 'button_reply' ||
+      messageContext?.messageType === 'quick_reply' ||
+      messageContext?.messageType === 'list_reply'
+    );
 
     // 🛑 Check if Contact has bot paused (Agent in Live Chat is handling this contact)
     try {
@@ -1421,22 +1638,191 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       logger.error('[FlowRunner] Error checking isBotPaused:', e.message);
     }
 
+    const candidatePayloads = [
+      payloadText,
+      messageContext?.buttonText?.trim().toLowerCase(),
+      messageContext?.buttonTitle?.trim().toLowerCase(),
+      messageContext?.buttonPayload?.trim().toLowerCase(),
+      messageContext?.buttonId?.trim().toLowerCase(),
+      messageContext?.listTitle?.trim().toLowerCase(),
+      messageContext?.listId?.trim().toLowerCase()
+    ].filter(Boolean);
+
+    const findButtonEdgeMatch = async (payloadsToMatch) => {
+      const candidates = (payloadsToMatch && payloadsToMatch.length > 0) ? payloadsToMatch : candidatePayloads;
+      if (!candidates || candidates.length === 0) return null;
+      for (const flow of allActiveFlows) {
+        const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
+        const flowEdges = Array.isArray(flow?.edges) ? flow.edges : [];
+        const interactiveOrTemplateNodes = flowNodes.filter(n =>
+          n && (
+            n.type === 'templateNode' ||
+            n.type === 'interactiveNode' ||
+            (n.type === 'messageNode' && n.data?.messageType === 'interactive')
+          )
+        );
+
+        for (const node of interactiveOrTemplateNodes) {
+          let buttons = node.data?.buttons || node.data?.interactiveButtons || [];
+          if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
+            try {
+              const { default: Template } = await import('../models/Template.js');
+              const tmpl = await Template.findOne({
+                $or: [
+                  { name: node.data.templateName },
+                  { whatsappTemplateName: node.data.templateName }
+                ]
+              });
+              const btnComp = tmpl?.components?.find(c => String(c.type).toUpperCase() === 'BUTTONS');
+              if (btnComp && Array.isArray(btnComp.buttons)) {
+                buttons = btnComp.buttons;
+              }
+            } catch (_) {}
+
+            // 🌐 DYNAMIC FALLBACK: If template is not stored in MongoDB, fetch directly from Meta WABA!
+            if (!buttons || buttons.length === 0) {
+              try {
+                const { getTenantWhatsAppService } = await import('../controllers/whatsappController.js');
+                const tenantService = await getTenantWhatsAppService(channel.tenantId);
+                if (tenantService) {
+                  const metaTmpl = await tenantService.findTemplate(node.data.templateName);
+                  const btnComp = metaTmpl?.components?.find(c => String(c?.type || '').toUpperCase() === 'BUTTONS');
+                  if (btnComp && Array.isArray(btnComp.buttons)) {
+                    buttons = btnComp.buttons;
+                  }
+                }
+              } catch (_) {}
+            }
+          }
+
+          const outgoingEdges = flowEdges.filter(e => e && e.source === node.id);
+          if (outgoingEdges.length === 0) continue;
+
+          let matchedBtn = null;
+          let matchedIdx = -1;
+
+          for (let i = 0; i < buttons.length; i++) {
+            const b = buttons[i];
+            const bCandidates = [
+              b.text?.trim().toLowerCase(),
+              b.title?.trim().toLowerCase(),
+              b.payload?.trim().toLowerCase(),
+              b.id?.toString().trim().toLowerCase(),
+              String(i)
+            ].filter(Boolean);
+
+            const isMatch = candidates.some(cp =>
+              bCandidates.includes(cp) || bCandidates.some(bc => bc.includes(cp) || cp.includes(bc))
+            );
+
+            if (isMatch) {
+              matchedBtn = b;
+              matchedIdx = i;
+              break;
+            }
+          }
+
+          if (matchedBtn) {
+            const btnId = (matchedBtn.id !== undefined && matchedBtn.id !== null && String(matchedBtn.id).trim() !== '') ? String(matchedBtn.id) : String(matchedIdx);
+            let matchedEdge = outgoingEdges.find(e => {
+              const sh = e.sourceHandle;
+              const shLower = sh?.toLowerCase();
+              return (
+                candidates.includes(shLower) ||
+                candidates.some(cp => shLower === `btn-${cp}`) ||
+                sh === `btn-${btnId}` ||
+                sh === `btn-${matchedIdx}` ||
+                sh === `btn-btn_${matchedIdx}` ||
+                (matchedBtn.text && (sh === `btn-${matchedBtn.text}` || shLower === `btn-${matchedBtn.text.toLowerCase()}`)) ||
+                (matchedBtn.title && (sh === `btn-${matchedBtn.title}` || shLower === `btn-${matchedBtn.title.toLowerCase()}`)) ||
+                sh === btnId ||
+                sh === `${matchedIdx}`
+              );
+            });
+
+            if (!matchedEdge && outgoingEdges.length === 1 && isButtonTap) {
+              matchedEdge = outgoingEdges[0];
+            }
+
+            if (matchedEdge) {
+              return { flow, node, target: matchedEdge.target };
+            }
+          } else if (isButtonTap && outgoingEdges.length > 0) {
+            // 🎯 100% DYNAMIC DIRECT EDGE MATCH: Even if template button metadata isn't cached,
+            // check if any outgoing edge handle directly matches the tapped button payload or title
+            const directEdge = outgoingEdges.find(e => {
+              const sh = e.sourceHandle;
+              if (!sh) return false;
+              const shLower = sh.toLowerCase();
+              const stripped = shLower.replace(/^btn-/, '').trim();
+              return candidates.some(cp => {
+                if (!cp) return false;
+                const cpLower = cp.toLowerCase().trim();
+                const cpStripped = cpLower.replace(/^btn-/, '').trim();
+                return (
+                  shLower === cpLower ||
+                  shLower === `btn-${cpLower}` ||
+                  stripped === cpLower ||
+                  stripped === cpStripped ||
+                  shLower.includes(cpLower) ||
+                  cpLower.includes(stripped)
+                );
+              });
+            });
+            if (directEdge) {
+              return { flow, node, target: directEdge.target };
+            }
+            if (outgoingEdges.length === 1) {
+              return { flow, node, target: outgoingEdges[0].target };
+            }
+          }
+        }
+      }
+      return null;
+    };
+
     // If an existing session is found, check if customer is attempting to restart or trigger another automation
     if (session) {
       let matchesAnyFlow = false;
       for (const flow of allActiveFlows) {
-        const tNode = flow.nodes.find(n => n.type === 'triggerNode');
-        if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
+        const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
+        const tNode = flowNodes.find(n => n && (n.type === 'triggerNode' || n.type === 'eventTriggerNode'));
+        if (tNode && isFlowTriggerMatch(tNode, payloadText, messageContext, isNewContact)) {
           matchesAnyFlow = true;
           break;
         }
       }
 
-      // If the session is WAITING_FOR_INPUT, only break out if the user types an explicit ESCAPE keyword (e.g. restart, cancel, exit)
-      // Do NOT break out on general text matching other flows, because user is answering the input question (e.g. NEET score, name, etc.)
+      // Check if user tapped a button that matches a template or interactive node in ANY active flow
+      let buttonMatchesAnyFlow = false;
+      if (isButtonTap) {
+        const currentActiveFlow = allActiveFlows.find(f => f._id.toString() === session.activeFlowId?.toString());
+        const currentNode = currentActiveFlow?.nodes?.find(n => n.id === session.currentNodeId);
+        const currentOutgoing = currentActiveFlow?.edges?.filter(e => e.source === session.currentNodeId) || [];
+
+        let currentCanHandle = false;
+        if (currentNode) {
+          const btnHandles = currentOutgoing.map(e => e.sourceHandle?.toLowerCase()).filter(Boolean);
+          currentCanHandle = candidatePayloads.some(cp =>
+            btnHandles.includes(cp) ||
+            btnHandles.includes(`btn-${cp}`) ||
+            btnHandles.some(sh => sh && (sh.replace(/^btn-/, '') === cp || cp.replace(/^btn-/, '') === sh))
+          );
+        }
+
+        // If current session's node CANNOT handle this button tap, check if ANY active flow has a template/button that matches
+        if (!currentCanHandle) {
+          const externalMatch = await findButtonEdgeMatch(candidatePayloads);
+          if (externalMatch) {
+            buttonMatchesAnyFlow = true;
+          }
+        }
+      }
+
+      // Break out if user types an explicit escape word, or taps a button from a template/flow, or triggers another flow
       const isWaitingInput = session.status === 'WAITING_FOR_INPUT';
-      if (isEscapeWord || (!isWaitingInput && matchesAnyFlow)) {
-        logger.log(`[FlowRunner] Interruption detected for user ${customerPhone} (keyword: "${incomingPayload}"). Completing existing session.`);
+      if (isEscapeWord || buttonMatchesAnyFlow || (!isWaitingInput && matchesAnyFlow)) {
+        logger.log(`[FlowRunner] Interruption / Template button tap detected for user ${customerPhone} (payload: "${incomingPayload}"). Completing existing session.`);
         await markSessionCompleted(session, customerPhone, channelId);
         session = null;
       }
@@ -1450,102 +1836,15 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       let matchedTriggerNode = null;
       let targetFromButtonEdge = null;
 
-      // Detect if this is a button tap (template quick reply or interactive button).
-      const isButtonTap = !!(messageContext?.buttonText || messageContext?.buttonId || messageContext?.buttonPayload ||
-                              messageContext?.listId || messageContext?.listTitle);
-
       // ─── PATH B (run FIRST for button taps) ─────────────────────────────────
       // Match template/interactive node buttons to outgoing edges.
       if (!matchedFlow && isButtonTap) {
-        const candidatePayloads = [
-          payloadText,
-          messageContext?.buttonText?.trim().toLowerCase(),
-          messageContext?.buttonTitle?.trim().toLowerCase(),
-          messageContext?.buttonPayload?.trim().toLowerCase(),
-          messageContext?.buttonId?.trim().toLowerCase(),
-          messageContext?.listTitle?.trim().toLowerCase(),
-          messageContext?.listId?.trim().toLowerCase()
-        ].filter(Boolean);
-
-        if (candidatePayloads.length > 0) {
-          for (const flow of allActiveFlows) {
-            const interactiveOrTemplateNodes = flow.nodes.filter(n =>
-              n.type === 'templateNode' ||
-              n.type === 'interactiveNode' ||
-              (n.type === 'messageNode' && n.data?.messageType === 'interactive')
-            );
-
-            for (const node of interactiveOrTemplateNodes) {
-              let buttons = node.data?.buttons || [];
-              if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
-                try {
-                  const { default: Template } = await import('../models/Template.js');
-                  const tmpl = await Template.findOne({
-                    $or: [
-                      { name: node.data.templateName },
-                      { whatsappTemplateName: node.data.templateName }
-                    ]
-                  });
-                  const btnComp = tmpl?.components?.find(c => String(c.type).toUpperCase() === 'BUTTONS');
-                  if (btnComp && Array.isArray(btnComp.buttons)) {
-                    buttons = btnComp.buttons;
-                  }
-                } catch (_) {}
-              }
-
-              const outgoingEdges = flow.edges.filter(e => e.source === node.id);
-              if (outgoingEdges.length === 0) continue;
-
-              let matchedBtn = null;
-              let matchedIdx = -1;
-
-              for (let i = 0; i < buttons.length; i++) {
-                const b = buttons[i];
-                const bCandidates = [
-                  b.text?.trim().toLowerCase(),
-                  b.title?.trim().toLowerCase(),
-                  b.payload?.trim().toLowerCase(),
-                  b.id?.toString().trim().toLowerCase(),
-                  String(i)
-                ].filter(Boolean);
-
-                const isMatch = candidatePayloads.some(cp =>
-                  bCandidates.includes(cp) || bCandidates.some(bc => bc.includes(cp) || cp.includes(bc))
-                );
-
-                if (isMatch) {
-                  matchedBtn = b;
-                  matchedIdx = i;
-                  break;
-                }
-              }
-
-              if (matchedBtn) {
-                const btnId = matchedBtn.id || matchedIdx;
-                let matchedEdge = outgoingEdges.find(e =>
-                  candidatePayloads.includes(e.sourceHandle?.toLowerCase()) ||
-                  e.sourceHandle === `btn-${btnId}` ||
-                  e.sourceHandle === `btn-${matchedIdx}` ||
-                  e.sourceHandle === `btn-btn_${matchedIdx}` ||
-                  e.sourceHandle === btnId ||
-                  e.sourceHandle === `${matchedIdx}`
-                );
-
-                if (!matchedEdge && outgoingEdges.length === 1 && (!outgoingEdges[0].sourceHandle || outgoingEdges[0].sourceHandle === 'main-handle' || outgoingEdges[0].sourceHandle === 'default')) {
-                  matchedEdge = outgoingEdges[0];
-                }
-
-                if (matchedEdge) {
-                  logger.log(`[FlowRunner] 🎯 [PATH-B-PRIORITY] Matched button '${payloadText}' on node ${node.id} in flow '${flow.name}'. Next: ${matchedEdge.target}`);
-                  matchedFlow = flow;
-                  matchedTriggerNode = node;
-                  targetFromButtonEdge = matchedEdge.target;
-                  break;
-                }
-              }
-            }
-            if (matchedFlow) break;
-          }
+        const btnMatch = await findButtonEdgeMatch(candidatePayloads);
+        if (btnMatch) {
+          logger.log(`[FlowRunner] 🎯 [PATH-B-PRIORITY] Matched button '${payloadText}' on node ${btnMatch.node.id} in flow '${btnMatch.flow.name}'. Next: ${btnMatch.target}`);
+          matchedFlow = btnMatch.flow;
+          matchedTriggerNode = btnMatch.node;
+          targetFromButtonEdge = btnMatch.target;
         }
       }
 
@@ -1554,7 +1853,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       if (!matchedFlow) {
         for (const flow of allActiveFlows) {
           const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
-          if (tNode && isFlowTriggerMatch(tNode, payloadText)) {
+          if (tNode && isFlowTriggerMatch(tNode, payloadText, messageContext, isNewContact)) {
             logger.log(`[FlowRunner] 🎯 [PATH-A] Matched keyword '${payloadText}' on trigger ${tNode.id} in flow '${flow.name}'`);
             matchedFlow = flow;
             matchedTriggerNode = tNode;
@@ -1563,15 +1862,45 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      // ─── PATH C. Flows that start directly with a root templateNode (e.g. simulator testing) ───
+      // ─── PATH B FALLBACK (If incoming text matches button text on a template/interactive node) ───
+      if (!matchedFlow && payloadText) {
+        const btnMatch = await findButtonEdgeMatch([payloadText]);
+        if (btnMatch) {
+          logger.log(`[FlowRunner] 🎯 [PATH-B-TEXT-FALLBACK] Matched text '${payloadText}' to button on node ${btnMatch.node.id} in flow '${btnMatch.flow.name}'. Next: ${btnMatch.target}`);
+          matchedFlow = btnMatch.flow;
+          matchedTriggerNode = btnMatch.node;
+          targetFromButtonEdge = btnMatch.target;
+        }
+      }
+
+      // ─── PATH C. Flows that start directly with a root templateNode (No explicit triggerNode) ───
+      // The user requires: if they create a flow starting directly with a Template, it should trigger
+      // even if there is no explicit trigger keyword.
       if (!matchedFlow) {
         for (const flow of allActiveFlows) {
-          const tNode = flow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
-          if (!tNode && simulatorTargetFlowId && flow._id.toString() === simulatorTargetFlowId.toString()) {
-            const rootNode = flow.nodes.find(n => !flow.edges.some(e => e.target === n.id)) || flow.nodes[0];
-            matchedFlow = flow;
-            matchedTriggerNode = rootNode;
-            break;
+          const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
+          const flowEdges = Array.isArray(flow?.edges) ? flow.edges : [];
+          
+          // Check if this flow has NO triggerNode
+          const hasTrigger = flowNodes.some(n => n && (n.type === 'triggerNode' || n.type === 'eventTriggerNode'));
+          if (!hasTrigger) {
+            // Find the root node (a node with no incoming edges)
+            const rootNode = flowNodes.find(n => !flowEdges.some(e => e && e.target === n.id)) || flowNodes[0];
+            
+            if (simulatorTargetFlowId) {
+              if (flow._id?.toString() === simulatorTargetFlowId.toString()) {
+                logger.log(`[FlowRunner] 🎯 [PATH-C-SIMULATOR] Triggering flow '${flow.name}' starting directly at root node ${rootNode.id} (${rootNode.type})`);
+                matchedFlow = flow;
+                matchedTriggerNode = rootNode;
+                break;
+              }
+            } else if (rootNode && rootNode.type === 'templateNode') {
+              // 🌐 LIVE WHATSAPP: If an active flow starts directly with a root templateNode, trigger it!
+              logger.log(`[FlowRunner] 🎯 [PATH-C-ROOT] Triggering active flow '${flow.name}' starting directly at root templateNode ${rootNode.id}`);
+              matchedFlow = flow;
+              matchedTriggerNode = rootNode;
+              break;
+            }
           }
         }
       }
@@ -1691,7 +2020,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       } else {
         const isTriggerType = ['triggerNode', 'eventTriggerNode'].includes(triggerNode.type);
         if (isTriggerType) {
-          const outgoingEdges = activeFlow.edges.filter(e => e.source === triggerNode.id);
+          const activeEdges = Array.isArray(activeFlow?.edges) ? activeFlow.edges : [];
+          const outgoingEdges = activeEdges.filter(e => e && e.source === triggerNode.id);
           nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
         } else {
           nextNodeId = triggerNode.id;
@@ -1749,7 +2079,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       if (session.status === 'WAITING_FOR_INPUT') {
         // Validation Logic
         let isValid = true;
-        const validationType = session.expectedValidation || 'text';
+        const validationType = String(session.expectedValidation || 'text').toLowerCase().trim();
         
         if (validationType === 'email') {
           isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingPayload);
@@ -1762,15 +2092,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         } else if (validationType === 'url') {
           isValid = /^(https?:\/\/)?([\w\-]+)+[\w\-\._~:\/?#[\]@!\$&'\(\)\*\+,;=.]+$/.test(incomingPayload);
         } else if (validationType === 'location') {
-          isValid = incomingPayload.toLowerCase() === '[__media_location__]';
-        } else if (validationType === 'photo') {
-          isValid = incomingPayload.toLowerCase() === '[__media_image__]';
-        } else if (validationType === 'audio') {
-          isValid = incomingPayload.toLowerCase() === '[__media_audio__]';
-        } else if (validationType === 'pdf') {
-          isValid = incomingPayload.toLowerCase() === '[__media_document__]';
+          isValid = incomingPayload.toLowerCase() === '[__media_location__]' || messageContext?.messageType === 'location' || !!messageContext?.location;
+        } else if (['photo', 'image'].includes(validationType)) {
+          isValid = incomingPayload.toLowerCase() === '[__media_image__]' || messageContext?.messageType === 'image' || !!messageContext?.mediaUrl;
+        } else if (['audio', 'voice'].includes(validationType)) {
+          isValid = incomingPayload.toLowerCase() === '[__media_audio__]' || ['audio', 'voice'].includes(messageContext?.messageType);
+        } else if (['pdf', 'document'].includes(validationType)) {
+          isValid = incomingPayload.toLowerCase() === '[__media_document__]' || messageContext?.messageType === 'document' || !!messageContext?.mediaUrl;
+        } else if (validationType === 'video') {
+          isValid = incomingPayload.toLowerCase() === '[__media_video__]' || messageContext?.messageType === 'video' || !!messageContext?.mediaUrl;
         } else if (validationType === 'address') {
           isValid = incomingPayload.trim().length > 5;
+        } else if (['text', 'string', 'any'].includes(validationType)) {
+          isValid = incomingPayload && incomingPayload.trim().length > 0;
         }
 
         if (!isValid) {
@@ -1807,7 +2141,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           return; // Stop execution, wait for user to try again
         }
 
-        // Process input answer safely
+        // Process input answer safely (if customer uploaded media or location, save the real URL/data)
+        let valToSave = incomingPayload;
+        if (['photo', 'image', 'pdf', 'document', 'audio', 'voice', 'video'].includes(validationType) && messageContext?.mediaUrl) {
+          valToSave = messageContext.mediaUrl;
+        } else if (validationType === 'location' && messageContext?.location) {
+          valToSave = typeof messageContext.location === 'object' ? JSON.stringify(messageContext.location) : String(messageContext.location);
+        }
+
         const rawVarName = session.saveVariableAs || 'custom_field';
         if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
           session.sessionVariables = {};
@@ -1816,33 +2157,33 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
         
         // Save both with and without prefix so {{neet_score}} and {{contact.neet_score}} both work!
-        session.sessionVariables[rawVarName] = incomingPayload;
+        session.sessionVariables[rawVarName] = valToSave;
         if (rawVarName.startsWith('contact.')) {
           const shortName = rawVarName.replace('contact.', '');
-          session.sessionVariables[shortName] = incomingPayload;
+          session.sessionVariables[shortName] = valToSave;
           
           // Also persist directly to Contact in database
           try {
             const dbContact = await Contact.findOne({ phone: customerPhone, channelId });
             if (dbContact) {
               if (['name', 'email'].includes(shortName)) {
-                dbContact[shortName] = incomingPayload;
+                dbContact[shortName] = valToSave;
               } else {
                 if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
                   dbContact.customFields = {};
                 }
                 if (dbContact.customFields instanceof Map) {
-                  dbContact.customFields.set(shortName, incomingPayload);
+                  dbContact.customFields.set(shortName, valToSave);
                 } else if (Array.isArray(dbContact.customFields)) {
                   const existingIdx = dbContact.customFields.findIndex(f => f.key === shortName || f.name === shortName);
                   if (existingIdx !== -1) {
-                    dbContact.customFields[existingIdx].value = incomingPayload;
+                    dbContact.customFields[existingIdx].value = valToSave;
                   } else {
-                    dbContact.customFields.push({ key: shortName, name: shortName, value: incomingPayload });
+                    dbContact.customFields.push({ key: shortName, name: shortName, value: valToSave });
                   }
                   dbContact.markModified('customFields');
                 } else {
-                  dbContact.customFields[shortName] = incomingPayload;
+                  dbContact.customFields[shortName] = valToSave;
                   dbContact.markModified('customFields');
                 }
               }
@@ -1852,30 +2193,30 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             logger.error('Failed to sync contact field from inputNode:', e);
           }
         } else {
-          session.sessionVariables[`contact.${rawVarName}`] = incomingPayload;
+          session.sessionVariables[`contact.${rawVarName}`] = valToSave;
           
           // Also persist non-prefixed variable name into Contact customFields
           try {
             const dbContact = await Contact.findOne({ phone: customerPhone, channelId });
             if (dbContact) {
               if (['name', 'email'].includes(rawVarName)) {
-                dbContact[rawVarName] = incomingPayload;
+                dbContact[rawVarName] = valToSave;
               } else {
                 if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
                   dbContact.customFields = {};
                 }
                 if (dbContact.customFields instanceof Map) {
-                  dbContact.customFields.set(rawVarName, incomingPayload);
+                  dbContact.customFields.set(rawVarName, valToSave);
                 } else if (Array.isArray(dbContact.customFields)) {
                   const existingIdx = dbContact.customFields.findIndex(f => f.key === rawVarName || f.name === rawVarName);
                   if (existingIdx !== -1) {
-                    dbContact.customFields[existingIdx].value = incomingPayload;
+                    dbContact.customFields[existingIdx].value = valToSave;
                   } else {
-                    dbContact.customFields.push({ key: rawVarName, name: rawVarName, value: incomingPayload });
+                    dbContact.customFields.push({ key: rawVarName, name: rawVarName, value: valToSave });
                   }
                   dbContact.markModified('customFields');
                 } else {
-                  dbContact.customFields[rawVarName] = incomingPayload;
+                  dbContact.customFields[rawVarName] = valToSave;
                   dbContact.markModified('customFields');
                 }
               }
@@ -1913,10 +2254,10 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
         nextNodeId = null;
 
-        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode'].includes(currentNode?.type) || 
+        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode?.type) || 
                                   (currentNode?.type === 'messageNode' && currentNode?.data?.messageType === 'interactive') || 
                                   (currentNode?.type === 'interactiveNode') ||
-                                  (currentNode?.type === 'templateNode' && (currentNode?.data?.buttons?.length > 0 || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
+                                  (currentNode?.type === 'templateNode' && (currentNode?.data?.buttons?.length > 0 || outgoingEdges.length > 0));
 
         if (isInteractiveNode) {
           // If the interactive node has no outgoing edges, it's terminal. Complete the session!
@@ -1946,7 +2287,9 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                messageContext?.buttonText?.trim().toLowerCase(),
                messageContext?.buttonTitle?.trim().toLowerCase(),
                messageContext?.buttonPayload?.trim().toLowerCase(),
-               messageContext?.buttonId?.trim().toLowerCase()
+               messageContext?.buttonId?.trim().toLowerCase(),
+               messageContext?.listTitle?.trim().toLowerCase(),
+               messageContext?.listId?.trim().toLowerCase()
              ].filter(Boolean);
 
              if (currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode') {
@@ -1957,7 +2300,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                      const tmpl = await Template.findOne({
                        $or: [
                          { name: currentNode.data.templateName },
-                         { whatsappTemplateName: currentNode.data.templateName }
+                         { whatsappTemplateName: currentNode.data.templateName },
+                         { metaTemplateName: currentNode.data.templateName }
                        ]
                      });
                      const btnComp = tmpl?.components?.find(c => String(c.type).toUpperCase() === 'BUTTONS');
@@ -1965,6 +2309,21 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                        buttons = btnComp.buttons;
                      }
                    } catch (_) {}
+
+                   // 🌐 DYNAMIC FALLBACK: If template is not stored in MongoDB, fetch directly from Meta WABA!
+                   if (!buttons || buttons.length === 0) {
+                     try {
+                       const { getTenantWhatsAppService } = await import('../controllers/whatsappController.js');
+                       const tenantService = await getTenantWhatsAppService(channel.tenantId);
+                       if (tenantService) {
+                         const metaTmpl = await tenantService.findTemplate(currentNode.data.templateName);
+                         const btnComp = metaTmpl?.components?.find(c => String(c?.type || '').toUpperCase() === 'BUTTONS');
+                         if (btnComp && Array.isArray(btnComp.buttons)) {
+                           buttons = btnComp.buttons;
+                         }
+                       }
+                     } catch (_) {}
+                   }
                  }
 
                  const btnIdx = (buttons || []).findIndex((b, idx) => {
@@ -1983,15 +2342,55 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                  if (btnIdx !== -1) {
                     isExplicitChoiceRecognized = true;
                     const btn = buttons[btnIdx];
-                    const btnId = btn.id || btnIdx;
-                    matchedEdge = outgoingEdges.find(e => 
-                      candidateInputs.includes(e.sourceHandle?.toLowerCase()) ||
-                      e.sourceHandle === `btn-${btnId}` || 
-                      e.sourceHandle === `btn-${btnIdx}` ||
-                      e.sourceHandle === `btn-btn_${btnIdx}` ||
-                      e.sourceHandle === btnId || 
-                      e.sourceHandle === `${btnIdx}`
-                    );
+                    const btnId = (btn.id !== undefined && btn.id !== null && String(btn.id).trim() !== '') ? String(btn.id) : String(btnIdx);
+                    matchedEdge = outgoingEdges.find(e => {
+                      const sh = e.sourceHandle;
+                      const shLower = sh?.toLowerCase();
+                      return (
+                        candidateInputs.includes(shLower) ||
+                        candidateInputs.some(ci => shLower === `btn-${ci}`) ||
+                        sh === `btn-${btnId}` || 
+                        sh === `btn-${btnIdx}` ||
+                        sh === `btn-btn_${btnIdx}` ||
+                        (btn.text && (sh === `btn-${btn.text}` || shLower === `btn-${btn.text.toLowerCase()}`)) ||
+                        (btn.title && (sh === `btn-${btn.title}` || shLower === `btn-${btn.title.toLowerCase()}`)) ||
+                        sh === btnId || 
+                        sh === `${btnIdx}`
+                      );
+                    });
+                 }
+
+                 // 🎯 100% DYNAMIC DIRECT EDGE MATCH: Even if template button metadata isn't cached or user gave custom handles,
+                 // evaluate outgoing edges directly against all candidate button inputs
+                 if (!matchedEdge && outgoingEdges.length > 0) {
+                   matchedEdge = outgoingEdges.find(e => {
+                     const sh = e.sourceHandle;
+                     if (!sh) return false;
+                     const shLower = sh.toLowerCase();
+                     const stripped = shLower.replace(/^btn-/, '').trim();
+                     return candidateInputs.some(ci => {
+                       if (!ci) return false;
+                       const ciLower = ci.toLowerCase().trim();
+                       const ciStripped = ciLower.replace(/^btn-/, '').trim();
+                       return (
+                         shLower === ciLower ||
+                         shLower === `btn-${ciLower}` ||
+                         stripped === ciLower ||
+                         stripped === ciStripped ||
+                         shLower.includes(ciLower) ||
+                         ciLower.includes(stripped)
+                       );
+                     });
+                   });
+                   if (matchedEdge) {
+                     isExplicitChoiceRecognized = true;
+                   }
+                 }
+
+                 // 🎯 SINGLE OUTGOING EDGE FALLBACK: If customer tapped ANY button and node has only 1 connected edge, route to it!
+                 if (!matchedEdge && outgoingEdges.length === 1 && isButtonTap) {
+                   matchedEdge = outgoingEdges[0];
+                   isExplicitChoiceRecognized = true;
                  }
              } else if (currentNode.type === 'menuNode' && currentNode.data?.sections) {
                 for (const sec of currentNode.data.sections) {
@@ -2046,7 +2445,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             return;
           }
 
-          // Only fallback to a single edge IF that edge is generic (not bound to a specific button like btn-, row-, opt-)
+          // Fallback to a single outgoing edge if generic or if customer tapped a button on this node
           if (!matchedEdge && outgoingEdges.length === 1) {
             const onlyEdge = outgoingEdges[0];
             const isSpecificHandle = onlyEdge.sourceHandle && (
@@ -2054,7 +2453,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               onlyEdge.sourceHandle.startsWith('row-') || 
               onlyEdge.sourceHandle.startsWith('opt-')
             );
-            if (!isSpecificHandle) {
+            if (!isSpecificHandle || isButtonTap) {
               matchedEdge = onlyEdge;
             }
           }
@@ -2124,15 +2523,17 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 export async function startFlowManually(customerPhone, channelId, flowId, eventData = {}) {
   try {
     const isSim = typeof customerPhone === 'string' && customerPhone.startsWith('SIMULATOR_');
-    const query = { _id: flowId, channelId };
-    if (!isSim) {
-      query.isActive = true;
-    }
-    const activeFlow = await Automation.findOne(query);
+    const activeFlow = await Automation.findById(flowId);
     if (!activeFlow) {
-      logger.warn(`Flow ${flowId} not found or inactive. Cannot start manually.`);
+      logger.warn(`Flow ${flowId} not found. Cannot start manually.`);
       return;
     }
+    if (!isSim && !activeFlow.isActive && !['active', 'published', 'enabled'].includes(activeFlow.status)) {
+      logger.warn(`Flow ${flowId} is inactive. Cannot start manually.`);
+      return;
+    }
+
+    const effectiveChannelId = channelId || activeFlow.channelId?.toString() || activeFlow.tenantId?.toString();
 
     // Find root node: prioritize triggerNode/eventTriggerNode if present, otherwise find node with no incoming edges (e.g. templateNode)
     let rootNode = activeFlow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
@@ -2164,14 +2565,14 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
 
     // Terminate any existing active/waiting session for this user to restart them in the new flow
     await CustomerSession.updateMany(
-      { phone: customerPhone, channelId, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
+      { phone: customerPhone, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
       { $set: { status: 'COMPLETED' } }
     );
 
     // Initialize a new session
     const session = new CustomerSession({
       phone: customerPhone,
-      channelId,
+      channelId: effectiveChannelId,
       activeFlowId: activeFlow._id,
       currentNodeId: rootNode.id,
       sessionVariables: eventData
@@ -2179,7 +2580,7 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     await session.save();
 
     // Begin execution
-    await processSpecificNode(customerPhone, channelId, startNodeId);
+    await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
 
   } catch (error) {
     logger.error('Error in startFlowManually:', error);
