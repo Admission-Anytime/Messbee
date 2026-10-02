@@ -80,7 +80,7 @@ router.get("/:key", async (req, res) => {
         || "";
 
       const webhookUrl = settingVal.webhookUrl
-        || `${process.env.BACKEND_URL || "https://messbee.com"}/api/whatsapp/webhook`;
+        || `${process.env.BACKEND_URL || "https://webservices.messbee.com"}/api/whatsapp/webhook`;
 
       const events = settingVal.events || {
         messages: true,

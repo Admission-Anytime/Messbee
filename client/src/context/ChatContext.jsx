@@ -39,7 +39,7 @@ export const ChatProvider = ({ children }) => {
 
       const tenantId = user?.tenantId || user?._id || user?.id;
       if (tenantId) {
-        socketRef.current.emit("join_tenant", tenantId.toString());
+        socketRef.current.emit("join_tenant", String(tenantId).replace(/^tenant_/, ''));
       }
 
       socketRef.current.on('receive_message', (data) => {
@@ -61,7 +61,7 @@ export const ChatProvider = ({ children }) => {
       setUnreadCount(0);
       setChats([]);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, user?._id, user?.tenantId]);
 
   return (
     <ChatContext.Provider value={{ unreadCount, fetchChats, chats }}>

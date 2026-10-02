@@ -105,7 +105,7 @@ const Context = (props) => {
     // Listen for tenant room join & wallet update broadcasts
     const tenantId = user?._id || user?.tenantId;
     if (tenantId) {
-      socket.emit('join_tenant', `tenant_${tenantId}`);
+      socket.emit('join_tenant', String(tenantId).replace(/^tenant_/, ''));
     }
 
     socket.on("wallet_updated", (data) => {
