@@ -163,12 +163,23 @@ exports.testAutomation = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Automation not found' });
     }
     
-    if (!automation.channelId) {
-      return res.status(400).json({ success: false, message: 'No WhatsApp channel assigned to this automation.' });
+    let channelId = automation.channelId;
+    if (!channelId) {
+      const Channel = require('../models/Channel');
+      const defaultChannel = await Channel.findOne({ tenantId });
+      if (defaultChannel) {
+        channelId = defaultChannel._id;
+        automation.channelId = channelId;
+        await automation.save();
+      }
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ success: false, message: 'No WhatsApp channel configured. Please connect a WhatsApp channel first.' });
     }
 
     // Trigger the real engine for the test number
-    const result = await automationService.startFlow(phoneNumber, automation.channelId, automation._id, { isTest: true });
+    const result = await automationService.startFlow(phoneNumber, channelId, automation._id, { isTest: true });
     
     if (!result.success) {
        return res.status(400).json({ success: false, message: result.message });
@@ -208,8 +219,19 @@ exports.simulateStart = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Automation not found' });
     }
     
-    if (!automation.channelId) {
-      return res.status(400).json({ success: false, message: 'No WhatsApp channel assigned to this automation.' });
+    let channelId = automation.channelId;
+    if (!channelId) {
+      const Channel = require('../models/Channel');
+      const defaultChannel = await Channel.findOne({ tenantId });
+      if (defaultChannel) {
+        channelId = defaultChannel._id;
+        automation.channelId = channelId;
+        await automation.save();
+      }
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ success: false, message: 'No WhatsApp channel configured. Please connect a WhatsApp channel first.' });
     }
 
     const simulatorPhone = req.body.simulatorPhone || `SIMULATOR_${req.user._id}`;
@@ -230,19 +252,19 @@ exports.simulateStart = async (req, res, next) => {
     const Contact = require('../models/Contact');
     const simName = req.user?.name || req.user?.tenantName || 'Aayush Kumar';
     await Contact.findOneAndUpdate(
-      { phone: simulatorPhone, tenantId, channelId: automation.channelId },
+      { phone: simulatorPhone, tenantId, channelId },
       { name: simName, isOptedOut: false, lastInteractionAt: new Date() },
       { upsert: true, new: true }
     );
 
     // Cancel any stale simulator sessions before starting a new one
     await CustomerSession.updateMany(
-      { phone: simulatorPhone, channelId: automation.channelId, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
+      { phone: simulatorPhone, channelId, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
       { $set: { status: 'COMPLETED' } }
     );
 
     // Automatically trigger/start the flow so template/first message immediately pops up in the simulator!
-    const { startFlowManually, executeWorkflowStep } = require('../engine/flowRunner');
+    const { startFlowManually } = require('../engine/flowRunner');
     
     // Check if flow has a triggerNode with keyword or starts with templateNode
     const triggerNode = automation.nodes?.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
@@ -252,13 +274,13 @@ exports.simulateStart = async (req, res, next) => {
       const outgoing = automation.edges?.filter(e => e.source === triggerNode.id);
       if (outgoing && outgoing.length > 0) {
         // Start flow directly from the node attached to trigger
-        await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+        await startFlowManually(simulatorPhone, channelId, automation._id);
       } else {
-        await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+        await startFlowManually(simulatorPhone, channelId, automation._id);
       }
     } else {
       // Flow directly starts with a message/template node
-      await startFlowManually(simulatorPhone, automation.channelId, automation._id);
+      await startFlowManually(simulatorPhone, channelId, automation._id);
     }
     
     res.status(200).json({ success: true, message: 'Simulation started' });

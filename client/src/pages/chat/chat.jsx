@@ -99,13 +99,23 @@ const Chat = () => {
     type: "danger"
   });
 
-  // Ref to always have latest activeChatId inside socket callbacks
+  // Ref to always have latest activeChatId & user inside socket callbacks
   const activeChatIdRef = useRef(null);
+  const userRef = useRef(user);
   const socketRef = useRef(null);
   const previousChatIdRef = useRef(null);
+
   useEffect(() => {
     activeChatIdRef.current = activeChatId;
   }, [activeChatId]);
+
+  useEffect(() => {
+    userRef.current = user;
+    const tenantId = user?.tenantId || user?._id || user?.id;
+    if (tenantId && socketRef.current) {
+      socketRef.current.emit("join_tenant", String(tenantId).replace(/^tenant_/, ''));
+    }
+  }, [user]);
 
   // ── Initial socket + data fetch (runs once) ──────────────────────────────
   const [chatPage, setChatPage] = useState(1);
@@ -116,10 +126,20 @@ const Chat = () => {
     socketRef.current = io(SOCKET_URL, { withCredentials: true });
 
     // Join tenant room for strict multi-tenant isolation
-    const tenantId = user?.tenantId || user?._id || user?.id;
+    const tenantId = userRef.current?.tenantId || userRef.current?._id || userRef.current?.id;
     if (tenantId) {
-      socketRef.current.emit("join_tenant", tenantId.toString());
+      socketRef.current.emit("join_tenant", String(tenantId).replace(/^tenant_/, ''));
     }
+
+    socketRef.current.on("connect", () => {
+      const currentTenantId = userRef.current?.tenantId || userRef.current?._id || userRef.current?.id;
+      if (currentTenantId) {
+        socketRef.current.emit("join_tenant", String(currentTenantId).replace(/^tenant_/, ''));
+      }
+      if (activeChatIdRef.current) {
+        socketRef.current.emit("join_chat", activeChatIdRef.current);
+      }
+    });
 
     const fetchChats = async () => {
       try {
@@ -181,7 +201,7 @@ const Chat = () => {
       // Update sidebar chat preview
       setChats(prevChats => {
         // PERMISSION CHECK: Don't add chat if user is not authorized
-        if (data.chat && !isChatAccessibleForUser(data.chat, user)) {
+        if (data.chat && !isChatAccessibleForUser(data.chat, userRef.current)) {
           return prevChats;
         }
 
@@ -254,7 +274,7 @@ const Chat = () => {
     socketRef.current.on("chat_updated", (updatedChat) => {
       setChats(prev => {
         // PERMISSION CHECK
-        if (updatedChat && !isChatAccessibleForUser(updatedChat, user)) {
+        if (updatedChat && !isChatAccessibleForUser(updatedChat, userRef.current)) {
           return prev.filter(c => (c._id || c.id)?.toString() !== (updatedChat._id || updatedChat.id)?.toString());
         }
         return prev.map(c =>
@@ -267,7 +287,7 @@ const Chat = () => {
     socketRef.current.on("chat_created", (newChat) => {
       setChats(prev => {
         // PERMISSION CHECK
-        if (newChat && !isChatAccessibleForUser(newChat, user)) {
+        if (newChat && !isChatAccessibleForUser(newChat, userRef.current)) {
           return prev;
         }
         const exists = prev.some(c => (c._id || c.id)?.toString() === (newChat._id || newChat.id)?.toString());

@@ -1367,31 +1367,6 @@ const selectedTemplate = useMemo(() => {
                         </button>
                      )}
 
-                     {/* Bot Pause / Active Status Badge & Toggle */}
-                     {data?.source === 'whatsapp' && (
-                        <button
-                           onClick={async (e) => {
-                              e.stopPropagation();
-                              try {
-                                 const res = await axios.post(`/chats/${data._id || data.id}/toggle-bot`, { isBotPaused: !data.isBotPaused });
-                                 if (res.data?.success) {
-                                    setData(prev => ({ ...prev, isBotPaused: res.data.isBotPaused }));
-                                    showToast.success('Bot Automation', res.data.isBotPaused ? 'Bot paused for this chat.' : 'Bot resumed for this chat.');
-                                 }
-                              } catch (err) {
-                                 showToast.error('Error', 'Failed to toggle bot status');
-                              }
-                           }}
-                           className={`h-7 px-2.5 rounded-lg border flex items-center gap-1.5 text-[10px] lg:text-[11px] font-bold tracking-wide transition-all shadow-sm ${
-                              data?.isBotPaused 
-                                 ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100' 
-                                 : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
-                           }`}
-                           title={data?.isBotPaused ? 'Automation is PAUSED. Click to Resume.' : 'Automation is ACTIVE. Click to Pause.'}
-                        >
-                           <span>{data?.isBotPaused ? '⏸️ Bot Paused' : '🤖 Bot Active'}</span>
-                        </button>
-                     )}
 
                      <div className="relative" ref={menuRef}>
                         <button onClick={() => setIsMenuOpen(!isMenuOpen)} className={`p-1 rounded-full transition-colors ${isMenuOpen ? "bg-slate-100 text-black" : "hover:text-slate-700"}`}>
@@ -1433,21 +1408,6 @@ const selectedTemplate = useMemo(() => {
 
                               <button onClick={() => { onTogglePin && onTogglePin(); setIsMenuOpen(false); }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
                                  <Pin className={`w-4 h-4 shrink-0 ${data.isPinned ? 'text-green-500 fill-green-500' : 'text-slate-400'}`} /> {data.isPinned ? 'Unpin Chat' : 'Pin Chat'}
-                              </button>
-
-                              <button onClick={async () => {
-                                 setIsMenuOpen(false);
-                                 try {
-                                    const res = await axios.post(`/chats/${data._id || data.id}/toggle-bot`, { isBotPaused: !data.isBotPaused });
-                                    if (res.data?.success) {
-                                       setData(prev => ({ ...prev, isBotPaused: res.data.isBotPaused }));
-                                       showToast.success('Bot Automation', res.data.isBotPaused ? 'Bot paused for this chat.' : 'Bot resumed for this chat.');
-                                    }
-                                 } catch (err) {
-                                    showToast.error('Error', 'Failed to toggle bot status');
-                                 }
-                              }} className="w-full text-left px-3.5 sm:px-4 py-2.5 text-[13px] sm:text-xs text-slate-700 hover:bg-slate-50 flex items-center gap-2.5 sm:gap-3 font-medium transition-colors whitespace-nowrap">
-                                 <BoltIcon className="w-4 h-4 shrink-0 text-slate-400" /> {data?.isBotPaused ? 'Resume Bot Automation' : 'Pause Bot Automation'}
                               </button>
 
                               <div className="border-t border-slate-100 my-1.5"></div>

@@ -189,68 +189,22 @@ const useCanvasStore = create((set, get) => ({
       const sourceNode = sanitizedNodes.find(n => n.id === edge.source);
       const targetNode = sanitizedNodes.find(n => n.id === edge.target);
 
-      // 1. Safe Source Handle
+      // 1. Safe Source Handle - Preserve existing handle if set, otherwise supply valid default
       let safeSourceHandle = edge.sourceHandle;
-      if (safeSourceHandle === 'null' || safeSourceHandle === 'undefined' || safeSourceHandle === null) {
+      if (safeSourceHandle === 'null' || safeSourceHandle === 'undefined' || safeSourceHandle === null || safeSourceHandle === '') {
         safeSourceHandle = undefined;
       }
       if (!safeSourceHandle) {
         if (sourceNode?.type === 'conditionNode') safeSourceHandle = 'true';
         else if (sourceNode?.type === 'randomizerNode') safeSourceHandle = 'path_a';
-        else if (sourceNode?.type === 'shopifyNode') safeSourceHandle = 'success';
+        else if (['shopifyNode', 'apiNode', 'googleSheetsNode'].includes(sourceNode?.type)) safeSourceHandle = 'success';
         else if (sourceNode?.type === 'waitForEventNode') safeSourceHandle = 'event_happened';
         else safeSourceHandle = 'main-handle';
       }
 
-      // Aggressively fallback orphaned custom handles to main-handle
+      // If timeout handle is used but timeout is disabled, redirect to main-handle
       if (safeSourceHandle === 'timeout' && !sourceNode.data?.timeoutEnabled) {
         safeSourceHandle = 'main-handle';
-      }
-
-      if (safeSourceHandle.startsWith('btn-')) {
-        let btnExists = false;
-        if (sourceNode.data?.buttons) {
-          btnExists = sourceNode.data.buttons.some((btn, idx) => `btn-${btn.id || idx}` === safeSourceHandle);
-        }
-        if (!btnExists) {
-          safeSourceHandle = 'main-handle';
-        }
-      }
-
-      if (safeSourceHandle.startsWith('row-')) {
-        let rowExists = false;
-        if (sourceNode.data?.sections) {
-          sourceNode.data.sections.forEach(sec => {
-            if (sec.rows) {
-              if (sec.rows.some((row, idx) => `row-${row.id || idx}` === safeSourceHandle)) rowExists = true;
-            }
-          });
-        }
-        if (!rowExists) safeSourceHandle = 'main-handle';
-      }
-
-      if (safeSourceHandle.startsWith('opt-')) {
-        let optExists = false;
-        if (sourceNode.data?.options) {
-          optExists = sourceNode.data.options.some((opt, idx) => `opt-${opt.id || idx}` === safeSourceHandle);
-        }
-        if (!optExists) safeSourceHandle = 'main-handle';
-      }
-
-      // STRICT VALIDATION: Ensure the resolved handle actually belongs to the node type
-      if (sourceNode?.type === 'conditionNode' && !['true', 'false'].includes(safeSourceHandle)) {
-        safeSourceHandle = 'true';
-      } else if (sourceNode?.type === 'randomizerNode' && !['path_a', 'path_b'].includes(safeSourceHandle)) {
-        safeSourceHandle = 'path_a';
-      } else if (sourceNode?.type === 'shopifyNode' && !['success', 'error'].includes(safeSourceHandle)) {
-        safeSourceHandle = 'success';
-      } else if (sourceNode?.type === 'waitForEventNode' && !['event_happened', 'timeout'].includes(safeSourceHandle)) {
-        safeSourceHandle = 'event_happened';
-      } else if (!['conditionNode', 'randomizerNode', 'shopifyNode', 'waitForEventNode'].includes(sourceNode?.type)) {
-        // For all other nodes, if it's not a valid dynamic handle (btn-, row-, opt-), force it to main-handle
-        if (!safeSourceHandle.startsWith('btn-') && !safeSourceHandle.startsWith('row-') && !safeSourceHandle.startsWith('opt-')) {
-          safeSourceHandle = 'main-handle';
-        }
       }
 
       // 2. Safe Target Handle

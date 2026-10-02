@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { getProducts, createProduct, updateProduct, deleteProduct, getMetaSettings, updateMetaSettings } from "../../services/CommerceApi";
+import { getProducts, createProduct, updateProduct, deleteProduct, getMetaSettings, updateMetaSettings, uploadMedia } from "../../services/CommerceApi";
 import { toast } from "react-toastify";
 
 const ProductList = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [productToDelete, setProductToDelete] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -95,9 +96,9 @@ const ProductList = () => {
         name: editingProduct.name || "",
         sku: editingProduct.sku || "",
         category: editingProduct.category || "",
-        price: editingProduct.price || "",
-        stock: editingProduct.stock?.toString() || "",
-        img: editingProduct.img || ""
+        price: editingProduct.sellingPrice?.toString() || editingProduct.price?.toString() || "",
+        stock: editingProduct.currentStock?.toString() || editingProduct.stock?.toString() || "",
+        img: editingProduct.productImage || editingProduct.img || ""
       });
     } else {
       setFormData({
@@ -142,9 +143,9 @@ const ProductList = () => {
         name: formData.name,
         sku: formData.sku,
         category: formData.category,
-        price: parseFloat(formData.price),
-        stock: parseInt(formData.stock),
-        img: formData.img
+        sellingPrice: parseFloat(formData.price),
+        currentStock: parseInt(formData.stock),
+        productImage: formData.img
       };
 
       if (editingProduct) {
@@ -162,6 +163,31 @@ const ProductList = () => {
       closeDrawer();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to save product");
+    }
+  };
+
+  const handleImageUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("File size should not exceed 5MB");
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      const response = await uploadMedia(file);
+      if (response && response.success && response.data && response.data.url) {
+        updateFormField("img", response.data.url);
+        toast.success("Image uploaded successfully!");
+      } else {
+        toast.error("Upload failed: " + (response.message || "Unknown error"));
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -291,7 +317,7 @@ const ProductList = () => {
                       <div className="flex items-center gap-3">
                         <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden border border-gray-200">
                           <img 
-                            src={product.img || "https://via.placeholder.com/150?text=Product"} 
+                            src={product.productImage || product.img || "https://via.placeholder.com/150?text=Product"} 
                             alt={product.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
@@ -312,7 +338,7 @@ const ProductList = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className="font-bold text-gray-900 text-[15px]">₹{product.price}</span>
+                      <span className="font-bold text-gray-900 text-[15px]">₹{product.sellingPrice || product.price || 0}</span>
                     </td>
                     <td className="px-6 py-4">
                       <div>
@@ -320,7 +346,7 @@ const ProductList = () => {
                           {stockStatus.label}
                         </span>
                         <div className="text-[10px] text-gray-400 font-medium mt-1">
-                          {product.stock} units
+                          {product.currentStock || product.stock || 0} units
                         </div>
                       </div>
                     </td>
@@ -438,16 +464,6 @@ const ProductList = () => {
                   className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono"
                 />
               </div>
-              
-              <div>
-                <label className="block text-[12px] font-bold text-gray-700 mb-1.5 uppercase tracking-wide">System User Token</label>
-                <textarea
-                  placeholder="EAAGm0P..."
-                  value={metaSettings.systemUserToken}
-                  onChange={(e) => setMetaSettings(prev => ({ ...prev, systemUserToken: e.target.value }))}
-                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono h-24 resize-none"
-                />
-              </div>
             </div>
             
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
@@ -547,12 +563,37 @@ const ProductList = () => {
                 <h3 className="text-[#10B981] font-bold text-[11px] tracking-[0.15em] mb-6 uppercase">
                   Product Media
                 </h3>
-                <div className="border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center bg-gray-50/30 hover:bg-gray-50 hover:border-emerald-300 transition-all cursor-pointer group">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-4 text-gray-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="text-gray-800 font-bold text-[14px]">Drag & drop images here</p>
-                  <p className="text-gray-400 text-[11px] font-medium mt-1.5 uppercase tracking-wider">PNG, JPG or WebP up to 5MB</p>
+                <div 
+                  className={`border-2 border-dashed border-gray-200 rounded-2xl p-12 text-center bg-gray-50/30 hover:bg-gray-50 hover:border-emerald-300 transition-all cursor-pointer group relative ${uploadingImage ? 'opacity-50 pointer-events-none' : ''}`}
+                  onClick={() => document.getElementById('productImageInput').click()}
+                >
+                  <input 
+                    type="file" 
+                    id="productImageInput" 
+                    className="hidden" 
+                    accept="image/png, image/jpeg, image/webp" 
+                    onChange={handleImageUpload}
+                  />
+                  {uploadingImage ? (
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                      <p className="text-gray-800 font-bold text-[14px]">Uploading...</p>
+                    </div>
+                  ) : formData.img ? (
+                    <div className="flex flex-col items-center justify-center">
+                      <img src={formData.img} alt="Product Preview" className="h-24 object-contain mb-4 rounded-lg shadow-sm" />
+                      <p className="text-emerald-600 font-bold text-[14px]">Image Selected</p>
+                      <p className="text-gray-400 text-[11px] font-medium mt-1.5 uppercase tracking-wider">Click to change</p>
+                    </div>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-12 w-12 mx-auto mb-4 text-gray-300 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      <p className="text-gray-800 font-bold text-[14px]">Click to upload image</p>
+                      <p className="text-gray-400 text-[11px] font-medium mt-1.5 uppercase tracking-wider">PNG, JPG or WebP up to 5MB</p>
+                    </>
+                  )}
                 </div>
                 <div className="mt-4">
                   <label className="block text-[11px] font-bold text-gray-500 mb-1.5 uppercase tracking-wider">Or enter image URL</label>

@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import DelayedJob from '../models/DelayedJob.js';
 import CustomerSession from '../models/CustomerSession.js';
 
@@ -30,6 +31,11 @@ export const startDelayQueueWorker = () => {
   isPolling = true;
   
   setInterval(async () => {
+    // Only run if database connection is alive and ready
+    if (!mongoose.connection || mongoose.connection.readyState !== 1) {
+      return;
+    }
+
     try {
       // Find jobs that are due and still pending
       const now = new Date();

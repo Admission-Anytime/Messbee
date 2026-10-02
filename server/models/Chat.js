@@ -21,7 +21,7 @@ const chatSchema = mongoose.Schema(
     whatsappId: { type: String, sparse: true }, // WhatsApp user ID (phone with country code)
     source: { 
       type: String, 
-      enum: ["whatsapp", "web", "api", "manual"],
+      enum: ["whatsapp", "web", "api", "manual", "simulator", "system", "instagram", "facebook", "other"],
       default: "whatsapp"
     },
     email: { type: String, default: "" },

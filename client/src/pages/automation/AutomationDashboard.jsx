@@ -68,14 +68,41 @@ export default function AutomationDashboard({ onCreateAutomation, onEditAutomati
   };
 
   const getTriggerText = (a) => {
-    const triggerNode = a.nodes?.find(n => n.type === 'triggerNode');
-    if (!triggerNode) return 'Not set';
-    const tt = triggerNode.data?.triggerType;
-    if (tt === 'fallback') return 'Fallback';
-    if (tt === 'qr_link') return 'QR / Link';
-    if (tt === 'whatsapp_ad') return 'WhatsApp Ad';
-    if (tt === 'new_contact') return 'New Opt-in';
-    return triggerNode.data?.keyword || 'Not set';
+    // 1. Check if an explicit triggerNode or eventTriggerNode exists
+    const triggerNode = a.nodes?.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');
+    if (triggerNode) {
+      const tt = triggerNode.data?.triggerType;
+      if (tt === 'fallback') return 'Fallback';
+      if (tt === 'qr_link') return 'QR / Link';
+      if (tt === 'whatsapp_ad') return 'WhatsApp Ad';
+      if (tt === 'new_contact') return 'New Opt-in';
+      if (tt === 'any_message') return 'Any Message';
+      if (triggerNode.data?.keyword) return `Keyword: ${triggerNode.data.keyword}`;
+      if (triggerNode.data?.keywords?.length) return `Keyword: ${triggerNode.data.keywords[0]}`;
+      if (tt) return tt.replace(/_/g, ' ');
+    }
+
+    // 2. Check root template node (Flow starts with a Template)
+    const rootTemplateNode = a.nodes?.find(n => n.type === 'templateNode' && !a.edges?.some(e => e.target === n.id));
+    if (rootTemplateNode) {
+      const tmplName = rootTemplateNode.data?.templateName || rootTemplateNode.data?.label || 'Template';
+      return `Template: ${tmplName}`;
+    }
+
+    // 3. Any template node in flow
+    const anyTemplateNode = a.nodes?.find(n => n.type === 'templateNode');
+    if (anyTemplateNode) {
+      const tmplName = anyTemplateNode.data?.templateName || anyTemplateNode.data?.label || 'Template';
+      return `Template: ${tmplName}`;
+    }
+
+    // 4. Check schema triggers array
+    if (Array.isArray(a.triggers) && a.triggers.length > 0) {
+      const t = a.triggers[0];
+      return `${t.type}: ${t.value || ''}`;
+    }
+
+    return 'Not set';
   };
 
   const formatDate = (dateString) => {

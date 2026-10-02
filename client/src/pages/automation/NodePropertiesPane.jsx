@@ -666,7 +666,17 @@ export default function NodePropertiesPane({ currentChannelId }) {
           <>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4B5563', marginBottom: '8px' }}>Message Type</label>
-              <select name="messageType" value={localData.messageType || 'text'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+              <select name="messageType" value={localData.messageType || 'text'} onChange={(e) => { 
+                const val = e.target.value;
+                if (val === 'interactive' && (!localData.buttons || localData.buttons.length === 0)) {
+                  const initialButtons = [{ id: `btn_${Date.now()}`, title: 'Option 1', type: 'reply' }];
+                  setLocalData(prev => ({ ...prev, messageType: val, buttons: initialButtons }));
+                  updateNodeData(id, { messageType: val, buttons: initialButtons });
+                } else {
+                  handleLocalChange(e); 
+                  handleBlur(e); 
+                }
+              }} style={inputStyle}>
                 <option value="text">Text Only</option>
                 <option value="interactive">Interactive</option>
               </select>

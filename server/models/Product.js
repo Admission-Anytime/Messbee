@@ -13,7 +13,7 @@ const productSchema = new mongoose.Schema({
   name: { type: String, required: true },
   sku: { type: String, required: true },
   barcode: { type: String },
-  category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
+  category: { type: String, required: true },
   brand: { type: String },
   description: { type: String },
   purchasePrice: { type: Number, required: true, default: 0 },
