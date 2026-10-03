@@ -164,11 +164,13 @@ const UserSchema = new mongoose.Schema({
   },
   credits: {
     type: Number,
-    default: 0
+    default: 0,
+    min: [0, 'Credits cannot be negative']
   },
   reservedCredits: {
     type: Number,
-    default: 0
+    default: 0,
+    min: [0, 'Reserved credits cannot be negative']
   },
   // WhatsApp Meta messaging limit tier (e.g., '2,000', 'TIER_2K')
   messageLimitTier: {
@@ -294,6 +296,63 @@ const UserSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
+});
+
+// Ensure credits and reservedCredits are never negative before validation and save
+UserSchema.pre('validate', function(next) {
+  if (typeof this.credits === 'number' && this.credits < 0) {
+    this.credits = 0;
+  }
+  if (typeof this.reservedCredits === 'number' && this.reservedCredits < 0) {
+    this.reservedCredits = 0;
+  }
+  next();
+});
+
+UserSchema.pre('save', function(next) {
+  if (typeof this.credits === 'number' && this.credits < 0) {
+    this.credits = 0;
+  }
+  if (typeof this.reservedCredits === 'number' && this.reservedCredits < 0) {
+    this.reservedCredits = 0;
+  }
+  next();
+});
+
+// Query Middleware: ensure any update operation cannot set credits below 0
+UserSchema.pre(['findOneAndUpdate', 'findByIdAndUpdate', 'updateOne', 'updateMany'], function(next) {
+  const update = this.getUpdate();
+  if (!update) return next();
+
+  if (update.$set) {
+    if (typeof update.$set.credits === 'number' && update.$set.credits < 0) {
+      update.$set.credits = 0;
+    }
+    if (typeof update.$set.reservedCredits === 'number' && update.$set.reservedCredits < 0) {
+      update.$set.reservedCredits = 0;
+    }
+  }
+
+  if (typeof update.credits === 'number' && update.credits < 0) {
+    update.credits = 0;
+  }
+  if (typeof update.reservedCredits === 'number' && update.reservedCredits < 0) {
+    update.reservedCredits = 0;
+  }
+
+  next();
+});
+
+// Post-query Middleware: if updated document has negative credits, immediately clamp in DB
+UserSchema.post(['findOneAndUpdate', 'findByIdAndUpdate', 'updateOne'], async function(res) {
+  if (res && ((typeof res.credits === 'number' && res.credits < 0) || (typeof res.reservedCredits === 'number' && res.reservedCredits < 0))) {
+    const fix = {};
+    if (res.credits < 0) fix.credits = 0;
+    if (res.reservedCredits < 0) fix.reservedCredits = 0;
+    try {
+      await this.model.findByIdAndUpdate(res._id, { $set: fix });
+    } catch (_) {}
+  }
 });
 
 // Encrypt password using bcrypt before saving

@@ -38,6 +38,15 @@ connectDB().then(async () => {
       console.log(`✅ Migration: Set role='ADMIN' for ${roleResult.modifiedCount} existing users`);
     }
 
+    // Negative Credits Cleanup Migration: ensure no user remains with negative balance
+    const negCreditsResult = await mongoose.connection.db.collection('users').updateMany(
+      { credits: { $lt: 0 } },
+      { $set: { credits: 0 } }
+    );
+    if (negCreditsResult.modifiedCount > 0) {
+      console.log(`✅ Migration: Reset negative credits to 0 for ${negCreditsResult.modifiedCount} users`);
+    }
+
     // Multi-tenant Chat Index Migration: ensure legacy global unique index 'phone_1' on chats is removed
     try {
       const chatIndexes = await mongoose.connection.db.collection('chats').indexes();
@@ -228,6 +237,7 @@ app.use('/api/contacts', require('./routes/contactRoutes'));
 app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));
+app.use('/api/performance', require('./routes/performanceRoutes'));
 app.use('/api/automation', require('./routes/automationRoutes'));
 app.use('/api/whatsapp', require('./routes/whatsappRoutes')); // WhatsApp Business API routes
 app.use('/api/quick-replies', require('./routes/quickReplyRoutes'));

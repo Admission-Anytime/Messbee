@@ -342,13 +342,13 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
         const autoCost = getMessageCost(autoCategory, toPhone, userPricingDoc?.customPricing);
 
         const hasBalance = await walletService.hasSufficientCredits(channel.tenantId, autoCost);
-        // Do not block SERVICE auto-responses (Meta provides 1,000 free service conversations/month)
-        if (!hasBalance && autoCategory !== 'SERVICE') {
-          logger.warn(`[Automation] Skipped outbound marketing/template message to ${toPhone}. Insufficient WCC Credits for tenant ${channel.tenantId}`);
+        if (!hasBalance) {
+          logger.warn(`[Automation] Skipped outbound ${autoCategory} message to ${toPhone}. Insufficient WCC Credits for tenant ${channel.tenantId}`);
           return null;
         }
       } catch (balErr) {
-        logger.warn('[Automation] Wallet check warning (allowing send):', balErr.message);
+        logger.error('[Automation] Wallet check error, blocking message:', balErr.message);
+        return null;
       }
 
       if (payload.type === 'template' && payload.template?.name) {
@@ -1874,9 +1874,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       }
 
       // ─── PATH C. Flows that start directly with a root templateNode (No explicit triggerNode) ───
-      // The user requires: if they create a flow starting directly with a Template, it should trigger
-      // even if there is no explicit trigger keyword.
-      if (!matchedFlow) {
+      // If customer tapped a button that has no connected edge, do NOT re-trigger the root template!
+      if (!matchedFlow && !isButtonTap) {
         for (const flow of allActiveFlows) {
           const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
           const flowEdges = Array.isArray(flow?.edges) ? flow.edges : [];

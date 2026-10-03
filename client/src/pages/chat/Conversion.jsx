@@ -539,6 +539,10 @@ const Conversion = ({
    const handleSubmit = (e) => {
       e.preventDefault();
       if (!inputText || !inputText.trim()) return;
+      if (Number(user?.credits || 0) <= 0) {
+         onSendMessage(inputText);
+         return; // Don't clear inputText when sending fails due to zero credits
+      }
       onSendMessage(inputText);
       setInputText("");
       setShowEmojiPicker(false);
@@ -601,6 +605,12 @@ const Conversion = ({
       if (!confirmTemplate?.name || isConfirmSending) return;
       setIsConfirmSending(true);
       setConfirmSendError("");
+
+      if (Number(user?.credits || 0) < 0.95) {
+         setConfirmSendError("Insufficient WCC credits. Please recharge your wallet before sending.");
+         setIsConfirmSending(false);
+         return;
+      }
 
       // Attach expiry ms for LTO templates
       const templateToSend = confirmTemplate?.isLimited
@@ -2016,10 +2026,25 @@ const selectedTemplate = useMemo(() => {
                            </label>
                         </div>
 
-                        <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
-                           <InformationCircleIcon className="w-4 h-4 text-slate-500" />
-                           <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">₹0.95 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">{user?.credits != null ? parseFloat(user.credits).toFixed(2) : '0.00'}</span>.</p>
-                        </div>
+                        {Number(user?.credits || 0) < 0.95 ? (
+                           <div className="flex items-center justify-between gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-900">
+                              <div className="flex items-center gap-2">
+                                 <span className="text-base shrink-0">⚠️</span>
+                                 <p className="text-xs font-medium">Insufficient WCC credits. Balance: <span className="font-bold">₹{parseFloat(user?.credits || 0).toFixed(2)}</span></p>
+                              </div>
+                              <a
+                                 href="/admin/plan/addons"
+                                 className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded shadow transition-colors whitespace-nowrap"
+                              >
+                                 Recharge
+                              </a>
+                           </div>
+                        ) : (
+                           <div className="flex items-center gap-2 p-3 bg-slate-100 rounded-lg">
+                              <InformationCircleIcon className="w-4 h-4 text-slate-500" />
+                              <p className="text-xs text-slate-600">This will consume <span className="font-bold text-slate-800">₹0.95 WCC credit</span>. Remaining: <span className="font-bold text-emerald-700">{user?.credits != null ? parseFloat(user.credits).toFixed(2) : '0.00'}</span>.</p>
+                           </div>
+                        )}
                         {confirmSendError && <p className="text-xs font-bold text-red-500">{confirmSendError}</p>}
                      </div>
 
@@ -2034,7 +2059,7 @@ const selectedTemplate = useMemo(() => {
                         <button
                            type="button"
                            onClick={handleConfirmTemplateSend}
-                           disabled={isSendingTemplate || isConfirmSending}
+                           disabled={isSendingTemplate || isConfirmSending || Number(user?.credits || 0) < 0.95}
                            className="bg-gradient-to-br from-emerald-700 to-emerald-500 text-white font-bold px-5 sm:px-7 py-2.5 rounded-xl shadow-[0_4px_12px_rgba(17,186,130,0.3)] hover:brightness-110 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm sm:text-base"
                         >
                            {isConfirmSending ? "Sending..." : (deliveryMode === "schedule" ? "Schedule Message" : "Send Message Now")}
@@ -2072,6 +2097,21 @@ const selectedTemplate = useMemo(() => {
             ) : (
                <>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
+
+                  {Number(user?.credits || 0) <= 0 && (
+                     <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs shadow-sm">
+                        <div className="flex items-center gap-2 min-w-0">
+                           <span className="text-base shrink-0">⚠️</span>
+                           <span className="truncate"><strong>WCC Balance is ₹0.00:</strong> Please recharge to send messages.</span>
+                        </div>
+                        <a
+                           href="/admin/plan/addons"
+                           className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg shadow-sm whitespace-nowrap transition-colors text-[11px] shrink-0"
+                        >
+                           Recharge
+                        </a>
+                     </div>
+                  )}
 
                   <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
                      <div className="flex items-center gap-0.5 pl-2 shrink-0">
