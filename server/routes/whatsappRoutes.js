@@ -55,8 +55,33 @@ router.post('/debug-send', protect, async (req, res) => {
     return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
   }
 
+  const walletService = require('../services/walletService');
+  const User = require('../models/User');
+  const { getMessageCost } = require('../config/pricingConfig');
+  const userPricingDoc = await User.findById(tenantId).select('customPricing').lean();
+  const msgCost = getMessageCost('SERVICE', normalized, userPricingDoc?.customPricing);
+
+  const hasBalance = await walletService.hasSufficientCredits(tenantId, msgCost);
+  if (!hasBalance) {
+    return res.status(402).json({
+      success: false,
+      message: `Insufficient WCC Credits in wallet. Message cost: ₹${msgCost.toFixed(2)}. Please recharge your credits.`,
+      errorCode: 'INSUFFICIENT_WCC_CREDITS'
+    });
+  }
+
   const result = await tenantWhatsAppService.sendTextMessage(normalized, message);
   console.log('🔍 DEBUG SEND RESULT:', JSON.stringify(result, null, 2));
+
+  if (result.success) {
+    try {
+      await walletService.deductMessageCredits({
+        tenantId,
+        category: 'SERVICE',
+        recipientPhone: normalized
+      });
+    } catch (_) {}
+  }
   res.json({
     input: to,
     normalized,

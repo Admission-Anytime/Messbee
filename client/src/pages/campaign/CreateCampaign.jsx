@@ -268,7 +268,7 @@ const CreateCampaign = () => {
                         updateUser(userRes.data.data);
                     }
                 } catch (err) {
-                    const newCredits = parseFloat((user.credits - estimatedCost).toFixed(2));
+                    const newCredits = Math.max(0, parseFloat((user.credits - estimatedCost).toFixed(2)));
                     if (user) updateUser({ ...user, credits: newCredits });
                 }
 

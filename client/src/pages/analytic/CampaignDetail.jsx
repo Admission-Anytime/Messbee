@@ -278,7 +278,7 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
           }
         } catch (_billingErr) {
           // Fallback: optimistically deduct locally if server sync fails
-          if (user) updateUser({ ...user, credits: parseFloat((parseFloat(user.credits || 0) - estimatedCost).toFixed(2)) });
+          if (user) updateUser({ ...user, credits: Math.max(0, parseFloat((parseFloat(user.credits || 0) - estimatedCost).toFixed(2))) });
         }
         toast.success("Campaign resend initiated successfully!");
         if (typeof window !== "undefined" && window.onCampaignRefresh) {

@@ -461,7 +461,7 @@ router.post("/message", async (req, res) => {
       let whatsappMediaType = 'document'; // default, overridden below if media present
 
       const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-      const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+      const targetTenantId = req.user?.tenantId || req.user?._id || chat.user;
       const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
       if (!tenantWhatsAppService) {
@@ -489,7 +489,7 @@ router.post("/message", async (req, res) => {
       if (!hasBal) {
         return res.status(402).json({
           success: false,
-          error: `Insufficient WCC Credits. Sending this message costs ₹${msgCost}. Please recharge your WCC Wallet.`,
+          error: `Insufficient WCC Credits. Sending this message costs ₹${msgCost.toFixed(2)}. Please recharge your WCC Wallet.`,
           errorCode: 'INSUFFICIENT_WCC_CREDITS'
         });
       }
@@ -929,7 +929,7 @@ router.post("/send-template", async (req, res) => {
     }
 
     const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-    const targetTenantId = chat.user || req.user?.tenantId || req.user?._id;
+    const targetTenantId = req.user?.tenantId || req.user?._id || chat.user;
     const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
     if (!tenantWhatsAppService) {
@@ -937,10 +937,13 @@ router.post("/send-template", async (req, res) => {
     }
 
     let metaTemplateName = templateName;
+    let templateCategory = 'MARKETING';
     try {
       const Template = require('../models/Template');
       const dbTpl = await Template.findOne({
         $or: [
+          { user: targetTenantId },
+          { tenantId: targetTenantId },
           { user: chat.user },
           { tenantId: chat.tenantId || chat.user }
         ],
@@ -952,8 +955,25 @@ router.post("/send-template", async (req, res) => {
       if (dbTpl) {
         if (dbTpl.whatsappTemplateName) metaTemplateName = dbTpl.whatsappTemplateName;
         if (dbTpl.language && (!languageCode || languageCode === 'en')) languageCode = dbTpl.language;
+        if (dbTpl.category) templateCategory = dbTpl.category.toUpperCase();
       }
     } catch (_) {}
+
+    // 💳 Pre-flight WCC Wallet Balance Check for Template
+    const walletService = require('../services/walletService');
+    const User = require('../models/User');
+    const { getMessageCost } = require('../config/pricingConfig');
+    const userPricingDoc = await User.findById(targetTenantId).select('customPricing').lean();
+    const templateCost = getMessageCost(templateCategory, chat.whatsappId, userPricingDoc?.customPricing);
+
+    const hasBalance = await walletService.hasSufficientCredits(targetTenantId, templateCost);
+    if (!hasBalance) {
+      return res.status(402).json({
+        success: false,
+        error: `Insufficient WCC Credits. Sending this ${templateCategory} template costs ₹${templateCost.toFixed(2)}. Please recharge your WCC Wallet.`,
+        errorCode: 'INSUFFICIENT_WCC_CREDITS'
+      });
+    }
 
     const result = await tenantWhatsAppService.sendTemplateMessage(
       chat.whatsappId,
@@ -1089,6 +1109,18 @@ router.post("/send-template", async (req, res) => {
           errorCode: whatsappErrorCode,
           rawError: result.error
         });
+      }
+
+      // 💸 Deduct credits after confirmed successful template dispatch
+      try {
+        await walletService.deductMessageCredits({
+          tenantId: targetTenantId,
+          category: templateCategory,
+          recipientPhone: chat.whatsappId,
+          messageId: newMessage._id
+        });
+      } catch (deductErr) {
+        console.warn('⚠️ Wallet deduction warning for template:', deductErr.message);
       }
 
       return res.json({
