@@ -2,6 +2,7 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { Copy, Trash2, AlignJustify, List, AlertTriangle } from 'lucide-react';
 import useCanvasStore from '../../../store/useCanvasStore';
+import { formatWhatsAppMarkdown } from '../../../utils/markdownParser';
 
 export default function MenuNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
@@ -48,29 +49,63 @@ export default function MenuNode({ id, data, selected }) {
             boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
             marginBottom: '12px'
           }}>
-            <div style={{ fontSize: '13px', fontWeight: '600', color: '#ECEFF4', marginBottom: '4px' }}>
-              {data.header || 'Header2'}
-            </div>
+            {data.header && (
+              <div style={{ fontSize: '13px', fontWeight: '600', color: '#ECEFF4', marginBottom: '4px' }}>
+                {data.header}
+              </div>
+            )}
 
-            <div style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4', marginBottom: '4px' }}>
-              {data.text || 'Body2'}
-            </div>
+            <div 
+              style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}
+              dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(data.text || 'Write your list message...') }}
+            />
 
-            <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-              {data.footer || 'Footer 2'}
-            </div>
+            {data.footer && (
+              <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '6px' }}>
+                {data.footer}
+              </div>
+            )}
+          </div>
+
+          {/* Menu Button */}
+          <div style={{ 
+              marginBottom: '12px', 
+              background: '#4F46E5', 
+              color: '#FFFFFF', 
+              padding: '8px 12px', 
+              borderRadius: '6px', 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              gap: '8px', 
+              fontSize: '12px', 
+              fontWeight: '500',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+              border: 'none'
+          }}>
+            <AlignJustify size={14} /> {data.menuButtonText || 'View Options'}
           </div>
 
           {/* Menu Rows */}
           {data.sections && data.sections.length > 0 && data.sections.map((sec, secIdx) => (
-            <div key={sec.id || secIdx}>
+            <div key={sec.id || secIdx} style={{ marginBottom: '8px' }}>
+              {sec.title && (
+                <div style={{ fontSize: '11px', fontWeight: '700', color: '#9CA3AF', textTransform: 'uppercase', marginBottom: '4px', letterSpacing: '0.04em' }}>
+                  {sec.title}
+                </div>
+              )}
               {(sec.rows && sec.rows.length > 0) ? sec.rows.map((row, rowIdx) => (
                 <div key={row.id || rowIdx} style={{ position: 'relative', marginBottom: '6px' }}>
                   <div style={{ 
                     padding: '8px 12px', borderRadius: '6px', fontSize: '12px',
                     color: '#D8DEE9', border: '1px solid #4C566A', background: '#3B4252'
                   }}>
-                    {row.title || 'Title'}
+                    <div style={{ fontWeight: '500' }}>{row.title || 'Option Title'}</div>
+                    {row.description && (
+                      <div style={{ fontSize: '10px', color: '#9CA3AF', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.description}
+                      </div>
+                    )}
                   </div>
                   <Handle 
                     type="source" 
@@ -87,25 +122,6 @@ export default function MenuNode({ id, data, selected }) {
               )}
             </div>
           ))}
-
-          {/* Apply here link */}
-          <div style={{ 
-              marginTop: '12px', 
-              background: '#4F46E5', 
-              color: '#FFFFFF', 
-              padding: '8px 12px', 
-              borderRadius: '6px', 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center', 
-              gap: '8px', 
-              fontSize: '12px', 
-              fontWeight: '500',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-              border: 'none'
-          }}>
-            <AlignJustify size={14} /> {data.menuButtonText || 'View Menu'}
-          </div>
         </div>
 
         {/* Next Step bottom area */}

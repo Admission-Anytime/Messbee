@@ -2,6 +2,7 @@ import React from 'react';
 import { Handle, Position } from 'reactflow';
 import { MessageSquare, Copy, Trash2, AlertTriangle } from 'lucide-react';
 import useCanvasStore from '../../../store/useCanvasStore';
+import { formatWhatsAppMarkdown } from '../../../utils/markdownParser';
 
 export default function MessageNode({ id, data, selected }) {
   const isInteractive = data.messageType === 'interactive';
@@ -55,9 +56,10 @@ export default function MessageNode({ id, data, selected }) {
               </div>
             )}
 
-            <div style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>
-              {data.text || 'Body'}
-            </div>
+            <div 
+              style={{ fontSize: '12px', color: '#D8DEE9', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}
+              dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(data.text || 'Body') }}
+            />
 
             {data.footer && (
               <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '8px' }}>

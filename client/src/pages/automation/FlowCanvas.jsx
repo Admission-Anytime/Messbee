@@ -106,21 +106,41 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     let messageType = 'text';
     let dataPayload = {};
 
-    if (stepItem.id === 'interactive_msg' || stepItem.id === 'button_msg' || stepItem.id === 'quick_reply') {
+    if (stepItem.id === 'interactive_msg' || stepItem.id === 'button_msg' || stepItem.id === 'quick_reply' || stepItem.id === 'btn_ref') {
       messageType = 'interactive';
+      const defaultBtnId = `btn_${Date.now()}`;
       dataPayload = {
         text: 'Please select an option:',
-        buttons: [{ id: `btn_${Date.now()}`, title: 'Option 1', type: 'reply' }]
+        header: '',
+        footer: '',
+        buttons: [{ id: defaultBtnId, title: 'Option 1', type: 'reply' }]
       };
     } else if (stepItem.id === 'menu_msg' || stepItem.id === 'list_msg') {
       type = 'menuNode';
       messageType = 'menu';
-      dataPayload = { menuButtonText: 'View Menu', sections: [{ id: `sec_${Date.now()}`, title: 'Options', rows: [] }] };
+      const defaultRowId = `row_${Date.now()}`;
+      dataPayload = { 
+        text: 'Please select an option from the list below:',
+        menuButtonText: 'View Options',
+        header: '',
+        footer: '',
+        sections: [{ 
+          id: `sec_${Date.now()}`, 
+          title: 'Options', 
+          rows: [{ id: defaultRowId, title: 'Option 1', description: '', postbackId: defaultRowId }] 
+        }] 
+      };
     } else if ((stepItem.id && stepItem.id.startsWith('ask_')) || stepItem.id === 'wait_input') {
       type = 'inputNode';
       messageType = 'input';
       let validation = (stepItem.id === 'wait_input' || stepItem.id === 'ask_anything') ? 'text' : stepItem.id.replace('ask_', '');
-      dataPayload = { validationType: validation, variableName: `contact.${validation}` };
+      if (validation === 'photo') validation = 'image';
+      dataPayload = { 
+        text: `Please enter your ${validation}:`,
+        validationType: validation, 
+        variableName: `contact.${validation}`,
+        validationErrorMessage: `Please provide a valid ${validation}.`
+      };
     } else if (['image_msg', 'video_msg', 'audio_msg', 'doc_msg', 'sticker_msg', 'gif_msg', 'voice_msg'].includes(stepItem.id)) {
       type = 'mediaNode';
       messageType = stepItem.id.replace('_msg', '');
@@ -349,7 +369,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
             onMouseOver={(e) => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.color = '#10b981'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(16,185,129,0.1)'; }}
             onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e5e7eb'; e.currentTarget.style.color = '#4b5563'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.04)'; }}
           >
-            <Zap size={14} /> Add trigger
+            <Zap size={14} /> Start from scratch (Trigger)
           </button>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '200px', margin: '4px 0' }}>
