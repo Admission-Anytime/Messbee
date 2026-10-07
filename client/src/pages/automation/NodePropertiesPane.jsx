@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
+import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -137,6 +138,193 @@ const inputStyle = {
   boxSizing: 'border-box'
 };
 
+function WhatsAppMessageField({
+  label = 'Message',
+  name = 'text',
+  value = '',
+  placeholder = 'Write a message...',
+  maxLength = 1024,
+  minHeight = '120px',
+  inputStyle = {},
+  localData,
+  setLocalData,
+  updateNodeData,
+  id,
+  showVariables = true,
+  showFormatting = true,
+}) {
+  const textareaRef = useRef(null);
+
+  const applyFormat = (marker) => {
+    const el = textareaRef.current;
+    const str = value || '';
+    const start = el ? el.selectionStart : str.length;
+    const end = el ? el.selectionEnd : str.length;
+
+    let newStr = '';
+    let selStart = start;
+    let selEnd = end;
+
+    if (start !== end) {
+      const selected = str.substring(start, end);
+      if (selected.startsWith(marker) && selected.endsWith(marker) && selected.length >= marker.length * 2) {
+        // Toggle off if already formatted
+        const inner = selected.slice(marker.length, -marker.length);
+        newStr = str.substring(0, start) + inner + str.substring(end);
+        selStart = start;
+        selEnd = start + inner.length;
+      } else {
+        // Wrap with marker
+        const wrapped = `${marker}${selected}${marker}`;
+        newStr = str.substring(0, start) + wrapped + str.substring(end);
+        selStart = start;
+        selEnd = start + wrapped.length;
+      }
+    } else {
+      // Nothing selected: insert sample placeholder
+      const sample = 'text';
+      const inserted = `${marker}${sample}${marker}`;
+      newStr = str.substring(0, start) + inserted + str.substring(end);
+      selStart = start + marker.length;
+      selEnd = start + marker.length + sample.length;
+    }
+
+    if (newStr.length <= maxLength) {
+      setLocalData(prev => ({ ...prev, [name]: newStr }));
+      updateNodeData(id, { [name]: newStr });
+      setTimeout(() => {
+        if (el) {
+          el.focus();
+          el.setSelectionRange(selStart, selEnd);
+        }
+      }, 0);
+    }
+  };
+
+  const insertVariable = (varText = '{{contact.name}}') => {
+    const el = textareaRef.current;
+    const str = value || '';
+    const start = el ? el.selectionStart : str.length;
+    const end = el ? el.selectionEnd : str.length;
+
+    const newStr = str.substring(0, start) + varText + str.substring(end);
+    if (newStr.length <= maxLength) {
+      setLocalData(prev => ({ ...prev, [name]: newStr }));
+      updateNodeData(id, { [name]: newStr });
+      setTimeout(() => {
+        if (el) {
+          el.focus();
+          const nextPos = start + varText.length;
+          el.setSelectionRange(nextPos, nextPos);
+        }
+      }, 0);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') {
+      e.preventDefault();
+      applyFormat('*');
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'i') {
+      e.preventDefault();
+      applyFormat('_');
+    }
+  };
+
+  const toolBtnStyle = {
+    background: '#F3F4F6',
+    border: '1px solid #E5E7EB',
+    color: '#374151',
+    borderRadius: '5px',
+    padding: '3px 8px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '3px',
+    fontSize: '11px',
+    fontWeight: '600',
+    transition: 'all 0.15s ease'
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+        <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+          {label} <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 'normal', marginLeft: '4px' }}>({(value || '').length}/{maxLength})</span>
+        </label>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+          {showFormatting && (
+            <>
+              <button 
+                type="button" 
+                title="Bold (*text* or Ctrl+B)" 
+                onClick={() => applyFormat('*')} 
+                style={{ ...toolBtnStyle, minWidth: '26px' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#E5E7EB'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F3F4F6'}
+              >
+                <Bold size={13} strokeWidth={2.8} />
+              </button>
+              <button 
+                type="button" 
+                title="Italic (_text_ or Ctrl+I)" 
+                onClick={() => applyFormat('_')} 
+                style={{ ...toolBtnStyle, minWidth: '26px' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#E5E7EB'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F3F4F6'}
+              >
+                <Italic size={13} />
+              </button>
+              <button 
+                type="button" 
+                title="Strikethrough (~text~)" 
+                onClick={() => applyFormat('~')} 
+                style={{ ...toolBtnStyle, minWidth: '26px' }}
+                onMouseEnter={e => e.currentTarget.style.background = '#E5E7EB'}
+                onMouseLeave={e => e.currentTarget.style.background = '#F3F4F6'}
+              >
+                <Strikethrough size={13} />
+              </button>
+            </>
+          )}
+
+          {showVariables && (
+            <button 
+              type="button" 
+              title="Insert variable" 
+              onClick={() => insertVariable('{{contact.name}}')} 
+              style={toolBtnStyle}
+              onMouseEnter={e => e.currentTarget.style.background = '#E5E7EB'}
+              onMouseLeave={e => e.currentTarget.style.background = '#F3F4F6'}
+            >
+              <Variable size={12} /> Insert {'{}'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <textarea 
+        ref={textareaRef}
+        name={name} 
+        value={value || ''} 
+        onChange={(e) => {
+          if (e.target.value.length <= maxLength) {
+            setLocalData(prev => ({ ...prev, [name]: e.target.value }));
+          }
+        }} 
+        onBlur={(e) => {
+          updateNodeData(id, { [name]: e.target.value });
+        }} 
+        onKeyDown={handleKeyDown}
+        style={{ ...inputStyle, minHeight, resize: 'vertical' }} 
+        placeholder={placeholder} 
+      />
+    </div>
+  );
+}
+
 export default function NodePropertiesPane({ currentChannelId }) {
   const { nodes, updateNodeData, setEdges } = useCanvasStore();
   const [localData, setLocalData] = useState(null);
@@ -146,6 +334,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [approvedTemplates, setApprovedTemplates] = useState([]);
   const [templateSearch, setTemplateSearch] = useState('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
 
   useEffect(() => {
     if (currentChannelId) {
@@ -162,6 +351,22 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
 
   const selectedNode = nodes.find(n => n.selected);
+
+  const handleSelectTrigger = (triggerId) => {
+    let mappedType = triggerId;
+    if (triggerId === 'webhook') mappedType = 'api_webhook';
+    if (triggerId === 'crm') mappedType = 'crm_event';
+    if (triggerId === 'manual') mappedType = 'manual_trigger';
+    if (triggerId === 'specific_message') mappedType = 'exact_match';
+
+    const updated = { triggerType: mappedType };
+    setLocalData(prev => ({ ...prev, ...updated }));
+    if (selectedNode?.id) {
+      updateNodeData(selectedNode.id, updated);
+    }
+    setIsTriggerModalOpen(false);
+    showToast.success('Trigger Selected', `Trigger set to: ${triggerId.replace(/_/g, ' ')}`);
+  };
 
   useEffect(() => {
     if (selectedNode) {
@@ -191,8 +396,9 @@ export default function NodePropertiesPane({ currentChannelId }) {
       setLoadingTemplates(true);
       api.get('/whatsapp/templates')
         .then(res => {
-          const all = res.data?.approvedTemplates || res.data?.data?.data || [];
-          setApprovedTemplates(all.filter(t => t.status === 'APPROVED' || !t.status));
+          const all = res.data?.approvedTemplates || res.data?.data?.data || (Array.isArray(res.data?.data) ? res.data.data : []);
+          const approved = all.filter(t => t.status === 'APPROVED');
+          setApprovedTemplates(approved.length > 0 ? approved : all);
         })
         .catch(() => {})
         .finally(() => setLoadingTemplates(false));
@@ -433,34 +639,132 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
         {/* Trigger Node Specific */}
         {type === 'triggerNode' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-            <div>
-              <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', margin: '0 0 8px 0' }}>
-                {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
-                 localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
-                 localData.triggerType === 'interactive_template' ? 'Template Quick Reply' :
-                 localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
-                 localData.triggerType === 'welcome_message' ? 'Welcome Message' :
-                 localData.triggerType === 'away_message' ? 'Away Message' :
-                 localData.triggerType === 'fallback' ? 'Default Fallback' :
-                 localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
-                 localData.triggerType === 'api_webhook' ? 'API Webhook Trigger' :
-                 localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
-                 'Conversation Trigger'}
-              </h2>
-              <p style={{ fontSize: '13px', color: '#6B7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Header card with Active Trigger, Description, Browse All Triggers Button, and Quick Switch */}
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#10B981' }}>
+                    Active Trigger
+                  </div>
+                  <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', margin: '4px 0 0 0' }}>
+                    {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
+                     localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
+                     localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
+                     localData.triggerType === 'welcome_message' ? 'Welcome Message' :
+                     localData.triggerType === 'away_message' ? 'Away Message' :
+                     localData.triggerType === 'fallback' ? 'Default Fallback' :
+                     localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
+                     localData.triggerType === 'api_webhook' || localData.triggerType === 'webhook' ? 'API Webhook' :
+                     localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
+                     localData.triggerType === 'recurring' ? 'Recurring Trigger' :
+                     localData.triggerType === 'contains' ? 'Keyword Contains' :
+                     localData.triggerType === 'starts_with' ? 'Keyword Starts With' :
+                     localData.triggerType === 'ends_with' ? 'Keyword Ends With' :
+                     localData.triggerType === 'media_any' || localData.triggerType === 'media_received' ? 'Media Received' :
+                     localData.triggerType === 'image_received' ? 'Image Received' :
+                     localData.triggerType === 'video_received' ? 'Video Received' :
+                     localData.triggerType === 'document_received' ? 'Document Received' :
+                     localData.triggerType === 'voice_received' ? 'Voice Note Received' :
+                     localData.triggerType === 'location_received' ? 'Location Shared' :
+                     localData.triggerType === 'contact_shared' ? 'Contact Card Shared' :
+                     localData.triggerType === 'reaction' ? 'Reaction Received' :
+                     localData.triggerType === 'order_created' ? 'Order Created' :
+                     localData.triggerType === 'payment_success' ? 'Payment Success' :
+                     'Keyword Exact Match'}
+                  </h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsTriggerModalOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 12px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    color: '#065F46',
+                    backgroundColor: '#D1FAE5',
+                    border: '1px solid #A7F3D0',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                    flexShrink: 0
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A7F3D0'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#D1FAE5'; }}
+                >
+                  <LayoutGrid size={14} />
+                  Browse All Triggers
+                </button>
+              </div>
+
+              <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 14px 0', lineHeight: '1.4' }}>
                 {localData.triggerType === 'qr_link' ? 'Generates a QR code and custom wa.me link for customers to start this automation.' :
                  localData.triggerType === 'whatsapp_ad' ? 'Starts this automation when customers click on your Meta WhatsApp ad.' :
-                 localData.triggerType === 'interactive_template' ? 'Starts when customer taps a Quick Reply or Call-to-Action button on a template.' :
                  localData.triggerType === 'any_message' ? 'Starts whenever any incoming message is received from a contact.' :
                  localData.triggerType === 'welcome_message' ? 'Starts when a new contact writes to your WhatsApp number for the first time.' :
                  localData.triggerType === 'away_message' ? 'Replies automatically when a contact writes outside of business hours.' :
                  localData.triggerType === 'fallback' ? 'Executes when no keywords or other automations match customer message.' :
                  localData.triggerType === 'tag_added' ? 'Runs automatically when a specific tag is attached to a contact profile.' :
+                 localData.triggerType === 'api_webhook' || localData.triggerType === 'webhook' ? 'Trigger this flow via an inbound webhook payload.' :
+                 localData.triggerType === 'schedule' || localData.triggerType === 'recurring' ? 'Executes automatically based on schedule.' :
                  'Configure when and how this automated workflow starts.'}
               </p>
+
+              <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>
+                  When to trigger (Quick Switch)
+                </label>
+                <select 
+                  name="triggerType" 
+                  value={localData.triggerType || 'exact_match'} 
+                  onChange={(e) => { handleLocalChange(e); handleBlur(e); }} 
+                  style={{ ...inputStyle, background: 'white' }}
+                >
+                  <optgroup label="Keywords & Chat Messages">
+                    <option value="exact_match">Exact Match</option>
+                    <option value="contains">Contains</option>
+                    <option value="starts_with">Starts With</option>
+                    <option value="ends_with">Ends With</option>
+                    <option value="any_message">Any Message (Reply / Greeting)</option>
+                  </optgroup>
+                  <optgroup label="Links & Ads">
+                    <option value="qr_link">QR & Click-to-Chat Link</option>
+                    <option value="whatsapp_ad">Click-to-WhatsApp Ad</option>
+                  </optgroup>
+                  <optgroup label="Media & Attachments">
+                    <option value="media_any">Media Received (Any)</option>
+                    <option value="image_received">Image Received</option>
+                    <option value="video_received">Video Received</option>
+                    <option value="document_received">Document Received</option>
+                    <option value="voice_received">Voice Note Received</option>
+                    <option value="location_received">Location Received</option>
+                    <option value="contact_shared">Contact Shared</option>
+                    <option value="reaction">Reaction Received</option>
+                  </optgroup>
+                  <optgroup label="System, CRM & Integrations">
+                    <option value="api_webhook">API Webhook</option>
+                    <option value="crm_event">CRM Event</option>
+                    <option value="tag_added">Tag Added (CRM)</option>
+                    <option value="order_created">Order Created</option>
+                    <option value="payment_success">Payment Success</option>
+                    <option value="schedule">Schedule (One-time)</option>
+                    <option value="recurring">Recurring</option>
+                  </optgroup>
+                  <optgroup label="Special Behaviors">
+                    <option value="welcome_message">Welcome Message (New Contact)</option>
+                    <option value="away_message">Away Message (Outside Business Hours)</option>
+                    <option value="fallback">Default Fallback (Unrecognized text)</option>
+                  </optgroup>
+                </select>
+              </div>
             </div>
-            
+
+            {/* Specific Trigger Sub-panels */}
             {localData.triggerType === 'qr_link' ? (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -485,7 +789,6 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
                 {localData.keyword && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {/* Link Section */}
                     <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
                       <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
@@ -498,7 +801,6 @@ export default function NodePropertiesPane({ currentChannelId }) {
                       </button>
                     </div>
 
-                    {/* QR Code Section */}
                     <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                       <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
                         Your QR Code
@@ -546,116 +848,58 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   3. Under Message Template, edit the "Customer Actions" to include the exact keyword above.
                 </div>
               </div>
-            ) : localData.triggerType === 'interactive_template' ? (
-              <div style={{ background: '#FAF5FF', border: '1px solid #E9D5FF', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ClipboardList size={16} color="#9333EA" /> Interactive Template (Campaign)
-                </div>
-                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '16px', lineHeight: '1.4' }}>
-                  Trigger this flow when a customer clicks a Quick Reply button on an outbound Meta Template message.
-                </p>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Template Button Payload (Required)</label>
-                  <input
-                    type="text"
-                    name="keyword"
-                    value={localData.keyword || ''}
-                    onChange={handleLocalChange}
-                    onBlur={handleBlur}
-                    style={{ ...inputStyle, background: 'white', borderColor: '#CBD5E1' }}
-                    placeholder="e.g. btn_confirm_order"
-                  />
-                </div>
-
-                <div style={{ background: 'white', border: '1px dashed #D8B4FE', borderRadius: '8px', padding: '12px', fontSize: '12px', color: '#6B21A8', lineHeight: '1.5' }}>
-                  <span style={{ fontWeight: '700' }}>Where to find this?</span><br/>
-                  When you create a message template in your Meta WhatsApp Manager, each button asks for a "Payload". Paste that exact payload here to connect the button to this automation flow.
-                </div>
-              </div>
-            ) : (
+            ) : !['fallback', 'welcome_message', 'away_message', 'any_message', 'new_subscriber', 'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call', 'api_webhook', 'webhook', 'crm_event', 'crm', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual', 'qr_link', 'whatsapp_ad'].includes(localData.triggerType) ? (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '16px' }}>Trigger Settings</div>
-                
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155', marginBottom: '8px' }}>When to trigger</label>
-                  <select name="triggerType" value={localData.triggerType || 'exact_match'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={{ ...inputStyle, background: 'white' }}>
-                    <option value="exact_match">Exact Match</option>
-                    <option value="contains">Contains</option>
-                    <option value="starts_with">Starts With</option>
-                    <option value="ends_with">Ends With</option>
-                    <option value="any_message">Any Message (Reply to Template)</option>
-                    <option value="template_reply">Template Button Reply (Keyword)</option>
-                    <option value="media_any">Media Received (Any)</option>
-                    <option value="image_received">Image Received</option>
-                    <option value="video_received">Video Received</option>
-                    <option value="document_received">Document Received</option>
-                    <option value="voice_received">Voice Received</option>
-                    <option value="location_received">Location Received</option>
-                    <option value="contact_shared">Contact Shared</option>
-                    <option value="reaction">Reaction Received</option>
-                    <option disabled>--- System & API Triggers ---</option>
-                    <option value="api_webhook">API Webhook</option>
-                    <option value="crm_event">CRM Event</option>
-                    <option value="order_created">Order Created</option>
-                    <option value="payment_success">Payment Success</option>
-                    <option value="schedule">Schedule (One-time)</option>
-                    <option value="recurring">Recurring</option>
-                    <option value="manual_trigger">Manual Trigger</option>
-                    <option disabled>--- Special Behaviors ---</option>
-                    <option value="welcome_message">Welcome Message (New Contact)</option>
-                    <option value="away_message">Away Message (Outside Business Hours)</option>
-                    <option value="fallback">Default Fallback (Unrecognized text)</option>
-                  </select>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                    Trigger Keywords
+                  </label>
+                  <span style={{ fontSize: '11px', color: '#64748B' }}>
+                    Comma separated
+                  </span>
                 </div>
-
-                {!['fallback', 'welcome_message', 'away_message', 'any_message', 'new_subscriber', 'media_any', 'media_received', 'image_received', 'video_received', 'document_received', 'voice_received', 'location_received', 'contact_shared', 'reaction', 'missed_call', 'api_webhook', 'webhook', 'crm_event', 'crm', 'order_created', 'payment_success', 'schedule', 'recurring', 'manual_trigger', 'manual'].includes(localData.triggerType) && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#334155' }}>
-                        Trigger Keywords
-                      </label>
-                      <span style={{ fontSize: '11px', color: '#64748B' }}>
-                        Comma separated
+                <input
+                  type="text"
+                  name="keyword"
+                  value={localData.keyword || ''}
+                  onChange={handleLocalChange}
+                  onBlur={handleBlur}
+                  style={{ ...inputStyle, background: 'white' }}
+                  placeholder="e.g. hi, hello, start, menu"
+                />
+                <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: '1.4' }}>
+                  Add multiple keywords separated by commas (e.g. <code style={{ background: '#E2E8F0', padding: '1px 4px', borderRadius: '4px' }}>hi, hello, hey</code>). Any of these will trigger this automation.
+                </div>
+                {localData.keyword && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                    {localData.keyword.split(',').map(k => k.trim()).filter(Boolean).map((kw, i) => (
+                      <span 
+                        key={i} 
+                        style={{ 
+                          background: '#EFF6FF', 
+                          color: '#2563EB', 
+                          fontSize: '12px', 
+                          fontWeight: '500', 
+                          padding: '2px 8px', 
+                          borderRadius: '12px', 
+                          border: '1px solid #BFDBFE',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        <span>#</span> {kw}
                       </span>
-                    </div>
-                    <input
-                      type="text"
-                      name="keyword"
-                      value={localData.keyword || ''}
-                      onChange={handleLocalChange}
-                      onBlur={handleBlur}
-                      style={{ ...inputStyle, background: 'white' }}
-                      placeholder="e.g. hi, hello, start, menu"
-                    />
-                    <div style={{ fontSize: '11px', color: '#64748B', marginTop: '6px', lineHeight: '1.4' }}>
-                      Add multiple keywords separated by commas (e.g. <code style={{ background: '#E2E8F0', padding: '1px 4px', borderRadius: '4px' }}>hi, hello, hey</code>). Any of these will trigger this automation.
-                    </div>
-                    {localData.keyword && (
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
-                        {localData.keyword.split(',').map(k => k.trim()).filter(Boolean).map((kw, i) => (
-                          <span 
-                            key={i} 
-                            style={{ 
-                              background: '#EFF6FF', 
-                              color: '#2563EB', 
-                              fontSize: '12px', 
-                              fontWeight: '500', 
-                              padding: '2px 8px', 
-                              borderRadius: '12px', 
-                              border: '1px solid #BFDBFE',
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              gap: '4px'
-                            }}
-                          >
-                            <span>#</span> {kw}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    ))}
                   </div>
                 )}
+              </div>
+            ) : (
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+                <div style={{ fontWeight: '600', color: '#1E293B', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Zap size={14} color="#10B981" /> Automated Event Trigger
+                </div>
+                This flow triggers automatically based on the selected event. No keyword input is needed.
               </div>
             )}
           </div>
@@ -728,15 +972,19 @@ export default function NodePropertiesPane({ currentChannelId }) {
               </>
             )}
 
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Message <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 'normal', marginLeft: '4px' }}>({(localData.text || '').length}/1024)</span></label>
-                <button onClick={() => { const newText = (localData.text || '') + '{{contact.name}}'; if (newText.length <= 1024) { setLocalData(prev => ({ ...prev, text: newText })); updateNodeData(id, { text: newText }); } }} style={{ background: '#F3F4F6', border: 'none', color: '#4B5563', fontSize: '12px', fontWeight: '600', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Variable size={12} /> Insert { }
-                </button>
-              </div>
-              <textarea name="text" value={localData.text || ''} onChange={(e) => { if (e.target.value.length <= 1024) { handleLocalChange(e); } }} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }} placeholder="Write a message..." />
-            </div>
+            <WhatsAppMessageField
+              label="Message"
+              name="text"
+              value={localData.text || ''}
+              placeholder="Write a message..."
+              maxLength={1024}
+              minHeight="120px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
 
             {localData.messageType === 'interactive' && (
               <div>
@@ -770,7 +1018,12 @@ export default function NodePropertiesPane({ currentChannelId }) {
                         <label style={{ display: 'block', fontSize: '12px', color: '#6B7280' }}>Button Title</label>
                         <span style={{ fontSize: '11px', color: '#6B7280' }}>{(btn.title || '').length}/20</span>
                       </div>
-                      <input type="text" value={btn.title || ''} onChange={(e) => { if (e.target.value.length <= 20) { handleButtonLocalChange(idx, 'title', e.target.value); } }} onBlur={handleButtonBlur} style={{ ...inputStyle, background: 'white' }} placeholder="Title" />
+                      <input type="text" value={btn.title || ''} onChange={(e) => { if (e.target.value.length <= 20) { handleButtonLocalChange(idx, 'title', e.target.value); } }} onBlur={handleButtonBlur} style={{ ...inputStyle, background: 'white', marginBottom: '8px' }} placeholder="Title" />
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <label style={{ display: 'block', fontSize: '12px', color: '#6B7280' }}>Button ID / Payload (Optional)</label>
+                      </div>
+                      <input type="text" value={btn.payload || ''} onChange={(e) => handleButtonLocalChange(idx, 'payload', e.target.value)} onBlur={handleButtonBlur} style={{ ...inputStyle, background: 'white' }} placeholder="e.g. buy_now" />
                     </div>
                     {btn.type === 'url' && (
                       <div style={{ marginBottom: '12px' }}>
@@ -796,25 +1049,60 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 )}
               </div>
             )}
+            
+            {localData.messageType === 'interactive' && (
+              <div style={{ marginTop: '16px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Button ID to Variable (Optional)</label>
+                <div style={{ position: 'relative' }}>
+                  <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
+                    <Variable size={14} />
+                  </div>
+                  <input type="text" name="saveVariableAs" value={localData.saveVariableAs || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, paddingLeft: '32px' }} placeholder="e.g. contact.selected_plan" />
+                </div>
+              </div>
+            )}
           </>
         )}
 
         {/* Menu Node Specific */}
         {type === 'menuNode' && (
           <>
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Message <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 'normal', marginLeft: '4px' }}>({(localData.text || '').length}/1024)</span></label>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Header (Optional)</label>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.header || '').length}/60</span>
               </div>
-              <textarea name="text" value={localData.text || ''} onChange={(e) => { if (e.target.value.length <= 1024) { handleLocalChange(e); } }} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }} placeholder="Write a message..." />
+              <input type="text" name="header" value={localData.header || ''} onChange={(e) => { if (e.target.value.length <= 60) { handleLocalChange(e); } }} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Explore Our Services" />
+            </div>
+
+            <WhatsAppMessageField
+              label="Message Body"
+              name="text"
+              value={localData.text || ''}
+              placeholder="Please select an option from the list below..."
+              maxLength={1024}
+              minHeight="110px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Footer (Optional)</label>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.footer || '').length}/60</span>
+              </div>
+              <input type="text" name="footer" value={localData.footer || ''} onChange={(e) => { if (e.target.value.length <= 60) { handleLocalChange(e); } }} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Tap below to view" />
             </div>
 
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Menu Button Text</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Menu Button Label</label>
                 <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.menuButtonText || '').length}/20</span>
               </div>
-              <input type="text" name="menuButtonText" value={localData.menuButtonText || ''} onChange={(e) => { if (e.target.value.length <= 20) handleLocalChange(e); }} onBlur={handleBlur} style={inputStyle} placeholder="e.g. View Menu" />
+              <input type="text" name="menuButtonText" value={localData.menuButtonText || ''} onChange={(e) => { if (e.target.value.length <= 20) handleLocalChange(e); }} onBlur={handleBlur} style={inputStyle} placeholder="e.g. View Options" />
             </div>
 
             <div style={{ paddingTop: '10px' }}>
@@ -852,6 +1140,9 @@ export default function NodePropertiesPane({ currentChannelId }) {
                           <input type="text" value={row.description || ''} onChange={(e) => { if (e.target.value.length <= 72) handleRowChange(secIdx, rowIdx, 'description', e.target.value); }} onBlur={handleMenuBlur} style={{ ...inputStyle, padding: '8px', paddingRight: '40px' }} placeholder="Description" />
                           <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: '#9CA3AF' }}>{(row.description || '').length}/72</span>
                         </div>
+                        <div style={{ position: 'relative' }}>
+                          <input type="text" value={row.postbackId || ''} onChange={(e) => handleRowChange(secIdx, rowIdx, 'postbackId', e.target.value)} onBlur={handleMenuBlur} style={{ ...inputStyle, padding: '8px' }} placeholder="Option ID / Payload (Optional)" />
+                        </div>
                       </div>
                     ))}
                     <button onClick={() => addRow(secIdx)} style={{ background: 'transparent', color: '#10B981', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
@@ -869,21 +1160,35 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 <div style={{ fontSize: '11px', color: '#EF4444', marginTop: '8px', textAlign: 'center' }}>Maximum 10 rows allowed across all sections.</div>
               )}
             </div>
+
+            <div style={{ marginTop: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Selected Row ID to Variable (Optional)</label>
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
+                  <Variable size={14} />
+                </div>
+                <input type="text" name="saveVariableAs" value={localData.saveVariableAs || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, paddingLeft: '32px' }} placeholder="e.g. contact.selected_plan" />
+              </div>
+            </div>
           </>
         )}
 
         {/* Input Node Specific */}
         {type === 'inputNode' && (
           <>
-            <div style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Question to Ask <span style={{ fontSize: '11px', color: '#6B7280', fontWeight: 'normal', marginLeft: '4px' }}>({(localData.text || '').length}/1024)</span></label>
-                <button onClick={() => { const newText = (localData.text || '') + '{{contact.name}}'; if (newText.length <= 1024) { setLocalData(prev => ({ ...prev, text: newText })); updateNodeData(id, { text: newText }); } }} style={{ background: '#F3F4F6', border: 'none', color: '#4B5563', fontSize: '12px', fontWeight: '600', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <Variable size={12} /> Insert { }
-                </button>
-              </div>
-              <textarea name="text" value={localData.text || ''} onChange={(e) => { if (e.target.value.length <= 1024) { handleLocalChange(e); } }} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '120px', resize: 'vertical' }} placeholder="E.g., What is your email address?" />
-            </div>
+            <WhatsAppMessageField
+              label="Question to Ask"
+              name="text"
+              value={localData.text || ''}
+              placeholder="E.g., What is your email address?"
+              maxLength={1024}
+              minHeight="120px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
 
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Expected Input (Validation)</label>
@@ -895,6 +1200,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 <option value="date">Date</option>
                 <option value="location">Location</option>
                 <option value="url">Website URL</option>
+                <option value="address">Address (Delivery / Physical Address)</option>
                 <option value="photo">Photo / Image</option>
                 <option value="audio">Audio Message</option>
                 <option value="pdf">Document (PDF)</option>
@@ -909,8 +1215,46 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 </div>
                 <input type="text" name="variableName" value={localData.variableName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, paddingLeft: '32px' }} placeholder="e.g. contact.email" />
               </div>
-              <p style={{ fontSize: '12px', color: '#6B7280', margin: '8px 0 0 0' }}>
-                The user's response will be saved to this variable for future use.
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                {['contact.name', 'contact.email', 'contact.phone', 'contact.city', 'customer_budget'].map(varChip => (
+                  <button 
+                    key={varChip}
+                    type="button"
+                    onClick={() => {
+                      setLocalData(prev => ({ ...prev, variableName: varChip }));
+                      updateNodeData(id, { variableName: varChip });
+                    }}
+                    style={{
+                      background: localData.variableName === varChip ? '#E0E7FF' : '#F1F5F9',
+                      color: localData.variableName === varChip ? '#4338CA' : '#475569',
+                      border: '1px solid ' + (localData.variableName === varChip ? '#C7D2FE' : '#E2E8F0'),
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      padding: '2px 6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {varChip}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Invalid Input Retry Message</label>
+              </div>
+              <input 
+                type="text" 
+                name="validationErrorMessage" 
+                value={localData.validationErrorMessage || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder={`e.g. Please provide a valid ${localData.validationType || 'input'}.`} 
+              />
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                Sent if customer's response does not pass the expected validation format.
               </p>
             </div>
           </>
@@ -943,10 +1287,19 @@ export default function NodePropertiesPane({ currentChannelId }) {
               )}
             </div>
             {['image', 'video', 'doc', 'document', 'gif'].includes(localData.messageType) && (
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Caption</label>
-                <textarea name="text" value={localData.text || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Add a caption..." />
-              </div>
+              <WhatsAppMessageField
+                label="Caption"
+                name="text"
+                value={localData.text || ''}
+                placeholder="Add a caption..."
+                maxLength={1024}
+                minHeight="80px"
+                inputStyle={inputStyle}
+                localData={localData}
+                setLocalData={setLocalData}
+                updateNodeData={updateNodeData}
+                id={id}
+              />
             )}
           </>
         )}
@@ -958,6 +1311,16 @@ export default function NodePropertiesPane({ currentChannelId }) {
             </div>
             {(localData.cards || []).map((card, idx) => (
               <div key={idx} style={{ background: '#fdf2f8', padding: '12px', borderRadius: '8px', border: '1px solid #fbcfe8', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '700', color: '#be185d' }}>CARD {idx + 1}</span>
+                  <button type="button" onClick={() => {
+                    const newCards = (localData.cards || []).filter((_, i) => i !== idx);
+                    setLocalData(prev => ({ ...prev, cards: newCards }));
+                    updateNodeData(id, { cards: newCards });
+                  }} style={{ background: 'none', border: 'none', color: '#ef4444', fontSize: '12px', cursor: 'pointer', fontWeight: '600' }}>
+                    Remove
+                  </button>
+                </div>
                 <input type="text" value={card.title || ''} onChange={(e) => {
                   const newCards = [...(localData.cards || [])];
                   newCards[idx] = { ...newCards[idx], title: e.target.value };
@@ -974,11 +1337,17 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   const newCards = [...(localData.cards || [])];
                   newCards[idx] = { ...newCards[idx], mediaUrl: e.target.value };
                   setLocalData(prev => ({ ...prev, cards: newCards }));
-                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={inputStyle} placeholder="Image URL" />
+                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={{ ...inputStyle, marginBottom: '8px' }} placeholder="Image URL (https://...)" />
+
+                <input type="text" value={card.buttonText || ''} onChange={(e) => {
+                  const newCards = [...(localData.cards || [])];
+                  newCards[idx] = { ...newCards[idx], buttonText: e.target.value };
+                  setLocalData(prev => ({ ...prev, cards: newCards }));
+                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={inputStyle} placeholder="Button Label (e.g. Select / View)" maxLength="20" />
               </div>
             ))}
             <button onClick={() => {
-              const newCards = [...(localData.cards || []), { id: `card_${Date.now()}`, title: '', description: '', mediaUrl: '' }];
+              const newCards = [...(localData.cards || []), { id: `card_${Date.now()}`, title: '', description: '', mediaUrl: '', buttonText: 'Select' }];
               setLocalData(prev => ({ ...prev, cards: newCards }));
               updateNodeData(id, { cards: newCards });
             }} style={{ background: 'transparent', color: '#ec4899', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
@@ -990,20 +1359,39 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'catalogNode' && (
           <>
             <div style={{ background: '#fffbeb', padding: '16px', borderRadius: '12px', border: '1px solid #fde68a', marginBottom: '16px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>Catalog Settings</label>
-              <p style={{ fontSize: '12px', color: '#b45309', marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#92400e', marginBottom: '8px' }}>Catalog Message Type</label>
+              
+              <select 
+                name="catalogType" 
+                value={localData.catalogType || 'single_product'} 
+                onChange={(e) => { handleLocalChange(e); handleBlur(e); }} 
+                style={{ ...inputStyle, borderColor: '#fcd34d', marginBottom: '12px' }}
+              >
+                <option value="single_product">🛍️ Single Product Message</option>
+                <option value="multi_product">🛒 Multiple Products Message</option>
+                <option value="catalog">🏬 Full Store Catalog</option>
+              </select>
+
+              <p style={{ fontSize: '12px', color: '#b45309', marginBottom: '16px', lineHeight: '1.4' }}>
                 {localData.catalogType === 'multi_product' 
-                  ? 'Connect this to your WhatsApp Commerce Catalog to display multiple items.' 
-                  : 'Select a single specific product from your WhatsApp Catalog.'}
+                  ? 'Displays up to 30 products across custom sections from your WhatsApp Catalog.' 
+                  : localData.catalogType === 'catalog'
+                  ? 'Lets customers open and browse your complete WhatsApp Commerce Catalog directly in chat.'
+                  : 'Displays a specific product card with price, image, and "View Item" action.'}
               </p>
-              <div style={{ marginBottom: '12px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Catalog ID (Required)</label>
-                <input type="text" name="catalogId" value={localData.catalogId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="Enter Catalog ID" />
-              </div>
+              
+              {localData.catalogType !== 'catalog' && (
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Catalog ID (Required)</label>
+                  <input type="text" name="catalogId" value={localData.catalogId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="Enter Catalog ID" />
+                </div>
+              )}
               
               {localData.catalogType !== 'multi_product' && (
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Product Retailer ID (Required)</label>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>
+                    {localData.catalogType === 'catalog' ? 'Thumbnail Product ID (Optional)' : 'Product Retailer ID (Required)'}
+                  </label>
                   <input type="text" name="productId" value={localData.productId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="e.g. sku-1234" />
                 </div>
               )}
@@ -1016,10 +1404,19 @@ export default function NodePropertiesPane({ currentChannelId }) {
               </div>
             )}
 
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Body Text (Required)</label>
-              <textarea name="text" value={localData.text || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Write a message to go with your products..." />
-            </div>
+            <WhatsAppMessageField
+              label="Body Text (Required)"
+              name="text"
+              value={localData.text || ''}
+              placeholder="Write a message to go with your products..."
+              maxLength={1024}
+              minHeight="80px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
 
             <div style={{ marginTop: '16px' }}>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Footer Text (Optional)</label>
@@ -1095,6 +1492,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </>
         )}
 
+
+
         {type === 'pollNode' && (
           <>
             <div>
@@ -1105,12 +1504,26 @@ export default function NodePropertiesPane({ currentChannelId }) {
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Options</label>
               {(localData.options || []).map((opt, idx) => (
-                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
                   <input type="text" value={opt.text || ''} onChange={(e) => {
                     const newOpts = [...(localData.options || [])];
                     newOpts[idx] = { ...newOpts[idx], text: e.target.value };
                     setLocalData(prev => ({ ...prev, options: newOpts }));
-                  }} onBlur={() => updateNodeData(id, { options: localData.options })} style={{ ...inputStyle }} placeholder={`Option ${idx + 1}`} />
+                  }} onBlur={() => updateNodeData(id, { options: localData.options })} style={{ ...inputStyle, flex: 1 }} placeholder={`Option ${idx + 1}`} />
+                  <input type="text" value={opt.id || ''} onChange={(e) => {
+                    const newOpts = [...(localData.options || [])];
+                    newOpts[idx] = { ...newOpts[idx], id: e.target.value };
+                    setLocalData(prev => ({ ...prev, options: newOpts }));
+                  }} onBlur={() => updateNodeData(id, { options: localData.options })} style={{ ...inputStyle, width: '100px', flex: 'none' }} placeholder="ID" />
+                  {(localData.options || []).length > 2 && (
+                    <button type="button" onClick={() => {
+                      const newOpts = (localData.options || []).filter((_, i) => i !== idx);
+                      setLocalData(prev => ({ ...prev, options: newOpts }));
+                      updateNodeData(id, { options: newOpts });
+                    }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: '4px' }} title="Remove Option">
+                      <Trash2 size={15} />
+                    </button>
+                  )}
                 </div>
               ))}
               <button onClick={() => {
@@ -1134,29 +1547,116 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
         {type === 'commerceNode' && (
           <>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#111827', marginBottom: '6px' }}>Commerce Type</label>
+              <select 
+                name="commerceType" 
+                value={localData.commerceType || 'payment'} 
+                onChange={(e) => { handleLocalChange(e); handleBlur(e); }} 
+                style={inputStyle}
+              >
+                <option value="payment">💳 WhatsApp Payment / Payment Link</option>
+                <option value="coupon">🏷️ Coupon Offer / Discount Code</option>
+                <option value="otp">🔑 One-Time Password (OTP)</option>
+                <option value="invoice">🧾 Invoice / Receipt</option>
+              </select>
+            </div>
+
             {localData.commerceType === 'payment' && (
               <>
-                <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Item / Service Name</label>
+                  <input type="text" name="itemName" value={localData.itemName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Annual Subscription" />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
                   <div style={{ flex: 1 }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Currency</label>
-                    <input type="text" name="currency" value={localData.currency || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="USD" />
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Currency</label>
+                    <select name="currency" value={localData.currency || 'INR'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+                      <option value="INR">INR (₹)</option>
+                      <option value="USD">USD ($)</option>
+                      <option value="AED">AED (د.إ)</option>
+                      <option value="EUR">EUR (€)</option>
+                      <option value="GBP">GBP (£)</option>
+                    </select>
                   </div>
                   <div style={{ flex: 2 }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Amount</label>
-                    <input type="number" name="amount" value={localData.amount || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="0.00" />
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Amount</label>
+                    <input type="number" name="amount" value={localData.amount || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="499.00" min="1" />
                   </div>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Payment Gateway</label>
+                  <select name="paymentGateway" value={localData.paymentGateway || 'razorpay'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+                    <option value="razorpay">Razorpay</option>
+                    <option value="payu">PayU</option>
+                    <option value="stripe">Stripe</option>
+                    <option value="whatsapp_pay">Meta WhatsApp Pay</option>
+                  </select>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Reference / Order ID</label>
+                  <input type="text" name="referenceId" value={localData.referenceId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. ORD_{{contact.phone}}" />
                 </div>
               </>
             )}
+
             {localData.commerceType === 'coupon' && (
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Coupon Code</label>
-                <input type="text" name="couponCode" value={localData.couponCode || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. PROMO2026" />
-              </div>
+              <>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Coupon Code</label>
+                  <input type="text" name="couponCode" value={localData.couponCode || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. FESTIVE25" />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Discount Summary</label>
+                  <input type="text" name="discountText" value={localData.discountText || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Flat 25% OFF on orders above ₹999" />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Valid Until</label>
+                  <input type="text" name="validUntil" value={localData.validUntil || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Valid till midnight tonight" />
+                </div>
+              </>
             )}
+
+            {localData.commerceType === 'otp' && (
+              <>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>OTP Code or Variable</label>
+                  <input type="text" name="otpCode" value={localData.otpCode || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. {{otp_code}} or 482910" />
+                  <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Leave empty or use variable from previous API call</p>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Code Validity (Minutes)</label>
+                  <input type="number" name="otpExpiry" value={localData.otpExpiry || 10} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} min="1" max="60" />
+                </div>
+              </>
+            )}
+
+            {localData.commerceType === 'invoice' && (
+              <>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Invoice Number</label>
+                  <input type="text" name="invoiceNumber" value={localData.invoiceNumber || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. INV-2026-{{order_id}}" />
+                </div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Total Amount</label>
+                    <input type="text" name="amount" value={localData.amount || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="1,499.00" />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Invoice Date</label>
+                    <input type="text" name="invoiceDate" value={localData.invoiceDate || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Today or 12 Oct" />
+                  </div>
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>PDF Invoice Download URL</label>
+                  <input type="text" name="pdfUrl" value={localData.pdfUrl || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="https://example.com/invoices/inv_123.pdf" />
+                </div>
+              </>
+            )}
+
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Message Text</label>
-              <textarea name="text" value={localData.text || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Add details..." />
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Accompanying Message</label>
+              <textarea name="text" value={localData.text || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }} placeholder="Add note or instructions for customer..." />
             </div>
           </>
         )}
@@ -1178,25 +1678,41 @@ export default function NodePropertiesPane({ currentChannelId }) {
             )}
             {localData.utilityType === 'contact' && (
               <>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Contact Name</label>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Contact Name</label>
                   <input type="text" name="contactName" value={localData.contactName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Sales Team" />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Phone Number</label>
-                  <input type="text" name="contactPhone" value={localData.contactPhone || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="+1 234 567 8900" />
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Phone Number</label>
+                  <input type="text" name="contactPhone" value={localData.contactPhone || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="+91 9876543210" />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Email Address (Optional)</label>
+                  <input type="email" name="contactEmail" value={localData.contactEmail || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="contact@example.com" />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Company / Organization (Optional)</label>
+                  <input type="text" name="contactCompany" value={localData.contactCompany || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Acme Corp" />
                 </div>
               </>
             )}
             {localData.utilityType === 'calendar' && (
               <>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Event Name</label>
-                  <input type="text" name="eventName" value={localData.eventName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Consultation" />
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Event Name</label>
+                  <input type="text" name="eventName" value={localData.eventName || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. 1-on-1 Strategy Session" />
                 </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Time</label>
-                  <input type="text" name="eventTime" value={localData.eventTime || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Tomorrow at 3PM" />
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Event Date & Time</label>
+                  <input type="text" name="eventTime" value={localData.eventTime || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. Tomorrow at 3:00 PM IST" />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Meeting / Add-to-Calendar Link</label>
+                  <input type="text" name="calendarLink" value={localData.calendarLink || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="https://meet.google.com/xyz or calendly.com/..." />
+                </div>
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Event Description</label>
+                  <textarea name="eventDescription" value={localData.eventDescription || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '60px' }} placeholder="Brief agenda or instructions..." />
                 </div>
               </>
             )}
@@ -1603,30 +2119,78 @@ export default function NodePropertiesPane({ currentChannelId }) {
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Emoji</label>
             <input type="text" name="emoji" value={localData.emoji || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, fontSize: '24px', padding: '12px', textAlign: 'center' }} placeholder="👍" maxLength="2" />
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>Enter a single emoji character.</p>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '10px' }}>
+              {['👍', '❤️', '😂', '🔥', '🎉', '👏', '🙏'].map(e => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => {
+                    setLocalData(prev => ({ ...prev, emoji: e }));
+                    updateNodeData(id, { emoji: e });
+                  }}
+                  style={{
+                    fontSize: '18px', padding: '6px 10px', background: localData.emoji === e ? '#dcfce7' : '#f1f5f9',
+                    border: localData.emoji === e ? '1.5px solid #10b981' : '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer'
+                  }}
+                >
+                  {e}
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '10px', textAlign: 'center' }}>Reacts to the customer's last received WhatsApp message.</p>
           </div>
         )}
 
         {type === 'conditionNode' && (
           <>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Variable Name</label>
-              <input type="text" name="variable" value={localData.variable || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. contact.name" />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Variable Name</label>
+              </div>
+              <input type="text" name="variable" value={localData.variable || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. contact.name or selected_option" />
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '6px' }}>
+                {['contact.name', 'contact.phone', 'contact.email', 'contact.tags', 'selected_option'].map(varChip => (
+                  <button 
+                    key={varChip}
+                    type="button"
+                    onClick={() => {
+                      setLocalData(prev => ({ ...prev, variable: varChip }));
+                      updateNodeData(id, { variable: varChip });
+                    }}
+                    style={{
+                      background: localData.variable === varChip ? '#E0E7FF' : '#F1F5F9',
+                      color: localData.variable === varChip ? '#4338CA' : '#475569',
+                      border: '1px solid ' + (localData.variable === varChip ? '#C7D2FE' : '#E2E8F0'),
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      padding: '2px 6px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {varChip}
+                  </button>
+                ))}
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Operator</label>
               <select name="operator" value={localData.operator || 'equals'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
-                <option value="equals">Equals</option>
-                <option value="contains">Contains</option>
-                <option value="greater_than">Greater Than</option>
-                <option value="less_than">Less Than</option>
-                <option value="not_empty">Is Not Empty</option>
+                <option value="equals">Equal to (Exact match)</option>
+                <option value="not_equals">Not equal to</option>
+                <option value="contains">Contains (Keyword / Text)</option>
+                <option value="does_not_contain">Does not contain</option>
+                <option value="starts_with">Starts with</option>
+                <option value="ends_with">Ends with</option>
+                <option value="greater_than">Greater than (&gt; Number)</option>
+                <option value="less_than">Less than (&lt; Number)</option>
+                <option value="not_empty">Has any value (Is Not Empty)</option>
+                <option value="is_empty">Is Empty / Not set</option>
               </select>
             </div>
-            {localData.operator !== 'not_empty' && (
+            {!['not_empty', 'is_empty'].includes(localData.operator) && (
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Value</label>
-                <input type="text" name="value" value={localData.value || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. VIP" />
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Compare Value</label>
+                <input type="text" name="value" value={localData.value || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. VIP or Yes or 100" />
               </div>
             )}
           </>
@@ -1635,29 +2199,87 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'apiNode' && (
           <>
             <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Method</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>HTTP Method</label>
               <select name="method" value={localData.method || 'POST'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
                 <option value="PUT">PUT</option>
+                <option value="PATCH">PATCH</option>
                 <option value="DELETE">DELETE</option>
               </select>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Endpoint URL</label>
               <input type="text" name="url" value={localData.url || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="https://api.yoursystem.com/webhook" />
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.phone}}'}</p>
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.phone}}'}, {'{{contact.name}}'}</p>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Headers (JSON)</label>
-              <textarea name="headers" value={localData.headers || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '60px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"Authorization": "Bearer token"}' />
+              <textarea name="headers" value={localData.headers || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '60px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"Authorization": "Bearer YOUR_TOKEN"}' />
             </div>
-            {['POST', 'PUT'].includes(localData.method || 'POST') && (
+            {['POST', 'PUT', 'PATCH'].includes(localData.method || 'POST') && (
               <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Body (JSON)</label>
-                <textarea name="body" value={localData.body || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '100px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"phone": "{{contact.phone}}"}' />
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Request Body (JSON)</label>
+                <textarea name="body" value={localData.body || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '90px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"phone": "{{contact.phone}}", "name": "{{contact.name}}"}' />
               </div>
             )}
+            <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Response Mapping</label>
+                <span style={{ fontSize: '11px', color: '#64748B' }}>Extract API data</span>
+              </div>
+              {(localData.responseMapping || []).map((m, mIdx) => (
+                <div key={mIdx} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                  <input 
+                    type="text" 
+                    value={m.responseField || ''} 
+                    placeholder="e.g. data.id"
+                    onChange={(e) => {
+                      const newMap = [...(localData.responseMapping || [])];
+                      newMap[mIdx] = { ...newMap[mIdx], responseField: e.target.value };
+                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                    }}
+                    onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
+                    style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
+                  />
+                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>→</span>
+                  <input 
+                    type="text" 
+                    value={m.sessionVariable || ''} 
+                    placeholder="contact.api_id"
+                    onChange={(e) => {
+                      const newMap = [...(localData.responseMapping || [])];
+                      newMap[mIdx] = { ...newMap[mIdx], sessionVariable: e.target.value };
+                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                    }}
+                    onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
+                    style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
+                  />
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const newMap = localData.responseMapping.filter((_, i) => i !== mIdx);
+                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                      updateNodeData(id, { responseMapping: newMap });
+                    }} 
+                    style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              <button 
+                type="button"
+                onClick={() => {
+                  const newMap = [...(localData.responseMapping || []), { responseField: '', sessionVariable: '' }];
+                  setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                  updateNodeData(id, { responseMapping: newMap });
+                }} 
+                style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '4px 0' }}
+              >
+                + Add Variable Mapping
+              </button>
+            </div>
           </>
         )}
 
@@ -1683,14 +2305,30 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
         {type === 'aiNode' && (
           <>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>System Prompt</label>
-              <textarea name="systemPrompt" value={localData.systemPrompt || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '120px' }} placeholder="You are a helpful assistant..." />
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.name}}'}</p>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>AI Engine & Model</label>
+              <select name="model" value={localData.model || 'gpt-4o'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+                <option value="gpt-4o">⚡ GPT-4o (Smartest & Fastest)</option>
+                <option value="gpt-4o-mini">🚀 GPT-4o Mini (Cost Effective)</option>
+                <option value="gpt-3.5-turbo">🤖 GPT-3.5 Turbo</option>
+                <option value="garvik-ai">✨ Garvik AI Engine</option>
+              </select>
             </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Response to Variable (Optional)</label>
-              <input type="text" name="saveVariable" value={localData.saveVariable || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. ai_summary" />
+            <div style={{ marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#111827' }}>Creativity (Temperature)</label>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{localData.temperature || 0.7}</span>
+              </div>
+              <input type="range" name="temperature" min="0.1" max="1.0" step="0.1" value={localData.temperature || 0.7} onChange={handleLocalChange} onBlur={handleBlur} style={{ width: '100%', accentColor: '#10b981', cursor: 'pointer' }} />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>System Prompt (Instructions)</label>
+              <textarea name="systemPrompt" value={localData.systemPrompt || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '110px' }} placeholder="You are a helpful assistant for Messbee..." />
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.name}}'}, {'{{contact.phone}}'}</p>
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Save Response to Variable</label>
+              <input type="text" name="saveVariable" value={localData.saveVariable || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. ai_reply" />
             </div>
           </>
         )}
@@ -1799,6 +2437,149 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </>
         )}
 
+        {type === 'randomizerNode' && (
+          <>
+            <div style={{ background: '#fdf2f8', padding: '16px', borderRadius: '12px', border: '1px solid #fbcfe8', marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#be185d', marginBottom: '6px' }}>A/B Split Test</label>
+              <p style={{ fontSize: '12px', color: '#9d174d', margin: '0 0 16px 0', lineHeight: '1.4' }}>
+                Split your customer traffic between two paths to test different offers, copy, or message sequences.
+              </p>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#0284c7' }}>
+                  Path A: {Number(localData.splitPercentage) || 50}%
+                </span>
+                <span style={{ fontSize: '13px', fontWeight: '700', color: '#d97706' }}>
+                  Path B: {100 - (Number(localData.splitPercentage) || 50)}%
+                </span>
+              </div>
+
+              <input 
+                type="range" 
+                min="1" 
+                max="99" 
+                value={Number(localData.splitPercentage) || 50} 
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setLocalData(prev => ({ ...prev, splitPercentage: val }));
+                  updateNodeData(id, { splitPercentage: val });
+                }} 
+                style={{ width: '100%', cursor: 'pointer', accentColor: '#ec4899', margin: '8px 0' }}
+              />
+
+              <div style={{ fontSize: '11px', color: '#64748b', marginTop: '8px', lineHeight: '1.4' }}>
+                Connect the blue <strong>Path A</strong> handle and orange <strong>Path B</strong> handle to the different steps you want to test.
+              </div>
+            </div>
+          </>
+        )}
+
+        {type === 'shopifyNode' && (
+          <>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Shopify Action</label>
+              <select 
+                name="shopifyAction" 
+                value={localData.shopifyAction || 'get_customer'} 
+                onChange={(e) => { handleLocalChange(e); handleBlur(e); }} 
+                style={inputStyle}
+              >
+                <option value="get_customer">👤 Get Customer Profile by Phone</option>
+                <option value="get_order">📦 Look up Recent Order Status</option>
+                <option value="check_inventory">🏷️ Check Product Stock / Inventory</option>
+                <option value="abandoned_checkout">🛒 Recover Abandoned Checkout Cart</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Shopify Store Domain</label>
+              <input 
+                type="text" 
+                name="shopifyStoreUrl" 
+                value={localData.shopifyStoreUrl || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="e.g. your-brand.myshopify.com" 
+              />
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Enter your myshopify.com domain name.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Admin API Access Token (Optional)</label>
+              <input 
+                type="password" 
+                name="shopifyAccessToken" 
+                value={localData.shopifyAccessToken || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="shpat_xxxxxxxxxxxxxxxxxxxx" 
+              />
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Leave blank if configured globally in Settings &gt; Integrations.
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Result to Variable</label>
+              <input 
+                type="text" 
+                name="saveVariable" 
+                value={localData.saveVariable || 'shopify.customer'} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="e.g. shopify.customer" 
+              />
+            </div>
+          </>
+        )}
+
+        {type === 'waitForEventNode' && (
+          <>
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Event to Wait For</label>
+              <select 
+                name="eventType" 
+                value={localData.eventType || 'any_message'} 
+                onChange={(e) => { handleLocalChange(e); handleBlur(e); }} 
+                style={inputStyle}
+              >
+                <option value="any_message">💬 Customer Sends Any Message</option>
+                <option value="tag_added">🏷️ Specific Tag is Added</option>
+                <option value="payment_success">💳 Payment Received / Completed</option>
+                <option value="link_clicked">🔗 Tracked Link Clicked</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Timeout Duration (Hours)</label>
+              <input 
+                type="number" 
+                min="1" 
+                max="720" 
+                name="waitHours" 
+                value={localData.waitHours || 24} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="24" 
+              />
+              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                Maximum time to wait before taking the orange Timeout Reached path.
+              </p>
+            </div>
+
+            <div style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px', color: '#475569', lineHeight: '1.5' }}>
+              <div>🟢 <strong>Event Happened:</strong> Runs immediately when the customer completes the event.</div>
+              <div style={{ marginTop: '6px' }}>🟠 <strong>Timeout Reached:</strong> Runs if no event occurs within {localData.waitHours || 24} hours.</div>
+            </div>
+          </>
+        )}
+
         {(type === 'inputNode' || type === 'menuNode' || (type === 'messageNode' && localData.messageType === 'interactive')) && (
           <div style={{ background: '#FFFBEB', padding: '16px', borderRadius: '12px', border: '1px solid #FDE68A', marginTop: '8px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
@@ -1841,7 +2622,37 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </div>
         )}
 
+        {(['menuNode', 'pollNode', 'carouselNode', 'commerceNode', 'catalogNode', 'interactiveNode', 'templateNode'].includes(type) || (type === 'messageNode' && localData.messageType === 'interactive')) && (
+          <div style={{ marginTop: '16px', background: '#F8FAFC', padding: '16px', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Answer to Variable</label>
+            <div style={{ position: 'relative' }}>
+              <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
+                <Variable size={14} />
+              </div>
+              <input 
+                type="text" 
+                name="saveVariableAs" 
+                value={localData.saveVariableAs || ''} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={{ ...inputStyle, paddingLeft: '32px', background: 'white' }} 
+                placeholder="e.g. contact.selected_plan" 
+              />
+            </div>
+            <p style={{ fontSize: '11px', color: '#64748B', marginTop: '6px' }}>
+              The customer's selection will be saved to this variable and can be used in Condition nodes.
+            </p>
+          </div>
+        )}
+
       </div>
+
+      {isTriggerModalOpen && (
+        <TriggerSelectionModal 
+          onClose={() => setIsTriggerModalOpen(false)} 
+          onSelectTrigger={handleSelectTrigger} 
+        />
+      )}
     </div>
   );
 }

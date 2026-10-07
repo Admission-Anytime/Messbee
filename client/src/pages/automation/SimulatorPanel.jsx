@@ -5,7 +5,7 @@ import io from 'socket.io-client';
 import { showToast } from '../../utils/showToast';
 import { getBackendBaseUrl } from '../../utils/urlHelper';
 
-export default function SimulatorPanel({ automationId, channelId, isOpen, onClose }) {
+export default function SimulatorPanel({ automationId, channelId, isOpen, onClose, onSave }) {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [isSimulating, setIsSimulating] = useState(false);
@@ -88,7 +88,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                 return (
                   <div 
                     key={i} 
-                    onClick={() => sendSimulatedReply(bTitle)}
+                    onClick={() => sendSimulatedReply(bTitle, { buttonId: bId, buttonTitle: bTitle, buttonText: bTitle, buttonIdx: i })}
                     style={{ padding: '8px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '6px', textAlign: 'center', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s', border: '1px solid #bae6fd' }}
                     onMouseOver={(e) => e.currentTarget.style.background = '#bae6fd'}
                     onMouseOut={(e) => e.currentTarget.style.background = '#e0f2fe'}
@@ -119,7 +119,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                     {(sec.rows || []).map((r, j) => (
                       <li 
                         key={j} 
-                        onClick={() => sendSimulatedReply(r.title)}
+                        onClick={() => sendSimulatedReply(r.title, { listId: r.id || r.postbackId || `row_${j}`, listTitle: r.title, rowId: r.id || r.postbackId || `row_${j}`, rowIdx: j })}
                         style={{ padding: '4px 0', cursor: 'pointer' }}
                         onMouseOver={(e) => e.currentTarget.style.opacity = '0.7'}
                         onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
@@ -135,7 +135,155 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
           </div>
         );
       }
+      if (payload.interactive.type === 'poll') {
+        const title = payload.interactive.body?.text || 'Poll';
+        const options = payload.interactive.action?.options || [];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontWeight: '600', color: '#1e293b' }}>📊 {title}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '4px' }}>
+              {options.map((opt, i) => (
+                <div 
+                  key={i} 
+                  onClick={() => sendSimulatedReply(opt.option_name, { isButtonTap: true, optId: opt.id || opt.option_name, optIdx: i, optText: opt.option_name, buttonText: opt.option_name })}
+                  style={{ padding: '8px 12px', background: '#f0fdf4', color: '#166534', borderRadius: '6px', fontSize: '13px', fontWeight: '500', cursor: 'pointer', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.15s' }}
+                  onMouseOver={(e) => e.currentTarget.style.background = '#dcfce7'}
+                  onMouseOut={(e) => e.currentTarget.style.background = '#f0fdf4'}
+                >
+                  <span style={{ width: '12px', height: '12px', borderRadius: '50%', border: '2px solid #22c55e', display: 'inline-block' }}></span>
+                  {opt.option_name}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      if (payload.interactive.type === 'carousel') {
+        const title = payload.interactive.body?.text || '';
+        const cards = payload.interactive.action?.cards || [];
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {title && <span style={{ fontWeight: '500' }}>{title}</span>}
+            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '6px' }}>
+              {cards.map((c, i) => (
+                <div key={i} style={{ minWidth: '150px', maxWidth: '150px', background: 'white', borderRadius: '8px', border: '1px solid #e2e8f0', overflow: 'hidden', flexShrink: 0, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  {c.header?.image?.link && (
+                    <img src={c.header.image.link} alt="" style={{ width: '100%', height: '80px', objectFit: 'cover' }} />
+                  )}
+                  <div style={{ padding: '8px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>{c.body?.text || `Card ${i + 1}`}</div>
+                    {(c.action?.buttons || []).map((btn, bIdx) => (
+                      <button
+                        key={bIdx}
+                        onClick={() => sendSimulatedReply(btn.reply?.title || 'Select', { isButtonTap: true, buttonId: btn.reply?.id || `btn_${bIdx}`, buttonTitle: btn.reply?.title || 'Select', buttonText: btn.reply?.title || 'Select', buttonIdx: bIdx })}
+                        style={{ width: '100%', padding: '6px', background: '#fdf2f8', color: '#db2777', border: '1px solid #fbcfe8', borderRadius: '4px', fontSize: '11px', fontWeight: '600', cursor: 'pointer', marginTop: '4px' }}
+                      >
+                        {btn.reply?.title || 'Select'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+      if (payload.interactive.type === 'order_details') {
+        const params = payload.interactive.action?.parameters || {};
+        const amount = params.total_amount?.value ? (params.total_amount.value / 100).toFixed(2) : '0.00';
+        const currency = params.currency || 'INR';
+        const item = params.order?.items?.[0]?.name || 'Order Item';
+        return (
+          <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>💳 Payment Request</div>
+            <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{item}</div>
+            <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803d' }}>{currency} {amount}</div>
+            <button 
+              onClick={() => sendSimulatedReply('Payment Completed')}
+              style={{ width: '100%', padding: '8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+            >
+              ✓ Pay Now (Simulate Success)
+            </button>
+          </div>
+        );
+      }
+      if (payload.interactive.type === 'product' || payload.interactive.type === 'product_list' || payload.interactive.type === 'catalog_message') {
+        const text = payload.interactive.body?.text || 'Explore Products';
+        return (
+          <div style={{ padding: '10px', background: '#fffbeb', borderRadius: '8px', border: '1px solid #fde68a', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', textTransform: 'uppercase' }}>🛍️ Catalog Message</div>
+            <div style={{ fontSize: '13px', color: '#78350f' }}>{text}</div>
+            <button 
+              onClick={() => sendSimulatedReply('Viewed Product')}
+              style={{ width: '100%', padding: '6px', background: '#d97706', color: 'white', border: 'none', borderRadius: '4px', fontWeight: '600', fontSize: '12px', cursor: 'pointer' }}
+            >
+              View Catalog / Products
+            </button>
+          </div>
+        );
+      }
     }
+
+    if (['image', 'video', 'audio', 'document', 'sticker'].includes(payload.type)) {
+      const mediaObj = payload[payload.type] || {};
+      const link = mediaObj.link;
+      const caption = mediaObj.caption;
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {payload.type === 'image' && (
+            <img src={link} alt="" style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '6px', objectFit: 'cover' }} />
+          )}
+          {payload.type === 'video' && (
+            <video src={link} controls style={{ maxWidth: '100%', maxHeight: '180px', borderRadius: '6px' }} />
+          )}
+          {payload.type === 'audio' && (
+            <audio src={link} controls style={{ width: '100%' }} />
+          )}
+          {payload.type === 'document' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px', background: '#f1f5f9', borderRadius: '6px' }}>
+              <span style={{ fontSize: '20px' }}>📄</span>
+              <a href={link} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'underline' }}>
+                Download Document
+              </a>
+            </div>
+          )}
+          {payload.type === 'sticker' && (
+            <img src={link} alt="sticker" style={{ width: '80px', height: '80px', objectFit: 'contain' }} />
+          )}
+          {caption && <span style={{ fontSize: '13px', color: '#1e293b' }}>{caption}</span>}
+        </div>
+      );
+    }
+
+    if (payload.type === 'location') {
+      const loc = payload.location || {};
+      return (
+        <div style={{ padding: '8px', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '12px', fontWeight: '700', color: '#0f172a' }}>📍 {loc.name || 'Shared Location'}</div>
+          {loc.address && <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>{loc.address}</div>}
+          <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>Lat: {loc.latitude}, Lng: {loc.longitude}</div>
+        </div>
+      );
+    }
+
+    if (payload.type === 'contacts') {
+      const c = payload.contacts?.[0] || {};
+      return (
+        <div style={{ padding: '8px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0' }}>
+          <div style={{ fontSize: '12px', fontWeight: '700', color: '#166534' }}>👤 {c.name?.formatted_name || 'Contact'}</div>
+          <div style={{ fontSize: '11px', color: '#15803d', marginTop: '2px' }}>📞 {c.phones?.[0]?.phone || ''}</div>
+        </div>
+      );
+    }
+
+    if (payload.type === 'reaction') {
+      return (
+        <div style={{ fontSize: '12px', color: '#64748b' }}>
+          Reacted with: <span style={{ fontSize: '18px' }}>{payload.reaction?.emoji || '👍'}</span>
+        </div>
+      );
+    }
+
     if (payload.type === 'template') {
       let templateText = payload._sim_template_text || '';
       if (templateText && templateText.includes('{{')) {
@@ -190,7 +338,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                     key={i}
                     onClick={() => {
                       if (!isUrl && !isPhone) {
-                        sendSimulatedReply(b.payload || btnTitle);
+                        sendSimulatedReply(b.payload || btnTitle, { isButtonTap: true, buttonText: btnTitle, buttonPayload: b.payload || btnTitle });
                       }
                     }}
                     style={{
@@ -218,7 +366,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
         </div>
       );
     }
-    return `[Media/Unsupported format: ${payload.type}]`;
+    return `[${payload.type || 'Message'}]`;
   };
 
   const handleStartSimulation = async () => {
@@ -228,6 +376,10 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       return;
     }
     setIsSimulating(true);
+    if (onSave) {
+      await onSave();
+    }
+
     setMessages([{
       id: 'sys_1',
       sender: 'system',
@@ -244,7 +396,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
     }
   };
 
-  const sendSimulatedReply = async (text) => {
+  const sendSimulatedReply = async (text, context = {}) => {
     if (!text.trim() || !isSimulating) return;
 
     const newMsg = {
@@ -260,7 +412,11 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       await api.post(`/automation/${automationId}/simulate/message`, {
         channelId,
         simulatorPhone,
-        message: text
+        message: text,
+        messageContext: {
+          isButtonTap: context.isButtonTap !== undefined ? context.isButtonTap : false,
+          ...context
+        }
       });
     } catch (error) {
       console.error('Failed to send simulated message', error);
@@ -272,7 +428,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
     if (!inputText.trim() || !isSimulating) return;
     const messageToSend = inputText;
     setInputText('');
-    await sendSimulatedReply(messageToSend);
+    await sendSimulatedReply(messageToSend, { isButtonTap: false });
   };
 
   if (!isOpen) return null;

@@ -12,8 +12,10 @@ export default function WhatsAppTemplateSelectionModal({ onClose, onSelect }) {
     const fetchTemplates = async () => {
       try {
         const response = await api.get('/whatsapp/templates');
-        const approvedTemplates = response.data.approvedTemplates || [];
-        setTemplates(approvedTemplates);
+        const approved = Array.isArray(response.data?.approvedTemplates) && response.data.approvedTemplates.length > 0
+          ? response.data.approvedTemplates
+          : (Array.isArray(response.data?.data?.data) ? response.data.data.data : (Array.isArray(response.data?.data) ? response.data.data : []));
+        setTemplates(approved || []);
       } catch (err) {
         setError('Failed to fetch templates. Please try again.');
         console.error(err);

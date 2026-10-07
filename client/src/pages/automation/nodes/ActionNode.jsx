@@ -37,8 +37,20 @@ export default function ActionNode({ id, data, selected }) {
         </div>
 
         <div style={{ padding: '12px', background: '#2E3440' }}>
-          <div style={{ background: '#3B4252', borderRadius: '6px', padding: '12px', border: '1px solid #4C566A', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: '13px', fontWeight: '500', color: '#ECEFF4' }}>{data.actionType ? formatAction(data.actionType) : 'Select Action'}</span>
+          <div style={{ background: '#3B4252', borderRadius: '6px', padding: '12px', border: '1px solid #4C566A', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+            <span style={{ fontSize: '13px', fontWeight: '600', color: '#ECEFF4' }}>
+              {data.actionType ? formatAction(data.actionType) : 'Select Action'}
+            </span>
+            {(data.tagValue || data.tag) && ['add_tag', 'remove_tag'].includes(data.actionType) && (
+              <span style={{ fontSize: '11px', color: '#10B981', background: '#1e293b', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                🏷️ {data.tagValue || data.tag}
+              </span>
+            )}
+            {data.assignTo && (data.actionType === 'assign_team' || data.actionType === 'human_handoff') && (
+              <span style={{ fontSize: '11px', color: '#60A5FA', background: '#1e293b', padding: '2px 8px', borderRadius: '4px' }}>
+                👤 {data.assignTo}
+              </span>
+            )}
           </div>
         </div>
 
@@ -61,14 +73,18 @@ export default function ActionNode({ id, data, selected }) {
 
 function formatAction(actionType) {
   const map = {
+    'add_tag': 'Add Tag',
+    'remove_tag': 'Remove Tag',
+    'human_handoff': 'Human Handoff (Live Chat)',
     'opt_in': 'Opt-in User',
     'opt_out': 'Opt-out User',
-    'update_contact': 'Update Field',
+    'update_contact': 'Update Contact Field',
+    'update_field': 'Update Contact Field',
     'assign_team': 'Assign to Team',
     'unassign_team': 'Unassign from Team',
     'round_robin_assign': 'Round-Robin Agent Handoff'
   };
-  return map[actionType] || actionType;
+  return map[actionType] || actionType.replace(/_/g, ' ');
 }
 
 const iconBtnStyle = { background: 'transparent', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '4px', borderRadius: '4px', display: 'flex', transition: 'all 0.2s' };

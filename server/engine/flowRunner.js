@@ -25,6 +25,10 @@ const logger = _require('../utils/logger.js');
 
 async function markSessionCompleted(session, customerPhone, channelId) {
   if (!session) return;
+  if (session.status === 'HANDOFF') {
+    try { await session.save(); } catch (_) {}
+    return;
+  }
   session.status = 'COMPLETED';
   try {
     await session.save();
@@ -596,16 +600,17 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     if (validSections.length === 0) {
       return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure menu options.' } };
     }
+    const resolvedHeader = nodeData.header || (nodeData.headerType && nodeData.headerText ? nodeData.headerText : '');
     return {
       ...basePayload,
       type: 'interactive',
       interactive: {
         type: 'list',
-        header: nodeData.headerType && nodeData.headerText ? { type: 'text', text: parseDynamicVariables(nodeData.headerText, contextData) } : undefined,
-        body: { text: parsedText || 'Please select an option' },
-        footer: nodeData.footer ? { text: parseDynamicVariables(nodeData.footer, contextData) } : undefined,
+        header: resolvedHeader ? { type: 'text', text: (parseDynamicVariables(resolvedHeader, contextData) || '').substring(0, 60) } : undefined,
+        body: { text: parsedText || 'Please select an option from the list' },
+        footer: nodeData.footer ? { text: (parseDynamicVariables(nodeData.footer, contextData) || '').substring(0, 60) } : undefined,
         action: {
-          button: (parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Menu').substring(0, 20),
+          button: (parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Options').substring(0, 20),
           sections: validSections.map(sec => ({
             title: (parseDynamicVariables(sec.title, contextData) || 'Options').substring(0, 24),
             rows: (sec.rows || []).slice(0, 10).map((row, rIdx) => ({
@@ -634,6 +639,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     }
     
     let metaType = nodeData.messageType || 'image';
+    if (metaType === 'doc') metaType = 'document';
     if (metaType === 'voice') metaType = 'audio';
     if (metaType === 'gif') metaType = 'video';
 
@@ -644,6 +650,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       type: metaType,
       [metaType]: {
         link: parsedMediaUrl,
+        ...(nodeData.messageType === 'voice' ? { ptt: true } : {}),
         ...(!isAudioOrSticker ? { caption: parseDynamicVariables(nodeData.text, contextData) } : {})
       }
     };
@@ -780,28 +787,60 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         }
       };
     } else if (nodeData.utilityType === 'contact') {
+      const contactObj = {
+        name: { formatted_name: parseDynamicVariables(nodeData.contactName, contextData) || 'Contact' },
+        phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) || '' }]
+      };
+      if (nodeData.contactEmail) {
+        contactObj.emails = [{ email: parseDynamicVariables(nodeData.contactEmail, contextData), type: 'WORK' }];
+      }
+      if (nodeData.contactCompany) {
+        contactObj.org = { company: parseDynamicVariables(nodeData.contactCompany, contextData) };
+      }
       return {
         ...basePayload,
         type: 'contacts',
-        contacts: [{
-          name: { formatted_name: parseDynamicVariables(nodeData.contactName, contextData) || 'Contact' },
-          phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) }]
-        }]
+        contacts: [contactObj]
       };
     } else if (nodeData.utilityType === 'calendar') {
       const eventName = parseDynamicVariables(nodeData.eventName, contextData) || 'Event';
+      const eventDate = parseDynamicVariables(nodeData.eventDate, contextData) || '';
       const eventTime = parseDynamicVariables(nodeData.eventTime, contextData) || 'TBA';
-      return { ...basePayload, type: 'text', text: { body: `📅 *Calendar Invite:*\n${eventName}\n⏰ ${eventTime}` }};
+      const eventLink = parseDynamicVariables(nodeData.eventLink, contextData) || '';
+      let msg = `📅 *Calendar Invite:*\n${eventName}`;
+      if (eventDate) msg += `\n📆 Date: ${eventDate}`;
+      msg += `\n⏰ Time: ${eventTime}`;
+      if (eventLink) msg += `\n🔗 Link: ${eventLink}`;
+      return { ...basePayload, type: 'text', text: { body: msg }};
     }
     return { ...basePayload, type: 'text', text: { body: `Utility message` }};
   }
 
   if (nodeType === 'catalogNode') {
-    if (!nodeData.catalogId) {
+    if (!nodeData.catalogId && nodeData.catalogType !== 'catalog') {
       return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration.' } };
     }
 
-    if (nodeData.catalogType === 'multi_product') {
+    if (nodeData.catalogType === 'catalog') {
+      const interactive = {
+        type: 'catalog_message',
+        body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Browse our complete catalog!' },
+        action: {
+          name: 'catalog_message',
+          parameters: nodeData.productId ? { thumbnail_product_retailer_id: parseDynamicVariables(nodeData.productId, contextData) } : undefined
+        }
+      };
+
+      if (nodeData.footer) {
+        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
+      }
+
+      return {
+        ...basePayload,
+        type: 'interactive',
+        interactive
+      };
+    } else if (nodeData.catalogType === 'multi_product') {
       const validSections = (nodeData.sections || []).filter(sec => sec.productItems && sec.productItems.length > 0);
       if (validSections.length === 0) {
         return { ...basePayload, type: 'text', text: { body: 'Missing product sections configuration.' } };
@@ -930,7 +969,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       return {
         header,
         body: { text: parseDynamicVariables(card.title, contextData) || 'Card Title' },
-        action: { buttons: [{ type: 'reply', reply: { id: `btn_${card.id || Date.now()}`, title: 'Select' } }] }
+        action: { buttons: [{ type: 'reply', reply: { id: `btn_${card.id || Date.now()}`, title: parseDynamicVariables(card.buttonText, contextData) || 'Select' } }] }
       };
     });
     if (cards.length === 0) return { ...basePayload, type: 'text', text: { body: 'Empty Carousel' } };
@@ -1129,7 +1168,10 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       
       // Determine the default next node by following an outgoing edge with no specific handle (e.g. text message output)
       const outgoingEdges = activeFlow.edges.filter(e => e.source === currentNodeId);
-      let nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      const defaultNextEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') ||
+                              outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle !== 'timeout') ||
+                              outgoingEdges[0];
+      let nextNodeId = defaultNextEdge ? defaultNextEdge.target : null;
 
       // Handle specific node types
       if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
@@ -1254,7 +1296,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           currentNode.type === 'catalogNode' ||
           currentNode.type === 'pollNode' ||
           currentNode.type === 'carouselNode' ||
-          (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.length > 0)) ||
+          (currentNode.type === 'templateNode' && ((currentNode.data?.buttons && currentNode.data.buttons.length > 0) || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-')))) ||
           (currentNode.type === 'commerceNode' && currentNode.data?.commerceType === 'payment') ||
           (currentNode.type === 'messageNode' && currentNode.data?.messageType === 'interactive') ||
           currentNode.data?.messageType === 'interactive' ||
@@ -1264,7 +1306,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
                                         (currentNode.data?.interactiveButtons && currentNode.data.interactiveButtons.length > 0) ||
                                         (currentNode.data?.sections && currentNode.data.sections.length > 0) ||
                                         ['pollNode', 'catalogNode', 'carouselNode'].includes(currentNode.type) ||
-                                        (currentNode.type === 'templateNode' && (currentNode.data?.buttons?.length > 0 || outgoingEdges.length > 0));
+                                        (currentNode.type === 'templateNode' && ((currentNode.data?.buttons && currentNode.data.buttons.length > 0) || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
 
           if (outgoingEdges.length === 0) {
             // Leaf interactive node! Nothing follows; complete the session so user is not trapped.
@@ -1306,40 +1348,48 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         const isTrue = handle === 'true' || handle === 'true_path';
         const conditionEdge = outgoingEdges.find(e => 
           isTrue ? (e.sourceHandle === 'true' || e.sourceHandle === 'true_path') : (e.sourceHandle === 'false' || e.sourceHandle === 'false_path')
-        ) || outgoingEdges[0];
+        ) || outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || (outgoingEdges.length === 1 ? outgoingEdges[0] : null);
         nextNodeId = conditionEdge ? conditionEdge.target : null;
       }
       else if (currentNode.type === 'apiNode') {
         const status = await executeApiCallNode(session, currentNode, contextData);
         syncContextVariables(session, contextData); // API response data may have been saved to session
-        const apiEdge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
+        const apiEdge = outgoingEdges.find(e => e.sourceHandle === status) || 
+                         outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
+                         outgoingEdges[0];
         nextNodeId = apiEdge ? apiEdge.target : null;
       }
       else if (currentNode.type === 'actionNode') {
         await executeActionNode(session, currentNode, contextData);
         syncContextVariables(session, contextData);
-        const edge = outgoingEdges[0];
+        const edge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'aiNode') {
         const result = await executeAiNode(session, currentNode, contextData);
         syncContextVariables(session, contextData);
-        const edge = outgoingEdges.find(e => e.sourceHandle === `ai-${result}` || e.sourceHandle === 'main-handle') || outgoingEdges[0];
+        const edge = outgoingEdges.find(e => e.sourceHandle === `ai-${result}` || e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'googleSheetsNode') {
         const status = await executeGoogleSheetsNode(session, currentNode, contextData);
-        const edge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
+        const edge = outgoingEdges.find(e => e.sourceHandle === status) || 
+                     outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
+                     outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'randomizerNode') {
         const handle = await executeRandomizerNode(session, currentNode);
-        const randEdge = outgoingEdges.find(e => e.sourceHandle === handle) || outgoingEdges[0];
+        const randEdge = outgoingEdges.find(e => e.sourceHandle === handle) || 
+                         outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
+                         outgoingEdges[0];
         nextNodeId = randEdge ? randEdge.target : null;
       }
       else if (currentNode.type === 'shopifyNode') {
         const status = await executeShopifyNode(session, currentNode, contextData);
-        const edge = outgoingEdges.find(e => e.sourceHandle === status) || outgoingEdges[0];
+        const edge = outgoingEdges.find(e => e.sourceHandle === status) || 
+                     outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
+                     outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'waitForEventNode') {
@@ -1406,7 +1456,9 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       if (keepRunning) {
         currentNodeId = nextNodeId;
         if (!currentNodeId) {
-          await markSessionCompleted(session, customerPhone, channelId);
+          if (session.status !== 'HANDOFF') {
+            await markSessionCompleted(session, customerPhone, channelId);
+          }
           keepRunning = false;
         }
       }
@@ -1605,13 +1657,16 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     const payloadText = typeof incomingPayload === 'string' ? incomingPayload.trim().toLowerCase() : '';
     const ESCAPE_KEYWORDS = ['restart', 'reset', 'menu', 'main menu', 'start', 'exit', 'cancel'];
     const isEscapeWord = ESCAPE_KEYWORDS.includes(payloadText);
-    const isButtonTap = !!(
+    const isExplicitButton = messageContext?.isButtonTap !== undefined ? messageContext.isButtonTap : null;
+    const isButtonTap = isExplicitButton !== null ? isExplicitButton : !!(
       messageContext?.buttonText ||
       messageContext?.buttonId ||
       messageContext?.buttonPayload ||
       messageContext?.buttonTitle ||
       messageContext?.listId ||
       messageContext?.listTitle ||
+      messageContext?.optId ||
+      messageContext?.optText ||
       messageContext?.messageType === 'button' ||
       messageContext?.messageType === 'interactive' ||
       messageContext?.messageType === 'button_reply' ||
@@ -1645,7 +1700,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       messageContext?.buttonPayload?.trim().toLowerCase(),
       messageContext?.buttonId?.trim().toLowerCase(),
       messageContext?.listTitle?.trim().toLowerCase(),
-      messageContext?.listId?.trim().toLowerCase()
+      messageContext?.listId?.trim().toLowerCase(),
+      messageContext?.optText?.trim().toLowerCase(),
+      messageContext?.optId?.trim().toLowerCase(),
+      messageContext?.optIdx !== undefined && messageContext?.optIdx !== null ? String(messageContext.optIdx) : null,
+      messageContext?.optionName?.trim().toLowerCase(),
+      messageContext?.rowId?.trim().toLowerCase()
     ].filter(Boolean);
 
     const findButtonEdgeMatch = async (payloadsToMatch) => {
@@ -1658,12 +1718,16 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           n && (
             n.type === 'templateNode' ||
             n.type === 'interactiveNode' ||
+            n.type === 'carouselNode' ||
             (n.type === 'messageNode' && n.data?.messageType === 'interactive')
           )
         );
 
         for (const node of interactiveOrTemplateNodes) {
           let buttons = node.data?.buttons || node.data?.interactiveButtons || [];
+          if (node.type === 'carouselNode' && Array.isArray(node.data?.cards)) {
+            buttons = node.data.cards.flatMap(c => c.buttons || []);
+          }
           if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
             try {
               const { default: Template } = await import('../models/Template.js');
@@ -1802,12 +1866,58 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         let currentCanHandle = false;
         if (currentNode) {
-          const btnHandles = currentOutgoing.map(e => e.sourceHandle?.toLowerCase()).filter(Boolean);
-          currentCanHandle = candidatePayloads.some(cp =>
-            btnHandles.includes(cp) ||
-            btnHandles.includes(`btn-${cp}`) ||
-            btnHandles.some(sh => sh && (sh.replace(/^btn-/, '') === cp || cp.replace(/^btn-/, '') === sh))
-          );
+          // If the node is currently waiting for free-form user input (Ask Question / inputNode), it handles it!
+          if (currentNode.type === 'inputNode' || session.status === 'WAITING_FOR_INPUT') {
+            currentCanHandle = true;
+          } else if (['catalogNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
+            // These nodes only have a next step (main-handle) to continue the flow
+            currentCanHandle = currentOutgoing.length > 0;
+          } else {
+            const btnHandles = currentOutgoing.map(e => e.sourceHandle?.toLowerCase()).filter(Boolean);
+            const hasMainOrSingleEdge = btnHandles.includes('main-handle') || currentOutgoing.length === 1;
+
+            // Also check pollNode options if currentNode is pollNode
+            let pollMatches = false;
+            if (currentNode.type === 'pollNode' && Array.isArray(currentNode.data?.options)) {
+              pollMatches = currentNode.data.options.some((opt, idx) => {
+                const optCand = [
+                  opt.text?.trim().toLowerCase(),
+                  opt.id?.toString().trim().toLowerCase(),
+                  String(idx),
+                  `opt-${idx}`,
+                  `opt-${opt.text?.trim().toLowerCase()}`
+                ].filter(Boolean);
+                return candidatePayloads.some(cp => {
+                  const clean = cp.toLowerCase().trim();
+                  return optCand.includes(clean) || optCand.some(oc => oc.replace(/^opt-/, '') === clean.replace(/^opt-/, ''));
+                });
+              });
+            }
+
+            currentCanHandle = pollMatches || candidatePayloads.some(cp => {
+              const cleanCp = cp.toLowerCase().trim();
+              const strippedCp = cleanCp.replace(/^(btn-|row-|row_|opt-)/, '');
+              return btnHandles.includes(cleanCp) ||
+                btnHandles.includes(`btn-${cleanCp}`) ||
+                btnHandles.includes(`row-${cleanCp}`) ||
+                btnHandles.includes(`opt-${cleanCp}`) ||
+                btnHandles.some(sh => {
+                  if (!sh) return false;
+                  const strippedSh = sh.replace(/^(btn-|row-|row_|opt-)/, '');
+                  return (
+                    strippedSh === cleanCp || 
+                    strippedSh === strippedCp ||
+                    cleanCp.replace(/^(btn-|row-|row_|opt-)/, '') === sh ||
+                    sh.includes(strippedCp) ||
+                    strippedCp.includes(strippedSh)
+                  );
+                });
+            });
+
+            if (!currentCanHandle && hasMainOrSingleEdge) {
+              currentCanHandle = true;
+            }
+          }
         }
 
         // If current session's node CANNOT handle this button tap, check if ANY active flow has a template/button that matches
@@ -2067,7 +2177,9 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         // Find the current wait node and move to the 'event_happened' edge
         const activeFlow = await Automation.findById(session.activeFlowId);
         if (activeFlow) {
-          const waitEdge = activeFlow.edges.find(e => e.source === session.currentNodeId && e.sourceHandle === 'event_happened');
+          const waitEdge = activeFlow.edges.find(e => e.source === session.currentNodeId && e.sourceHandle === 'event_happened') ||
+                           activeFlow.edges.find(e => e.source === session.currentNodeId && (!e.sourceHandle || e.sourceHandle !== 'timeout')) ||
+                           activeFlow.edges.find(e => e.source === session.currentNodeId);
           if (waitEdge) {
             await processSpecificNode(customerPhone, channelId, waitEdge.target);
             return;
@@ -2234,7 +2346,10 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         await session.save();
 
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
-        nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+        const resolvedInputEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') ||
+                                  outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle !== 'timeout') ||
+                                  outgoingEdges[0];
+        nextNodeId = resolvedInputEdge ? resolvedInputEdge.target : null;
 
         if (!nextNodeId) {
           await markSessionCompleted(session, customerPhone, channelId);
@@ -2256,7 +2371,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode?.type) || 
                                   (currentNode?.type === 'messageNode' && currentNode?.data?.messageType === 'interactive') || 
                                   (currentNode?.type === 'interactiveNode') ||
-                                  (currentNode?.type === 'templateNode' && (currentNode?.data?.buttons?.length > 0 || outgoingEdges.length > 0));
+                                  (currentNode?.type === 'templateNode' && ((currentNode?.data?.buttons && currentNode.data.buttons.length > 0) || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
 
         if (isInteractiveNode) {
           // If the interactive node has no outgoing edges, it's terminal. Complete the session!
@@ -2288,11 +2403,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                messageContext?.buttonPayload?.trim().toLowerCase(),
                messageContext?.buttonId?.trim().toLowerCase(),
                messageContext?.listTitle?.trim().toLowerCase(),
-               messageContext?.listId?.trim().toLowerCase()
+               messageContext?.listId?.trim().toLowerCase(),
+               messageContext?.optText?.trim().toLowerCase(),
+               messageContext?.optId?.trim().toLowerCase(),
+               messageContext?.optIdx !== undefined && messageContext?.optIdx !== null ? String(messageContext.optIdx) : null,
+               messageContext?.optionName?.trim().toLowerCase(),
+               messageContext?.rowId?.trim().toLowerCase()
              ].filter(Boolean);
 
-             if (currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode') {
+             if (currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode' || currentNode.type === 'carouselNode') {
                  let buttons = currentNode.data?.buttons || [];
+                 if (currentNode.type === 'carouselNode' && Array.isArray(currentNode.data?.cards)) {
+                   buttons = currentNode.data.cards.flatMap(c => c.buttons || []);
+                 }
                  if ((!buttons || buttons.length === 0) && currentNode.type === 'templateNode' && currentNode.data?.templateName) {
                    try {
                      const { default: Template } = await import('../models/Template.js');
@@ -2342,6 +2465,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                     isExplicitChoiceRecognized = true;
                     const btn = buttons[btnIdx];
                     const btnId = (btn.id !== undefined && btn.id !== null && String(btn.id).trim() !== '') ? String(btn.id) : String(btnIdx);
+                    
+                    // Persist selected button into session variables
+                    const chosenBtnTitle = btn.text || btn.title || btn.payload || '';
+                    if (chosenBtnTitle) {
+                      session.sessionVariables['selected_button'] = chosenBtnTitle;
+                      session.sessionVariables['selected_option'] = chosenBtnTitle;
+                      session.sessionVariables['contact.last_button_choice'] = chosenBtnTitle;
+                      if (currentNode.data?.saveVariableAs) {
+                        session.sessionVariables[currentNode.data.saveVariableAs] = btn.payload || btn.id || chosenBtnTitle;
+                      }
+                      session.markModified('sessionVariables');
+                    }
+
                     matchedEdge = outgoingEdges.find(e => {
                       const sh = e.sourceHandle;
                       const shLower = sh?.toLowerCase();
@@ -2391,70 +2527,198 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                    matchedEdge = outgoingEdges[0];
                    isExplicitChoiceRecognized = true;
                  }
+                 // 🎯 CAROUSEL MAIN-HANDLE FALLBACK: CarouselNode uses main-handle to proceed to next step
+                 if (!matchedEdge && currentNode.type === 'carouselNode' && outgoingEdges.length > 0) {
+                   matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
+                   if (matchedEdge) isExplicitChoiceRecognized = true;
+                 }
              } else if (currentNode.type === 'menuNode' && currentNode.data?.sections) {
-                for (const sec of currentNode.data.sections) {
-                   const rowIdx = (sec.rows || []).findIndex((r, idx) => 
-                     (r.title && r.title.toLowerCase() === lowerIncoming) || 
-                     (r.id && r.id.toString().toLowerCase() === lowerIncoming) ||
-                     (r.postbackId && r.postbackId.toString().toLowerCase() === lowerIncoming)
-                   );
-                   if (rowIdx !== -1) {
-                      isExplicitChoiceRecognized = true;
-                      const row = sec.rows[rowIdx];
-                      const rowId = row.postbackId || row.id || rowIdx;
-                      matchedEdge = outgoingEdges.find(e => 
-                        e.sourceHandle === `row-${rowId}` || 
-                        e.sourceHandle === `row-${rowIdx}` ||
-                        e.sourceHandle === rowId ||
-                        e.sourceHandle === `${rowIdx}`
-                      );
+                let matchedRow = null;
+                let matchedSecIdx = -1;
+                let matchedRowIdx = -1;
+
+                for (let sIdx = 0; sIdx < currentNode.data.sections.length; sIdx++) {
+                  const sec = currentNode.data.sections[sIdx];
+                  for (let rIdx = 0; rIdx < (sec.rows || []).length; rIdx++) {
+                    const r = sec.rows[rIdx];
+                    const rCandidates = [
+                      r.title?.trim().toLowerCase(),
+                      r.id?.toString().trim().toLowerCase(),
+                      r.postbackId?.toString().trim().toLowerCase(),
+                      `${sIdx}_${rIdx}`,
+                      String(rIdx)
+                    ].filter(Boolean);
+
+                    const isMatch = candidateInputs.some(ci =>
+                      rCandidates.includes(ci) || rCandidates.some(rc => rc.includes(ci) || ci.includes(rc))
+                    );
+
+                    if (isMatch) {
+                      matchedRow = r;
+                      matchedSecIdx = sIdx;
+                      matchedRowIdx = rIdx;
                       break;
-                   }
+                    }
+                  }
+                  if (matchedRow) break;
+                }
+
+                if (matchedRow) {
+                  isExplicitChoiceRecognized = true;
+                  const rowId = String(matchedRow.postbackId || matchedRow.id || matchedRowIdx);
+                  const rowTitle = matchedRow.title || '';
+
+                  // Persist selected list item into session variables for downstream logic
+                  session.sessionVariables['selected_menu_option'] = rowTitle;
+                  session.sessionVariables['selected_option'] = rowTitle;
+                  session.sessionVariables['selected_row_id'] = rowId;
+                  session.sessionVariables['contact.last_menu_choice'] = rowTitle;
+                  if (currentNode.data?.saveVariableAs) {
+                    session.sessionVariables[currentNode.data.saveVariableAs] = matchedRow.postbackId || matchedRow.id || rowTitle;
+                  }
+                  session.markModified('sessionVariables');
+
+                  // 1. Precise handle match (row-id, row-idx, row-title, or raw id/index)
+                  matchedEdge = outgoingEdges.find(e => {
+                    const sh = (e.sourceHandle || '').toLowerCase().trim();
+                    if (!sh) return false;
+                    const cleanRowId = rowId.toLowerCase().trim();
+                    const cleanTitle = rowTitle.toLowerCase().trim();
+                    const strippedSh = sh.replace(/^row-/, '').replace(/^row_/, '').trim();
+                    const strippedRowId = cleanRowId.replace(/^row-/, '').replace(/^row_/, '').trim();
+                    const fallbackRowId = matchedRow.id ? String(matchedRow.id).toLowerCase().trim() : '';
+
+                    return (
+                      sh === `row-${cleanRowId}` ||
+                      (fallbackRowId && sh === `row-${fallbackRowId}`) ||
+                      sh === `row-${matchedRowIdx}` ||
+                      sh === `row-${matchedSecIdx}_${matchedRowIdx}` ||
+                      sh === `row-${cleanTitle}` ||
+                      sh === cleanRowId ||
+                      sh === cleanTitle ||
+                      sh === String(matchedRowIdx) ||
+                      strippedSh === strippedRowId ||
+                      candidateInputs.some(ci => {
+                        const cleanCi = ci.toLowerCase().trim().replace(/^row_/, '');
+                        return sh === `row-${ci}` || sh === ci || strippedSh === cleanCi;
+                      })
+                    );
+                  });
+
+
+                  console.log('[DEBUG-MENU] matchedRow:', matchedRow?.title, 'matchedRowIdx:', matchedRowIdx);
+                  console.log('[DEBUG-MENU] rowId:', rowId, 'outgoingEdges.length:', outgoingEdges.length);
+                  console.log('[DEBUG-MENU] outgoingEdges:', JSON.stringify(outgoingEdges.map(e => ({ sourceHandle: e.sourceHandle, target: e.target }))));
+                  console.log('[DEBUG-MENU] matchedEdge after precise check:', matchedEdge?.target);
+
+                  // 2. Positional match (if user wired option row index to edge index)
+                  if (!matchedEdge && outgoingEdges[matchedRowIdx]) {
+                    const indexedEdge = outgoingEdges[matchedRowIdx];
+                    if (indexedEdge.sourceHandle?.startsWith('row-') || !indexedEdge.sourceHandle) {
+                      matchedEdge = indexedEdge;
+                    }
+                  }
+                }
+
+                // 3. Fallback direct edge matching candidateInputs
+                if (!matchedEdge && outgoingEdges.length > 0) {
+                  matchedEdge = outgoingEdges.find(e => {
+                    const sh = (e.sourceHandle || '').toLowerCase().trim();
+                    if (!sh || sh === 'main-handle') return false;
+                    const stripped = sh.replace(/^row-/, '').replace(/^row_/, '').trim();
+                    return candidateInputs.some(ci => {
+                      const cleanCi = ci.toLowerCase().trim().replace(/^row_/, '');
+                      return sh === ci || sh === `row-${ci}` || stripped === cleanCi || sh.includes(cleanCi) || cleanCi.includes(stripped);
+                    });
+                  });
+                  if (matchedEdge) isExplicitChoiceRecognized = true;
                 }
              } else if (currentNode.type === 'pollNode' && currentNode.data?.options) {
-                const optIdx = currentNode.data.options.findIndex((opt, idx) => 
-                  (opt.text && opt.text.toLowerCase() === lowerIncoming) ||
-                  (opt.id && opt.id.toString().toLowerCase() === lowerIncoming) ||
-                  idx.toString() === lowerIncoming
-                );
+                const optIdx = currentNode.data.options.findIndex((opt, idx) => {
+                  const optCandidates = [
+                    opt.text?.trim().toLowerCase(),
+                    opt.id?.toString().trim().toLowerCase(),
+                    String(idx),
+                    `opt-${idx}`,
+                    `opt-${opt.text?.trim().toLowerCase()}`
+                  ].filter(Boolean);
+                  return candidateInputs.some(ci => {
+                    const cleanCi = ci.toLowerCase().trim();
+                    const strippedCi = cleanCi.replace(/^opt-/, '');
+                    return optCandidates.includes(cleanCi) || 
+                           optCandidates.includes(strippedCi) ||
+                           optCandidates.some(oc => oc.replace(/^opt-/, '') === strippedCi);
+                  });
+                });
+
                 if (optIdx !== -1) {
                   isExplicitChoiceRecognized = true;
-                  matchedEdge = outgoingEdges.find(e => 
-                    e.sourceHandle === `opt-${optIdx}` || 
-                    e.sourceHandle === `${optIdx}`
-                  );
+                  const opt = currentNode.data.options[optIdx];
+                  const optText = (opt?.text || '').toLowerCase().trim();
+                  
+                  session.sessionVariables['selected_poll_option'] = opt.text;
+                  session.sessionVariables['selected_option'] = opt.text;
+                  if (currentNode.data?.saveVariableAs) {
+                    session.sessionVariables[currentNode.data.saveVariableAs] = opt.id || opt.text;
+                  }
+                  session.markModified('sessionVariables');
+
+                  matchedEdge = outgoingEdges.find(e => {
+                    const sh = (e.sourceHandle || '').toLowerCase().trim();
+                    const strippedSh = sh.replace(/^opt-/, '');
+                    return (
+                      sh === `opt-${optIdx}` || 
+                      sh === `${optIdx}` || 
+                      sh === `opt-${optText}` || 
+                      sh === optText ||
+                      strippedSh === String(optIdx) ||
+                      strippedSh === optText ||
+                      (opt.id && (sh === `opt-${opt.id}` || sh === String(opt.id) || strippedSh === String(opt.id).toLowerCase()))
+                    );
+                  });
+                  if (!matchedEdge && outgoingEdges[optIdx]) {
+                    matchedEdge = outgoingEdges[optIdx];
+                  }
                 }
-             } else if (['catalogNode', 'commerceNode'].includes(currentNode?.type)) {
-                // If customer responds after viewing catalog or payment link, advance via main-handle
-                matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
+              } else if (['catalogNode', 'commerceNode', 'carouselNode'].includes(currentNode?.type)) {
+                // If customer responds after viewing catalog, carousel, or payment link, advance via main-handle
+                isExplicitChoiceRecognized = true;
+                if (currentNode.data?.saveVariableAs) {
+                  session.sessionVariables[currentNode.data.saveVariableAs] = incomingPayload;
+                  session.markModified('sessionVariables');
+                }
+                matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
              }
           }
 
+          // 1. Check if flow designer connected to the 'main-handle' (Next step fallback)
           if (!matchedEdge) {
-            // Check if flow designer connected to the 'main-handle' (Next step fallback)
             matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
           }
 
-          // ⚠️ CRITICAL: If customer explicitly selected a valid choice (e.g. 'left' button)
-          // but that choice has NO connected outgoing edge on the canvas:
-          // It is a terminal choice! Do NOT route to another button's branch.
-          if (isExplicitChoiceRecognized && !matchedEdge) {
-            logger.log(`[FlowRunner] User selected choice '${incomingPayload}' on node ${currentNode?.id}, but it has no connected branch. Completing session.`);
-            await markSessionCompleted(session, customerPhone, channelId);
-            return;
+          // 2. Generic edge without specific handle ('default', null, undefined, or empty)
+          if (!matchedEdge) {
+            matchedEdge = outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle === 'default' || e.sourceHandle === '');
           }
 
-          // Fallback to a single outgoing edge if generic or if customer tapped a button on this node
+          // 3. Fallback to a single outgoing edge: If node has only 1 connected edge, any valid interaction MUST advance through it!
           if (!matchedEdge && outgoingEdges.length === 1) {
-            const onlyEdge = outgoingEdges[0];
-            const isSpecificHandle = onlyEdge.sourceHandle && (
-              onlyEdge.sourceHandle.startsWith('btn-') || 
-              onlyEdge.sourceHandle.startsWith('row-') || 
-              onlyEdge.sourceHandle.startsWith('opt-')
-            );
-            if (!isSpecificHandle || isButtonTap) {
-              matchedEdge = onlyEdge;
-            }
+            matchedEdge = outgoingEdges[0];
+          }
+
+          // 4. Fallback if an explicit choice was recognized or button tapped, and connected outgoing edges exist:
+          // Advance via first available non-timeout edge
+          if (!matchedEdge && (isExplicitChoiceRecognized || isButtonTap) && outgoingEdges.length > 0) {
+            const nonTimeout = outgoingEdges.find(e => e.sourceHandle !== 'timeout');
+            matchedEdge = nonTimeout || outgoingEdges[0];
+            logger.log(`[FlowRunner] Choice '${incomingPayload}' on ${currentNode?.type} matched via fallback edge to target: ${matchedEdge?.target}`);
+          }
+
+          // 5. Leaf terminal node (only if no outgoing edges exist at all)
+          if (isExplicitChoiceRecognized && !matchedEdge && outgoingEdges.length === 0) {
+            logger.log(`[FlowRunner] Choice '${incomingPayload}' on leaf node ${currentNode?.id} has no connected outgoing edges. Completing session.`);
+            await markSessionCompleted(session, customerPhone, channelId);
+            return;
           }
           
           if (matchedEdge) {
@@ -2495,7 +2759,10 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           }
         } else {
           // For other nodes waiting for events, fallback to the default edge
-          const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload) || outgoingEdges[0];
+          const matchedEdge = outgoingEdges.find(e => e.sourceHandle === incomingPayload) || 
+                              outgoingEdges.find(e => e.sourceHandle === 'main-handle') ||
+                              outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle !== 'timeout') ||
+                              outgoingEdges[0];
           if (matchedEdge) nextNodeId = matchedEdge.target;
         }
 

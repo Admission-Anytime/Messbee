@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AutomationLanding from './AutomationLanding';
 import AutomationDashboard from './AutomationDashboard';
-import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
 import CreateAutomationModal from '../../components/Modol/automation/CreateAutomationModal';
 import AssignChannelsModal from '../../components/Modol/automation/AssignChannelsModal';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
@@ -14,28 +13,24 @@ import api from '../../context/axios';
 const Automation = () => {
     const navigate = useNavigate();
     const [currentView, setCurrentView] = useState('landing');
-    const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
     const [isTestModalOpen, setIsTestModalOpen] = useState(false);
     const [selectedChannelId, setSelectedChannelId] = useState('');
     const [currentAutomationId, setCurrentAutomationId] = useState(null);
-    const [flowDataToCreate, setFlowDataToCreate] = useState(null);
 
     const handleCreateAutomation = () => {
         setIsCreateModalOpen(true);
     };
 
     const handleCreateFlow = (data) => {
-        if (!data || !data.name.trim()) return;
         setIsCreateModalOpen(false);
-        setFlowDataToCreate(data);
-        setIsTriggerModalOpen(true);
-    };
-
-    const handleTriggerSelect = (trigger) => {
-        setIsTriggerModalOpen(false);
-        navigate('/admin/automation/new', { state: { flowName: flowDataToCreate?.name || 'Untitled Automation', triggerType: trigger } });
+        navigate('/admin/automation/new', { 
+            state: { 
+                flowName: data?.name || 'Untitled Chatbot',
+                startMode: data?.startMode || 'scratch'
+            } 
+        });
     };
 
     const renderView = () => {
@@ -81,12 +76,6 @@ const Automation = () => {
             </div>
 
             {/* Modals */}
-            {isTriggerModalOpen && (
-                <TriggerSelectionModal 
-                    onClose={() => setIsTriggerModalOpen(false)}
-                    onSelectTrigger={handleTriggerSelect}
-                />
-            )}
 
             {isCreateModalOpen && (
                 <CreateAutomationModal
