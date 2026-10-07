@@ -293,7 +293,7 @@ exports.simulateStart = async (req, res, next) => {
 exports.simulateMessage = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
-    const { channelId, simulatorPhone, message } = req.body;
+    const { channelId, simulatorPhone, message, messageContext } = req.body;
     const automationId = req.params.id; // Get the specific flow ID being tested
     
     if (!channelId || !simulatorPhone || !message) {
@@ -302,7 +302,7 @@ exports.simulateMessage = async (req, res, next) => {
 
     // Enqueue the incoming message to webhookQueue
     const { enqueueWebhookPayload } = require('../queues/webhookQueue');
-    enqueueWebhookPayload(simulatorPhone, message, channelId, null, `sim_msg_${Date.now()}`, automationId);
+    enqueueWebhookPayload(simulatorPhone, message, channelId, null, `sim_msg_${Date.now()}`, automationId, false, messageContext || {});
     
     res.status(200).json({ success: true, message: 'Simulated message sent' });
   } catch (error) {

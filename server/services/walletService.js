@@ -5,25 +5,44 @@ const { getMessageCost, WHATSAPP_PRICING } = require('../config/pricingConfig');
 const { getIO } = require('../config/socket');
 
 /**
+ * Resolve the tenant owner account holding the wallet balance
+ */
+async function resolveTenantUser(tenantId) {
+  if (!tenantId) return null;
+  let user = null;
+  if (mongoose.Types.ObjectId.isValid(tenantId)) {
+    user = await User.findById(tenantId);
+  }
+  if (!user) {
+    user = await User.findOne({
+      $or: [{ tenantId: tenantId }, { _id: tenantId }]
+    });
+  }
+  // If this user is an agent/sub-account with a parent tenant, resolve to the parent tenant owner
+  if (user && user.tenantId && user.tenantId.toString() !== user._id.toString()) {
+    const parent = await User.findById(user.tenantId);
+    if (parent) return parent;
+  }
+  return user;
+}
+
+/**
  * Check if a tenant has sufficient available credits
  */
 async function hasSufficientCredits(tenantId, requiredCost) {
   if (!tenantId) return false;
-  // Look up user either by primary key (_id) or by tenantId field
-  const user = await User.findOne({
-    $or: [{ _id: tenantId }, { tenantId: tenantId }]
-  }).select('credits reservedCredits role');
-  if (!user) return true; // Don't block if user lookup is ambiguous
 
-  // Admin or superadmin has unlimited bypass (case-insensitive)
-  const roleUpper = String(user.role || '').toUpperCase();
-  if (roleUpper === 'ADMIN' || roleUpper === 'SUPERADMIN') return true;
+  const user = await resolveTenantUser(tenantId);
+  if (!user) return false;
 
   const currentCredits = Number(user.credits) || 0;
   const reserved = Number(user.reservedCredits) || 0;
   const available = currentCredits - reserved;
+  const cost = Number(requiredCost) || 0;
 
-  return available >= requiredCost;
+  // Credits must be strictly positive and cover the required cost
+  if (available <= 0) return false;
+  return available >= cost;
 }
 
 /**
@@ -39,10 +58,10 @@ async function deductMessageCredits({
   try {
     if (!tenantId) return { success: false, reason: 'No tenantId provided' };
 
-    const userDoc = await User.findOne({
-      $or: [{ _id: tenantId }, { tenantId: tenantId }]
-    }).select('customPricing').lean();
-    const cost = getMessageCost(category, recipientPhone, userDoc?.customPricing);
+    const tenantUser = await resolveTenantUser(tenantId);
+    if (!tenantUser) return { success: false, reason: 'User not found' };
+
+    const cost = getMessageCost(category, recipientPhone, tenantUser?.customPricing);
     const catKey = String(category).toLowerCase();
 
     // Deduct from credits and increment category usage counters atomically
@@ -57,13 +76,50 @@ async function deductMessageCredits({
       incObject[`messageUsage.${catKey}.costDeducted`] = cost;
     }
 
-    const updatedUser = await User.findOneAndUpdate(
-      { $or: [{ _id: tenantId }, { tenantId: tenantId }] },
+    // 1. If user already has 0 or negative balance, refuse deduction and ensure 0
+    if ((Number(tenantUser.credits) || 0) <= 0) {
+      if (tenantUser.credits < 0) {
+        await User.findByIdAndUpdate(tenantUser._id, { $set: { credits: 0 } });
+      }
+      return { success: false, reason: 'Insufficient credits (balance is 0)', cost: 0, newBalance: 0 };
+    }
+
+    // 2. Atomic deduction: only decrement if credits >= cost
+    let updatedUser = await User.findOneAndUpdate(
+      { _id: tenantUser._id, credits: { $gte: cost } },
       { $inc: incObject },
       { new: true }
     );
 
+    // 3. If remaining balance was positive but less than cost, drain to 0 without going negative
+    if (!updatedUser) {
+      const freshUser = await User.findById(tenantUser._id).select('credits');
+      const remCredits = Number(freshUser?.credits) || 0;
+      if (remCredits > 0) {
+        const usageInc = { ...incObject };
+        delete usageInc.credits;
+        usageInc['messageUsage.totalSpent'] = remCredits;
+        if (usageInc[`messageUsage.${catKey}.costDeducted`]) {
+          usageInc[`messageUsage.${catKey}.costDeducted`] = remCredits;
+        }
+        updatedUser = await User.findByIdAndUpdate(
+          tenantUser._id,
+          { $inc: usageInc, $set: { credits: 0 } },
+          { new: true }
+        );
+      } else {
+        await User.findByIdAndUpdate(tenantUser._id, { $set: { credits: 0 } });
+        return { success: false, reason: 'Insufficient credits in wallet', cost: 0, newBalance: 0 };
+      }
+    }
+
     if (!updatedUser) return { success: false, reason: 'User not found' };
+
+    // Final safety guard: ensure credits is never below 0
+    if (updatedUser.credits < 0) {
+      await User.findByIdAndUpdate(tenantUser._id, { $set: { credits: 0 } });
+      updatedUser.credits = 0;
+    }
 
     // Create an audit transaction record
     const transactionId = `TXN-${Math.floor(10000000 + Math.random() * 90000000)}`;
@@ -130,19 +186,21 @@ async function deductMessageCredits({
  */
 async function reserveCampaignCredits(tenantId, campaignId, totalEstimatedCost) {
   try {
-    const user = await User.findById(tenantId);
+    const user = await resolveTenantUser(tenantId);
     if (!user) return { success: false, message: 'User not found' };
 
-    const available = (Number(user.credits) || 0) - (Number(user.reservedCredits) || 0);
-    if (available < totalEstimatedCost) {
+    const currentCredits = Number(user.credits) || 0;
+    const reserved = Math.max(0, Number(user.reservedCredits) || 0);
+    const available = currentCredits - reserved;
+    if (available <= 0 || available < totalEstimatedCost) {
       return {
         success: false,
-        message: `Insufficient WCC credits. Required: ₹${totalEstimatedCost.toFixed(2)}, Available: ₹${available.toFixed(2)}`
+        message: `Insufficient WCC credits. Required: ₹${totalEstimatedCost.toFixed(2)}, Available: ₹${Math.max(0, available).toFixed(2)}`
       };
     }
 
     // Place hold
-    await User.findByIdAndUpdate(tenantId, {
+    await User.findByIdAndUpdate(user._id, {
       $inc: { reservedCredits: totalEstimatedCost }
     });
 
@@ -157,9 +215,15 @@ async function reserveCampaignCredits(tenantId, campaignId, totalEstimatedCost) 
  */
 async function releaseCampaignReservation(tenantId, totalEstimatedCost) {
   try {
-    await User.findByIdAndUpdate(tenantId, {
+    const user = await resolveTenantUser(tenantId);
+    if (!user) return;
+    const updated = await User.findByIdAndUpdate(user._id, {
       $inc: { reservedCredits: -totalEstimatedCost }
-    });
+    }, { new: true });
+
+    if (updated && updated.reservedCredits < 0) {
+      await User.findByIdAndUpdate(user._id, { $set: { reservedCredits: 0 } });
+    }
   } catch (error) {
     console.error('Error releasing reservation:', error.message);
   }
@@ -170,8 +234,10 @@ async function releaseCampaignReservation(tenantId, totalEstimatedCost) {
  */
 async function refundFailedMessage(tenantId, messageId, category, recipientPhone) {
   try {
-    const userDoc = await User.findById(tenantId).select('customPricing').lean();
-    const cost = getMessageCost(category, recipientPhone, userDoc?.customPricing);
+    const tenantUser = await resolveTenantUser(tenantId);
+    if (!tenantUser) return { success: false, reason: 'User not found' };
+
+    const cost = getMessageCost(category, recipientPhone, tenantUser?.customPricing);
     const catKey = String(category).toLowerCase();
 
     const incObject = {
@@ -184,7 +250,7 @@ async function refundFailedMessage(tenantId, messageId, category, recipientPhone
     }
 
     const updatedUser = await User.findByIdAndUpdate(
-      tenantId,
+      tenantUser._id,
       { $inc: incObject },
       { new: true }
     );
@@ -193,7 +259,7 @@ async function refundFailedMessage(tenantId, messageId, category, recipientPhone
     const transactionId = `REF-${Math.floor(10000000 + Math.random() * 90000000)}`;
     const safeMessageId = (messageId && mongoose.Types.ObjectId.isValid(messageId)) ? messageId : undefined;
     await Transaction.create({
-      user: tenantId,
+      user: tenantUser._id,
       transactionId,
       desc: `Refund for failed ${category} message to ${recipientPhone}`,
       amount: cost,

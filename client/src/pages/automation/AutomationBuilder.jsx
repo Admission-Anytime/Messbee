@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ChevronLeft, Save, Play, ToggleLeft, ToggleRight, Loader2, Smartphone } from 'lucide-react';
+import { ChevronLeft, Save, Play, ToggleLeft, ToggleRight, Loader2, Smartphone, Zap, LayoutTemplate } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../context/axios';
 import io from 'socket.io-client';
@@ -10,15 +10,16 @@ import NodePropertiesPane from './NodePropertiesPane';
 import MobilePreviewPane from './MobilePreviewPane';
 import SimulatorPanel from './SimulatorPanel';
 import TestAutomationModal from '../../components/Modol/automation/TestAutomationModal';
-import WhatsAppTemplateSelectionModal from '../../components/Modol/automation/WhatsAppTemplateSelectionModal';
 import AssignChannelsModal from '../../components/Modol/automation/AssignChannelsModal';
+import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
+import WhatsAppTemplateSelectionModal from '../../components/Modol/automation/WhatsAppTemplateSelectionModal';
 import 'reactflow/dist/style.css';
 
 export default function AutomationBuilder() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { nodes, edges, setFlowData, setNodes } = useCanvasStore();
+  const { nodes, edges, setFlowData, setNodes, updateNodeData } = useCanvasStore();
 
   const [flowName, setFlowName] = useState(location.state?.flowName || 'Untitled Automation');
   const [isActive, setIsActive] = useState(false);
@@ -28,8 +29,9 @@ export default function AutomationBuilder() {
   const [nodesCount, setNodesCount] = useState(0);
   const [isSimulatorOpen, setIsSimulatorOpen] = useState(false);
   const [isTestModalOpen, setIsTestModalOpen] = useState(false);
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
+  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false);
   const [showMobilePreview, setShowMobilePreview] = useState(true);
   
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -70,6 +72,135 @@ export default function AutomationBuilder() {
     setHasUnsavedChanges(true);
   }, [nodes, edges, flowName, isActive, channelId, isLoading]);
 
+
+
+  const handleSelectTrigger = useCallback((triggerId) => {
+    let mappedType = triggerId;
+    if (triggerId === 'webhook') mappedType = 'api_webhook';
+    if (triggerId === 'crm') mappedType = 'crm_event';
+    if (triggerId === 'manual') mappedType = 'manual_trigger';
+    if (triggerId === 'specific_message') mappedType = 'exact_match';
+
+    const triggerNode = nodes.find(n => n.type === 'triggerNode');
+    if (triggerNode) {
+      updateNodeData(triggerNode.id, { triggerType: mappedType });
+      setNodes(nodes.map(n => ({ ...n, selected: n.id === triggerNode.id })));
+    }
+    setIsTriggerModalOpen(false);
+    toast.success('Trigger updated');
+  }, [nodes, updateNodeData, setNodes]);
+
+  const handleStartFromScratch = useCallback(() => {
+    setFlowData([
+      {
+        id: `trigger_${Date.now()}`,
+        type: 'triggerNode',
+        position: { x: 250, y: 50 },
+        selected: true,
+        data: {
+          label: 'Trigger',
+          triggerType: 'exact_match',
+          keyword: '',
+        },
+      },
+    ], []);
+  }, [setFlowData]);
+
+  const handleSelectWhatsAppTemplate = useCallback((template) => {
+    let variables = [];
+    let bodyText = '';
+    let headerType = 'none';
+    let mediaUrl = '';
+    let headerText = '';
+
+    if (template.components) {
+      template.components.forEach(comp => {
+        if (comp.type === 'BODY' || comp.type === 'body') {
+          bodyText = comp.text || '';
+          if (comp.example && comp.example.body_text) {
+            const numVars = comp.example.body_text[0].length;
+            for (let i = 0; i < numVars; i++) {
+              variables.push({ value: '' });
+            }
+          }
+        } else if (comp.type === 'HEADER' || comp.type === 'header') {
+          if (comp.format === 'TEXT') {
+            headerType = 'text';
+            headerText = comp.text || '';
+          } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(comp.format)) {
+            headerType = comp.format.toLowerCase();
+            mediaUrl = comp.example?.header_handle?.[0] || '';
+          }
+        }
+      });
+    }
+
+    let templateButtons = [];
+    if (template.components) {
+      const btnComp = template.components.find(c => c.type === 'BUTTONS' || c.type === 'buttons');
+      if (btnComp && Array.isArray(btnComp.buttons)) {
+        templateButtons = btnComp.buttons.map((b, i) => ({
+          id: b.id || `btn_${i}`,
+          type: (b.type || 'QUICK_REPLY').toLowerCase(),
+          text: b.text || b.title || `Button ${i + 1}`,
+          title: b.text || b.title || `Button ${i + 1}`,
+          url: b.url,
+          phoneNumber: b.phone_number,
+          payload: b.payload
+        }));
+      }
+    } else if (Array.isArray(template.buttons)) {
+      templateButtons = template.buttons.map((b, i) => ({
+        id: b.id || `btn_${i}`,
+        type: (b.type || 'QUICK_REPLY').toLowerCase(),
+        text: b.text || b.title || `Button ${i + 1}`,
+        title: b.text || b.title || `Button ${i + 1}`,
+        url: b.url,
+        phoneNumber: b.phone_number,
+        payload: b.payload
+      }));
+    }
+
+    const templateNodeId = `template_node_${Date.now()}`;
+    const hasLtoComp = (template.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
+    const isLimitedTimeOffer = hasLtoComp || template.isLimitedTimeOffer === true;
+    const customExpirationHours = isLimitedTimeOffer ? (template.customExpirationHours || 72) : null;
+    const expirationDate = isLimitedTimeOffer ? (template.expirationDate || '') : '';
+    let offerCode = template.offerCode || '';
+    if (!offerCode && template.components) {
+      const btnComp = template.components.find(c => c.type === 'BUTTONS');
+      const copyCodeBtn = btnComp?.buttons?.find(b => b.type === 'COPY_CODE');
+      if (copyCodeBtn?.example) {
+        offerCode = Array.isArray(copyCodeBtn.example) ? copyCodeBtn.example[0] : copyCodeBtn.example;
+      }
+    }
+
+    const templateNode = {
+      id: templateNodeId,
+      type: 'templateNode',
+      position: { x: 250, y: 120 },
+      data: {
+        label: 'Template Message',
+        templateName: template.name,
+        templateLanguage: template.language || 'en',
+        variables: variables,
+        text: bodyText,
+        headerType: headerType,
+        headline: headerText,
+        mediaUrl: mediaUrl,
+        buttons: templateButtons,
+        isLimitedTimeOffer,
+        customExpirationHours,
+        expirationDate,
+        offerCode
+      }
+    };
+
+    setFlowData([{ ...templateNode, position: { x: 200, y: 100 } }], []);
+    setIsTemplateModalOpen(false);
+    toast.success('Template loaded as flow starting point');
+  }, [setFlowData]);
+
   useEffect(() => {
     const loadAutomation = async () => {
       let defaultChannelId = '';
@@ -96,29 +227,27 @@ export default function AutomationBuilder() {
         }
       } else {
         setChannelId(defaultChannelId);
-        const rawTriggerType = location.state?.triggerType || 'exact_match';
-        // Map modal trigger IDs to flow trigger types
-        const triggerMap = {
-          'specific_message': 'exact_match',
-          'webhook': 'api_webhook',
-          'crm': 'crm_event',
-          'manual': 'manual_trigger',
-          'media_received': 'media_any'
-        };
-        const triggerType = triggerMap[rawTriggerType] || rawTriggerType;
-
-        setFlowData([
-          {
-            id: 'trigger_1',
-            type: 'triggerNode',
-            position: { x: 250, y: 50 },
-            data: {
-              label: 'Trigger',
-              triggerType: triggerType,
-              keyword: '',
+        const startMode = location.state?.startMode;
+        if (startMode === 'template') {
+          // Open template picker directly!
+          setFlowData([], []);
+          setIsTemplateModalOpen(true);
+        } else {
+          // Default: start from scratch with trigger node
+          setFlowData([
+            {
+              id: 'trigger_1',
+              type: 'triggerNode',
+              position: { x: 250, y: 50 },
+              selected: true,
+              data: {
+                label: 'Trigger',
+                triggerType: 'exact_match',
+                keyword: '',
+              },
             },
-          },
-        ], []);
+          ], []);
+        }
       }
       setIsLoading(false);
     };
@@ -128,7 +257,7 @@ export default function AutomationBuilder() {
     return () => {
       setFlowData([], []);
     };
-  }, [id]);
+  }, [id, location.state]);
 
   const handleSave = useCallback(async () => {
     if (isSaving) return;
@@ -266,112 +395,7 @@ export default function AutomationBuilder() {
     }
   }, [isActive, id]);
 
-  const handleSelectWhatsAppTemplate = (template) => {
-    // Generate placeholder values for variables (e.g. {{1}} -> '')
-    let variables = [];
-    let bodyText = '';
-    let headerType = 'none';
-    let mediaUrl = '';
-    let headerText = '';
 
-    if (template.components) {
-      template.components.forEach(comp => {
-        if (comp.type === 'BODY') {
-          bodyText = comp.text || '';
-          if (comp.example && comp.example.body_text) {
-            const numVars = comp.example.body_text[0].length;
-            for (let i = 0; i < numVars; i++) {
-              variables.push({ value: '' });
-            }
-          }
-        } else if (comp.type === 'HEADER') {
-          if (comp.format === 'TEXT') {
-            headerType = 'text';
-            headerText = comp.text || '';
-          } else if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(comp.format)) {
-            headerType = comp.format.toLowerCase();
-            mediaUrl = comp.example?.header_handle?.[0] || '';
-          }
-        }
-      });
-    }
-
-    let templateButtons = [];
-    if (template.components) {
-      const btnComp = template.components.find(c => c.type === 'BUTTONS');
-      if (btnComp && Array.isArray(btnComp.buttons)) {
-        templateButtons = btnComp.buttons.map((b, i) => ({
-          id: b.id || `btn_${i}`,
-          type: (b.type || 'QUICK_REPLY').toLowerCase(),
-          text: b.text || b.title || `Button ${i + 1}`,
-          title: b.text || b.title || `Button ${i + 1}`,
-          url: b.url,
-          phoneNumber: b.phone_number,
-          payload: b.payload
-        }));
-      }
-    } else if (Array.isArray(template.buttons)) {
-      templateButtons = template.buttons.map((b, i) => ({
-        id: b.id || `btn_${i}`,
-        type: (b.type || 'QUICK_REPLY').toLowerCase(),
-        text: b.text || b.title || `Button ${i + 1}`,
-        title: b.text || b.title || `Button ${i + 1}`,
-        url: b.url,
-        phoneNumber: b.phone_number,
-        payload: b.payload
-      }));
-    }
-
-    const templateNodeId = `template_node_${Date.now()}`;
-
-    // Detect quick reply buttons (exclude URL and phone-number buttons — they don't reply to the bot)
-    const hasQuickReplies = templateButtons.some(
-      b => b.type !== 'url' && b.type !== 'phone_number' && b.type !== 'phone'
-    );
-
-    const hasLtoComp = (template.components || []).some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER');
-    const isLimitedTimeOffer = hasLtoComp || template.isLimitedTimeOffer === true;
-    const customExpirationHours = isLimitedTimeOffer ? (template.customExpirationHours || 72) : null;
-    const expirationDate = isLimitedTimeOffer ? (template.expirationDate || '') : '';
-    let offerCode = template.offerCode || '';
-    if (!offerCode && template.components) {
-      const btnComp = template.components.find(c => c.type === 'BUTTONS');
-      const copyCodeBtn = btnComp?.buttons?.find(b => b.type === 'COPY_CODE');
-      if (copyCodeBtn?.example) {
-        offerCode = Array.isArray(copyCodeBtn.example) ? copyCodeBtn.example[0] : copyCodeBtn.example;
-      }
-    }
-
-    const templateNode = {
-      id: templateNodeId,
-      type: 'templateNode',
-      position: { x: 250, y: 120 },
-      data: {
-        label: 'Template Message',
-        templateName: template.name,
-        templateLanguage: template.language || 'en',
-        variables: variables,
-        text: bodyText,
-        headerType: headerType,
-        headline: headerText,
-        mediaUrl: mediaUrl,
-        buttons: templateButtons,
-        isLimitedTimeOffer,
-        customExpirationHours,
-        expirationDate,
-        offerCode
-      }
-    };
-
-    // ─── CAMPAIGN TRIGGER (START WITH TEMPLATE) ───────────────────────────
-    // The Template itself is the Root Trigger Node!
-    // Outbound template is sent via Broadcast/Campaign; when customer taps
-    // any Quick Reply or CTA button on WhatsApp, the automation
-    // executes from that button's outgoing connection.
-    setFlowData([{ ...templateNode, position: { x: 180, y: 120 } }], []);
-    
-    setIsTemplateModalOpen(false);
-  };
 
   if (isLoading) {
     return (
@@ -537,7 +561,42 @@ export default function AutomationBuilder() {
 
           <button
             className="auto-btn-padding"
-            onClick={() => setIsSimulatorOpen(true)}
+            onClick={() => setIsTriggerModalOpen(true)}
+            style={{
+              background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0',
+              borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'background 0.2s'
+            }}
+            title="Browse All 27 Triggers"
+          >
+            <Zap size={14} color="#16A34A" />
+            <span className="auto-btn-text optional">Triggers</span>
+          </button>
+
+          <button
+            className="auto-btn-padding"
+            onClick={() => setIsTemplateModalOpen(true)}
+            style={{
+              background: '#F0FDF4', color: '#15803D', border: '1px solid #BBF7D0',
+              borderRadius: '8px', fontSize: '13px',
+              fontWeight: '600', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              transition: 'background 0.2s'
+            }}
+            title="Start with WhatsApp Template"
+          >
+            <LayoutTemplate size={14} color="#16A34A" />
+            <span className="auto-btn-text optional">Template</span>
+          </button>
+
+          <button
+            className="auto-btn-padding"
+            onClick={async () => {
+              await handleSave();
+              setIsSimulatorOpen(true);
+            }}
             style={{
               background: '#EEF2FF', color: '#4F46E5', border: '1px solid #C7D2FE',
               borderRadius: '8px', fontSize: '13px',
@@ -612,7 +671,7 @@ export default function AutomationBuilder() {
             activeDebugNodeId={activeDebugNodeId}
             invalidNodeId={invalidNodeId}
             onNodesChange={handleNodesChange} 
-            onAddTrigger={() => {}} 
+            onAddTrigger={handleStartFromScratch} 
             onStartWithTemplate={() => setIsTemplateModalOpen(true)} 
           />
         </div>
@@ -634,7 +693,15 @@ export default function AutomationBuilder() {
         onClose={() => setIsSimulatorOpen(false)} 
         automationId={id} 
         channelId={channelId} 
+        onSave={handleSave}
       />
+
+      {isTriggerModalOpen && (
+        <TriggerSelectionModal 
+          onClose={() => setIsTriggerModalOpen(false)}
+          onSelectTrigger={handleSelectTrigger}
+        />
+      )}
 
       {isTemplateModalOpen && (
         <WhatsAppTemplateSelectionModal 

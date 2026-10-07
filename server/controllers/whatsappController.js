@@ -231,6 +231,25 @@ exports.connectOAuthToken = async (req, res, next) => {
       }
     }
 
+    // Auto-subscribe Messbee App to WABA Webhooks so inbound messages & statuses are delivered
+    if (wabaId && accessToken) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${wabaId}/subscribed_apps`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        console.log(`✅ [OAuth Connect] App subscribed to WABA ${wabaId} webhooks successfully`);
+      } catch (subErr) {
+        console.warn(`⚠️ [OAuth Connect] Failed to subscribe app to WABA ${wabaId} webhooks:`, subErr.response?.data || subErr.message);
+      }
+    }
+
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
@@ -736,6 +755,25 @@ exports.connectManual = async (req, res, next) => {
         message: 'Invalid WABA ID or Access Token. Please check your credentials.',
         details: err.response?.data
       });
+    }
+
+    // Auto-subscribe Messbee App to WABA Webhooks so inbound messages & statuses are delivered
+    if (wabaId && accessToken) {
+      try {
+        await axios.post(
+          `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${wabaId}/subscribed_apps`,
+          {},
+          {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        console.log(`✅ [Manual Connect] App subscribed to WABA ${wabaId} webhooks successfully`);
+      } catch (subErr) {
+        console.warn(`⚠️ [Manual Connect] Failed to subscribe app to WABA ${wabaId} webhooks:`, subErr.response?.data || subErr.message);
+      }
     }
 
     // Save mapping to User configuration details (mapped by user ID)
@@ -3001,8 +3039,32 @@ exports.testTempPath = async (req, res, next) => {
       return res.status(403).json({ success: false, message: 'WhatsApp is not connected for this account.' });
     }
 
+    const walletService = require('../services/walletService');
+    const { getMessageCost } = require('../config/pricingConfig');
+    const userPricingDoc = await User.findById(tenantId).select('customPricing').lean();
+    const msgCost = getMessageCost('SERVICE', normalized, userPricingDoc?.customPricing);
+
+    const hasBalance = await walletService.hasSufficientCredits(tenantId, msgCost);
+    if (!hasBalance) {
+      return res.status(402).json({
+        success: false,
+        message: `Insufficient WCC Credits in wallet. Message cost: ₹${msgCost.toFixed(2)}. Please recharge your credits.`,
+        errorCode: 'INSUFFICIENT_WCC_CREDITS'
+      });
+    }
+
     // Send the test message
     const result = await tenantWhatsAppService.sendTextMessage(normalized, testMessage);
+
+    if (result.success) {
+      try {
+        await walletService.deductMessageCredits({
+          tenantId,
+          category: 'SERVICE',
+          recipientPhone: normalized
+        });
+      } catch (_) {}
+    }
 
     // Log the response
     logAPICall({

@@ -11,8 +11,14 @@
 export const formatWhatsAppMarkdown = (text = '') => {
   if (!text) return '';
   
-  let formatted = String(text);
+  let formatted = String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
   
+  // WhatsApp monospace: ```text```
+  formatted = formatted.replace(/```([^`]+)```/g, '<code style="background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; font-family: monospace;">$1</code>');
+
   // WhatsApp bold: *text* - properly handle spaces and formatting
   formatted = formatted.replace(/\*([^*]+)\*/g, '<b>$1</b>');
   

@@ -13,6 +13,8 @@ const getWABAConfig = async (user) => {
   let wabaId = user?.whatsappConfig?.wabaId || user?.whatsappBusinessAccountId || null;
   let appId = user?.whatsappAppId || process.env.WHATSAPP_APP_ID || null;
   let qualityRating = null;
+  let verifiedName = null;
+  let displayPhoneNumber = null;
 
   // Check Channel collection first for this tenant (authoritative multi-tenant config)
   if (user) {
@@ -81,6 +83,8 @@ const getWABAConfig = async (user) => {
 exports.getPerformanceOverview = async (req, res) => {
   try {
     const userId = req.user._id;
+    const tenantId = req.user.tenantId || req.user._id;
+    const userMatch = { $in: [userId, tenantId] };
     const { date } = req.query;
 
     // Build date range: if date provided, query that full day; else today
@@ -92,25 +96,25 @@ exports.getPerformanceOverview = async (req, res) => {
 
     // ── 1. TOTAL CHATS created on selected date ───────────────────────────────
     const totalChats = await Chat.countDocuments({
-      user: userId,
+      user: userMatch,
       createdAt: { $gte: startOfDay, $lte: endOfDay }
     });
 
     // ── 2. UNREAD CHATS (have unread > 0) ─────────────────────────────────────
     const unreadChats = await Chat.countDocuments({
-      user: userId,
+      user: userMatch,
       unread: { $gt: 0 }
     });
 
     // ── 3. OPEN CASES (chatStatus === 'open') ─────────────────────────────────
     const openCases = await Chat.countDocuments({
-      user: userId,
+      user: userMatch,
       chatStatus: 'open'
     });
 
     // ── 4. FAILED MESSAGES on selected date ───────────────────────────────────
     const failedMessages = await Message.countDocuments({
-      user: userId,
+      user: userMatch,
       status: 'failed',
       createdAt: { $gte: startOfDay, $lte: endOfDay }
     });
@@ -118,7 +122,7 @@ exports.getPerformanceOverview = async (req, res) => {
     // ── 5. FREE TIER messages (messages where chat has no inbound in 24h window) 
     //    i.e., template/outbound messages outside the 24h reply window
     const templateMessages = await Message.countDocuments({
-      user: userId,
+      user: userMatch,
       sender: 'me',
       messageType: 'template',
       createdAt: { $gte: startOfDay, $lte: endOfDay }
@@ -134,9 +138,9 @@ exports.getPerformanceOverview = async (req, res) => {
     const prevEnd = new Date(endOfDay);
     prevEnd.setDate(prevEnd.getDate() - 1);
 
-    const prevChats   = await Chat.countDocuments({ user: userId, createdAt: { $gte: prevStart, $lte: prevEnd } });
-    const prevFailed  = await Message.countDocuments({ user: userId, status: 'failed', createdAt: { $gte: prevStart, $lte: prevEnd } });
-    const prevUnread  = await Chat.countDocuments({ user: userId, unread: { $gt: 0 }, createdAt: { $gte: prevStart, $lte: prevEnd } });
+    const prevChats   = await Chat.countDocuments({ user: userMatch, createdAt: { $gte: prevStart, $lte: prevEnd } });
+    const prevFailed  = await Message.countDocuments({ user: userMatch, status: 'failed', createdAt: { $gte: prevStart, $lte: prevEnd } });
+    const prevUnread  = await Chat.countDocuments({ user: userMatch, unread: { $gt: 0 }, createdAt: { $gte: prevStart, $lte: prevEnd } });
 
     // Calculate percentage changes
     const calcChange = (curr, prev) => {

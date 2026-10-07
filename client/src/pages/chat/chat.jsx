@@ -461,21 +461,27 @@ const Chat = () => {
         });
       } else {
         console.error('❌ Failed to send message:', result.error, 'Code:', result.errorCode);
-        // Show WhatsApp error to user (include error code if available)
         const errMsg = result.error || 'Failed to send message via WhatsApp';
         const displayErr = result.errorCode ? `[${result.errorCode}] ${errMsg}` : errMsg;
         setSendError(displayErr);
         setTimeout(() => setSendError(null), 10000); // auto-dismiss after 10s
-        // Replace temp message with the DB-saved failed message (or mark as failed)
-        setMessages((prev) =>
-          prev.map(msg =>
-            msg._id === tempId
-              ? result.data
-                ? { ...result.data, status: 'failed', error: errMsg }
-                : { ...msg, status: 'failed', error: errMsg }
-              : msg
-          )
-        );
+
+        const isInsufficientCredit = result.errorCode === 'INSUFFICIENT_WCC_CREDITS' || errMsg.toLowerCase().includes('insufficient');
+        if (isInsufficientCredit) {
+          // Remove temporary message completely so unsent message is not in conversation
+          setMessages((prev) => prev.filter(msg => msg._id !== tempId));
+        } else {
+          // Replace temp message with the DB-saved failed message (or mark as failed)
+          setMessages((prev) =>
+            prev.map(msg =>
+              msg._id === tempId
+                ? result.data
+                  ? { ...result.data, status: 'failed', error: errMsg }
+                  : { ...msg, status: 'failed', error: errMsg }
+                : msg
+            )
+          );
+        }
       }
 
     } catch (error) {
@@ -611,8 +617,9 @@ const Chat = () => {
         setSendError(displayErr);
         setTimeout(() => setSendError(null), 10000);
 
-        // Add failed message to chat state so user immediately sees "Not delivered"
-        if (result.data) {
+        const isInsufficient = result.errorCode === 'INSUFFICIENT_WCC_CREDITS' || errMsg.toLowerCase().includes('insufficient');
+        // Add failed message to chat state only if it was attempted and saved by server
+        if (result.data && !isInsufficient) {
           setMessages((prev) => {
             const msgId = result?.data?._id?.toString();
             const alreadyExists = msgId && prev.some((msg) => msg._id?.toString() === msgId);
@@ -893,14 +900,34 @@ const Chat = () => {
 
       {/* MIDDLE: CONVERSATION AREA */}
       <div className="flex-1 flex flex-col h-full bg-white relative min-w-0">
-        {/* WhatsApp Send Error Banner */}
+        {/* WhatsApp Send Error / Low Balance Warning Banner */}
         {sendError && (
-          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 text-sm font-medium px-5 py-3 rounded-2xl shadow-lg max-w-[90%] animate-in fade-in slide-in-from-top-2 duration-300">
-            <svg className="w-5 h-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            </svg>
-            <span>WhatsApp failed: {sendError}</span>
-            <button onClick={() => setSendError(null)} className="ml-2 text-red-400 hover:text-red-600 font-bold text-lg leading-none">&times;</button>
+          <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 ${
+            sendError.toLowerCase().includes('insufficient')
+              ? 'bg-amber-50 border-amber-300 text-amber-900 shadow-amber-100'
+              : 'bg-red-50 border-red-200 text-red-700 shadow-lg'
+          } border text-sm font-medium px-5 py-3 rounded-2xl shadow-lg max-w-[90%] animate-in fade-in slide-in-from-top-2 duration-300`}>
+            {sendError.toLowerCase().includes('insufficient') ? (
+              <span className="text-xl shrink-0">⚠️</span>
+            ) : (
+              <svg className="w-5 h-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+            )}
+            <span>
+              {sendError.toLowerCase().includes('insufficient')
+                ? sendError.replace(/^\[.*?\]\s*/, '')
+                : `WhatsApp failed: ${sendError}`}
+            </span>
+            {sendError.toLowerCase().includes('insufficient') && (
+              <a
+                href="/admin/plan/addons"
+                className="ml-2 px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow transition-colors whitespace-nowrap"
+              >
+                Recharge Wallet
+              </a>
+            )}
+            <button onClick={() => setSendError(null)} className="ml-2 text-slate-400 hover:text-slate-600 font-bold text-lg leading-none">&times;</button>
           </div>
         )}
         {activeChat ? (

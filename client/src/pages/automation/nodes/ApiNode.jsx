@@ -46,17 +46,34 @@ export default function ApiNode({ id, data, selected }) {
           </div>
         </div>
         
-        <div style={{ padding: '12px', borderTop: '1px solid #4C566A', background: '#2E3440', position: 'relative' }}>
-          <div style={{ fontSize: '11px', color: '#9CA3AF' }}>
-            Next step
+        <div style={{ padding: '12px', background: '#2E3440', borderTop: '1px solid #4C566A', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ position: 'relative' }}>
+            <div style={{ background: '#3B4252', padding: '7px 10px', borderRadius: '6px', fontSize: '11px', color: '#10B981', fontWeight: '700', border: '1px solid rgba(16,185,129,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Success (2xx)</span>
+              <span style={{ fontSize: '10px', opacity: 0.8 }}>→</span>
+            </div>
+            <Handle 
+              type="source" 
+              position={Position.Right} 
+              id="success"
+              className="custom-handle" 
+              style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+            />
           </div>
-          <Handle 
-            type="source" 
-            position={Position.Right} 
-            id="main-handle"
-            className="custom-handle" 
-            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
-          />
+
+          <div style={{ position: 'relative' }}>
+            <div style={{ background: '#3B4252', padding: '7px 10px', borderRadius: '6px', fontSize: '11px', color: '#EF4444', fontWeight: '700', border: '1px solid rgba(239,68,68,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Failure / Error</span>
+              <span style={{ fontSize: '10px', opacity: 0.8 }}>→</span>
+            </div>
+            <Handle 
+              type="source" 
+              position={Position.Right} 
+              id="failure"
+              className="custom-handle" 
+              style={{ right: '-18px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #EF4444', width: '12px', height: '12px' }} 
+            />
+          </div>
         </div>
       </div>
     </div>

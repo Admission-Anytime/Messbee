@@ -26,6 +26,7 @@ export const scheduleDelayedNode = async (customerPhone, channelId, nextNodeId, 
 
 // Background worker that polls the DB for due jobs
 let isPolling = false;
+let lastCleanupTimestamp = 0;
 export const startDelayQueueWorker = () => {
   if (isPolling) return;
   isPolling = true;
@@ -63,33 +64,46 @@ export const startDelayQueueWorker = () => {
         }
       }
     } catch (err) {
-      console.error(`[DB Queue] Polling error:`, err);
+      if (err.name === 'MongoServerSelectionError' || err.code === 'ENOTFOUND') {
+        // Silently skip if DB is temporarily disconnected
+      } else {
+        console.error(`[DB Queue] Polling error:`, err.message || err);
+      }
     }
     
-    // --- Session Cleanup Cron ---
-    try {
-      const INACTIVITY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
-      const expiredTime = new Date(Date.now() - INACTIVITY_TIMEOUT_MS);
-      
-      const result = await CustomerSession.updateMany(
-        { 
-          status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] }, 
-          lastInteractionAt: { $lt: expiredTime } 
-        },
-        { 
-          status: 'CANCELLED',
-          // Optionally clear session variables to prevent lingering state on new interactions
-          sessionVariables: new Map()
+    // --- Session Cleanup Cron (runs once every 15 minutes) ---
+    const now = Date.now();
+    if (now - lastCleanupTimestamp >= 15 * 60 * 1000) {
+      lastCleanupTimestamp = now;
+      try {
+        if (mongoose.connection && mongoose.connection.readyState === 1) {
+          const INACTIVITY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
+          const expiredTime = new Date(Date.now() - INACTIVITY_TIMEOUT_MS);
+          
+          const result = await CustomerSession.updateMany(
+            { 
+              status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] }, 
+              lastInteractionAt: { $lt: expiredTime } 
+            },
+            { 
+              status: 'CANCELLED',
+              sessionVariables: new Map()
+            }
+          );
+          
+          if (result.modifiedCount > 0) {
+            console.log(`[Session Cleanup] Cancelled ${result.modifiedCount} inactive sessions.`);
+          }
         }
-      );
-      
-      if (result.modifiedCount > 0) {
-        console.log(`[Session Cleanup] Cancelled ${result.modifiedCount} inactive sessions.`);
+      } catch (err) {
+        if (err.name === 'MongoServerSelectionError' || err.code === 'ENOTFOUND') {
+          console.warn('[Session Cleanup] Database temporarily unreachable, will retry next cycle.');
+        } else {
+          console.error(`[Session Cleanup] Error:`, err.message || err);
+        }
       }
-    } catch (err) {
-      console.error(`[Session Cleanup] Error:`, err);
     }
-  }, 10000); // Check every 10 seconds
+  }, 10000); // Check delay queue jobs every 10 seconds
 };
 
 // Export dummy queue object for consistency with other imports
