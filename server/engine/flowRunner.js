@@ -817,8 +817,9 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (nodeType === 'catalogNode') {
-    if (!nodeData.catalogId && nodeData.catalogType !== 'catalog') {
-      return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration.' } };
+    const effectiveCatalogId = nodeData.catalogId || contextData?.catalogId || contextData?.tenantSettings?.metaCommerce?.catalogId;
+    if (!effectiveCatalogId && nodeData.catalogType !== 'catalog') {
+      return { ...basePayload, type: 'text', text: { body: 'Missing Catalog ID configuration. Please enter Catalog ID in the node or Commerce settings.' } };
     }
 
     if (nodeData.catalogType === 'catalog') {
@@ -851,7 +852,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         header: { type: 'text', text: parseDynamicVariables(nodeData.headerText, contextData) || 'Products' },
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out our products!' },
         action: {
-          catalog_id: nodeData.catalogId,
+          catalog_id: effectiveCatalogId,
           sections: validSections.map(sec => ({
             title: parseDynamicVariables(sec.title, contextData) || 'Section',
             product_items: sec.productItems.slice(0, 30).map(item => ({
@@ -875,7 +876,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
         type: 'product',
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out this product!' },
         action: {
-          catalog_id: nodeData.catalogId,
+          catalog_id: effectiveCatalogId,
           product_retailer_id: parseDynamicVariables(nodeData.productId, contextData) || 'product_1'
         }
       };

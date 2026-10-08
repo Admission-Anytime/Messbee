@@ -8,11 +8,12 @@ export default function CatalogNode({ id, data, selected }) {
   const removeNode = useCanvasStore(state => state.removeNode);
   
   const isMultiProduct = data.catalogType === 'multi_product';
+  const isCatalog = data.catalogType === 'catalog';
   
   const isValid = !!(
-    data.catalogId && 
+    (isCatalog || data.catalogId) && 
     data.text && 
-    (isMultiProduct ? data.headerText && data.sections?.length > 0 : data.productId)
+    (isMultiProduct ? data.headerText && data.sections?.length > 0 : (isCatalog ? true : data.productId))
   );
 
   const borderColor = isValid ? '#10b981' : '#ef4444';
@@ -36,7 +37,7 @@ export default function CatalogNode({ id, data, selected }) {
         <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
           <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isMultiProduct ? <ShoppingCart size={16} color="#6b7280" /> : <ShoppingBag size={16} color="#6b7280" />}
-            {data.label || (isMultiProduct ? 'Multi-Product' : 'Single Product')}
+            {data.label || (isMultiProduct ? 'Multi-Product' : isCatalog ? 'Store Catalog' : 'Single Product')}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
           </div>
           <div style={{ display: 'flex', gap: '4px' }}>

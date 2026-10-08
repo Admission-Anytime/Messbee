@@ -1382,17 +1382,41 @@ export default function NodePropertiesPane({ currentChannelId }) {
               
               {localData.catalogType !== 'catalog' && (
                 <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>Catalog ID (Required)</label>
-                  <input type="text" name="catalogId" value={localData.catalogId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="Enter Catalog ID" />
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>
+                    Catalog ID
+                  </label>
+                  <input 
+                    type="text" 
+                    name="catalogId" 
+                    value={localData.catalogId || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={{ ...inputStyle, borderColor: '#fcd34d' }} 
+                    placeholder="Enter Catalog ID (optional if set in Commerce)" 
+                  />
+                  <span style={{ fontSize: '11px', color: '#b45309', display: 'block', marginTop: '2px' }}>
+                    Leave blank to use Catalog ID from Commerce Settings automatically.
+                  </span>
                 </div>
               )}
               
               {localData.catalogType !== 'multi_product' && (
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#92400e', marginBottom: '4px' }}>
-                    {localData.catalogType === 'catalog' ? 'Thumbnail Product ID (Optional)' : 'Product Retailer ID (Required)'}
+                    {localData.catalogType === 'catalog' ? 'Thumbnail Product SKU / ID (Optional)' : 'Product Retailer ID / SKU (Required)'}
                   </label>
-                  <input type="text" name="productId" value={localData.productId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, borderColor: '#fcd34d' }} placeholder="e.g. sku-1234" />
+                  <input 
+                    type="text" 
+                    name="productId" 
+                    value={localData.productId || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={{ ...inputStyle, borderColor: '#fcd34d' }} 
+                    placeholder="Enter Product SKU e.g. TSHIRT-001" 
+                  />
+                  <span style={{ fontSize: '11px', color: '#b45309', display: 'block', marginTop: '2px' }}>
+                    Must match the SKU of the product in your Products list / Meta Catalog.
+                  </span>
                 </div>
               )}
             </div>
