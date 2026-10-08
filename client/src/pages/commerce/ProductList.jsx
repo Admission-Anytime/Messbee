@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { getProducts, createProduct, updateProduct, deleteProduct, getMetaSettings, updateMetaSettings, uploadMedia } from "../../services/CommerceApi";
+import { getProducts, createProduct, updateProduct, deleteProduct, getMetaSettings, updateMetaSettings, uploadMedia, getCategories } from "../../services/CommerceApi";
 import { toast } from "react-toastify";
 
 const ProductList = () => {
@@ -17,6 +17,8 @@ const ProductList = () => {
     stock: "",
   });
   const [dataSource, setDataSource] = useState([]);
+  const [categoriesList, setCategoriesList] = useState([]);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
 
   // Meta Settings State
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -30,13 +32,26 @@ const ProductList = () => {
   const [filterCategory, setFilterCategory] = useState("");
   const [filterStock, setFilterStock] = useState("");
 
+  const defaultCategories = ["Apparel", "Accessories", "Electronics", "Groceries", "Footwear", "Home & Living", "Health & Beauty", "Other"];
+  const productCategories = dataSource
+    .map(p => typeof p.category === 'object' ? p.category?.name : p.category)
+    .filter(Boolean);
+  const allCategoryOptions = Array.from(new Set([...defaultCategories, ...categoriesList, ...productCategories]));
+
   const filteredDataSource = dataSource.filter(product => {
-    const matchSearch = filterSearch ? (product.name?.toLowerCase().includes(filterSearch.toLowerCase()) || product.sku?.toLowerCase().includes(filterSearch.toLowerCase())) : true;
-    const matchCategory = filterCategory ? product.category?.toLowerCase() === filterCategory.toLowerCase() : true;
+    const matchSearch = filterSearch ? (
+      product.name?.toLowerCase().includes(filterSearch.toLowerCase()) || 
+      product.sku?.toLowerCase().includes(filterSearch.toLowerCase())
+    ) : true;
+    
+    const catName = typeof product.category === 'object' ? product.category?.name : product.category;
+    const matchCategory = filterCategory ? catName?.toLowerCase() === filterCategory.toLowerCase() : true;
+    
     let matchStock = true;
-    if (filterStock === "in") matchStock = product.stock > 0;
-    if (filterStock === "low") matchStock = product.stock > 0 && product.stock < 10;
-    if (filterStock === "out") matchStock = product.stock === 0;
+    const stockVal = Number(product.currentStock !== undefined ? product.currentStock : (product.stock || 0));
+    if (filterStock === "in") matchStock = stockVal > 0;
+    if (filterStock === "low") matchStock = stockVal > 0 && stockVal < 10;
+    if (filterStock === "out") matchStock = stockVal === 0;
     return matchSearch && matchCategory && matchStock;
   });
 
@@ -55,9 +70,21 @@ const ProductList = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const response = await getCategories();
+      const raw = response.data || response || [];
+      const cats = Array.isArray(raw) ? raw.map(c => typeof c === 'string' ? c : c.name).filter(Boolean) : [];
+      setCategoriesList(cats);
+    } catch (error) {
+      console.warn("Failed to fetch categories:", error);
+    }
+  };
+
   useEffect(() => {
     fetchProducts();
     fetchMetaSettings();
+    fetchCategories();
   }, []);
 
   const fetchMetaSettings = async () => {
@@ -92,14 +119,16 @@ const ProductList = () => {
   // Pre-fill form when editing
   React.useEffect(() => {
     if (editingProduct) {
+      const catVal = typeof editingProduct.category === 'object' ? editingProduct.category?.name : (editingProduct.category || "");
       setFormData({
         name: editingProduct.name || "",
         sku: editingProduct.sku || "",
-        category: editingProduct.category || "",
+        category: catVal,
         price: editingProduct.sellingPrice?.toString() || editingProduct.price?.toString() || "",
         stock: editingProduct.currentStock?.toString() || editingProduct.stock?.toString() || "",
         img: editingProduct.productImage || editingProduct.img || ""
       });
+      setIsCustomCategory(false);
     } else {
       setFormData({
         name: "",
@@ -109,6 +138,7 @@ const ProductList = () => {
         stock: "",
         img: ""
       });
+      setIsCustomCategory(false);
     }
   }, [editingProduct, isDrawerOpen]);
 
@@ -131,21 +161,41 @@ const ProductList = () => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const [savingProduct, setSavingProduct] = useState(false);
+
   const handleSaveProduct = async () => {
-    // Validation
-    if (!formData.name || !formData.sku || !formData.category || !formData.price || !formData.stock) {
-      toast.warning("Please fill in all required fields");
+    // Specific field validation
+    if (!formData.name?.trim()) {
+      toast.warning("Please enter product name");
+      return;
+    }
+    if (!formData.sku?.trim()) {
+      toast.warning("Please enter SKU ID");
+      return;
+    }
+    if (!formData.category?.trim()) {
+      toast.warning("Please select a category");
+      return;
+    }
+    if (formData.price === "" || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) < 0) {
+      toast.warning("Please enter a valid price");
+      return;
+    }
+    if (formData.stock === "" || isNaN(parseInt(formData.stock, 10)) || parseInt(formData.stock, 10) < 0) {
+      toast.warning("Please enter initial stock quantity");
       return;
     }
 
     try {
+      setSavingProduct(true);
       const productData = {
-        name: formData.name,
-        sku: formData.sku,
+        name: formData.name.trim(),
+        sku: formData.sku.trim(),
         category: formData.category,
         sellingPrice: parseFloat(formData.price),
-        currentStock: parseInt(formData.stock),
-        productImage: formData.img
+        purchasePrice: parseFloat(formData.price) || 0,
+        currentStock: parseInt(formData.stock, 10),
+        productImage: formData.img?.trim() || ""
       };
 
       if (editingProduct) {
@@ -163,6 +213,8 @@ const ProductList = () => {
       closeDrawer();
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to save product");
+    } finally {
+      setSavingProduct(false);
     }
   };
 
@@ -269,8 +321,9 @@ const ProductList = () => {
           />
           <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
             <option value="">All Categories</option>
-            <option value="apparel">Apparel</option>
-            <option value="accessories">Accessories</option>
+            {allCategoryOptions.map(cat => (
+              <option key={cat} value={cat}>{cat}</option>
+            ))}
           </select>
           <select value={filterStock} onChange={(e) => setFilterStock(e.target.value)} className="w-full border border-gray-200 rounded-lg px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all appearance-none bg-white">
             <option value="">All Stock Status</option>
@@ -310,7 +363,9 @@ const ProductList = () => {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredDataSource.map((product) => {
-                const stockStatus = getStockStatus(product.stock);
+                const stockVal = Number(product.currentStock !== undefined ? product.currentStock : (product.stock || 0));
+                const stockStatus = getStockStatus(stockVal);
+                const catName = typeof product.category === 'object' ? product.category?.name : product.category;
                 return (
                   <tr key={product.key} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
@@ -334,7 +389,7 @@ const ProductList = () => {
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2.5 py-1 rounded-md text-[12px] font-semibold bg-blue-50 text-blue-800">
-                        {product.category}
+                        {catName || "General"}
                       </span>
                     </td>
                     <td className="px-6 py-4">
@@ -464,6 +519,18 @@ const ProductList = () => {
                   className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono"
                 />
               </div>
+
+              <div>
+                <label className="block text-[12px] font-bold text-gray-700 mb-1.5 uppercase tracking-wide">Meta System User Token (Optional)</label>
+                <input
+                  type="password"
+                  placeholder="EAAG... (Leave empty to use connected WhatsApp Channel token)"
+                  value={metaSettings.systemUserToken}
+                  onChange={(e) => setMetaSettings(prev => ({ ...prev, systemUserToken: e.target.value }))}
+                  className="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all font-mono"
+                />
+                <p className="text-[11px] text-gray-400 mt-1">If not provided, the connected channel's Meta token is used automatically.</p>
+              </div>
             </div>
             
             <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 rounded-b-2xl flex justify-end gap-3">
@@ -497,15 +564,18 @@ const ProductList = () => {
               <div className="flex items-center gap-3">
                 <button
                   onClick={closeDrawer}
+                  disabled={savingProduct}
                   className="text-[13px] font-bold text-gray-500 hover:text-gray-700 transition-colors px-4 py-2"
                 >
                   Cancel
                 </button>
                 <button 
                   onClick={handleSaveProduct}
-                  className="bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px"
+                  disabled={savingProduct}
+                  className={`bg-[#10B981] hover:bg-[#059669] text-white px-6 py-2.5 rounded-xl font-bold text-[13px] transition-all shadow-md active:translate-y-px flex items-center gap-2 ${savingProduct ? 'opacity-70 cursor-not-allowed' : ''}`}
                 >
-                  {editingProduct ? 'Update Product' : 'Save Product'}
+                  {savingProduct && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {savingProduct ? 'Saving...' : editingProduct ? 'Update Product' : 'Save Product'}
                 </button>
               </div>
             </div>
@@ -545,14 +615,34 @@ const ProductList = () => {
                     <div>
                       <label className="block text-[13px] font-bold text-gray-700 mb-1.5">Category</label>
                       <select 
-                        value={formData.category}
-                        onChange={(e) => updateFormField("category", e.target.value)}
-                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30 appearance-none"
+                        value={isCustomCategory ? "__custom__" : formData.category}
+                        onChange={(e) => {
+                          if (e.target.value === "__custom__") {
+                            setIsCustomCategory(true);
+                            updateFormField("category", "");
+                          } else {
+                            setIsCustomCategory(false);
+                            updateFormField("category", e.target.value);
+                          }
+                        }}
+                        className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
                       >
                         <option value="">Select Category</option>
-                        <option value="Apparel">Apparel</option>
-                        <option value="Accessories">Accessories</option>
+                        {allCategoryOptions.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                        <option value="__custom__">+ Enter Custom Category...</option>
                       </select>
+                      {isCustomCategory && (
+                        <input
+                          type="text"
+                          placeholder="Type custom category name..."
+                          value={formData.category}
+                          onChange={(e) => updateFormField("category", e.target.value)}
+                          className="mt-2 w-full border border-gray-200 rounded-xl px-4 py-2 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all bg-white"
+                          autoFocus
+                        />
+                      )}
                     </div>
                   </div>
                 </div>

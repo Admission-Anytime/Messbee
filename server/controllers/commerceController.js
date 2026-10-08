@@ -9,7 +9,13 @@ const { syncProductToMeta } = require('../services/metaCatalogService');
 // @access  Private
 exports.getProducts = async (req, res, next) => {
   try {
-    const products = await Product.find({ user: req.user.id }).sort('-createdAt');
+    const tenantId = req.user.tenantId || req.user._id;
+    const products = await Product.find({
+      $or: [
+        { user: req.user.id },
+        { tenantId: tenantId }
+      ]
+    }).populate('category', 'name').sort('-createdAt');
     res.status(200).json({
       success: true,
       count: products.length,
@@ -27,7 +33,21 @@ exports.createProduct = async (req, res, next) => {
   try {
     req.body.user = req.user.id;
     req.body.tenantId = req.user.tenantId || req.user._id; // Ensure tenantId is set
-    
+
+    // Normalize field aliases if sent by different frontend modules
+    if (req.body.price !== undefined && req.body.sellingPrice === undefined) {
+      req.body.sellingPrice = Number(req.body.price) || 0;
+    }
+    if (req.body.sellingPrice !== undefined && req.body.purchasePrice === undefined) {
+      req.body.purchasePrice = Number(req.body.sellingPrice) || 0;
+    }
+    if (req.body.stock !== undefined && req.body.currentStock === undefined) {
+      req.body.currentStock = Number(req.body.stock) || 0;
+    }
+    if (req.body.img && !req.body.productImage) {
+      req.body.productImage = req.body.img;
+    }
+
     const product = await Product.create(req.body);
     
     // Async background sync to Meta
@@ -38,6 +58,12 @@ exports.createProduct = async (req, res, next) => {
       data: product
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: `SKU '${req.body.sku}' already exists. Please use a unique SKU ID.`
+      });
+    }
     next(error);
   }
 };
@@ -49,7 +75,21 @@ exports.updateProduct = async (req, res, next) => {
   try {
     let product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    if (product.user.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'Not authorized' });
+    
+    const isOwner = product.user && product.user.toString() === req.user.id;
+    const isSameTenant = (product.tenantId && req.user.tenantId && product.tenantId.toString() === req.user.tenantId.toString()) ||
+                         (product.tenantId && product.tenantId.toString() === req.user._id.toString());
+    if (!isOwner && !isSameTenant) return res.status(401).json({ success: false, message: 'Not authorized' });
+
+    if (req.body.price !== undefined && req.body.sellingPrice === undefined) {
+      req.body.sellingPrice = Number(req.body.price) || 0;
+    }
+    if (req.body.stock !== undefined && req.body.currentStock === undefined) {
+      req.body.currentStock = Number(req.body.stock) || 0;
+    }
+    if (req.body.img && !req.body.productImage) {
+      req.body.productImage = req.body.img;
+    }
 
     product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     
@@ -69,7 +109,11 @@ exports.deleteProduct = async (req, res, next) => {
   try {
     const product = await Product.findById(req.params.id);
     if (!product) return res.status(404).json({ success: false, message: 'Product not found' });
-    if (product.user.toString() !== req.user.id) return res.status(401).json({ success: false, message: 'Not authorized' });
+
+    const isOwner = product.user && product.user.toString() === req.user.id;
+    const isSameTenant = (product.tenantId && req.user.tenantId && product.tenantId.toString() === req.user.tenantId.toString()) ||
+                         (product.tenantId && product.tenantId.toString() === req.user._id.toString());
+    if (!isOwner && !isSameTenant) return res.status(401).json({ success: false, message: 'Not authorized' });
 
     // Async background sync to Meta (before deleting locally, though we just pass the object)
     syncProductToMeta(product, product.tenantId, 'DELETE');
