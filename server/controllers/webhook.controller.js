@@ -118,6 +118,11 @@ export const handleIncomingMessage = async (req, res) => {
 
             const referral = message.referral || null;
 
+            if (message.context) {
+              messageContext.contextMessageId = message.context.id;
+              messageContext.contextFrom = message.context.from;
+            }
+
             if (referral) {
               console.log(`[Ad Attribution] Referral data detected:`, JSON.stringify(referral));
             }

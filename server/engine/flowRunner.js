@@ -496,7 +496,8 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
           whatsappMessageId: metaMessageId,
           messageType: payload.type === 'interactive' ? 'interactive' : (payload.type === 'template' ? 'template' : 'text'),
           status: 'sent',
-          metadata: payload
+          metadata: payload,
+          templateName: payload.type === 'template' ? (payload.template?.name || null) : null
         });
 
         chat.lastMsg = outboundText || chat.lastMsg;
@@ -1652,7 +1653,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             ]
           }
         ]
-      });
+      }).sort({ updatedAt: -1, createdAt: -1 });
     }
 
     const payloadText = typeof incomingPayload === 'string' ? incomingPayload.trim().toLowerCase() : '';
@@ -1712,7 +1713,64 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     const findButtonEdgeMatch = async (payloadsToMatch) => {
       const candidates = (payloadsToMatch && payloadsToMatch.length > 0) ? payloadsToMatch : candidatePayloads;
       if (!candidates || candidates.length === 0) return null;
-      for (const flow of allActiveFlows) {
+
+      // 🎯 Resolve which template was sent to this customer and clicked
+      let clickedTemplateName = null;
+      try {
+        const { default: MessageModel } = await import('../models/Message.js');
+        // Priority 1: Meta context message ID (the exact WhatsApp message the user clicked on)
+        if (messageContext?.contextMessageId) {
+          const contextMsg = await MessageModel.findOne({
+            whatsappMessageId: messageContext.contextMessageId
+          }).select('templateName metadata').lean();
+          if (contextMsg?.templateName || contextMsg?.metadata?.template?.name) {
+            clickedTemplateName = contextMsg.templateName || contextMsg.metadata.template.name;
+          }
+        }
+
+        // Priority 2: If Meta context ID was not present, find the last outbound template sent to this phone
+        if (!clickedTemplateName) {
+          const cleanPhone = customerPhone.replace(/\D/g, '');
+          const lastTplMsg = await MessageModel.findOne({
+            $or: [
+              { phone: cleanPhone },
+              { whatsappId: cleanPhone },
+              { phone: customerPhone },
+              { to: customerPhone }
+            ],
+            messageType: 'template',
+            direction: { $in: ['OUTBOUND', 'outbound', 'sent'] }
+          })
+            .sort({ _id: -1 })
+            .select('templateName metadata')
+            .lean();
+
+          if (lastTplMsg?.templateName || lastTplMsg?.metadata?.template?.name) {
+            clickedTemplateName = lastTplMsg.templateName || lastTplMsg.metadata.template.name;
+          }
+        }
+      } catch (err) {
+        logger.warn('[FlowRunner] Template resolution warning:', err.message);
+      }
+
+      if (clickedTemplateName) {
+        logger.log(`[FlowRunner] 🎯 Customer ${customerPhone} clicked button on template '${clickedTemplateName}'`);
+      }
+
+      // Prioritize flows that contain the clicked template
+      let flowsToSearch = allActiveFlows;
+      if (clickedTemplateName) {
+        const clickedLower = clickedTemplateName.toLowerCase().trim();
+        flowsToSearch = [...allActiveFlows].sort((a, b) => {
+          const aHasTpl = a.nodes?.some(n => n.type === 'templateNode' && n.data?.templateName?.toLowerCase().trim() === clickedLower);
+          const bHasTpl = b.nodes?.some(n => n.type === 'templateNode' && n.data?.templateName?.toLowerCase().trim() === clickedLower);
+          if (aHasTpl && !bHasTpl) return -1;
+          if (!aHasTpl && bHasTpl) return 1;
+          return 0;
+        });
+      }
+
+      for (const flow of flowsToSearch) {
         const flowNodes = Array.isArray(flow?.nodes) ? flow.nodes : [];
         const flowEdges = Array.isArray(flow?.edges) ? flow.edges : [];
         const interactiveOrTemplateNodes = flowNodes.filter(n =>
@@ -1725,6 +1783,15 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         );
 
         for (const node of interactiveOrTemplateNodes) {
+          // If this is a templateNode and we know which template was sent/clicked, ensure templateName matches!
+          if (node.type === 'templateNode' && clickedTemplateName && node.data?.templateName) {
+            const nodeTpl = String(node.data.templateName).trim().toLowerCase();
+            const clickedTpl = String(clickedTemplateName).trim().toLowerCase();
+            if (nodeTpl !== clickedTpl) {
+              continue; // Do NOT match a button on a different template!
+            }
+          }
+
           let buttons = node.data?.buttons || node.data?.interactiveButtons || [];
           if (node.type === 'carouselNode' && Array.isArray(node.data?.cards)) {
             buttons = node.data.cards.flatMap(c => c.buttons || []);
@@ -1772,13 +1839,24 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               b.text?.trim().toLowerCase(),
               b.title?.trim().toLowerCase(),
               b.payload?.trim().toLowerCase(),
-              b.id?.toString().trim().toLowerCase(),
-              String(i)
             ].filter(Boolean);
 
-            const isMatch = candidates.some(cp =>
-              bCandidates.includes(cp) || bCandidates.some(bc => bc.includes(cp) || cp.includes(bc))
-            );
+            if (b.id && !String(b.id).startsWith('btn_') && !String(b.id).startsWith('row_') && isNaN(b.id)) {
+              bCandidates.push(String(b.id).trim().toLowerCase());
+            }
+
+            // Accurate match: match by button title, text, or payload
+            const isMatch = candidates.some(cp => {
+              if (!cp) return false;
+              const cleanCp = cp.trim().toLowerCase();
+              return bCandidates.some(bc => {
+                if (!bc) return false;
+                const cleanBc = bc.trim().toLowerCase();
+                return cleanBc === cleanCp || 
+                       cleanBc.replace(/^btn-/, '') === cleanCp.replace(/^btn-/, '') ||
+                       (cleanCp.length > 3 && cleanBc.length > 3 && (cleanBc === cleanCp || cleanBc.includes(cleanCp) || cleanCp.includes(cleanBc)));
+              });
+            });
 
             if (isMatch) {
               matchedBtn = b;
@@ -1791,7 +1869,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             const btnId = (matchedBtn.id !== undefined && matchedBtn.id !== null && String(matchedBtn.id).trim() !== '') ? String(matchedBtn.id) : String(matchedIdx);
             let matchedEdge = outgoingEdges.find(e => {
               const sh = e.sourceHandle;
-              const shLower = sh?.toLowerCase();
+              if (!sh) return false;
+              const shLower = sh.toLowerCase();
               return (
                 candidates.includes(shLower) ||
                 candidates.some(cp => shLower === `btn-${cp}`) ||
@@ -1805,7 +1884,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               );
             });
 
-            if (!matchedEdge && outgoingEdges.length === 1 && isButtonTap) {
+            // Only fallback to single outgoing edge if this button was indeed the only button configured for this node
+            if (!matchedEdge && outgoingEdges.length === 1 && buttons.length <= 1 && isButtonTap) {
               matchedEdge = outgoingEdges[0];
             }
 
@@ -1813,8 +1893,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               return { flow, node, target: matchedEdge.target };
             }
           } else if (isButtonTap && outgoingEdges.length > 0) {
-            // 🎯 100% DYNAMIC DIRECT EDGE MATCH: Even if template button metadata isn't cached,
-            // check if any outgoing edge handle directly matches the tapped button payload or title
+            // Check direct edge match ONLY if handle matches the button title/payload explicitly
             const directEdge = outgoingEdges.find(e => {
               const sh = e.sourceHandle;
               if (!sh) return false;
@@ -1827,19 +1906,16 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 return (
                   shLower === cpLower ||
                   shLower === `btn-${cpLower}` ||
-                  stripped === cpLower ||
-                  stripped === cpStripped ||
-                  shLower.includes(cpLower) ||
-                  cpLower.includes(stripped)
+                  (stripped.length > 2 && stripped === cpLower) ||
+                  (stripped.length > 2 && stripped === cpStripped)
                 );
               });
             });
             if (directEdge) {
               return { flow, node, target: directEdge.target };
             }
-            if (outgoingEdges.length === 1) {
-              return { flow, node, target: outgoingEdges[0].target };
-            }
+            // CRITICAL: Do NOT blindly return outgoingEdges[0] if the button didn't match!
+            // Doing so causes this flow to hijack buttons belonging to other active flows.
           }
         }
       }
@@ -2004,13 +2080,10 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 matchedTriggerNode = rootNode;
                 break;
               }
-            } else if (rootNode && rootNode.type === 'templateNode') {
-              // 🌐 LIVE WHATSAPP: If an active flow starts directly with a root templateNode, trigger it!
-              logger.log(`[FlowRunner] 🎯 [PATH-C-ROOT] Triggering active flow '${flow.name}' starting directly at root templateNode ${rootNode.id}`);
-              matchedFlow = flow;
-              matchedTriggerNode = rootNode;
-              break;
             }
+            // Note: In Live WhatsApp, root templateNodes without an explicit triggerNode should ONLY
+            // trigger when a customer actually taps one of the template's buttons (handled by PATH B above).
+            // Normal free-form text messages (e.g. 'hi', 'hello') must NOT re-send the template.
           }
         }
       }
