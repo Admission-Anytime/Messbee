@@ -124,6 +124,14 @@ const useCanvasStore = create((set, get) => ({
     });
   },
 
+  // Removes an existing edge/connection
+  removeEdge: (edgeId) => {
+    get().takeSnapshot();
+    set({
+      edges: get().edges.filter(e => e.id !== edgeId),
+    });
+  },
+
   /**
    * updateNodeData
    * Securely merges property updates from the right-side configuration pane 
@@ -220,10 +228,11 @@ const useCanvasStore = create((set, get) => ({
 
       return { 
         ...edge,
+        type: edge.type || 'deletableEdge',
         sourceHandle: safeSourceHandle, 
         targetHandle: safeTargetHandle,
         animated: true,
-        style: { ...edge.style, strokeWidth: 2, stroke: '#10b981' }
+        style: { ...edge.style, strokeWidth: 2, stroke: (edge.style?.stroke || '#10b981') }
       };
     }) : [];
     

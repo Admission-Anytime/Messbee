@@ -25,6 +25,7 @@ import RandomizerNode from './nodes/RandomizerNode';
 import ShopifyNode from './nodes/ShopifyNode';
 import WaitForEventNode from './nodes/WaitForEventNode';
 import AddNextStepModal from '../../components/Modol/automation/AddNextStepModal';
+import DeletableEdge from './edges/DeletableEdge';
 
 function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate, activeDebugNodeId, invalidNodeId }) {
   const nodeTypes = useMemo(() => ({
@@ -51,6 +52,13 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     waitForEventNode: WaitForEventNode
   }), []);
 
+  const edgeTypes = useMemo(() => ({
+    default: DeletableEdge,
+    smoothstep: DeletableEdge,
+    deletableEdge: DeletableEdge,
+    buttonEdge: DeletableEdge,
+  }), []);
+
   const { nodes, edges, setNodes, setEdges, selectNode, undo, redo, past, future, takeSnapshot } = useCanvasStore();
   const [isAddNodeModalOpen, setIsAddNodeModalOpen] = useState(false);
 
@@ -66,8 +74,13 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
   );
   
   const onEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [setEdges]
+    (changes) => {
+      if (changes.some(c => c.type === 'remove')) {
+        takeSnapshot();
+      }
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+    },
+    [setEdges, takeSnapshot]
   );
   
   const onConnect = useCallback(
@@ -83,8 +96,10 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         else if (btnIndex > 2) edgeColor = '#8b5cf6'; // Purple for any additional
       }
 
+      takeSnapshot();
       const customEdge = {
         ...connection,
+        type: 'deletableEdge',
         animated: true,
         style: { stroke: edgeColor, strokeWidth: 2 },
         markerEnd: {
@@ -97,7 +112,7 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
 
       setEdges((eds) => addEdge(customEdge, eds));
     },
-    [nodes, setEdges]
+    [nodes, setEdges, takeSnapshot]
   );
 
   const handleAddNode = (stepItem) => {
@@ -250,6 +265,17 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         .ctrl-btn:hover { background: #f3f4f6 !important; color: #111827 !important; }
         .ctrl-btn { transition: all 0.15s !important; }
         
+        /* Edge Selection & Hover Styles */
+        .react-flow__edge.selected .react-flow__edge-path {
+          stroke: #ef4444 !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(0 0 4px rgba(239, 68, 68, 0.45));
+        }
+        .react-flow__edge:hover .react-flow__edge-path {
+          stroke: #ef4444 !important;
+          stroke-width: 3px !important;
+        }
+
         /* Debugger Animation Base */
         .react-flow__node { transition: transform 0.3s ease, box-shadow 0.3s ease; }
 
@@ -414,15 +440,21 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
         onConnect={onConnect}
         isValidConnection={isValidConnection}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        deleteKeyCode={['Backspace', 'Delete']}
+        onEdgesDelete={(deletedEdges) => {
+          takeSnapshot();
+          showToast.success('Connection deleted', 'Connection wire removed successfully.');
+        }}
         onNodeDragStart={() => takeSnapshot()}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
         maxZoom={1.5}
         defaultEdgeOptions={{
-          type: 'smoothstep',
+          type: 'deletableEdge',
           animated: true,
-          style: { strokeWidth: 2, stroke: '#3B4252' },
+          style: { strokeWidth: 2, stroke: '#10b981' },
         }}
       >
         <Background variant="dots" gap={12} size={1.5} color="#cbd5e1" />

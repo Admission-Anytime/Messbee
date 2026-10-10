@@ -26,29 +26,43 @@ exports.syncProductToMeta = async (product, tenantId, method = 'CREATE') => {
     let systemUserToken = settings?.metaCommerce?.systemUserToken;
     
     if (!systemUserToken) {
-      const channel = await Channel.findOne({ tenantId });
+      let channel = await Channel.findOne({ tenantId }).select('+metaAccessToken');
+      if (!channel && typeof tenantId === 'string') {
+        channel = await Channel.findOne({ tenantId: tenantId }).select('+metaAccessToken');
+      }
       if (channel && channel.metaAccessToken) {
         systemUserToken = channel.metaAccessToken;
       }
     }
 
     if (!systemUserToken) {
-      console.log(`[MetaCatalogSync] Missing Meta access token for tenant ${tenantId}. Ensure embedded signup is completed. Skipping sync.`);
+      try {
+        const User = require('../models/User');
+        const userDoc = await User.findById(tenantId).select('+whatsappConfig.accessToken');
+        if (userDoc?.whatsappConfig?.accessToken) {
+          systemUserToken = userDoc.whatsappConfig.accessToken;
+        }
+      } catch (_) {}
+    }
+
+    if (!systemUserToken) {
+      console.log(`[MetaCatalogSync] Missing Meta access token for tenant ${tenantId}. Ensure embedded signup is completed or System User Token is set in Commerce settings. Skipping sync.`);
       return;
     }
     
     // Meta requires retailer_id, name, description, brand, price, currency, url, image_url
+    const priceVal = product.sellingPrice !== undefined && product.sellingPrice !== null ? product.sellingPrice : (product.price || 0);
     const productData = {
       retailer_id: product.sku,
       name: product.name,
       description: product.description || product.name,
       brand: product.brand || 'Generic',
-      price: Math.round(product.sellingPrice * 100), // Meta expects price in cents/paise
-      currency: settings.billing?.currency || 'INR',
-      availability: product.currentStock > 0 ? 'in stock' : 'out of stock',
+      price: Math.round(Number(priceVal) * 100), // Meta expects price in cents/paise
+      currency: settings?.billing?.currency || 'INR',
+      availability: (product.currentStock || product.stock || 0) > 0 ? 'in stock' : 'out of stock',
       condition: 'new',
-      image_url: product.productImage || 'https://via.placeholder.com/600',
-      url: `https://yourdomain.com/products/${product.sku}` // Dummy URL if none exists
+      image_url: product.productImage || product.image || 'https://via.placeholder.com/600',
+      url: `https://tools.messbee.com/products/${product.sku}`
     };
 
     let endpoint = `https://graph.facebook.com/v19.0/${catalogId}/batch`;
@@ -71,7 +85,12 @@ exports.syncProductToMeta = async (product, tenantId, method = 'CREATE') => {
       requests: requests
     };
 
-    const response = await axios.post(endpoint, payload);
+    const response = await axios.post(endpoint, payload, {
+      headers: {
+        'Authorization': `Bearer ${systemUserToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
     
     // Process response
     if (response.data && response.data.handles && response.data.handles.length > 0) {

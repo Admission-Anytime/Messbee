@@ -8,6 +8,7 @@ import { formatWhatsAppMarkdown } from '../../utils/markdownParser';
 import axios from '../../context/axios';
 import { userContext } from '../../context/Context';
 import { getPlanLimit, hasPlanFeature } from '../../utils/planLimits';
+import EmojiPicker from 'emoji-picker-react';
 
 /**
  * Detects aspect ratio label
@@ -341,6 +342,7 @@ const CreateTemplate = () => {
   const editorRef = useRef(null);
   const headerFileRef = useRef(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const emojiPickerRef = useRef(null);
   const [charCount, setCharCount] = useState(0);
   const [bodyVariables, setBodyVariables] = useState([]);
   const [bodySamples, setBodySamples] = useState(location.state?.templateData?.bodySamples || {});
@@ -348,6 +350,20 @@ const CreateTemplate = () => {
   const [headerVariables, setHeaderVariables] = useState([]);
   // eslint-disable-next-line no-unused-vars
   const [headerSamples, setHeaderSamples] = useState({});
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false);
+      }
+    };
+    if (showEmojiPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showEmojiPicker]);
 
   const [headerMedia, setHeaderMedia] = useState(
     location.state?.templateData?.headerMediaUrl 
@@ -402,13 +418,6 @@ const CreateTemplate = () => {
     };
     fetchCatalog();
   }, []);
-
-  const EMOJIS = [
-    '😀','😂','🥰','😍','🤩','😊','🎉','🔥',
-    '❤️','👋','💪','✅','⭐','🚀','💡','🎯',
-    '📢','📱','💰','🛒','🎁','👍','🙏','💬',
-    '📧','⚡','🌟','🏆','💎','🤝','📞','🎊',
-  ];
 
   // Initialize editor with bodyText on mount
   useEffect(() => {
@@ -557,12 +566,14 @@ const CreateTemplate = () => {
     syncEditorContent();
   };
 
-  const insertEmoji = (emoji) => {
+  const onEmojiClick = (emojiData) => {
+    const emoji = emojiData?.emoji || emojiData;
     editorRef.current?.focus();
     document.execCommand('insertText', false, emoji);
     syncEditorContent();
-    setShowEmojiPicker(false);
   };
+
+  const insertEmoji = (emoji) => onEmojiClick(emoji);
 
   const insertVariable = () => {
     editorRef.current?.focus();
@@ -2445,22 +2456,22 @@ const CreateTemplate = () => {
                               <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
                                 <div className="flex items-center justify-between gap-3">
                                   <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    {headerMedia.type === 'image' && (
+                                    {String(headerMedia.type || '').toLowerCase() === 'image' && (
                                       <img 
-                                        src={headerMedia.preview} 
+                                        src={resolveMediaUrlForDev(headerMedia.preview || headerMedia.hostedUrl || headerMedia.url)} 
                                         alt="preview" 
                                         className="h-16 w-16 rounded-lg object-contain bg-white border border-gray-200 p-1 shrink-0"
                                       />
                                     )}
-                                    {headerMedia.type === 'video' && (
+                                    {String(headerMedia.type || '').toLowerCase() === 'video' && (
                                       <video 
-                                        src={headerMedia.preview} 
+                                        src={resolveMediaUrlForDev(headerMedia.preview || headerMedia.hostedUrl || headerMedia.url)} 
                                         className="h-16 w-16 rounded-lg object-contain bg-black shrink-0"
                                       />
                                     )}
-                                    {headerMedia.type === 'document' && (
+                                    {String(headerMedia.type || '').toLowerCase() === 'document' && (
                                       <div className="h-16 w-16 rounded-lg bg-red-50 flex items-center justify-center text-red-600 font-bold text-xs shrink-0 border border-red-100">
-                                        {headerMedia.name.split('.').pop().toUpperCase()}
+                                        {String(headerMedia.name || 'DOCUMENT').split('.').pop().toUpperCase()}
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
@@ -2572,23 +2583,20 @@ const CreateTemplate = () => {
                         <div className="flex items-center gap-4 text-gray-500">
                             <div className="flex items-center gap-3 pr-4 border-r border-gray-200">
                                 {/* EMOJI */}
-                                <div className="relative">
+                                <div className="relative" ref={emojiPickerRef}>
                                     <button type="button" onClick={() => setShowEmojiPicker(p => !p)} title="Emoji">
                                         <Smile size={18} className="hover:text-yellow-500 transition-colors"/>
                                     </button>
                                     {showEmojiPicker && (
-                                        <div className="absolute bottom-8 left-0 z-50 bg-white border border-gray-200 rounded-2xl shadow-2xl p-3 w-64">
-                                            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-widest">Pick an emoji</p>
-                                            <div className="grid grid-cols-8 gap-1">
-                                                {EMOJIS.map(e => (
-                                                    <button
-                                                        key={e}
-                                                        type="button"
-                                                        onClick={() => insertEmoji(e)}
-                                                        className="text-xl hover:bg-gray-100 rounded-lg p-1 transition-colors leading-none"
-                                                    >{e}</button>
-                                                ))}
-                                            </div>
+                                        <div className="absolute bottom-10 left-0 z-50 shadow-2xl rounded-2xl overflow-hidden border border-gray-200 bg-white">
+                                            <EmojiPicker 
+                                              onEmojiClick={onEmojiClick} 
+                                              autoFocusSearch={false}
+                                              searchPlaceHolder="Search emojis..."
+                                              width={320}
+                                              height={380}
+                                              previewConfig={{ showPreview: false }}
+                                            />
                                         </div>
                                     )}
                                 </div>
@@ -3508,6 +3516,10 @@ const CreateTemplate = () => {
           <MobilePreview 
             name={formData.name || 'YOUR_TEMPLATE'} 
             body={formData.bodyText} 
+            bodySamples={bodySamples}
+            category={formData.category}
+            authExpirationMinutes={authExpirationMinutes}
+            authSecurityRecommendation={authSecurityRecommendation}
             footer={(formData.category === 'Authentication' || templateType === 'LIMITED_TIME_OFFER') ? '' : formData.footerText} 
             headerMedia={headerMedia}
             headerType={formData.headerType}
@@ -3631,7 +3643,11 @@ const MobilePreview = ({
   isSetupView = false,
   templateType = 'CUSTOM',
   catalogProducts = [],
-  selectedLtoProduct = null
+  selectedLtoProduct = null,
+  bodySamples = {},
+  category = 'Marketing',
+  authExpirationMinutes = 10,
+  authSecurityRecommendation = true
 }) => {
   const activeIsMpm = isMpm || templateType === 'MPM';
   const activeIsLimited = isLimited || templateType === 'LIMITED_TIME_OFFER';
@@ -3680,12 +3696,17 @@ const MobilePreview = ({
 
                 {/* Body Text */}
                 <div className="p-3 flex flex-col">
-                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
-                     [{name || 'YOUR_TEMPLATE'}]
-                   </p>
-                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
-                     {body || 'Explore our latest collection of handpicked items. Tap below to browse products, view details, and place your order directly on WhatsApp!'}
-                   </p>
+                   {name && (
+                     <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                       {name.replace(/_/g, ' ')}
+                     </p>
+                   )}
+                   <div 
+                     className="text-[9px] text-gray-700 font-normal leading-relaxed text-left whitespace-pre-line"
+                     dangerouslySetInnerHTML={{ 
+                       __html: formatWhatsAppMarkdown(body || 'Explore our latest collection of handpicked items. Tap below to browse products, view details, and place your order directly on WhatsApp!', bodySamples) 
+                     }}
+                   />
                    
                    {/* Meta Multi-Product Interactive Showcase Widget */}
                    <div className="mt-2.5 p-2 bg-slate-50 border border-slate-200 rounded-lg">
@@ -3723,10 +3744,6 @@ const MobilePreview = ({
                        </div>
                      )}
                    </div>
-
-                   <div className="flex justify-end mt-2">
-                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
-                   </div>
                 </div>
 
                 {/* Locked MPM Action Button */}
@@ -3750,9 +3767,11 @@ const MobilePreview = ({
 
                 {/* Body & LTO Urgency Section */}
                 <div className="p-3 flex flex-col">
-                   <p className="text-[11px] text-red-600 font-bold mb-1 uppercase tracking-wide">
-                     [{name || 'YOUR_TEMPLATE'}]
-                   </p>
+                   {name && (
+                     <p className="text-[10px] text-red-600 font-bold mb-1 uppercase tracking-wide">
+                       {name.replace(/_/g, ' ')}
+                     </p>
+                   )}
 
                    {/* Native Urgency Countdown Banner */}
                    <div className="mb-2 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1.5 shadow-xs">
@@ -3805,13 +3824,12 @@ const MobilePreview = ({
                      </div>
                    )}
 
-                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
-                     {body || 'Special Offer! Enjoy an exclusive discount on your next order. Tap below to copy your discount code and start shopping before time runs out!'}
-                   </p>
-                   
-                   <div className="flex justify-end mt-2">
-                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
-                   </div>
+                   <div 
+                     className="text-[9px] text-gray-700 font-normal leading-relaxed text-left whitespace-pre-line"
+                     dangerouslySetInnerHTML={{ 
+                       __html: formatWhatsAppMarkdown(body || 'Special Offer! Enjoy an exclusive discount on your next order. Tap below to copy your discount code and start shopping before time runs out!', bodySamples) 
+                     }}
+                   />
                 </div>
 
                 {/* Mandated Buttons: Copy Code + Website CTA */}
@@ -3840,15 +3858,17 @@ const MobilePreview = ({
                   <span className="text-[9px] font-bold bg-white/80 px-2 py-0.5 rounded-full border border-emerald-300">Product Thumbnail (Auto by Meta)</span>
                 </div>
                 <div className="p-3 flex flex-col">
-                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
-                     [{name || 'YOUR_TEMPLATE'}]
-                   </p>
-                   <p className="text-[9px] text-gray-700 font-normal leading-relaxed">
-                     {body || 'Browse our complete catalog of products and services right inside WhatsApp!'}
-                   </p>
-                   <div className="flex justify-end mt-2">
-                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
-                   </div>
+                   {name && (
+                     <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                       {name.replace(/_/g, ' ')}
+                     </p>
+                   )}
+                   <div 
+                     className="text-[9px] text-gray-700 font-normal leading-relaxed text-left whitespace-pre-line"
+                     dangerouslySetInnerHTML={{ 
+                       __html: formatWhatsAppMarkdown(body || 'Browse our complete catalog of products and services right inside WhatsApp!', bodySamples) 
+                     }}
+                   />
                 </div>
                 <div className="border-t border-gray-100 w-full bg-[#fafafa]">
                    <div className="w-full py-2.5 flex items-center justify-center gap-1.5">
@@ -3861,28 +3881,49 @@ const MobilePreview = ({
            ) : (
              /* Custom Setup Preview */
              <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden flex flex-col w-full shrink-0 animate-in fade-in duration-300">
-                {/* Header Image CSS Art */}
-                <div className="w-full h-[120px] relative bg-[#1d8a83] flex items-end justify-center shrink-0 overflow-hidden">
-                   <div className="absolute bottom-[36px] flex flex-col items-center z-10">
-                      <div className="w-[48px] h-[30px] bg-[#2c3546] rounded-t-[25px]"></div>
-                      <div className="w-[64px] h-[12px] bg-[#525d6e] rounded-[4px] -mt-1 z-20"></div>
-                      <div className="w-[14px] h-[8px] bg-[#f2cdab] rounded-b-full"></div>
-                   </div>
-                   <div className="w-[46px] h-[40px] bg-[#5197a9] rounded-t-[22px] absolute bottom-[24px] z-0"></div>
-                   <div className="w-[76px] h-[26px] bg-[#e5eaf0] rounded-t-[4px] relative z-30"></div>
-                </div>
+                {/* Header Image */}
+                {(() => {
+                   const mediaSrc = resolveMediaUrlForDev(
+                     headerMedia?.preview || 
+                     headerMedia?.hostedUrl || 
+                     headerMedia?.url || 
+                     (typeof headerMedia === 'string' ? headerMedia : null)
+                   );
+
+                   if (mediaSrc) {
+                     return (
+                       <div className="w-full relative bg-slate-900/5 min-h-[110px] max-h-[220px] flex items-center justify-center shrink-0 border-b border-gray-100 overflow-hidden">
+                         <img 
+                           src={mediaSrc} 
+                           alt="Header preview" 
+                           className="w-full h-auto max-h-[220px] object-contain" 
+                         />
+                       </div>
+                     );
+                   }
+
+                   return (
+                     <div className="w-full h-[120px] relative bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700 flex flex-col items-center justify-center text-white shrink-0 overflow-hidden">
+                        <div className="flex flex-col items-center gap-1 opacity-90">
+                           <span className="text-2xl">🖼️</span>
+                           <span className="text-[10px] font-bold tracking-wider uppercase">Sample Media Header</span>
+                        </div>
+                     </div>
+                   );
+                })()}
 
                 <div className="p-3 flex flex-col">
-                   <p className="text-[11px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
-                     [{name || 'YOUR_TEMPLATE'}]
-                   </p>
-                   <p className="text-[9px] text-[#333] font-normal leading-relaxed">
-                     {body || 'Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.'}
-                   </p>
-                   
-                   <div className="flex justify-end mt-2">
-                      <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
-                   </div>
+                   {name && (
+                     <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                       {name.replace(/_/g, ' ')}
+                     </p>
+                   )}
+                   <div 
+                     className="text-[9px] text-[#333] font-normal leading-relaxed text-left whitespace-pre-line"
+                     dangerouslySetInnerHTML={{ 
+                       __html: formatWhatsAppMarkdown(body || 'Hello John, thank you for choosing our services! We are excited to assist you with your upcoming project.', bodySamples) 
+                     }}
+                   />
                 </div>
 
                 <div className="border-t border-gray-100 w-full bg-[#fafafa]">
@@ -3954,41 +3995,72 @@ const MobilePreview = ({
                   {headerText || (activeIsMpm ? 'Featured Products' : 'Header Title')}
                 </p>
               </div>
-            ) : headerType !== 'None' ? (
-              <div className="w-full relative bg-gray-100 flex items-center justify-center shrink-0 border-b border-gray-50 overflow-hidden">
-                {headerMedia?.preview ? (
-                  <>
-                    {headerType === 'Image' && (
-                      <img
-                        src={headerMedia.preview}
-                        alt="Header preview"
-                        className="w-full h-auto max-h-[160px] object-cover"
-                      />
-                    )}
-                    {headerType === 'Video' && (
-                      <video
-                        src={headerMedia.preview}
-                        className="w-full h-auto max-h-[160px] object-cover"
-                        controls
-                      />
-                    )}
-                    {headerType === 'Document' && (
-                      <div className="w-full h-20 bg-red-50 flex items-center justify-center gap-2">
-                        <span className="text-2xl">📄</span>
-                        <div className="text-2xl font-bold text-red-600">{headerMedia.name.split('.').pop().toUpperCase()}</div>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="w-full h-28 bg-gray-100 flex items-center justify-center text-gray-400">
-                    {headerType === 'Image' ? <ImageIcon size={26}/> : headerType === 'Video' ? <span className="text-xl">▶️</span> : <span className="text-xl">📄</span>}
-                  </div>
-                )}
+            ) : headerType && headerType !== 'None' ? (
+              <div className="w-full relative bg-slate-900/5 min-h-[110px] max-h-[240px] flex items-center justify-center shrink-0 border-b border-gray-100 overflow-hidden">
+                {(() => {
+                  const isImageHeader = String(headerType || '').toLowerCase() === 'image';
+                  const isVideoHeader = String(headerType || '').toLowerCase() === 'video';
+                  const isDocHeader = String(headerType || '').toLowerCase() === 'document';
+                  const mediaSrc = resolveMediaUrlForDev(
+                    headerMedia?.preview || 
+                    headerMedia?.hostedUrl || 
+                    headerMedia?.url || 
+                    (typeof headerMedia === 'string' ? headerMedia : null)
+                  );
+
+                  if (mediaSrc) {
+                    return (
+                      <>
+                        {isImageHeader && (
+                          <img
+                            src={mediaSrc}
+                            alt="Header preview"
+                            className="w-full h-auto max-h-[240px] object-contain rounded-t-lg mx-auto"
+                            onError={(e) => {
+                              if (headerMedia?.hostedUrl && e.target.src !== headerMedia.hostedUrl) {
+                                e.target.src = resolveMediaUrlForDev(headerMedia.hostedUrl);
+                              } else if (headerMedia?.url && e.target.src !== headerMedia.url) {
+                                e.target.src = resolveMediaUrlForDev(headerMedia.url);
+                              }
+                            }}
+                          />
+                        )}
+                        {isVideoHeader && (
+                          <video
+                            src={mediaSrc}
+                            className="w-full h-auto max-h-[240px] object-contain rounded-t-lg mx-auto"
+                            controls
+                            muted
+                            playsInline
+                          />
+                        )}
+                        {isDocHeader && (
+                          <div className="w-full h-20 bg-red-50 flex items-center justify-center gap-2">
+                            <span className="text-2xl">📄</span>
+                            <div className="text-xl font-bold text-red-600">
+                              {String(headerMedia?.name || 'DOCUMENT').split('.').pop().toUpperCase()}
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    );
+                  }
+
+                  return (
+                    <div className="w-full h-28 bg-gray-50 flex items-center justify-center text-gray-400">
+                      {isImageHeader ? <ImageIcon size={28} className="text-gray-300"/> : isVideoHeader ? <span className="text-xl">▶️</span> : <span className="text-xl">📄</span>}
+                    </div>
+                  );
+                })()}
               </div>
             ) : null}
             
             <div className="p-3 flex flex-col">
-               {name && <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">[{name}]</p>}
+               {name && headerType === 'None' && (
+                 <p className="text-[10px] text-[#10B981] font-bold mb-1 uppercase tracking-wide">
+                   {name.replace(/_/g, ' ')}
+                 </p>
+               )}
                
                {/* LTO Urgency Offer Banner */}
                {activeIsLimited && (
@@ -4052,7 +4124,19 @@ const MobilePreview = ({
                  </div>
                )}
 
-               <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body) }}></div>
+               {category === 'Authentication' ? (
+                 <div className="text-[9.5px] text-[#333] font-normal leading-relaxed text-left space-y-1.5 py-1">
+                   <p className="font-semibold text-gray-900">
+                     <span className="font-mono bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-200 font-bold text-[10px] tracking-wider">123456</span> is your verification code.
+                   </p>
+                   {authSecurityRecommendation && (
+                     <p className="text-[8px] text-gray-500">For your security, do not share this code.</p>
+                   )}
+                   <p className="text-[8px] text-gray-400">Valid for {authExpirationMinutes || 10} minutes.</p>
+                 </div>
+               ) : (
+                 <div className="text-[9px] text-[#333] font-normal leading-relaxed whitespace-pre-line text-left" dangerouslySetInnerHTML={{ __html: formatWhatsAppMarkdown(body, bodySamples) }}></div>
+               )}
                
                {/* MPM/Catalog Product Showcase Widget (Dynamic) */}
                {(activeIsMpm || activeIsCatalog) && (
@@ -4093,14 +4177,21 @@ const MobilePreview = ({
                   </div>
                )}
 
-               {!activeIsLimited && footer && <p className="text-[9px] text-gray-400 mt-2 font-medium">{footer}</p>}
-
-               <div className="flex justify-end mt-2">
-                  <span className="text-[9px] text-gray-400 font-semibold">11:59</span>
-               </div>
+               {!activeIsLimited && category !== 'Authentication' && footer && (
+                 <p className="text-[9px] text-gray-400 mt-2 font-medium">{footer}</p>
+               )}
             </div>
             
-            {activeIsCatalog || activeIsMpm ? (
+            {category === 'Authentication' ? (
+               <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
+                  <div className="w-full py-2.5 flex items-center justify-center gap-1.5">
+                     <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5">
+                       <Copy size={11} className="text-[#25d366]"/>
+                       Copy code
+                     </span>
+                  </div>
+               </div>
+            ) : activeIsCatalog || activeIsMpm ? (
                <div className="flex flex-col border-t border-gray-100 w-full bg-[#fafafa]">
                   <div className="w-full py-2.5 flex items-center justify-center gap-2">
                      <span className="text-[#25d366] font-bold text-[9px] flex items-center gap-1.5">

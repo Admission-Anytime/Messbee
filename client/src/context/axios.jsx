@@ -1,9 +1,31 @@
 import axios from "axios";
 
 // 1. RESOLVE BASE URL:
-// It will try to use your .env variable first. 
-// If it can't find it, it safely forces the connection to your backend on port 5000.
-const API_BASE_URL = import.meta.env.VITE_API_URL || `${window.location.origin}/api`;
+// Safely resolves API URL and guarantees the '/api' prefix for all endpoints.
+const resolveBaseUrl = () => {
+  let url = import.meta.env.VITE_API_URL;
+  if (!url) {
+    if (typeof window !== "undefined" && window.location) {
+      const host = window.location.hostname;
+      if (host.endsWith("messbee.com") || host === "messbee.com") {
+        url = "https://webservices.messbee.com/api";
+      } else {
+        url = `${window.location.origin}/api`;
+      }
+    } else {
+      url = "http://localhost:5002/api";
+    }
+  }
+  // Strip any trailing slashes
+  url = url.replace(/\/+$/, "");
+  // Ensure base URL ends with /api
+  if (!url.endsWith("/api")) {
+    url = `${url}/api`;
+  }
+  return url;
+};
+
+const API_BASE_URL = resolveBaseUrl();
 
 // 2. CREATE AXIOS INSTANCE:
 const instance = axios.create({
