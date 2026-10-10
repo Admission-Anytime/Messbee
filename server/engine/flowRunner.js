@@ -597,7 +597,45 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (messageType === 'menu' || nodeType === 'menuNode') {
-    const validSections = (nodeData.sections || []).filter(sec => sec.rows && sec.rows.length > 0);
+    let sectionsSource = nodeData.sections;
+    if ((!sectionsSource || sectionsSource.length === 0) && (nodeData.menuType === 'slots' || nodeData.dateSlots || nodeData.slotPicker)) {
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const dayAfter = new Date(now);
+      dayAfter.setDate(dayAfter.getDate() + 2);
+
+      const monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const fmtShort = (d) => `${d.getDate()} ${monthsShort[d.getMonth()]}`;
+
+      sectionsSource = [
+        {
+          title: `Today (${fmtShort(now)})`,
+          rows: [
+            { id: 'slot_today_11am', title: '11:00 AM - 12:00 PM', description: 'Morning Slot' },
+            { id: 'slot_today_03pm', title: '03:00 PM - 04:00 PM', description: 'Afternoon Slot' },
+            { id: 'slot_today_06pm', title: '06:00 PM - 07:00 PM', description: 'Evening Slot' }
+          ]
+        },
+        {
+          title: `Tomorrow (${fmtShort(tomorrow)})`,
+          rows: [
+            { id: 'slot_tomorrow_11am', title: '11:00 AM - 12:00 PM', description: 'Morning Slot' },
+            { id: 'slot_tomorrow_03pm', title: '03:00 PM - 04:00 PM', description: 'Afternoon Slot' },
+            { id: 'slot_tomorrow_06pm', title: '06:00 PM - 07:00 PM', description: 'Evening Slot' }
+          ]
+        },
+        {
+          title: `Day After (${fmtShort(dayAfter)})`,
+          rows: [
+            { id: 'slot_dayafter_11am', title: '11:00 AM - 12:00 PM', description: 'Morning Slot' },
+            { id: 'slot_dayafter_03pm', title: '03:00 PM - 04:00 PM', description: 'Afternoon Slot' },
+            { id: 'slot_dayafter_06pm', title: '06:00 PM - 07:00 PM', description: 'Evening Slot' }
+          ]
+        }
+      ];
+    }
+    const validSections = (sectionsSource || []).filter(sec => sec.rows && sec.rows.length > 0);
     if (validSections.length === 0) {
       return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure menu options.' } };
     }
@@ -1348,17 +1386,62 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         const handle = await executeConditionNode(session, currentNode, contextData);
         // Find the specific edge that matches the condition result (supports 'true' / 'true_path' and 'false' / 'false_path')
         const isTrue = handle === 'true' || handle === 'true_path';
-        const conditionEdge = outgoingEdges.find(e => 
+        let conditionEdge = outgoingEdges.find(e => 
           isTrue ? (e.sourceHandle === 'true' || e.sourceHandle === 'true_path') : (e.sourceHandle === 'false' || e.sourceHandle === 'false_path')
-        ) || outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || (outgoingEdges.length === 1 ? outgoingEdges[0] : null);
-        nextNodeId = conditionEdge ? conditionEdge.target : null;
+        );
+
+        if (!conditionEdge) {
+          conditionEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || (outgoingEdges.length === 1 ? outgoingEdges[0] : null);
+        }
+
+        if (!conditionEdge) {
+          // If condition is not met and no fallback edge exists, notify customer rather than silently dropping
+          logger.warn(`[FlowRunner] Condition '${currentNode.data?.variable}' (${handle}) on node ${currentNode.id} has no matching outgoing edge.`);
+          const varName = currentNode.data?.variable || 'input';
+          const conditionErrMsg = currentNode.data?.conditionErrorMessage || currentNode.data?.errorMessage || 
+            `⚠️ The response provided does not match the required condition for ${varName}. Please provide a valid value, or type *restart* to start over.`;
+
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
+          await sendWhatsAppMessage(customerPhone, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: customerPhone,
+            type: 'text',
+            text: { body: conditionErrMsg }
+          }, channelToUse);
+
+          keepRunning = false;
+          break;
+        }
+
+        nextNodeId = conditionEdge.target;
       }
       else if (currentNode.type === 'apiNode') {
         const status = await executeApiCallNode(session, currentNode, contextData);
         syncContextVariables(session, contextData); // API response data may have been saved to session
-        const apiEdge = outgoingEdges.find(e => e.sourceHandle === status) || 
-                         outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
-                         outgoingEdges[0];
+        let apiEdge = outgoingEdges.find(e => e.sourceHandle === status);
+        if (!apiEdge && status === 'success') {
+          apiEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
+        }
+        if (!apiEdge && status === 'failure') {
+          apiEdge = outgoingEdges.find(e => e.sourceHandle === 'failure' || e.sourceHandle === 'error');
+        }
+        if (!apiEdge && status === 'failure') {
+          logger.warn(`[FlowRunner] apiNode ${currentNode.id} failed and has no failure/fallback edge.`);
+          const apiErrMsg = currentNode.data?.errorMessage || '⚠️ We encountered a temporary technical issue while processing your request. Please try again or type *restart* to start over.';
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
+          await sendWhatsAppMessage(customerPhone, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: customerPhone,
+            type: 'text',
+            text: { body: apiErrMsg }
+          }, channelToUse);
+          keepRunning = false;
+          break;
+        }
         nextNodeId = apiEdge ? apiEdge.target : null;
       }
       else if (currentNode.type === 'actionNode') {
@@ -1375,9 +1458,28 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
       else if (currentNode.type === 'googleSheetsNode') {
         const status = await executeGoogleSheetsNode(session, currentNode, contextData);
-        const edge = outgoingEdges.find(e => e.sourceHandle === status) || 
-                     outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
-                     outgoingEdges[0];
+        let edge = outgoingEdges.find(e => e.sourceHandle === status);
+        if (!edge && status === 'success') {
+          edge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
+        }
+        if (!edge && status === 'failure') {
+          edge = outgoingEdges.find(e => e.sourceHandle === 'failure' || e.sourceHandle === 'error');
+        }
+        if (!edge && status === 'failure') {
+          logger.warn(`[FlowRunner] googleSheetsNode ${currentNode.id} failed and has no failure edge.`);
+          const sheetsErrMsg = currentNode.data?.errorMessage || '⚠️ We could not save your response due to a temporary integration issue. Please try again or type *restart* to start over.';
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
+          await sendWhatsAppMessage(customerPhone, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: customerPhone,
+            type: 'text',
+            text: { body: sheetsErrMsg }
+          }, channelToUse);
+          keepRunning = false;
+          break;
+        }
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'randomizerNode') {
@@ -1389,9 +1491,28 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
       else if (currentNode.type === 'shopifyNode') {
         const status = await executeShopifyNode(session, currentNode, contextData);
-        const edge = outgoingEdges.find(e => e.sourceHandle === status) || 
-                     outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || 
-                     outgoingEdges[0];
+        let edge = outgoingEdges.find(e => e.sourceHandle === status);
+        if (!edge && status === 'success') {
+          edge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
+        }
+        if (!edge && status === 'failure') {
+          edge = outgoingEdges.find(e => e.sourceHandle === 'failure' || e.sourceHandle === 'error');
+        }
+        if (!edge && status === 'failure') {
+          logger.warn(`[FlowRunner] shopifyNode ${currentNode.id} failed and has no failure edge.`);
+          const shopifyErrMsg = currentNode.data?.errorMessage || '⚠️ Could not retrieve store details at this moment. Please try again or type *restart* to start over.';
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
+          await sendWhatsAppMessage(customerPhone, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: customerPhone,
+            type: 'text',
+            text: { body: shopifyErrMsg }
+          }, channelToUse);
+          keepRunning = false;
+          break;
+        }
         nextNodeId = edge ? edge.target : null;
       }
       else if (currentNode.type === 'waitForEventNode') {
@@ -1472,7 +1593,216 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
 
   } catch (error) {
     logger.error('Error in processSpecificNode:', error);
+    try {
+      let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+      if (!channelToUse) channelToUse = channel;
+      await sendWhatsAppMessage(customerPhone, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: customerPhone,
+        type: 'text',
+        text: { body: '⚠️ An unexpected error occurred while processing your request. Please type *restart* to start over.' }
+      }, channelToUse);
+    } catch (_) {}
   }
+}
+
+/**
+ * Robust extractor for combined Name and Phone Number from single user message.
+ * Handles variations like:
+ * - "Anil kumar Atri\n9350157447"
+ * - "+91 9350157447 Anil kumar Atri"
+ * - "Name: Anil Kumar, Phone: 9350157447"
+ */
+export function extractNameAndPhone(text) {
+  if (!text || typeof text !== 'string') return null;
+  const cleanText = text.trim();
+
+  // Pattern matches 10 to 12 digit phone numbers with optional +91, 91, 0, spaces, dashes
+  const phonePattern = /(?:(?:\+|0{0,2})91[\s-]*)?([6-9]\d{4}[\s-]?\d{5}|[6-9]\d{9})\b|\b(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b/;
+  const match = cleanText.match(phonePattern);
+  if (!match) return null;
+
+  const rawPhoneMatch = match[0];
+  const digitsOnly = rawPhoneMatch.replace(/\D/g, '');
+
+  let phone = digitsOnly;
+  if (phone.length === 12 && phone.startsWith('91')) {
+    phone = phone.substring(2);
+  } else if (phone.length === 11 && phone.startsWith('0')) {
+    phone = phone.substring(1);
+  }
+
+  if (phone.length < 10) return null;
+
+  // Extract name by removing the matched phone part
+  let namePart = cleanText.replace(rawPhoneMatch, '');
+  // Clean common field labels, prefixes, and punctuation
+  namePart = namePart
+    .replace(/(?:^|\b)(?:name|naam|phone|mobile|mob|contact|no|number)[\s:]*/gi, ' ')
+    .replace(/[,\/\-\|\n\r]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Validate that namePart has at least 2 alphabetic characters
+  const hasValidLetters = /[a-zA-Z\u0900-\u097F]{2,}/.test(namePart);
+  if (!hasValidLetters) return null;
+
+  return {
+    name: namePart,
+    phone: phone,
+    rawPhone: rawPhoneMatch
+  };
+}
+
+/**
+ * Robust parser to extract Date, Time, and Slot details from natural user responses or menu selections
+ * Supports:
+ * - Dates: DD/MM/YYYY, DD-MM-YYYY, DD/MM, "15 Oct", "tomorrow", "kal", "aaj", "today", "parso", weekdays
+ * - Times: "10:30 AM", "4pm", "5:30 pm", "14:30", "5 baje", "sham 5 baje", "subah 10 baje"
+ * - Slots: "Tomorrow 4:00 PM", "15 Oct 11:30 AM", "10:00 AM - 11:00 AM"
+ */
+export function extractDateAndTime(text) {
+  if (!text || typeof text !== 'string') return null;
+  const clean = text.trim();
+  if (!clean) return null;
+
+  const now = new Date();
+  let foundDate = null;
+  let foundDateObj = null;
+  let foundTime = null;
+
+  // 1. TIME PARSING
+  const time12Regex = /\b(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(am|pm)\b/i;
+  const time24Regex = /\b([01]?\d|2[0-3]):([0-5]\d)\b/;
+  const timeHindiRegex = /(?:(subah|morning|dopahar|afternoon|sham|shaam|evening|raat|night)\s*)?(\b\d{1,2})(?::([0-5]\d))?\s*(?:baje|o'clock)/i;
+
+  let timeMatch = clean.match(time12Regex);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const mins = timeMatch[2] || '00';
+    const ampm = timeMatch[3].toUpperCase();
+    foundTime = `${String(hours).padStart(2, '0')}:${mins} ${ampm}`;
+  } else {
+    timeMatch = clean.match(timeHindiRegex);
+    if (timeMatch) {
+      const period = (timeMatch[1] || '').toLowerCase();
+      let hours = parseInt(timeMatch[2], 10);
+      const mins = timeMatch[3] || '00';
+      let ampm = 'AM';
+      if (['sham', 'shaam', 'evening', 'raat', 'night'].includes(period) && hours < 12) {
+        ampm = 'PM';
+      } else if (['dopahar', 'afternoon'].includes(period) && hours < 12) {
+        ampm = 'PM';
+      } else if (hours >= 12 && hours <= 23) {
+        ampm = 'PM';
+        if (hours > 12) hours -= 12;
+      } else if (hours >= 1 && hours <= 6 && !period) {
+        ampm = 'PM';
+      }
+      foundTime = `${String(hours).padStart(2, '0')}:${mins} ${ampm}`;
+    } else {
+      timeMatch = clean.match(time24Regex);
+      if (timeMatch) {
+        let hours = parseInt(timeMatch[1], 10);
+        const mins = timeMatch[2];
+        const ampm = hours >= 12 ? 'PM' : 'AM';
+        const displayHours = hours % 12 === 0 ? 12 : hours % 12;
+        foundTime = `${String(displayHours).padStart(2, '0')}:${mins} ${ampm}`;
+      }
+    }
+  }
+
+  // 2. DATE PARSING
+  const lower = clean.toLowerCase();
+
+  if (/\b(today|aaj)\b/.test(lower)) {
+    foundDateObj = new Date(now);
+  } else if (/\b(tomorrow|kal)\b/.test(lower)) {
+    foundDateObj = new Date(now);
+    foundDateObj.setDate(foundDateObj.getDate() + 1);
+  } else if (/\b(parso|day after tomorrow)\b/.test(lower)) {
+    foundDateObj = new Date(now);
+    foundDateObj.setDate(foundDateObj.getDate() + 2);
+  } else {
+    const daysMap = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+    for (const [dayName, dayIndex] of Object.entries(daysMap)) {
+      if (new RegExp(`\\b${dayName}\\b`, 'i').test(lower)) {
+        foundDateObj = new Date(now);
+        const currentDay = foundDateObj.getDay();
+        let diff = dayIndex - currentDay;
+        if (diff <= 0) diff += 7;
+        foundDateObj.setDate(foundDateObj.getDate() + diff);
+        break;
+      }
+    }
+  }
+
+  // Explicit Date formats: e.g. "25/10/2026", "25-10-2026", "25.10.2026", "25/10"
+  if (!foundDateObj) {
+    const dmyMatch = clean.match(/\b([0-3]?\d)[\/\-\.]([01]?\d)(?:[\/\-\.](\d{4}|\d{2}))?\b/);
+    if (dmyMatch) {
+      const d = parseInt(dmyMatch[1], 10);
+      const m = parseInt(dmyMatch[2], 10) - 1;
+      let y = dmyMatch[3] ? parseInt(dmyMatch[3], 10) : now.getFullYear();
+      if (y < 100) y += 2000;
+      if (d >= 1 && d <= 31 && m >= 0 && m <= 11) {
+        foundDateObj = new Date(y, m, d);
+      }
+    }
+  }
+
+  // Month names: e.g. "15 Oct", "15th October 2026", "October 15"
+  if (!foundDateObj) {
+    const monthRegex = /\b([0-3]?\d)(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*(?:\s+(\d{4}))?\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\s+([0-3]?\d)(?:st|nd|rd|th)?(?:\s+(\d{4}))?\b/i;
+    const mMatch = clean.match(monthRegex);
+    if (mMatch) {
+      const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const rawMonth = (mMatch[2] || mMatch[4]).toLowerCase().substring(0, 3);
+      const mIdx = months.indexOf(rawMonth === 'sep' ? 'sep' : rawMonth);
+      const dayVal = parseInt(mMatch[1] || mMatch[5], 10);
+      let yearVal = mMatch[3] || mMatch[6] ? parseInt(mMatch[3] || mMatch[6], 10) : now.getFullYear();
+      if (dayVal >= 1 && dayVal <= 31 && mIdx !== -1) {
+        foundDateObj = new Date(yearVal, mIdx, dayVal);
+      }
+    }
+  }
+
+  // Standard Date.parse fallback
+  if (!foundDateObj) {
+    const parsed = Date.parse(clean);
+    if (!isNaN(parsed)) {
+      foundDateObj = new Date(parsed);
+    }
+  }
+
+  if (foundDateObj && !isNaN(foundDateObj.getTime())) {
+    const dd = String(foundDateObj.getDate()).padStart(2, '0');
+    const mm = String(foundDateObj.getMonth() + 1).padStart(2, '0');
+    const yyyy = foundDateObj.getFullYear();
+    foundDate = `${dd}/${mm}/${yyyy}`;
+  }
+
+  if (!foundDate && !foundTime) return null;
+
+  let slotString = '';
+  if (foundDate && foundTime) {
+    slotString = `${foundDate} at ${foundTime}`;
+  } else if (foundDate) {
+    slotString = foundDate;
+  } else if (foundTime) {
+    slotString = foundTime;
+  }
+
+  return {
+    hasDate: !!foundDate,
+    hasTime: !!foundTime,
+    date: foundDate,
+    time: foundTime,
+    slot: slotString,
+    dateObj: foundDateObj,
+    raw: clean
+  };
 }
 
 /**
@@ -2009,9 +2339,33 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       // Break out if user types an explicit escape word, or taps a button from a template/flow, or triggers another flow
       const isWaitingInput = session.status === 'WAITING_FOR_INPUT';
       if (isEscapeWord || buttonMatchesAnyFlow || (!isWaitingInput && matchesAnyFlow)) {
-        logger.log(`[FlowRunner] Interruption / Template button tap detected for user ${customerPhone} (payload: "${incomingPayload}"). Completing existing session.`);
+        logger.log(`[FlowRunner] Interruption / Escape keyword / Template button tap detected for user ${customerPhone} (payload: "${incomingPayload}"). Completing existing session.`);
+        const flowToRestart = (payloadText === 'restart' || payloadText === 'reset')
+          ? (allActiveFlows.find(f => f._id.toString() === session.activeFlowId?.toString()) || await Automation.findById(session.activeFlowId))
+          : null;
+
         await markSessionCompleted(session, customerPhone, channelId);
         session = null;
+
+        if (flowToRestart) {
+          logger.log(`[FlowRunner] 🔄 User typed 'restart'. Restarting flow '${flowToRestart.name}' from step 1 for ${customerPhone}`);
+          const effectiveChannelId = channel._id ? channel._id.toString() : channelId;
+          const rootNode = flowToRestart.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode') || flowToRestart.nodes[0];
+          const activeEdges = Array.isArray(flowToRestart.edges) ? flowToRestart.edges : [];
+          const outgoing = activeEdges.filter(e => e && e.source === rootNode.id);
+          const startNodeId = outgoing.length > 0 ? outgoing[0].target : rootNode.id;
+
+          const newSession = new CustomerSession({
+            phone: customerPhone,
+            channelId: effectiveChannelId,
+            activeFlowId: flowToRestart._id,
+            currentNodeId: rootNode.id,
+            sessionVariables: {}
+          });
+          await newSession.save();
+          await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
+          return;
+        }
       }
     }
 
@@ -2156,6 +2510,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
+      if (!matchedFlow && (payloadText === 'restart' || payloadText === 'reset') && allActiveFlows.length > 0) {
+        matchedFlow = allActiveFlows[0];
+        matchedTriggerNode = matchedFlow.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode') || matchedFlow.nodes[0];
+      }
+
       activeFlow = matchedFlow;
       let triggerNode = matchedTriggerNode;
 
@@ -2262,32 +2621,126 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       }
 
       if (session.status === 'WAITING_FOR_INPUT') {
-        // Validation Logic
+        const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
+        const nodeQuestion = String(currentNode?.data?.text || currentNode?.data?.question || '').toLowerCase();
+        const validationType = String(session.expectedValidation || currentNode?.data?.validationType || 'text').toLowerCase().trim();
+
+        // Check if intent is combined Name and Phone (either explicit validationType or question asking for both)
+        const isExplicitNameAndPhone = ['name_and_phone', 'name_and_mobile', 'name_phone', 'name_mobile', 'name_number'].includes(validationType);
+        const isQuestionAskingBoth = (nodeQuestion.includes('name') || nodeQuestion.includes('naam')) &&
+                                     (nodeQuestion.includes('mobile') || nodeQuestion.includes('phone') || nodeQuestion.includes('number') || nodeQuestion.includes('no'));
+        const isCombinedNamePhone = isExplicitNameAndPhone || (validationType === 'text' && isQuestionAskingBoth);
+
+        // Check if intent is combined Date and Time / Appointment Slot
+        const isExplicitDateTime = ['datetime', 'date_time', 'date_and_time', 'slot', 'appointment'].includes(validationType);
+        const isQuestionAskingDateTime = (nodeQuestion.includes('date') || nodeQuestion.includes('taareekh') || nodeQuestion.includes('din')) &&
+                                         (nodeQuestion.includes('time') || nodeQuestion.includes('samay') || nodeQuestion.includes('baje') || nodeQuestion.includes('slot'));
+        const isCombinedDateTime = isExplicitDateTime || (validationType === 'text' && isQuestionAskingDateTime);
+
         let isValid = true;
-        const validationType = String(session.expectedValidation || 'text').toLowerCase().trim();
-        
-        if (validationType === 'email') {
-          isValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(incomingPayload);
+        let extractedCombined = null;
+        let extractedDateTime = null;
+
+        if (isCombinedNamePhone) {
+          extractedCombined = extractNameAndPhone(incomingPayload);
+          isValid = !!extractedCombined;
+        } else if (isCombinedDateTime) {
+          extractedDateTime = extractDateAndTime(incomingPayload);
+          isValid = !!(extractedDateTime && (extractedDateTime.hasDate || extractedDateTime.hasTime));
+        } else if (validationType === 'name') {
+          // If customer provides both name and phone, extract both gracefully
+          const combined = extractNameAndPhone(incomingPayload);
+          if (combined) {
+            isValid = true;
+            extractedCombined = combined;
+          } else {
+            let cleanName = (incomingPayload || '').trim();
+            cleanName = cleanName.replace(/^(?:my\s+name\s+is|mera\s+naam|i\s+am|im|this\s+is)\s+/i, '').trim();
+            const invalidNames = ['hi', 'hello', 'hey', 'ok', 'okay', 'yes', 'no', 'namaste', 'test', 'demo', 'none', 'na', 'n/a', 'bye', 'good morning', 'good afternoon', 'good evening'];
+            const hasLetters = /[a-zA-Z\u0900-\u097F]{2,}/.test(cleanName);
+            const isPureNumber = /^\d+$/.test(cleanName.replace(/[\s+-]/g, ''));
+            const isDisallowedWord = invalidNames.includes(cleanName.toLowerCase());
+            isValid = hasLetters && !isPureNumber && !isDisallowedWord && cleanName.length >= 2;
+            if (isValid) incomingPayload = cleanName;
+          }
+        } else if (validationType === 'email') {
+          const emailMatch = (incomingPayload || '').match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+          if (emailMatch) {
+            isValid = true;
+            incomingPayload = emailMatch[0];
+          } else {
+            isValid = false;
+          }
         } else if (validationType === 'phone' || validationType === 'mobile') {
-          isValid = /^\+?[\d\s-]{8,15}$/.test(incomingPayload);
+          const combined = extractNameAndPhone(incomingPayload);
+          if (combined) {
+            isValid = true;
+            extractedCombined = combined;
+          } else {
+            const phoneMatch = (incomingPayload || '').match(/(?:(?:\+|0{0,2})91[\s-]*)?([6-9]\d{4}[\s-]?\d{5}|[6-9]\d{9})\b|\b(?:\+?\d{1,3}[\s-]?)?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}\b/);
+            if (phoneMatch) {
+              let digitsOnly = phoneMatch[0].replace(/\D/g, '');
+              if (digitsOnly.length === 12 && digitsOnly.startsWith('91')) digitsOnly = digitsOnly.substring(2);
+              if (digitsOnly.length === 11 && digitsOnly.startsWith('0')) digitsOnly = digitsOnly.substring(1);
+              
+              const isAllSameDigit = /^(\d)\1+$/.test(digitsOnly);
+              const isSequential = '0123456789012345'.includes(digitsOnly) || '9876543210987654'.includes(digitsOnly);
+              if (digitsOnly.length === 10 && !isAllSameDigit && !isSequential) {
+                isValid = true;
+                incomingPayload = digitsOnly;
+              } else {
+                isValid = false;
+              }
+            } else {
+              const digits = (incomingPayload || '').replace(/[\s+-]/g, '');
+              const isAllSame = /^(\d)\1+$/.test(digits);
+              isValid = /^\d{8,15}$/.test(digits) && !isAllSame;
+              if (isValid) incomingPayload = digits;
+            }
+          }
         } else if (validationType === 'number') {
-          isValid = !isNaN(incomingPayload) && incomingPayload.trim() !== '';
+          const stripped = (incomingPayload || '').replace(/[,₹$€£\s]|rs\.?|rupees|inr/gi, '');
+          isValid = !isNaN(Number(stripped)) && stripped.trim() !== '';
+          if (isValid) incomingPayload = stripped.trim();
         } else if (validationType === 'date') {
-          isValid = !isNaN(Date.parse(incomingPayload));
-        } else if (validationType === 'url') {
-          isValid = /^(https?:\/\/)?([\w\-]+)+[\w\-\._~:\/?#[\]@!\$&'\(\)\*\+,;=.]+$/.test(incomingPayload);
+          const dt = extractDateAndTime(incomingPayload);
+          if (dt && dt.hasDate) {
+            isValid = true;
+            extractedDateTime = dt;
+          } else {
+            isValid = false;
+          }
+        } else if (validationType === 'time') {
+          const dt = extractDateAndTime(incomingPayload);
+          if (dt && dt.hasTime) {
+            isValid = true;
+            extractedDateTime = dt;
+          } else {
+            isValid = false;
+          }
+        } else if (['url', 'website', 'link'].includes(validationType)) {
+          const urlMatch = (incomingPayload || '').match(/(?:https?:\/\/)?(?:[a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}(?:\/[^\s]*)?/i);
+          if (urlMatch) {
+            isValid = true;
+            let finalUrl = urlMatch[0];
+            if (!/^https?:\/\//i.test(finalUrl)) finalUrl = `https://${finalUrl}`;
+            incomingPayload = finalUrl;
+          } else {
+            isValid = false;
+          }
         } else if (validationType === 'location') {
           isValid = incomingPayload.toLowerCase() === '[__media_location__]' || messageContext?.messageType === 'location' || !!messageContext?.location;
         } else if (['photo', 'image'].includes(validationType)) {
           isValid = incomingPayload.toLowerCase() === '[__media_image__]' || messageContext?.messageType === 'image' || !!messageContext?.mediaUrl;
         } else if (['audio', 'voice'].includes(validationType)) {
           isValid = incomingPayload.toLowerCase() === '[__media_audio__]' || ['audio', 'voice'].includes(messageContext?.messageType);
-        } else if (['pdf', 'document'].includes(validationType)) {
+        } else if (['pdf', 'document', 'file'].includes(validationType)) {
           isValid = incomingPayload.toLowerCase() === '[__media_document__]' || messageContext?.messageType === 'document' || !!messageContext?.mediaUrl;
         } else if (validationType === 'video') {
           isValid = incomingPayload.toLowerCase() === '[__media_video__]' || messageContext?.messageType === 'video' || !!messageContext?.mediaUrl;
         } else if (validationType === 'address') {
-          isValid = incomingPayload.trim().length > 5;
+          const cleanAddr = (incomingPayload || '').trim();
+          isValid = cleanAddr.length >= 3;
         } else if (['text', 'string', 'any'].includes(validationType)) {
           isValid = incomingPayload && incomingPayload.trim().length > 0;
         }
@@ -2305,14 +2758,50 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               recipient_type: 'individual',
               to: customerPhone,
               type: 'text',
-              text: { body: 'Too many invalid attempts. I am transferring you to a human agent for assistance.' }
+              text: 'Too many invalid attempts. I am transferring you to a human agent, or you can type *restart* anytime to start over.'
             }, channelToUse);
             return;
           }
 
           // Stay on current node and send error message
-          const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
-          const errorMsg = currentNode?.data?.validationErrorMessage || `Please provide a valid ${validationType}.`;
+          let defaultErrMsg = `⚠️ Invalid input. Please provide a valid ${validationType}, or type *restart* to start over.`;
+          if (isCombinedNamePhone) {
+            defaultErrMsg = '⚠️ Invalid input. Please share both your full name and 10-digit mobile number, or type *restart* to start over.';
+          } else if (isCombinedDateTime) {
+            defaultErrMsg = '⚠️ Invalid date & time. Please share your preferred date and time (e.g. Tomorrow 4:00 PM or 15/10/2026 at 11:00 AM), or type *restart* to start over.';
+          } else if (validationType === 'name') {
+            defaultErrMsg = '⚠️ Invalid name. Please enter a valid full name, or type *restart* to start over.';
+          } else if (validationType === 'phone' || validationType === 'mobile') {
+            defaultErrMsg = '⚠️ Invalid mobile number. Please enter a valid 10-digit phone number, or type *restart* to start over.';
+          } else if (validationType === 'email') {
+            defaultErrMsg = '⚠️ Invalid email address. Please enter a valid email (e.g. name@example.com), or type *restart* to start over.';
+          } else if (validationType === 'number') {
+            defaultErrMsg = '⚠️ Invalid number. Please enter a valid numeric value, or type *restart* to start over.';
+          } else if (validationType === 'date') {
+            defaultErrMsg = '⚠️ Invalid date. Please provide a valid date (e.g. DD/MM/YYYY, Tomorrow, or 15 Oct), or type *restart* to start over.';
+          } else if (validationType === 'time') {
+            defaultErrMsg = '⚠️ Invalid time. Please provide a valid time (e.g. 10:30 AM, 4:00 PM, or 5 baje), or type *restart* to start over.';
+          } else if (['url', 'website', 'link'].includes(validationType)) {
+            defaultErrMsg = '⚠️ Invalid website link. Please enter a valid website URL (e.g. https://example.com), or type *restart* to start over.';
+          } else if (validationType === 'location') {
+            defaultErrMsg = '⚠️ Location not received. Please share your location using the WhatsApp attachment icon (📍), or type *restart* to start over.';
+          } else if (['photo', 'image'].includes(validationType)) {
+            defaultErrMsg = '⚠️ Image not received. Please attach a photo or image (📷), or type *restart* to start over.';
+          } else if (['pdf', 'document', 'file'].includes(validationType)) {
+            defaultErrMsg = '⚠️ Document not received. Please attach a valid document (PDF) (📄), or type *restart* to start over.';
+          } else if (['audio', 'voice'].includes(validationType)) {
+            defaultErrMsg = '⚠️ Audio not received. Please record and send a voice message (🎤), or type *restart* to start over.';
+          } else if (validationType === 'video') {
+            defaultErrMsg = '⚠️ Video not received. Please attach a video file (🎥), or type *restart* to start over.';
+          } else if (validationType === 'address') {
+            defaultErrMsg = '⚠️ Address too short. Please provide your complete delivery or office address, or type *restart* to start over.';
+          }
+
+          let errorMsg = currentNode?.data?.validationErrorMessage || defaultErrMsg;
+          if (!errorMsg.toLowerCase().includes('restart')) {
+            errorMsg += ' (or type *restart* to start over)';
+          }
+
           const payload = {
             messaging_product: 'whatsapp',
             recipient_type: 'individual',
@@ -2326,19 +2815,91 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           return; // Stop execution, wait for user to try again
         }
 
+        // Cancel any pending timeout jobs for this customer since they responded with valid input
+        try {
+          const { default: DelayedJob } = await import('../models/DelayedJob.js');
+          await DelayedJob.updateMany(
+            { customerPhone, status: 'PENDING' },
+            { $set: { status: 'CANCELLED' } }
+          );
+        } catch (_) {}
+
         // Process input answer safely (if customer uploaded media or location, save the real URL/data)
         let valToSave = incomingPayload;
-        if (['photo', 'image', 'pdf', 'document', 'audio', 'voice', 'video'].includes(validationType) && messageContext?.mediaUrl) {
+        if (extractedCombined) {
+          valToSave = extractedCombined.name;
+        } else if (['photo', 'image', 'pdf', 'document', 'audio', 'voice', 'video'].includes(validationType) && messageContext?.mediaUrl) {
           valToSave = messageContext.mediaUrl;
         } else if (validationType === 'location' && messageContext?.location) {
           valToSave = typeof messageContext.location === 'object' ? JSON.stringify(messageContext.location) : String(messageContext.location);
         }
 
-        const rawVarName = session.saveVariableAs || 'custom_field';
+        const rawVarName = session.saveVariableAs || (isCombinedNamePhone ? 'contact.name' : 'custom_field');
         if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
           session.sessionVariables = {};
         } else if (session.sessionVariables instanceof Map) {
           session.sessionVariables = Object.fromEntries(session.sessionVariables);
+        }
+
+        if (extractedCombined) {
+          session.sessionVariables['name'] = extractedCombined.name;
+          session.sessionVariables['contact.name'] = extractedCombined.name;
+          session.sessionVariables['phone'] = extractedCombined.phone;
+          session.sessionVariables['contact.phone'] = extractedCombined.phone;
+          session.sessionVariables['mobile'] = extractedCombined.phone;
+          session.sessionVariables['contact.mobile'] = extractedCombined.phone;
+          session.sessionVariables['alternate_phone'] = extractedCombined.phone;
+          session.sessionVariables['contact.alternate_phone'] = extractedCombined.phone;
+          session.sessionVariables['contact.extracted_phone'] = extractedCombined.phone;
+
+          // Also persist extracted contact phone directly to database
+          try {
+            const dbContact = await Contact.findOne({ phone: customerPhone, channelId });
+            if (dbContact) {
+              dbContact.name = extractedCombined.name;
+              if (!dbContact.customFields || typeof dbContact.customFields !== 'object') {
+                dbContact.customFields = {};
+              }
+              if (dbContact.customFields instanceof Map) {
+                dbContact.customFields.set('alternate_phone', extractedCombined.phone);
+              } else if (Array.isArray(dbContact.customFields)) {
+                const existingIdx = dbContact.customFields.findIndex(f => f.key === 'alternate_phone');
+                if (existingIdx !== -1) {
+                  dbContact.customFields[existingIdx].value = extractedCombined.phone;
+                } else {
+                  dbContact.customFields.push({ key: 'alternate_phone', name: 'alternate_phone', value: extractedCombined.phone });
+                }
+                dbContact.markModified('customFields');
+              } else {
+                dbContact.customFields['alternate_phone'] = extractedCombined.phone;
+                dbContact.markModified('customFields');
+              }
+              await dbContact.save();
+            }
+          } catch (e) {
+            logger.error('Failed to sync alternate_phone from combined input:', e);
+          }
+        }
+
+        if (extractedDateTime) {
+          if (extractedDateTime.date) {
+            session.sessionVariables['date'] = extractedDateTime.date;
+            session.sessionVariables['selected_date'] = extractedDateTime.date;
+            session.sessionVariables['appointment_date'] = extractedDateTime.date;
+            session.sessionVariables['contact.appointment_date'] = extractedDateTime.date;
+          }
+          if (extractedDateTime.time) {
+            session.sessionVariables['time'] = extractedDateTime.time;
+            session.sessionVariables['selected_time'] = extractedDateTime.time;
+            session.sessionVariables['appointment_time'] = extractedDateTime.time;
+            session.sessionVariables['contact.appointment_time'] = extractedDateTime.time;
+          }
+          if (extractedDateTime.slot) {
+            session.sessionVariables['selected_slot'] = extractedDateTime.slot;
+            session.sessionVariables['appointment_slot'] = extractedDateTime.slot;
+            session.sessionVariables['slot'] = extractedDateTime.slot;
+            session.sessionVariables['datetime'] = extractedDateTime.slot;
+          }
         }
         
         // Save both with and without prefix so {{neet_score}} and {{contact.neet_score}} both work!
@@ -2442,9 +3003,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
         nextNodeId = null;
 
-        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode?.type) || 
-                                  (currentNode?.type === 'messageNode' && currentNode?.data?.messageType === 'interactive') || 
-                                  (currentNode?.type === 'interactiveNode') ||
+        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode', 'interactiveNode'].includes(currentNode?.type) || 
+                                  (currentNode?.type === 'messageNode' && (currentNode?.data?.messageType === 'interactive' || (currentNode?.data?.buttons && currentNode.data.buttons.length > 0) || (currentNode?.data?.sections && currentNode.data.sections.length > 0))) || 
                                   (currentNode?.type === 'templateNode' && ((currentNode?.data?.buttons && currentNode.data.buttons.length > 0) || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
 
         if (isInteractiveNode) {
@@ -2528,7 +3088,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                      b.title?.trim().toLowerCase(),
                      b.payload?.trim().toLowerCase(),
                      b.id?.toString().trim().toLowerCase(),
-                     String(idx)
+                     String(idx),
+                      String(idx + 1),
+                      `btn-${idx + 1}`,
+                      `button ${idx + 1}`,
+                      `btn ${idx + 1}`
                    ].filter(Boolean);
                    return candidateInputs.some(ci => 
                      bCandidates.includes(ci) || bCandidates.some(bc => bc.includes(ci) || ci.includes(bc))
@@ -2546,6 +3110,28 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       session.sessionVariables['selected_button'] = chosenBtnTitle;
                       session.sessionVariables['selected_option'] = chosenBtnTitle;
                       session.sessionVariables['contact.last_button_choice'] = chosenBtnTitle;
+
+                      // 📅 Smart Date & Time extraction from button text
+                      const dtBtn = extractDateAndTime(chosenBtnTitle);
+                      if (dtBtn?.date) {
+                        session.sessionVariables['selected_date'] = dtBtn.date;
+                        session.sessionVariables['appointment_date'] = dtBtn.date;
+                        session.sessionVariables['date'] = dtBtn.date;
+                        session.sessionVariables['contact.appointment_date'] = dtBtn.date;
+                      }
+                      if (dtBtn?.time) {
+                        session.sessionVariables['selected_time'] = dtBtn.time;
+                        session.sessionVariables['appointment_time'] = dtBtn.time;
+                        session.sessionVariables['time'] = dtBtn.time;
+                        session.sessionVariables['contact.appointment_time'] = dtBtn.time;
+                      }
+                      if (dtBtn?.slot) {
+                        session.sessionVariables['selected_slot'] = chosenBtnTitle;
+                        session.sessionVariables['appointment_slot'] = chosenBtnTitle;
+                        session.sessionVariables['slot'] = chosenBtnTitle;
+                        session.sessionVariables['datetime'] = dtBtn.slot;
+                      }
+
                       if (currentNode.data?.saveVariableAs) {
                         session.sessionVariables[currentNode.data.saveVariableAs] = btn.payload || btn.id || chosenBtnTitle;
                       }
@@ -2620,7 +3206,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       r.id?.toString().trim().toLowerCase(),
                       r.postbackId?.toString().trim().toLowerCase(),
                       `${sIdx}_${rIdx}`,
-                      String(rIdx)
+                      String(rIdx),
+                      String(rIdx + 1),
+                      `option ${rIdx + 1}`,
+                      `opt ${rIdx + 1}`,
+                      `row ${rIdx + 1}`
                     ].filter(Boolean);
 
                     const isMatch = candidateInputs.some(ci =>
@@ -2647,6 +3237,38 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   session.sessionVariables['selected_option'] = rowTitle;
                   session.sessionVariables['selected_row_id'] = rowId;
                   session.sessionVariables['contact.last_menu_choice'] = rowTitle;
+
+                  // 📅 SMART DATE & TIME SLOT EXTRACTION FROM MENU SELECTION
+                  const secTitle = currentNode.data.sections[matchedSecIdx]?.title || '';
+                  const dtCombined = extractDateAndTime(`${secTitle} ${rowTitle}`);
+                  const dtRow = extractDateAndTime(rowTitle);
+                  const dtSec = extractDateAndTime(secTitle);
+
+                  const resolvedDate = dtCombined?.date || dtSec?.date || dtRow?.date;
+                  const resolvedTime = dtCombined?.time || dtRow?.time || dtSec?.time;
+                  const resolvedSlot = rowTitle;
+
+                  if (resolvedDate) {
+                    session.sessionVariables['selected_date'] = resolvedDate;
+                    session.sessionVariables['appointment_date'] = resolvedDate;
+                    session.sessionVariables['date'] = resolvedDate;
+                    session.sessionVariables['contact.appointment_date'] = resolvedDate;
+                  }
+                  if (resolvedTime) {
+                    session.sessionVariables['selected_time'] = resolvedTime;
+                    session.sessionVariables['appointment_time'] = resolvedTime;
+                    session.sessionVariables['time'] = resolvedTime;
+                    session.sessionVariables['contact.appointment_time'] = resolvedTime;
+                  }
+                  session.sessionVariables['selected_slot'] = resolvedSlot;
+                  session.sessionVariables['appointment_slot'] = resolvedSlot;
+                  session.sessionVariables['slot'] = resolvedSlot;
+                  if (resolvedDate && resolvedTime) {
+                    session.sessionVariables['datetime'] = `${resolvedDate} at ${resolvedTime}`;
+                  } else {
+                    session.sessionVariables['datetime'] = resolvedSlot;
+                  }
+
                   if (currentNode.data?.saveVariableAs) {
                     session.sessionVariables[currentNode.data.saveVariableAs] = matchedRow.postbackId || matchedRow.id || rowTitle;
                   }
@@ -2713,7 +3335,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                     opt.text?.trim().toLowerCase(),
                     opt.id?.toString().trim().toLowerCase(),
                     String(idx),
+                    String(idx + 1),
                     `opt-${idx}`,
+                    `opt-${idx + 1}`,
+                    `option ${idx + 1}`,
+                    `opt ${idx + 1}`,
                     `opt-${opt.text?.trim().toLowerCase()}`
                   ].filter(Boolean);
                   return candidateInputs.some(ci => {
@@ -2800,6 +3426,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             nextNodeId = matchedEdge.target;
             session.validationRetries = 0;
             await session.save();
+
+            // Cancel any pending timeout jobs since user interacted
+            try {
+              const { default: DelayedJob } = await import('../models/DelayedJob.js');
+              await DelayedJob.updateMany({ customerPhone, status: 'PENDING' }, { $set: { status: 'CANCELLED' } });
+            } catch (_) {}
           } else {
             // User typed text instead of clicking a button, or clicked unrouted option
             session.validationRetries = (session.validationRetries || 0) + 1;
@@ -2808,8 +3440,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
             if (!channelToUse) channelToUse = channel;
 
-            // If user repeatedly fails to select an option (2 attempts), end the session gracefully
-            if (session.validationRetries >= 2) {
+            // If user repeatedly fails to select an option (3 attempts), end the session gracefully
+            if (session.validationRetries >= 3) {
               logger.log(`[FlowRunner] User ${customerPhone} repeatedly failed interactive choice. Ending session.`);
               await markSessionCompleted(session, customerPhone, channelId);
               await sendWhatsAppMessage(customerPhone, {
@@ -2817,9 +3449,23 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 recipient_type: 'individual',
                 to: customerPhone,
                 type: 'text',
-                text: { body: 'Session ended. You can type *hi* or send a keyword anytime to start again.' }
+                text: { body: 'Session ended due to repeated invalid inputs. You can type *hi* anytime to start again.' }
               }, channelToUse);
               return;
+            }
+
+            let optionsPrompt = '⚠️ Please select one of the available options above, or type *restart* to start over.';
+            if ((currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode') && Array.isArray(currentNode.data?.buttons) && currentNode.data.buttons.length > 0) {
+              const btnList = currentNode.data.buttons.map((b, i) => `${i + 1}. ${b.text || b.title || b.payload}`).filter(Boolean).join('\n');
+              optionsPrompt = `⚠️ Invalid selection. Please tap one of the buttons or reply with the option number:\n\n${btnList}\n\n(or type *restart* to start over)`;
+            } else if (currentNode.type === 'pollNode' && Array.isArray(currentNode.data?.options) && currentNode.data.options.length > 0) {
+              const pollList = currentNode.data.options.map((o, i) => `${i + 1}. ${o.text}`).filter(Boolean).join('\n');
+              optionsPrompt = `⚠️ Invalid selection. Please choose from:\n\n${pollList}\n\n(or type *restart* to start over)`;
+            } else if (currentNode.type === 'menuNode' && Array.isArray(currentNode.data?.sections) && currentNode.data.sections.length > 0) {
+              const rowList = currentNode.data.sections.flatMap(s => (s.rows || []).map((r, i) => `${i + 1}. ${r.title}`)).filter(Boolean).slice(0, 5).join('\n');
+              if (rowList) {
+                optionsPrompt = `⚠️ Invalid option. Please select from the menu list or reply with the number:\n\n${rowList}\n\n(or type *restart* to start over)`;
+              }
             }
 
             await sendWhatsAppMessage(customerPhone, {
@@ -2827,7 +3473,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               recipient_type: 'individual',
               to: customerPhone,
               type: 'text',
-              text: { body: 'Please select an option from the menu above, or type *restart* to start over.' }
+              text: { body: optionsPrompt }
             }, channelToUse);
             return; // Halt execution and wait for valid input
           }
@@ -2841,7 +3487,32 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
 
         if (!nextNodeId) {
-          await markSessionCompleted(session, customerPhone, channelId);
+          logger.warn(`[FlowRunner] No next node resolved for incoming input '${incomingPayload}' from ${customerPhone}.`);
+          let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+          if (!channelToUse) channelToUse = channel;
+
+          session.validationRetries = (session.validationRetries || 0) + 1;
+          await session.save();
+
+          if (session.validationRetries >= 3) {
+            await sendWhatsAppMessage(customerPhone, {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: customerPhone,
+              type: 'text',
+              text: { body: 'Too many invalid attempts. Session ended. You can type *hi* anytime to start over.' }
+            }, channelToUse);
+            await markSessionCompleted(session, customerPhone, channelId);
+            return;
+          }
+
+          await sendWhatsAppMessage(customerPhone, {
+            messaging_product: 'whatsapp',
+            recipient_type: 'individual',
+            to: customerPhone,
+            type: 'text',
+            text: { body: '⚠️ I did not understand that response. Please reply with a valid option, or type *restart* to restart.' }
+          }, channelToUse);
           return;
         }
       }
@@ -2853,6 +3524,17 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
   } catch (error) {
     logger.error('Workflow Entry Error:', error);
+    try {
+      let channelToUse = await Channel.findById(channelId).select('+metaAccessToken');
+      if (!channelToUse) channelToUse = channel;
+      await sendWhatsAppMessage(customerPhone, {
+        messaging_product: 'whatsapp',
+        recipient_type: 'individual',
+        to: customerPhone,
+        type: 'text',
+        text: { body: '⚠️ An unexpected error occurred. Please type *restart* to start over.' }
+      }, channelToUse);
+    } catch (_) {}
   }
 }
 

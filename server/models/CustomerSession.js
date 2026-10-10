@@ -42,11 +42,7 @@ const customerSessionSchema = new mongoose.Schema({
   },
   expectedValidation: {
     type: String,
-    enum: [
-      'text', 'email', 'phone', 'mobile', 'number', 'date', 'boolean', 'url', 
-      'location', 'photo', 'image', 'audio', 'voice', 'pdf', 'document', 'video', 
-      'address', 'any', 'string', 'custom', 'regex'
-    ]
+    default: 'text'
   },
   validationRetries: {
     type: Number,
