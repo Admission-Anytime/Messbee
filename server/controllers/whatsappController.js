@@ -535,6 +535,7 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     // Sync to Channel for automation engine (Multi-Tenant)
     const Channel = require('../models/Channel'); // Declared here so it's in scope for auto-register too
     let metaPhoneStatus = 'UNKNOWN';
+    let metaStatus = 'PENDING';
     if (req.user && phoneNumberId) {
       const tenantId = req.user.tenantId || req.user._id;
       const finalPhoneNumberId = phoneNumberId;
@@ -546,7 +547,6 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         // ── Dynamically fetch phone display number & name from Meta API ──
         let actualPhoneNumber = finalPhoneNumberId; // fallback
         let metaQuality       = 'UNKNOWN';
-        let metaStatus        = 'CONNECTED';
         let metaVerifiedName = null;
         try {
           const axios = require('axios');
@@ -568,9 +568,14 @@ exports.embeddedSignupCallback = async (req, res, next) => {
           if (metaRes.data.quality_rating)       metaQuality       = metaRes.data.quality_rating;
           if (metaRes.data.status)               metaStatus        = metaRes.data.status;
           
-          // If Meta reports status as CONNECTED or code_verification_status as VERIFIED, mark ACTIVE
-          if (metaStatus === 'CONNECTED' || metaRes.data.code_verification_status === 'VERIFIED') {
+          // CRITICAL: A phone number is ONLY truly active & ready on WhatsApp Cloud API
+          // if its status on Meta is 'CONNECTED'.
+          // code_verification_status: 'VERIFIED' only means OTP was verified by the user,
+          // but Meta STILL requires the mandatory /register API call with a 6-digit PIN before the phone is ACTIVE/CONNECTED.
+          if (metaStatus === 'CONNECTED') {
             metaPhoneStatus = 'ACTIVE';
+          } else {
+            metaPhoneStatus = 'PENDING';
           }
         } catch (metaErr) {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
@@ -614,26 +619,35 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     }
     
     // ── AUTO-REGISTER PHONE NUMBER WITH META ─────────────────────────────────
-    // After Embedded Signup, the phone number is in "PENDING" status.
-    // We must call /register with a 6-digit PIN to activate it.
-    // Check if phone number is ALREADY ACTIVE & CONNECTED on Meta
-    let phoneRegistered = (metaPhoneStatus === 'ACTIVE');
+    // After Embedded Signup / OTP verification, Meta leaves the phone number in "PENDING" status.
+    // Cloud API strictly requires a POST to /{phone_number_id}/register with a 6-digit PIN to activate it.
+    let phoneRegistered = (metaStatus === 'CONNECTED');
     let autoPin = null;
 
     if (phoneRegistered) {
-      console.log(`✅ Phone ${phoneNumberId} is ALREADY ACTIVE & CONNECTED on Meta. Skipping register PIN step.`);
+      console.log(`✅ Phone ${phoneNumberId} is ALREADY CONNECTED on Meta. Skipping register PIN step.`);
       const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
       await Channel.findOneAndUpdate(
         channelQuery,
         {
           $set: {
             activeWhatsappPhoneNumberId: phoneNumberId,
-            'metadata.phoneStatus': 'ACTIVE'
+            'metadata.phoneStatus': 'ACTIVE',
+            'metadata.status': 'CONNECTED'
           }
         }
       );
     } else if (phoneNumberId && accessToken) {
-      // Generate a cryptographically random 6-digit PIN
+      const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
+
+      // Check if existing PIN is already saved in Channel
+      let existingPin = null;
+      try {
+        const existingCh = await Channel.findOne(channelQuery);
+        existingPin = existingCh?.metadata?.registrationPin;
+      } catch (e) {}
+
+      // Helper to generate a random 6-digit PIN
       const generatePin = () => Math.floor(100000 + Math.random() * 900000).toString();
       
       const attemptRegister = async (pin) => {
@@ -651,59 +665,84 @@ exports.embeddedSignupCallback = async (req, res, next) => {
           );
           return regRes.data?.success === true;
         } catch (postErr) {
-          console.warn(`⚠️ Register POST attempt failed for PIN:`, postErr.response?.data?.error?.message || postErr.message);
+          console.warn(`⚠️ Register POST attempt failed for PIN ${pin}:`, postErr.response?.data?.error?.message || postErr.message);
           return false;
         }
       };
 
       try {
-        autoPin = generatePin();
-        console.log(`🔐 Attempting to register phone ${phoneNumberId} with Meta...`);
-        phoneRegistered = await attemptRegister(autoPin);
+        // Build list of candidate PINs without duplicates
+        const candidatePins = [];
+        if (existingPin) candidatePins.push(existingPin);
+        if (!candidatePins.includes('123456')) candidatePins.push('123456');
+        const freshPin = generatePin();
+        if (!candidatePins.includes(freshPin)) candidatePins.push(freshPin);
 
-        if (!phoneRegistered) {
-          // Retry once with a fresh PIN
-          console.warn(`⚠️ First register attempt returned non-success, retrying...`);
-          autoPin = generatePin();
-          phoneRegistered = await attemptRegister(autoPin);
+        for (const pin of candidatePins) {
+          console.log(`🔐 Attempting to register phone ${phoneNumberId} with Meta using PIN ${pin}...`);
+          phoneRegistered = await attemptRegister(pin);
+          if (phoneRegistered) {
+            autoPin = pin;
+            break;
+          }
         }
 
-        const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
-
         if (phoneRegistered) {
-          console.log(`✅ Phone ${phoneNumberId} registered successfully with Meta (PIN auto-generated).`);
-          // Store PIN + mark phone as ACTIVE — use $set to avoid replacing the whole document
+          console.log(`✅ Phone ${phoneNumberId} registered successfully with Meta (PIN: ${autoPin}).`);
+          
+          // Verify new status directly from Meta
+          let freshQuality = 'GREEN';
+          let freshStatus = 'CONNECTED';
+          try {
+            const freshMeta = await axios.get(
+              `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${phoneNumberId}`,
+              {
+                params: { fields: 'quality_rating,status', access_token: accessToken },
+                timeout: 5000
+              }
+            );
+            if (freshMeta.data?.quality_rating) freshQuality = freshMeta.data.quality_rating;
+            if (freshMeta.data?.status) freshStatus = freshMeta.data.status;
+          } catch (e) {}
+
           await Channel.findOneAndUpdate(
             channelQuery,
             {
               $set: {
                 activeWhatsappPhoneNumberId: phoneNumberId,
                 'metadata.phoneStatus': 'ACTIVE',
+                'metadata.status': freshStatus,
+                'metadata.qualityRating': freshQuality,
                 'metadata.registrationPin': autoPin
               }
             }
           );
         } else {
           console.warn(`⚠️ Meta /register returned success=false for phone ${phoneNumberId}.`);
-          if (metaPhoneStatus !== 'ACTIVE') {
-            await Channel.findOneAndUpdate(
-              channelQuery,
-              { $set: { 'metadata.phoneStatus': 'PENDING' } }
-            );
-          }
-        }
-      } catch (regErr) {
-        // Non-fatal — channel is saved, but phone may need manual PIN
-        const channelQuery = req.user ? { tenantId: req.user.tenantId || req.user._id } : { activeWhatsappPhoneNumberId: phoneNumberId };
-        const regErrMsg = regErr.response?.data?.error?.message || regErr.message;
-        console.warn(`⚠️ Phone registration failed for ${phoneNumberId}: ${regErrMsg}`);
-        console.warn('Full error:', JSON.stringify(regErr.response?.data || {}, null, 2));
-        if (metaPhoneStatus !== 'ACTIVE') {
           await Channel.findOneAndUpdate(
             channelQuery,
-            { $set: { 'metadata.phoneStatus': 'PENDING' } }
+            {
+              $set: {
+                activeWhatsappPhoneNumberId: phoneNumberId,
+                'metadata.phoneStatus': 'PENDING',
+                'metadata.status': 'PENDING'
+              }
+            }
           );
         }
+      } catch (regErr) {
+        const regErrMsg = regErr.response?.data?.error?.message || regErr.message;
+        console.warn(`⚠️ Phone registration failed for ${phoneNumberId}: ${regErrMsg}`);
+        await Channel.findOneAndUpdate(
+          channelQuery,
+          {
+            $set: {
+              activeWhatsappPhoneNumberId: phoneNumberId,
+              'metadata.phoneStatus': 'PENDING',
+              'metadata.status': 'PENDING'
+            }
+          }
+        );
       }
     }
     res.status(200).json({
@@ -804,7 +843,7 @@ exports.connectManual = async (req, res, next) => {
         // ── Dynamically fetch phone display number & name from Meta API ──
         let actualPhoneNumber = finalPhoneNumberId; // fallback
         let metaQuality       = 'UNKNOWN';
-        let metaStatus        = 'CONNECTED';
+        let metaStatus        = 'PENDING';
         let metaVerifiedName = null;
         try {
           const axios = require('axios');
@@ -829,6 +868,53 @@ exports.connectManual = async (req, res, next) => {
           console.warn('[Channel Sync] Could not fetch Meta phone details:', metaErr.message);
         }
 
+        // Auto-register if phone is not already CONNECTED on Meta
+        let registrationPin = null;
+        if (metaStatus !== 'CONNECTED' && finalPhoneNumberId && accessToken) {
+          try {
+            const attemptRegisterManual = async (pin) => {
+              try {
+                const regRes = await axios.post(
+                  `https://graph.facebook.com/${process.env.WHATSAPP_API_VERSION || 'v20.0'}/${finalPhoneNumberId}/register`,
+                  { messaging_product: 'whatsapp', pin },
+                  {
+                    headers: {
+                      'Authorization': `Bearer ${accessToken}`,
+                      'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                  }
+                );
+                return regRes.data?.success === true;
+              } catch (e) {
+                return false;
+              }
+            };
+
+            const existingCh = await Channel.findOne({ tenantId });
+            const existingPin = existingCh?.metadata?.registrationPin;
+            let registered = false;
+            
+            const candidatePins = [];
+            if (existingPin) candidatePins.push(existingPin);
+            if (!candidatePins.includes('123456')) candidatePins.push('123456');
+            const genPin = Math.floor(100000 + Math.random() * 900000).toString();
+            if (!candidatePins.includes(genPin)) candidatePins.push(genPin);
+
+            for (const pin of candidatePins) {
+              registered = await attemptRegisterManual(pin);
+              if (registered) {
+                registrationPin = pin;
+                metaStatus = 'CONNECTED';
+                console.log(`✅ [connectManual] Phone auto-registered successfully with PIN: ${registrationPin}`);
+                break;
+              }
+            }
+          } catch (autoRegErr) {
+            console.warn('[connectManual] Auto-register attempt failed:', autoRegErr.message);
+          }
+        }
+
         // Sync verified business name directly to User profile if not set or generic
         if (metaVerifiedName && userRec) {
           let userNeedsSave = false;
@@ -845,19 +931,25 @@ exports.connectManual = async (req, res, next) => {
           }
         }
 
+        const channelUpdate = {
+          tenantId,
+          activeWhatsappPhoneNumberId: finalPhoneNumberId,
+          metaAccessToken: accessToken,
+          name:            channelName,
+          phoneNumber:     actualPhoneNumber,
+          'metadata.name': channelName,
+          'metadata.wabaId': wabaId || null,
+          'metadata.status': metaStatus,
+          'metadata.qualityRating': metaQuality,
+          'metadata.phoneStatus': metaStatus === 'CONNECTED' ? 'ACTIVE' : 'PENDING'
+        };
+        if (registrationPin) {
+          channelUpdate['metadata.registrationPin'] = registrationPin;
+        }
+
         await Channel.findOneAndUpdate(
           { tenantId },
-          {
-            tenantId,
-            activeWhatsappPhoneNumberId: finalPhoneNumberId,
-            metaAccessToken: accessToken,
-            name:            channelName,
-            phoneNumber:     actualPhoneNumber,
-            'metadata.name': channelName,
-            'metadata.wabaId': wabaId || null,
-            'metadata.status': metaStatus,
-            'metadata.qualityRating': metaQuality
-          },
+          channelUpdate,
           { upsert: true, new: true, setDefaultsOnInsert: true }
         );
       } catch (err) {
@@ -911,6 +1003,7 @@ exports.registerNumber = async (req, res, next) => {
           {
             $set: {
               'metadata.phoneStatus': 'ACTIVE',
+              'metadata.status': 'CONNECTED',
               'metadata.registrationPin': pin
             }
           }
