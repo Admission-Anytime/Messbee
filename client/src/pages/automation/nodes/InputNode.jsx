@@ -95,6 +95,19 @@ export default function InputNode({ id, data, selected }) {
           />
         </div>
 
+        <div style={{ padding: '8px 12px', borderTop: '1px dashed #4C566A', background: '#2E3440', position: 'relative' }}>
+          <div style={{ fontSize: '11px', color: '#EF4444' }}>
+            Fallback (Max Retries)
+          </div>
+          <Handle 
+            type="source" 
+            position={Position.Right} 
+            id="fallback"
+            className="custom-handle" 
+            style={{ right: '-6px', top: '50%', transform: 'translateY(-50%)', background: '#3B4252', border: '2px solid #EF4444', width: '12px', height: '12px' }} 
+          />
+        </div>
+
         {data.timeoutEnabled && (
           <div style={{ padding: '8px 12px', borderTop: '1px dashed #4C566A', background: '#2E3440', position: 'relative' }}>
             <div style={{ fontSize: '11px', color: '#F59E0B', fontStyle: 'italic' }}>

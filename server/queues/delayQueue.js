@@ -50,7 +50,11 @@ export const startDelayQueueWorker = () => {
         try {
           console.log(`[DB Queue] Processing delayed job for ${job.customerPhone}, resuming at node ${job.nextNodeId}`);
           const { processSpecificNode } = await import('../engine/flowRunner.js');
-          await processSpecificNode(job.customerPhone, job.channelId, job.nextNodeId);
+          if (job.nextNodeId) {
+            await processSpecificNode(job.customerPhone, job.channelId, job.nextNodeId);
+          } else {
+            console.warn('[DB Queue] Delayed job missing nextNodeId for ' + job.customerPhone);
+          }
           
           job.status = 'COMPLETED';
           await job.save();

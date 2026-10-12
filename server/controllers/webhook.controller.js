@@ -100,18 +100,56 @@ export const handleIncomingMessage = async (req, res) => {
               };
             } else if (message.type === 'image') {
               incomingPayload = '[__MEDIA_IMAGE__]';
+              messageContext = {
+                messageType: 'image',
+                mediaId: message.image?.id,
+                mimeType: message.image?.mime_type,
+                caption: message.image?.caption || ''
+              };
             } else if (message.type === 'video') {
               incomingPayload = '[__MEDIA_VIDEO__]';
+              messageContext = {
+                messageType: 'video',
+                mediaId: message.video?.id,
+                mimeType: message.video?.mime_type,
+                caption: message.video?.caption || ''
+              };
             } else if (message.type === 'audio') {
-              incomingPayload = '[__MEDIA_AUDIO__]'; // WhatsApp uses audio for voice notes as well
+              incomingPayload = '[__MEDIA_AUDIO__]';
+              messageContext = {
+                messageType: 'audio',
+                mediaId: message.audio?.id,
+                mimeType: message.audio?.mime_type,
+                voice: Boolean(message.audio?.voice)
+              };
             } else if (message.type === 'document') {
               incomingPayload = '[__MEDIA_DOCUMENT__]';
+              messageContext = {
+                messageType: 'document',
+                mediaId: message.document?.id,
+                fileName: message.document?.filename || 'document.pdf',
+                mimeType: message.document?.mime_type,
+                caption: message.document?.caption || ''
+              };
             } else if (message.type === 'location') {
               incomingPayload = '[__MEDIA_LOCATION__]';
+              messageContext = {
+                messageType: 'location',
+                location: message.location
+              };
             } else if (message.type === 'contacts') {
               incomingPayload = '[__MEDIA_CONTACT__]';
+              messageContext = {
+                messageType: 'contacts',
+                contacts: message.contacts
+              };
             } else if (message.type === 'reaction') {
               incomingPayload = '[__REACTION__]';
+              messageContext = {
+                messageType: 'reaction',
+                reactionEmoji: message.reaction?.emoji,
+                reactionMessageId: message.reaction?.message_id
+              };
             } else {
               incomingPayload = `[Unsupported Message Type: ${message.type}]`;
             }
