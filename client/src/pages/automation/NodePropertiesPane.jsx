@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
 import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
+import NodeGuideModal from '../../components/Modol/automation/NodeGuideModal';
+import { NextStepRecommendationCard, NodeInlineGuideView } from '../../components/Modol/automation/NodeRecommendations';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -326,7 +328,7 @@ function WhatsAppMessageField({
 }
 
 export default function NodePropertiesPane({ currentChannelId }) {
-  const { nodes, updateNodeData, setEdges } = useCanvasStore();
+  const { nodes, setNodes, edges, setEdges, updateNodeData, takeSnapshot } = useCanvasStore();
   const [localData, setLocalData] = useState(null);
   const [uploadMode, setUploadMode] = useState('url');
   const [isUploading, setIsUploading] = useState(false);
@@ -335,6 +337,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [templateSearch, setTemplateSearch] = useState('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('config');
 
   useEffect(() => {
     if (currentChannelId) {
@@ -366,6 +370,125 @@ export default function NodePropertiesPane({ currentChannelId }) {
     }
     setIsTriggerModalOpen(false);
     showToast.success('Trigger Selected', `Trigger set to: ${triggerId.replace(/_/g, ' ')}`);
+  };
+
+  const handleAutoAddNextStep = (recItem, preferredHandle) => {
+    if (!selectedNode) return;
+    
+    if (takeSnapshot) takeSnapshot();
+
+    const newNodeId = `node_${Date.now()}`;
+    const baseType = recItem.type === 'human_handoff' ? 'actionNode' : recItem.type;
+
+    let dataPayload = { text: `Configure your ${recItem.label} here.` };
+    let messageType = 'text';
+
+    if (baseType === 'messageNode') {
+      messageType = 'text';
+      dataPayload = { text: 'Hello! How can we help you today?' };
+    } else if (baseType === 'inputNode') {
+      dataPayload = {
+        text: 'Please enter your reply:',
+        validationType: 'text',
+        variableName: 'contact.answer',
+        validationErrorMessage: 'Please provide a valid answer.'
+      };
+    } else if (baseType === 'conditionNode') {
+      dataPayload = {
+        variable: 'contact.tags',
+        operator: 'contains',
+        value: ''
+      };
+    } else if (baseType === 'menuNode') {
+      const defaultRowId = `row_${Date.now()}`;
+      dataPayload = {
+        text: 'Please select an option from the list below:',
+        menuButtonText: 'View Options',
+        sections: [{
+          id: `sec_${Date.now()}`,
+          title: 'Options',
+          rows: [{ id: defaultRowId, title: 'Option 1', description: '', postbackId: defaultRowId }]
+        }]
+      };
+    } else if (baseType === 'apiNode') {
+      dataPayload = { method: 'GET', url: '', headers: '', body: '' };
+    } else if (baseType === 'delayNode') {
+      dataPayload = { delayAmount: '5', delayUnit: 'Minutes' };
+    } else if (baseType === 'actionNode') {
+      dataPayload = { actionType: recItem.type === 'human_handoff' ? 'human_handoff' : 'add_tag', tag: '' };
+    } else if (baseType === 'templateNode') {
+      dataPayload = { templateName: '', templateLanguage: 'en', variables: [] };
+    }
+
+    const currentX = Number(selectedNode.position?.x) || 250;
+    const currentY = Number(selectedNode.position?.y) || 150;
+    
+    const existingOutgoers = (edges || []).filter(e => e.source === selectedNode.id);
+    const yOffset = existingOutgoers.length * 140;
+
+    const spawnX = currentX + 340;
+    const spawnY = currentY + yOffset;
+
+    const newNode = {
+      id: newNodeId,
+      type: baseType,
+      position: { x: spawnX, y: spawnY },
+      data: {
+        label: recItem.label,
+        messageType: messageType,
+        ...dataPayload
+      },
+      selected: false
+    };
+
+    // Determine the sourceHandle
+    let safeSourceHandle = preferredHandle;
+    if (!safeSourceHandle) {
+      if (selectedNode.type === 'conditionNode') {
+        const hasTrue = existingOutgoers.some(e => e.sourceHandle === 'true');
+        safeSourceHandle = hasTrue ? 'false' : 'true';
+      } else if (selectedNode.type === 'apiNode') {
+        const hasSuccess = existingOutgoers.some(e => e.sourceHandle === 'success');
+        safeSourceHandle = hasSuccess ? 'failure' : 'success';
+      } else if (selectedNode.type === 'messageNode' && localData?.messageType === 'interactive' && localData?.buttons?.length > 0) {
+        const unconnectedBtn = localData.buttons.find(b => !existingOutgoers.some(e => e.sourceHandle === `btn-${b.id}`));
+        safeSourceHandle = unconnectedBtn ? `btn-${unconnectedBtn.id}` : `btn-${localData.buttons[0].id}`;
+      } else if (selectedNode.type === 'menuNode' && localData?.sections?.length > 0) {
+        let firstUnconnected = null;
+        for (const sec of localData.sections) {
+          for (const row of sec.rows || []) {
+            if (!existingOutgoers.some(e => e.sourceHandle === `row-${row.id}`)) {
+              firstUnconnected = `row-${row.id}`;
+              break;
+            }
+          }
+          if (firstUnconnected) break;
+        }
+        safeSourceHandle = firstUnconnected || 'main-handle';
+      } else {
+        safeSourceHandle = 'main-handle';
+      }
+    }
+
+    const newEdge = {
+      id: `edge_${selectedNode.id}_${newNodeId}_${Date.now()}`,
+      source: selectedNode.id,
+      sourceHandle: safeSourceHandle,
+      target: newNodeId,
+      targetHandle: baseType === 'inputNode' ? 'target-handle' : undefined,
+      type: 'deletableEdge',
+      animated: true,
+      style: { strokeWidth: 2, stroke: '#10b981' }
+    };
+
+    if (setNodes) {
+      setNodes(nds => nds.concat(newNode));
+    }
+    if (setEdges) {
+      setEdges(eds => eds.concat(newEdge));
+    }
+
+    showToast.success('Node Connected', `Added ${recItem.label} and wired to ${safeSourceHandle}`);
   };
 
   useEffect(() => {
@@ -486,7 +609,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
       });
       const resData = response.data;
       if (resData && resData.success) {
-        const updatePayload = { mediaUrl: resData.data.url, mediaSize: fileSizeStr };
+        const updatePayload = { mediaUrl: resData.data.url, mediaSize: fileSizeStr, fileName: file.name };
         if (durationStr) updatePayload.mediaDuration = durationStr;
         
         setLocalData(prev => ({ ...prev, ...updatePayload }));
@@ -558,6 +681,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   };
 
   const addRow = (secIdx) => {
+    if (totalRowsCount >= 10) return;
     const newSections = [...(localData.sections || [])];
     const sectionToUpdate = { ...newSections[secIdx] };
     sectionToUpdate.rows = [...(sectionToUpdate.rows || []), { id: `row_${Date.now()}`, title: '', description: '', postbackId: '' }];
@@ -612,30 +736,131 @@ export default function NodePropertiesPane({ currentChannelId }) {
       overflowX: 'hidden',
       boxSizing: 'border-box'
     }}>
-      {type !== 'triggerNode' && (
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-          <div style={{ background: '#EFF6FF', color: '#2563EB', padding: '7px', borderRadius: '8px' }}>
-            <Settings size={18} />
-          </div>
-          <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>Configuration</h2>
-        </div>
-      )}
+      {/* Top Segmented Tabs: ⚙️ Configuration | 💡 How It Works & Guide */}
+      <div style={{
+        display: 'flex',
+        borderBottom: '1px solid #E5E7EB',
+        background: '#F8FAFC',
+        padding: '6px 12px 0 12px',
+        gap: '6px',
+        flexShrink: 0
+      }}>
+        <button
+          type="button"
+          onClick={() => setActiveTab('config')}
+          style={{
+            flex: 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '9px 12px',
+            fontSize: '13px',
+            fontWeight: '600',
+            borderTopLeftRadius: '8px',
+            borderTopRightRadius: '8px',
+            border: 'none',
+            borderBottom: activeTab === 'config' ? '2px solid #2563EB' : '2px solid transparent',
+            background: activeTab === 'config' ? '#FFFFFF' : 'transparent',
+            color: activeTab === 'config' ? '#1D4ED8' : '#64748B',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <Settings size={15} /> Configuration
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('guide')}
+          style={{
+            flex: 1,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
+            padding: '9px 12px',
+            fontSize: '13px',
+            fontWeight: '600',
+            borderTopLeftRadius: '8px',
+            borderTopRightRadius: '8px',
+            border: 'none',
+            borderBottom: activeTab === 'guide' ? '2px solid #7C3AED' : '2px solid transparent',
+            background: activeTab === 'guide' ? '#FFFFFF' : 'transparent',
+            color: activeTab === 'guide' ? '#6D28D9' : '#64748B',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease'
+          }}
+        >
+          <BookOpen size={15} /> How It Works & Guide
+        </button>
+      </div>
 
-      <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {activeTab === 'guide' ? (
+        <NodeInlineGuideView 
+          type={type} 
+          onOpenModal={() => setIsGuideOpen(true)}
+        />
+      ) : (
+        <>
+          {type !== 'triggerNode' && (
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid #E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ background: '#EFF6FF', color: '#2563EB', padding: '7px', borderRadius: '8px' }}>
+                  <Settings size={18} />
+                </div>
+                <h2 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: '#111827' }}>Configuration</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsGuideOpen(true)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  borderRadius: '8px',
+                  background: '#EEF2FF',
+                  color: '#4F46E5',
+                  border: '1px solid #C7D2FE',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = '#4F46E5'; e.currentTarget.style.color = '#FFFFFF'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = '#EEF2FF'; e.currentTarget.style.color = '#4F46E5'; }}
+                title="Read how this node works and its next step behavior"
+              >
+                <BookOpen size={14} /> How It Works
+              </button>
+            </div>
+          )}
 
-        {/* Common Field */}
-        <div>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4B5563', marginBottom: '8px' }}>Node Label</label>
-          <input
-            type="text"
-            name="label"
-            value={localData.label || ''}
-            onChange={handleLocalChange}
-            onBlur={handleBlur}
-            style={inputStyle}
-            placeholder="e.g. Welcome Message"
-          />
-        </div>
+          <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
+            {/* Inline Next Step Recommendation Card with 1-Click Auto-Add */}
+            <NextStepRecommendationCard 
+              type={type} 
+              localData={localData} 
+              edges={edges}
+              selectedNodeId={id}
+              onAutoAddNextStep={handleAutoAddNextStep}
+              onOpenFullGuide={() => setActiveTab('guide')}
+            />
+
+            {/* Common Field */}
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#4B5563', marginBottom: '8px' }}>Node Label</label>
+              <input
+                type="text"
+                name="label"
+                value={localData.label || ''}
+                onChange={handleLocalChange}
+                onBlur={handleBlur}
+                style={inputStyle}
+                placeholder="e.g. Welcome Message"
+              />
+            </div>
 
         {/* Trigger Node Specific */}
         {type === 'triggerNode' && (
@@ -674,32 +899,58 @@ export default function NodePropertiesPane({ currentChannelId }) {
                      'Keyword Exact Match'}
                   </h2>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setIsTriggerModalOpen(true)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '7px 12px',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    color: '#065F46',
-                    backgroundColor: '#D1FAE5',
-                    border: '1px solid #A7F3D0',
-                    borderRadius: '8px',
-                    cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                    transition: 'all 0.15s ease',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                    flexShrink: 0
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A7F3D0'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#D1FAE5'; }}
-                >
-                  <LayoutGrid size={14} />
-                  Browse All Triggers
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsGuideOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '7px 12px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#4F46E5',
+                      backgroundColor: '#EEF2FF',
+                      border: '1px solid #C7D2FE',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4F46E5'; e.currentTarget.style.color = '#FFFFFF'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#EEF2FF'; e.currentTarget.style.color = '#4F46E5'; }}
+                    title="Read how this trigger works"
+                  >
+                    <BookOpen size={13} /> How It Works
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsTriggerModalOpen(true)}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '7px 12px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      color: '#065F46',
+                      backgroundColor: '#D1FAE5',
+                      border: '1px solid #A7F3D0',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                      transition: 'all 0.15s ease',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                      flexShrink: 0
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A7F3D0'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#D1FAE5'; }}
+                  >
+                    <LayoutGrid size={14} />
+                    Browse All Triggers
+                  </button>
+                </div>
               </div>
 
               <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 14px 0', lineHeight: '1.4' }}>
@@ -1145,9 +1396,13 @@ export default function NodePropertiesPane({ currentChannelId }) {
                         </div>
                       </div>
                     ))}
-                    <button onClick={() => addRow(secIdx)} style={{ background: 'transparent', color: '#10B981', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
-                      + Add Row
-                    </button>
+                    {totalRowsCount < 10 ? (
+                      <button onClick={() => addRow(secIdx)} style={{ background: 'transparent', color: '#10B981', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer' }}>
+                        + Add Row
+                      </button>
+                    ) : (
+                      <span style={{ fontSize: '11px', color: '#94A3B8', fontStyle: 'italic' }}>Max 10 rows limit reached</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1307,7 +1562,9 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'carouselNode' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Cards</label>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                Cards <span style={{ fontSize: '11px', fontWeight: 'normal', color: '#6B7280' }}>({(localData.cards || []).length}/10 max)</span>
+              </label>
             </div>
             {(localData.cards || []).map((card, idx) => (
               <div key={idx} style={{ background: '#fdf2f8', padding: '12px', borderRadius: '8px', border: '1px solid #fbcfe8', marginBottom: '12px' }}>
@@ -1321,11 +1578,11 @@ export default function NodePropertiesPane({ currentChannelId }) {
                     Remove
                   </button>
                 </div>
-                <input type="text" value={card.title || ''} onChange={(e) => {
+                <input type="text" value={card.title || ''} maxLength={160} onChange={(e) => {
                   const newCards = [...(localData.cards || [])];
                   newCards[idx] = { ...newCards[idx], title: e.target.value };
                   setLocalData(prev => ({ ...prev, cards: newCards }));
-                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={{ ...inputStyle, marginBottom: '8px' }} placeholder="Card Title" />
+                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={{ ...inputStyle, marginBottom: '8px' }} placeholder="Card Title (max 160 chars)" />
                 
                 <input type="text" value={card.description || ''} onChange={(e) => {
                   const newCards = [...(localData.cards || [])];
@@ -1343,16 +1600,20 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   const newCards = [...(localData.cards || [])];
                   newCards[idx] = { ...newCards[idx], buttonText: e.target.value };
                   setLocalData(prev => ({ ...prev, cards: newCards }));
-                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={inputStyle} placeholder="Button Label (e.g. Select / View)" maxLength="20" />
+                }} onBlur={() => updateNodeData(id, { cards: localData.cards })} style={inputStyle} placeholder="Button Label (e.g. Select / View)" maxLength={20} />
               </div>
             ))}
-            <button onClick={() => {
-              const newCards = [...(localData.cards || []), { id: `card_${Date.now()}`, title: '', description: '', mediaUrl: '', buttonText: 'Select' }];
-              setLocalData(prev => ({ ...prev, cards: newCards }));
-              updateNodeData(id, { cards: newCards });
-            }} style={{ background: 'transparent', color: '#ec4899', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
-              + Add Card
-            </button>
+            {(localData.cards || []).length < 10 ? (
+              <button onClick={() => {
+                const newCards = [...(localData.cards || []), { id: `card_${Date.now()}`, title: '', description: '', mediaUrl: '', buttonText: 'Select' }];
+                setLocalData(prev => ({ ...prev, cards: newCards }));
+                updateNodeData(id, { cards: newCards });
+              }} style={{ background: 'transparent', color: '#ec4899', border: 'none', fontSize: '13px', fontWeight: '600', cursor: 'pointer', padding: 0 }}>
+                + Add Card
+              </button>
+            ) : (
+              <span style={{ fontSize: '12px', color: '#9CA3AF', fontStyle: 'italic' }}>Maximum 10 cards reached (Meta limit)</span>
+            )}
           </div>
         )}
 
@@ -2670,11 +2931,21 @@ export default function NodePropertiesPane({ currentChannelId }) {
         )}
 
       </div>
+    </>
+  )}
 
       {isTriggerModalOpen && (
         <TriggerSelectionModal 
           onClose={() => setIsTriggerModalOpen(false)} 
           onSelectTrigger={handleSelectTrigger} 
+        />
+      )}
+
+      {isGuideOpen && (
+        <NodeGuideModal
+          isOpen={isGuideOpen}
+          onClose={() => setIsGuideOpen(false)}
+          nodeType={type}
         />
       )}
     </div>

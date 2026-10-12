@@ -264,7 +264,8 @@ exports.simulateStart = async (req, res, next) => {
     );
 
     // Automatically trigger/start the flow so template/first message immediately pops up in the simulator!
-    const { startFlowManually } = require('../engine/flowRunner');
+    const flowRunner = await import('../engine/flowRunner.js');
+    const startFlowManually = flowRunner.startFlowManually;
     
     // Check if flow has a triggerNode with keyword or starts with templateNode
     const triggerNode = automation.nodes?.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode');

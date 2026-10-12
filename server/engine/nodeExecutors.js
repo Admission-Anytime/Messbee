@@ -38,9 +38,13 @@ function safeSetSessionVariable(session, key, value) {
 function safeGetSessionVariable(session, key) {
   if (!session || !session.sessionVariables) return undefined;
   if (typeof session.sessionVariables.get === 'function') {
-    return session.sessionVariables.get(key);
+    const val = session.sessionVariables.get(key);
+    if (val !== undefined) return val;
   }
-  return session.sessionVariables[key];
+  if (session.sessionVariables[key] !== undefined) {
+    return session.sessionVariables[key];
+  }
+  return deepGet(session.sessionVariables, key);
 }
 
 /**
@@ -48,7 +52,7 @@ function safeGetSessionVariable(session, key) {
  * Supports fallback syntax: {{contact.name|there}}
  * Supports system variables: {{system.date}}, {{system.time}}
  */
-module.exports.parseDynamicVariables = function parseDynamicVariables(text, contextData = {}) {
+function parseDynamicVariables(text, contextData = {}) {
   if (!text || typeof text !== 'string') return text;
   
   // Inject system variables automatically
@@ -138,6 +142,7 @@ module.exports.parseDynamicVariables = function parseDynamicVariables(text, cont
     return '';
   });
 }
+module.exports.parseDynamicVariables = parseDynamicVariables;
 
 /**
  * Handles condition branches (e.g., if user variable == X)
@@ -326,8 +331,8 @@ module.exports.executeConditionNode = async function executeConditionNode(sessio
  * @param {object} contextData - Context for parsing variables
  */
 module.exports.executeApiCallNode = async function executeApiCallNode(session, node, contextData) {
-  const { endpoint, url: nodeUrl, method, headers, responseMapping, bodyParams, body } = node.data || {};
-  const rawUrl = endpoint || nodeUrl || '';
+  const { endpoint, url: nodeUrl, apiUrl, method, headers, responseMapping, bodyParams, body } = node.data || {};
+  const rawUrl = endpoint || nodeUrl || apiUrl || '';
   
   const parsedEndpoint = parseDynamicVariables(rawUrl, contextData);
   let parsedHeaders = {};
@@ -342,7 +347,8 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
 
   let requestBody = undefined;
   const rawBody = bodyParams || body;
-  if (rawBody && (method === 'POST' || method === 'PUT')) {
+  const upperMethod = String(method || 'GET').toUpperCase();
+  if (rawBody && ['POST', 'PUT', 'PATCH'].includes(upperMethod)) {
     try {
       const parsedB = typeof rawBody === 'string' ? JSON.parse(rawBody) : rawBody;
       const finalBody = {};
@@ -356,9 +362,10 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
   
   try {
     const axiosConfig = {
-      method: method || 'GET',
+      method: upperMethod,
       url: parsedEndpoint,
-      headers: parsedHeaders
+      headers: parsedHeaders,
+      timeout: 10000
     };
     if (requestBody) {
       // Axios parses strings automatically if header is application/json
@@ -370,14 +377,20 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
     const data = response.data;
 
     // Map response fields back to session variables if configured
-    if (responseMapping && responseMapping.length > 0) {
-      responseMapping.forEach(mapping => {
-        // Advanced Extraction: Supports nested JSON paths like 'user.profile.email'
-        const extractedValue = deepGet(data, mapping.responseField);
+    if (responseMapping) {
+      if (Array.isArray(responseMapping)) {
+        responseMapping.forEach(mapping => {
+          const extractedValue = deepGet(data, mapping.responseField);
+          if (extractedValue !== undefined) {
+            safeSetSessionVariable(session, mapping.sessionVariable, extractedValue);
+          }
+        });
+      } else if (typeof responseMapping === 'string') {
+        const extractedValue = deepGet(data, responseMapping);
         if (extractedValue !== undefined) {
-          safeSetSessionVariable(session, mapping.sessionVariable, extractedValue);
+          safeSetSessionVariable(session, node.data.saveVariable || 'api_response', extractedValue);
         }
-      });
+      }
     }
 
     return 'success';
@@ -527,10 +540,17 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
       safeSetSessionVariable(session, targetKey, parsedValue);
       safeSetSessionVariable(session, `contact.${targetKey.replace(/^contact\./, '')}`, parsedValue);
 
-      if (contextData?.contact?.phone) {
+      if (targetPhone) {
         try {
           const rawKey = targetKey.replace(/^contact\./, '');
-          const dbContact = await Contact.findOne({ phone: contextData.contact.phone });
+          const cleanPhone = String(targetPhone).replace(/\D/g, '');
+          const dbContact = await Contact.findOne({
+            $or: [
+              { phone: targetPhone },
+              { phone: cleanPhone },
+              { phone: `+${cleanPhone}` }
+            ]
+          });
           if (dbContact) {
             if (['name', 'email'].includes(rawKey)) {
               dbContact[rawKey] = parsedValue;
@@ -579,6 +599,17 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
     return 'success';
   }
 
+  if (actionType === 'set_variable') {
+    const varName = node.data.variableName || node.data.fieldKey || node.data.key;
+    const rawVal = node.data.variableValue !== undefined ? node.data.variableValue : (node.data.fieldValue !== undefined ? node.data.fieldValue : node.data.value);
+    if (varName && rawVal !== undefined) {
+      const parsedValue = parseDynamicVariables(rawVal, contextData);
+      safeSetSessionVariable(session, varName, parsedValue);
+      if (session.save) await session.save();
+    }
+    return 'success';
+  }
+
   if (actionType === 'unassign_team') {
     session.status = 'ACTIVE';
     session.assignedTo = null;
@@ -587,6 +618,8 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
 
   return 'success';
 }
+
+module.exports.executeApiNode = module.exports.executeApiCallNode;
 
 /**
  * Executes a dedicated Google Sheets integration node
@@ -674,17 +707,21 @@ module.exports.executeAiNode = async function executeAiNode(session, node, conte
  * @returns {string} - The edge handle to follow ('path_a' or 'path_b')
  */
 module.exports.executeRandomizerNode = async function executeRandomizerNode(session, node) {
-  const { splitPercentage } = node.data;
-  const targetSplit = Number(splitPercentage) || 50;
+  const { splitPercentage } = node?.data || {};
+  const targetSplit = (splitPercentage !== undefined && splitPercentage !== null && !isNaN(Number(splitPercentage))) ? Number(splitPercentage) : 50;
   
   // Math.random() is between 0 (inclusive) and 1 (exclusive). Multiply by 100 to get percentage scale.
   const rand = Math.random() * 100;
-  
-  if (rand < targetSplit) {
-    return 'path_a';
-  } else {
-    return 'path_b';
+  const chosenHandle = (rand < targetSplit) ? 'path_a' : 'path_b';
+
+  if (session && session.sessionVariables) {
+    session.sessionVariables['randomizer_path'] = chosenHandle;
+    session.sessionVariables['ab_variant'] = chosenHandle === 'path_a' ? 'A' : 'B';
+    session.markModified('sessionVariables');
+    await session.save();
   }
+  
+  return chosenHandle;
 }
 
 /**

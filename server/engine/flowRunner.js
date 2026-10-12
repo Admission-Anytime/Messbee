@@ -148,7 +148,7 @@ function syncContextVariables(session, contextData) {
 /**
  * Evaluates whether incoming text/media matches an automation trigger node
  */
-function isFlowTriggerMatch(tNode, payloadText, messageContext = {}, isNewContact = false) {
+export function isFlowTriggerMatch(tNode, payloadText, messageContext = {}, isNewContact = false) {
   if (!tNode || !tNode.data) return false;
   let matchType = String(tNode.data.matchType || tNode.data.triggerType || 'exact_match').toLowerCase().trim();
   if (matchType === 'keyword') {
@@ -177,11 +177,36 @@ function isFlowTriggerMatch(tNode, payloadText, messageContext = {}, isNewContac
   if (matchType === 'contact_shared') return isContact;
   if (matchType === 'reaction') return isReaction;
   if (['media_any', 'media_received'].includes(matchType)) return isImage || isVideo || isDoc || isAudio;
-  if (['order_created', 'order'].includes(matchType)) return isOrder;
   if (['new_subscriber', 'new_contact'].includes(matchType)) return !!isNewContact;
 
+  if (matchType === 'whatsapp_ad') {
+    const ref = messageContext?.referral;
+    if (ref && (ref.source_type === 'ad' || ref.source_id)) {
+      if (!kw) return true;
+      const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      const adId = String(ref.source_id || '').toLowerCase();
+      const adHeadline = String(ref.headline || '').toLowerCase();
+      return keywords.some(k => adId.includes(k) || adHeadline.includes(k) || lowerPayload.includes(k) || (cleanPayload && cleanPayload.includes(k)));
+    }
+    if (kw !== '') {
+      const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      return keywords.includes(lowerPayload) || (cleanPayload && keywords.includes(cleanPayload));
+    }
+    return false;
+  }
+
+  if (matchType === 'welcome_message') {
+    const isGreeting = ['hi', 'hello', 'hey', 'start', 'namaste'].includes(lowerPayload) || (cleanPayload && ['hi', 'hello', 'hey', 'start', 'namaste'].includes(cleanPayload));
+    if (isNewContact || isGreeting) return true;
+    if (kw !== '') {
+      const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
+      return keywords.includes(lowerPayload) || (cleanPayload && keywords.includes(cleanPayload));
+    }
+    return false;
+  }
+
   // Keyword-based matching
-  if (['exact_match', 'exact', 'qr_link', 'whatsapp_ad', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
+  if (['exact_match', 'exact', 'qr_link', 'interactive_template', 'template_reply', 'button_click', 'list_selection'].includes(matchType) && kw !== '') {
     const keywords = kw.split(',').map(k => k.trim().toLowerCase()).filter(Boolean);
     return keywords.includes(lowerPayload) || (cleanPayload && keywords.includes(cleanPayload));
   } else if (['contains', 'contain', 'includes'].includes(matchType) && kw !== '') {
@@ -533,7 +558,7 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
 /**
  * Constructs the interactive payload based on node data
  */
-function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
+export function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   const basePayload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -547,11 +572,11 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
 
   if (messageType === 'interactive' || nodeType === 'interactiveNode') {
     if (btns.length === 0) {
-      return { ...basePayload, type: 'text', text: { body: parsedText || 'Please configure buttons.' } };
+      return { ...basePayload, type: 'text', text: { body: (parsedText || 'Please configure buttons.').substring(0, 4096) } };
     }
     const interactive = {
       type: 'button',
-      body: { text: parsedText || 'Select an option' },
+      body: { text: (parsedText || 'Select an option').substring(0, 1024) },
       action: {
         buttons: btns.slice(0, 3).map((btn, idx) => {
           const rawId = parseDynamicVariables(btn.id, contextData) ?? btn.id;
@@ -569,16 +594,21 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       }
     };
 
-    if (headerType && headerText) {
-      interactive.header = { type: 'text', text: parseDynamicVariables(headerText, contextData) };
-    } else if (headerType && mediaUrl) {
-      const parsedMediaUrl = parseDynamicVariables(mediaUrl, contextData);
+    const effectiveHeaderText = headerText || nodeData.headline;
+    if ((headerType === 'text' || (!headerType && effectiveHeaderText)) && effectiveHeaderText) {
+      interactive.header = { type: 'text', text: String(parseDynamicVariables(effectiveHeaderText, contextData)).substring(0, 60) };
+    } else if (headerType && ['image', 'video', 'document'].includes(headerType) && (mediaUrl || nodeData.mediaUrl)) {
+      const parsedMediaUrl = parseDynamicVariables(mediaUrl || nodeData.mediaUrl, contextData);
       if (parsedMediaUrl) {
         interactive.header = {
           type: headerType,
           [headerType]: { link: parsedMediaUrl }
         };
       }
+    }
+
+    if (nodeData.footer) {
+      interactive.footer = { text: String(parseDynamicVariables(nodeData.footer, contextData)).substring(0, 60) };
     }
 
     return {
@@ -592,7 +622,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     return {
       ...basePayload,
       type: 'text',
-      text: { body: parsedText || ' ' }
+      text: { body: (parsedText || ' ').substring(0, 4096) }
     };
   }
 
@@ -646,18 +676,31 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       interactive: {
         type: 'list',
         header: resolvedHeader ? { type: 'text', text: (parseDynamicVariables(resolvedHeader, contextData) || '').substring(0, 60) } : undefined,
-        body: { text: parsedText || 'Please select an option from the list' },
+        body: { text: (parsedText || 'Please select an option from the list').substring(0, 1024) },
         footer: nodeData.footer ? { text: (parseDynamicVariables(nodeData.footer, contextData) || '').substring(0, 60) } : undefined,
         action: {
           button: (parseDynamicVariables(nodeData.menuButtonText, contextData) || 'View Options').substring(0, 20),
-          sections: validSections.map(sec => ({
-            title: (parseDynamicVariables(sec.title, contextData) || 'Options').substring(0, 24),
-            rows: (sec.rows || []).slice(0, 10).map((row, rIdx) => ({
-              id: (parseDynamicVariables(row.postbackId, contextData) || row.id || `row_${rIdx}`).substring(0, 200),
-              title: (parseDynamicVariables(row.title, contextData) || `Option ${rIdx + 1}`).substring(0, 24),
-              description: row.description ? (parseDynamicVariables(row.description, contextData) || '').substring(0, 72) : undefined
-            }))
-          }))
+          sections: (() => {
+            let totalRowsCount = 0;
+            const finalSections = [];
+            for (const sec of validSections.slice(0, 10)) {
+              if (totalRowsCount >= 10) break;
+              const remainingAllowed = 10 - totalRowsCount;
+              const allowedRows = (sec.rows || []).slice(0, remainingAllowed);
+              if (allowedRows.length > 0) {
+                finalSections.push({
+                  title: (parseDynamicVariables(sec.title, contextData) || 'Options').substring(0, 24),
+                  rows: allowedRows.map((row, rIdx) => ({
+                    id: (parseDynamicVariables(row.postbackId, contextData) || row.id || `row_${rIdx}`).substring(0, 200),
+                    title: (parseDynamicVariables(row.title, contextData) || `Option ${rIdx + 1}`).substring(0, 24),
+                    description: row.description ? (parseDynamicVariables(row.description, contextData) || '').substring(0, 72) : undefined
+                  }))
+                });
+                totalRowsCount += allowedRows.length;
+              }
+            }
+            return finalSections;
+          })()
         }
       }
     };
@@ -689,8 +732,9 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       type: metaType,
       [metaType]: {
         link: parsedMediaUrl,
+        ...(metaType === 'document' ? { filename: nodeData.fileName || nodeData.filename || parsedMediaUrl.split('/').pop() } : {}),
         ...(nodeData.messageType === 'voice' ? { ptt: true } : {}),
-        ...(!isAudioOrSticker ? { caption: parseDynamicVariables(nodeData.text, contextData) } : {})
+        ...(!isAudioOrSticker && parseDynamicVariables(nodeData.text, contextData) ? { caption: String(parseDynamicVariables(nodeData.text, contextData)).substring(0, 1024) } : {})
       }
     };
   }
@@ -795,6 +839,22 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       }
     }
 
+    // 5. Dynamic URL Button Parameter (e.g. tracking link {{1}})
+    if (nodeData.buttonUrlVariable || nodeData.buttonUrlValue) {
+      const urlParam = parseDynamicVariables(nodeData.buttonUrlVariable || nodeData.buttonUrlValue, contextData);
+      if (urlParam) {
+        components.push({
+          type: 'button',
+          sub_type: 'url',
+          index: String(nodeData.buttonUrlIndex !== undefined ? nodeData.buttonUrlIndex : (nodeData.offerCode || nodeData.couponCode ? '1' : '0')),
+          parameters: [{
+            type: 'text',
+            text: String(urlParam).trim()
+          }]
+        });
+      }
+    }
+
     if (components.length > 0) {
       payload.template.components = components;
     }
@@ -803,11 +863,17 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (nodeType === 'reactionNode') {
+    const targetMsgId = contextData.incomingMessageId || (phone.startsWith('SIMULATOR_') ? `sim_msg_${Date.now()}` : null);
+    if (!targetMsgId) {
+      // If no inbound message to react to, log and skip crashing
+      logger.warn(`[FlowRunner] reactionNode has no incomingMessageId to react to on phone ${phone}.`);
+      return { ...basePayload, type: 'text', text: { body: nodeData.emoji || '👍' } };
+    }
     return {
       ...basePayload,
       type: 'reaction',
       reaction: {
-        message_id: contextData.incomingMessageId || 'dummy_id',
+        message_id: targetMsgId,
         emoji: nodeData.emoji || '👍'
       }
     };
@@ -828,7 +894,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
     } else if (nodeData.utilityType === 'contact') {
       const contactObj = {
         name: { formatted_name: parseDynamicVariables(nodeData.contactName, contextData) || 'Contact' },
-        phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) || '' }]
+        phones: [{ phone: parseDynamicVariables(nodeData.contactPhone, contextData) || '', type: 'CELL' }]
       };
       if (nodeData.contactEmail) {
         contactObj.emails = [{ email: parseDynamicVariables(nodeData.contactEmail, contextData), type: 'WORK' }];
@@ -872,7 +938,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       };
 
       if (nodeData.footer) {
-        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
+        interactive.footer = { text: String(parseDynamicVariables(nodeData.footer, contextData)).substring(0, 60) };
       }
 
       return {
@@ -888,12 +954,12 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
 
       const interactive = {
         type: 'product_list',
-        header: { type: 'text', text: parseDynamicVariables(nodeData.headerText, contextData) || 'Products' },
+        header: { type: 'text', text: String(parseDynamicVariables(nodeData.headerText, contextData) || 'Products').substring(0, 60) },
         body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Check out our products!' },
         action: {
           catalog_id: effectiveCatalogId,
           sections: validSections.map(sec => ({
-            title: parseDynamicVariables(sec.title, contextData) || 'Section',
+            title: String(parseDynamicVariables(sec.title, contextData) || 'Section').substring(0, 24),
             product_items: sec.productItems.slice(0, 30).map(item => ({
               product_retailer_id: parseDynamicVariables(item.productId, contextData) || 'product_1'
             }))
@@ -902,7 +968,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       };
 
       if (nodeData.footer) {
-        interactive.footer = { text: parseDynamicVariables(nodeData.footer, contextData) };
+        interactive.footer = { text: String(parseDynamicVariables(nodeData.footer, contextData)).substring(0, 60) };
       }
 
       return {
@@ -942,12 +1008,25 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       type: 'interactive',
       interactive: {
         type: 'poll',
-        body: { text: parseDynamicVariables(nodeData.text, contextData) || 'Poll' },
+        body: { text: String(parseDynamicVariables(nodeData.text, contextData) || 'Poll').substring(0, 255) },
         action: {
           name: 'poll',
-          options: validOptions.slice(0, 12).map(opt => ({
-            option_name: parseDynamicVariables(opt.text, contextData)
-          }))
+          ...(nodeData.allowMultipleAnswers ? {} : { selectable_options_count: 1 }),
+          options: (() => {
+            const seen = new Set();
+            const out = [];
+            for (const opt of validOptions) {
+              let name = String(parseDynamicVariables(opt.text, contextData) || '').trim().substring(0, 100);
+              if (!name) continue;
+              if (seen.has(name.toLowerCase())) {
+                name = `${name} (${out.length + 1})`.substring(0, 100);
+              }
+              seen.add(name.toLowerCase());
+              out.push({ option_name: name });
+              if (out.length >= 12) break;
+            }
+            return out;
+          })()
         }
       }
     };
@@ -1003,13 +1082,17 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
   }
 
   if (nodeType === 'carouselNode') {
-    const cards = (nodeData.cards || []).map(card => {
+    const rawCards = (nodeData.cards || []).slice(0, 10);
+    const cards = rawCards.map((card, cardIndex) => {
       const parsedImage = parseDynamicVariables(card.mediaUrl, contextData);
       const header = parsedImage ? { type: 'image', image: { link: parsedImage } } : undefined;
+      const btnTitle = (parseDynamicVariables(card.buttonText, contextData) || 'Select').substring(0, 20);
+      const cardTitle = (parseDynamicVariables(card.title, contextData) || 'Card Title').substring(0, 160);
       return {
+        card_index: cardIndex,
         header,
-        body: { text: parseDynamicVariables(card.title, contextData) || 'Card Title' },
-        action: { buttons: [{ type: 'reply', reply: { id: `btn_${card.id || Date.now()}`, title: parseDynamicVariables(card.buttonText, contextData) || 'Select' } }] }
+        body: { text: cardTitle },
+        action: { buttons: [{ type: 'reply', reply: { id: `btn_${card.id || cardIndex}`, title: btnTitle } }] }
       };
     });
     if (cards.length === 0) return { ...basePayload, type: 'text', text: { body: 'Empty Carousel' } };
@@ -1019,7 +1102,7 @@ function buildMessagePayload(phone, nodeType, nodeData, contextData = {}) {
       type: 'interactive',
       interactive: {
         type: 'carousel',
-        body: { text: 'Swipe to see more' },
+        body: { text: (parseDynamicVariables(nodeData.text, contextData) || 'Swipe to see more').substring(0, 1024) },
         action: { cards }
       }
     };
@@ -1035,6 +1118,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * Traverses the graph from the given start node until it hits a blocking node (wait for input, delay, or end).
  */
 export async function processSpecificNode(customerPhone, channelId, startNodeId) {
+  if (!startNodeId) {
+    logger.warn('[FlowRunner] processSpecificNode invoked with invalid startNodeId for ' + customerPhone + '. Aborting.');
+    return;
+  }
   try {
     const phoneVariants = [
       customerPhone,
@@ -1166,6 +1253,7 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           ...contactFields
         } : { phone: customerPhone, id: session._id, name: isSim ? defaultSimName : '' },
         tenantSettings: tenantSettings || {},
+        incomingMessageId: session.lastIncomingMessageId || null,
         ...sessionVars
       };
 
@@ -1356,6 +1444,10 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
             break;
           } else if (hasInteractiveOptions) {
             // Interactive nodes with outgoing edges block execution and wait for user reply
+            session.status = 'WAITING_FOR_INPUT';
+            session.expectedValidation = 'interactive';
+            session.validationRetries = 0;
+            await session.save();
             isBlockingNode = true;
             keepRunning = false;
           } else {
@@ -1810,6 +1902,9 @@ export function extractDateAndTime(text) {
  */
 export async function executeWorkflowStep(customerPhone, incomingPayload, channelId, referral = null, incomingMessageId = null, simulatorTargetFlowId = null, isNewContact = false, messageContext = {}) {
   try {
+    if (referral && !messageContext.referral) {
+      messageContext.referral = referral;
+    }
     // IMPORTANT: metaAccessToken has `select: false` in schema — must explicitly select it
     let channel = await Channel.findById(channelId).select('+metaAccessToken');
 
@@ -2124,7 +2219,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
           let buttons = node.data?.buttons || node.data?.interactiveButtons || [];
           if (node.type === 'carouselNode' && Array.isArray(node.data?.cards)) {
-            buttons = node.data.cards.flatMap(c => c.buttons || []);
+            buttons = node.data.cards.flatMap((c, cIdx) => {
+              if (Array.isArray(c.buttons) && c.buttons.length > 0) return c.buttons;
+              if (c.buttonText) return [{ id: c.id || `card_${cIdx}`, title: c.buttonText, text: c.buttonText, payload: c.id || c.title || `btn_${cIdx}` }];
+              return [];
+            });
           }
           if ((!buttons || buttons.length === 0) && node.type === 'templateNode' && node.data?.templateName) {
             try {
@@ -2353,17 +2452,20 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           const rootNode = flowToRestart.nodes.find(n => n.type === 'triggerNode' || n.type === 'eventTriggerNode') || flowToRestart.nodes[0];
           const activeEdges = Array.isArray(flowToRestart.edges) ? flowToRestart.edges : [];
           const outgoing = activeEdges.filter(e => e && e.source === rootNode.id);
-          const startNodeId = outgoing.length > 0 ? outgoing[0].target : rootNode.id;
+          const mainEdge = outgoing.find(e => e.sourceHandle === 'main-handle') || outgoing[0];
+          const startNodeId = mainEdge ? mainEdge.target : (rootNode ? rootNode.id : null);
 
-          const newSession = new CustomerSession({
-            phone: customerPhone,
-            channelId: effectiveChannelId,
-            activeFlowId: flowToRestart._id,
-            currentNodeId: rootNode.id,
-            sessionVariables: {}
-          });
-          await newSession.save();
-          await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
+          if (startNodeId) {
+            const newSession = new CustomerSession({
+              phone: customerPhone,
+              channelId: effectiveChannelId,
+              activeFlowId: flowToRestart._id,
+              currentNodeId: rootNode ? rootNode.id : startNodeId,
+              sessionVariables: {}
+            });
+            await newSession.save();
+            await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
+          }
           return;
         }
       }
@@ -2517,6 +2619,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
       activeFlow = matchedFlow;
       let triggerNode = matchedTriggerNode;
+      if (!activeFlow) {
+        for (const flow of allActiveFlows) {
+          const tNode = (flow.nodes || []).find(n => n && (n.type === 'triggerNode' || n.type === 'eventTriggerNode') && String(n.data?.triggerType).toLowerCase() === 'fallback');
+          if (tNode) {
+            matchedFlow = flow;
+            matchedTriggerNode = tNode;
+            activeFlow = flow;
+            triggerNode = tNode;
+            logger.log(`[FlowRunner] 🎯 Matched custom Fallback flow '${flow.name}'`);
+            break;
+          }
+        }
+      }
 
       if (!activeFlow) {
         // Fallback: check dynamic settings first
@@ -2564,7 +2679,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         if (isTriggerType) {
           const activeEdges = Array.isArray(activeFlow?.edges) ? activeFlow.edges : [];
           const outgoingEdges = activeEdges.filter(e => e && e.source === triggerNode.id);
-          nextNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+          const mainEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
+          nextNodeId = mainEdge ? mainEdge.target : null;
         } else {
           nextNodeId = triggerNode.id;
         }
@@ -2613,15 +2729,20 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           const waitEdge = activeFlow.edges.find(e => e.source === session.currentNodeId && e.sourceHandle === 'event_happened') ||
                            activeFlow.edges.find(e => e.source === session.currentNodeId && (!e.sourceHandle || e.sourceHandle !== 'timeout')) ||
                            activeFlow.edges.find(e => e.source === session.currentNodeId);
-          if (waitEdge) {
+          if (waitEdge && waitEdge.target) {
             await processSpecificNode(customerPhone, channelId, waitEdge.target);
             return;
           }
         }
       }
 
-      if (session.status === 'WAITING_FOR_INPUT') {
+      if (session.status === 'WAITING_FOR_INPUT' || session.status === 'ACTIVE') {
         const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
+        if (!currentNode) {
+          logger.warn('[FlowRunner] Current node not found. Completing session.');
+          await markSessionCompleted(session, customerPhone, channelId);
+          return;
+        }
         const nodeQuestion = String(currentNode?.data?.text || currentNode?.data?.question || '').toLowerCase();
         const validationType = String(session.expectedValidation || currentNode?.data?.validationType || 'text').toLowerCase().trim();
 
@@ -2751,6 +2872,17 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           if (!channelToUse) channelToUse = channel;
           
           if (session.validationRetries >= 3) {
+            const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
+            const fallbackEdge = outgoingEdges.find(e => e.sourceHandle === 'fallback' || e.sourceHandle === 'error');
+            if (fallbackEdge && fallbackEdge.target) {
+              session.status = 'ACTIVE';
+              session.expectedValidation = null;
+              session.validationRetries = 0;
+              await session.save();
+              await processSpecificNode(customerPhone, channelId, fallbackEdge.target);
+              return;
+            }
+
             session.status = 'HANDOFF';
             await session.save();
             await sendWhatsAppMessage(customerPhone, {
@@ -2900,6 +3032,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             session.sessionVariables['slot'] = extractedDateTime.slot;
             session.sessionVariables['datetime'] = extractedDateTime.slot;
           }
+        if (validationType === 'location' && messageContext?.location) {
+          const loc = messageContext.location;
+          session.sessionVariables['latitude'] = loc.latitude;
+          session.sessionVariables['longitude'] = loc.longitude;
+          session.sessionVariables['contact.latitude'] = loc.latitude;
+          session.sessionVariables['contact.longitude'] = loc.longitude;
+          if (loc.address) {
+            session.sessionVariables['address'] = loc.address;
+            session.sessionVariables['contact.address'] = loc.address;
+          }
+          if (loc.name) {
+            session.sessionVariables['location_name'] = loc.name;
+          }
         }
         
         // Save both with and without prefix so {{neet_score}} and {{contact.neet_score}} both work!
@@ -3048,7 +3193,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
              if (currentNode.type === 'interactiveNode' || currentNode.type === 'messageNode' || currentNode.type === 'templateNode' || currentNode.type === 'carouselNode') {
                  let buttons = currentNode.data?.buttons || [];
                  if (currentNode.type === 'carouselNode' && Array.isArray(currentNode.data?.cards)) {
-                   buttons = currentNode.data.cards.flatMap(c => c.buttons || []);
+                   buttons = currentNode.data.cards.flatMap((c, cIdx) => {
+                     if (Array.isArray(c.buttons) && c.buttons.length > 0) return c.buttons;
+                     if (c.buttonText) return [{ id: c.id || `card_${cIdx}`, title: c.buttonText, text: c.buttonText, payload: c.id || c.title || `btn_${cIdx}` }];
+                     return [];
+                   });
                  }
                  if ((!buttons || buttons.length === 0) && currentNode.type === 'templateNode' && currentNode.data?.templateName) {
                    try {
@@ -3094,9 +3243,15 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       `button ${idx + 1}`,
                       `btn ${idx + 1}`
                    ].filter(Boolean);
-                   return candidateInputs.some(ci => 
-                     bCandidates.includes(ci) || bCandidates.some(bc => bc.includes(ci) || ci.includes(bc))
-                   );
+
+                    return candidateInputs.some(ci => {
+                      if (!ci) return false;
+                      if (bCandidates.includes(ci)) return true;
+                      if (ci.length >= 3) {
+                        return bCandidates.some(bc => bc && (bc.includes(ci) || ci.includes(bc)));
+                      }
+                      return false;
+                    });
                  });
 
                  if (btnIdx !== -1) {
@@ -3213,9 +3368,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       `row ${rIdx + 1}`
                     ].filter(Boolean);
 
-                    const isMatch = candidateInputs.some(ci =>
-                      rCandidates.includes(ci) || rCandidates.some(rc => rc.includes(ci) || ci.includes(rc))
-                    );
+                    const isMatch = candidateInputs.some(ci => {
+                      if (!ci) return false;
+                      if (rCandidates.includes(ci)) return true;
+                      if (ci.length >= 3) {
+                        return rCandidates.some(rc => rc && (rc.includes(ci) || ci.includes(rc)));
+                      }
+                      return false;
+                    });
 
                     if (isMatch) {
                       matchedRow = r;
@@ -3391,27 +3551,21 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
              }
           }
 
-          // 1. Check if flow designer connected to the 'main-handle' (Next step fallback)
-          if (!matchedEdge) {
-            matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
-          }
-
-          // 2. Generic edge without specific handle ('default', null, undefined, or empty)
-          if (!matchedEdge) {
-            matchedEdge = outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle === 'default' || e.sourceHandle === '');
-          }
-
-          // 3. Fallback to a single outgoing edge: If node has only 1 connected edge, any valid interaction MUST advance through it!
-          if (!matchedEdge && outgoingEdges.length === 1) {
-            matchedEdge = outgoingEdges[0];
-          }
-
-          // 4. Fallback if an explicit choice was recognized or button tapped, and connected outgoing edges exist:
-          // Advance via first available non-timeout edge
-          if (!matchedEdge && (isExplicitChoiceRecognized || isButtonTap) && outgoingEdges.length > 0) {
-            const nonTimeout = outgoingEdges.find(e => e.sourceHandle !== 'timeout');
-            matchedEdge = nonTimeout || outgoingEdges[0];
-            logger.log(`[FlowRunner] Choice '${incomingPayload}' on ${currentNode?.type} matched via fallback edge to target: ${matchedEdge?.target}`);
+          // Fallback edges ONLY allowed if customer actually tapped a button or selected a recognized option
+          if (isExplicitChoiceRecognized || isButtonTap) {
+            if (!matchedEdge) {
+              matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle');
+            }
+            if (!matchedEdge) {
+              matchedEdge = outgoingEdges.find(e => !e.sourceHandle || e.sourceHandle === 'default' || e.sourceHandle === '');
+            }
+            if (!matchedEdge && outgoingEdges.length === 1) {
+              matchedEdge = outgoingEdges[0];
+            }
+            if (!matchedEdge && outgoingEdges.length > 0) {
+              const nonTimeout = outgoingEdges.find(e => e.sourceHandle !== 'timeout');
+              matchedEdge = nonTimeout || outgoingEdges[0];
+            }
           }
 
           // 5. Leaf terminal node (only if no outgoing edges exist at all)
@@ -3520,7 +3674,13 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
     // 3. Delegate to the recursive node processor
     const effectiveChannelId = channel._id ? channel._id.toString() : channelId;
-    await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
+    if (nextNodeId) {
+      session.status = 'ACTIVE';
+      session.currentNodeId = nextNodeId;
+      await session.save();
+      await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
+    }
+    }
 
   } catch (error) {
     logger.error('Workflow Entry Error:', error);
@@ -3575,7 +3735,8 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     if (isTriggerType) {
       // For trigger nodes, start from their outgoing target node
       const outgoingEdges = activeFlow.edges.filter(e => e.source === rootNode.id);
-      startNodeId = outgoingEdges.length > 0 ? outgoingEdges[0].target : null;
+      const mainEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle') || outgoingEdges[0];
+      startNodeId = mainEdge ? mainEdge.target : null;
       if (!startNodeId) {
         logger.warn(`Flow ${flowId} trigger node is not connected to anything.`);
         return;
@@ -3602,7 +3763,11 @@ export async function startFlowManually(customerPhone, channelId, flowId, eventD
     await session.save();
 
     // Begin execution
-    await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
+    if (startNodeId) {
+      await processSpecificNode(customerPhone, effectiveChannelId, startNodeId);
+    } else {
+      logger.warn('Flow ' + flowId + ' could not resolve startNodeId.');
+    }
 
   } catch (error) {
     logger.error('Error in startFlowManually:', error);
