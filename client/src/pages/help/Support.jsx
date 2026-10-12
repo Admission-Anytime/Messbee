@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   MagnifyingGlassIcon, RocketLaunchIcon, CodeBracketIcon, CreditCardIcon, ShieldCheckIcon, MegaphoneIcon,
   WrenchScrewdriverIcon, ChevronDownIcon, ChatBubbleLeftRightIcon, EnvelopeIcon, PhoneIcon, ClockIcon,
+  CpuChipIcon
 } from "@heroicons/react/24/solid";
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -54,10 +55,10 @@ export default function Support() {
   };
 
   const categories = [
+    { title: "Automation & Workflows", icon: CpuChipIcon, count: 22, slug: "automation" },
     { title: "Getting Started", icon: RocketLaunchIcon, count: 12, slug: "get-started" },
     { title: "API & Webhooks", icon: CodeBracketIcon, count: 24, slug: "api-webhooks" },
     { title: "Billing & Plans", icon: CreditCardIcon, count: 8, slug: "billing-plans" },
-    // ✅ ADDED WHATSAPP COMPLIANCE BACK!
     { title: "WhatsApp Compliance", icon: ShieldCheckIcon, count: 15, slug: "whatsapp-compliance" },
     { title: "Campaigns", icon: MegaphoneIcon, count: 10, slug: "campaigns" },
     { title: "Troubleshooting", icon: WrenchScrewdriverIcon, count: 18, slug: "troubleshooting" },

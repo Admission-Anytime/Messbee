@@ -4,7 +4,8 @@ import {
   BookOpenIcon, 
   QuestionMarkCircleIcon, 
   LifebuoyIcon, 
-  CodeBracketIcon 
+  CodeBracketIcon,
+  CpuChipIcon
 } from "@heroicons/react/24/outline";
 
 const HelpLayout = () => {
@@ -12,6 +13,7 @@ const HelpLayout = () => {
 
   const navItems = [
     { name: "Introduction", path: "/admin/help/introduction", icon: BookOpenIcon },
+    { name: "Automation Docs", path: "/admin/help/automation", icon: CpuChipIcon },
     { name: "FAQ", path: "/admin/help/faq", icon: QuestionMarkCircleIcon },
     { name: "Support Center", path: "/admin/help/support", icon: LifebuoyIcon },
     { name: "API Documentation", path: "/admin/help/api-docs", icon: CodeBracketIcon },

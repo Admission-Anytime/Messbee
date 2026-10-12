@@ -118,6 +118,7 @@ const Introduction = lazy(() => import("./pages/help/introduction"));
 const Faq = lazy(() => import("./pages/help/Faq"));
 const ApiDocs = lazy(() => import("./pages/help/ApiDocs"));
 const Support = lazy(() => import("./pages/help/Support"));
+const AutomationDocs = lazy(() => import("./pages/help/AutomationDocs"));
 
 // Support Sub-pages (Removed Whatsapp)
 const GetStarted = lazy(() => import("./pages/help/support/GetStarted"));
@@ -517,11 +518,13 @@ function App() {
             <Route path="introduction" element={<Introduction />} />
             <Route path="faq" element={<Faq />} />
             <Route path="api-docs" element={<ApiDocs />} />
+            <Route path="automation" element={<AutomationDocs />} />
             
             {/* Support Hub and sub-pages */}
             <Route path="support">
               <Route index element={<Support />} />
               <Route path="get-started" element={<GetStarted />} />
+              <Route path="automation" element={<AutomationDocs />} />
               <Route
                 path="api-webhooks"
                 element={
@@ -536,6 +539,10 @@ function App() {
               <Route path="whatsapp-compliance" element={<WhatsAppConfig />} />
             </Route>
           </Route>
+
+          {/* Quick redirect for /help */}
+          <Route path="/help" element={<Navigate to="/admin/help/automation" replace />} />
+          <Route path="/help/*" element={<Navigate to="/admin/help/automation" replace />} />
 
         </Route>
 
