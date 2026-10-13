@@ -72,6 +72,7 @@ export default function AddNextStepModal({ onClose, onSelectStep }) {
     {
       group: 'ACTIONS',
       items: [
+        { id: 'notify_whatsapp', label: 'Send WhatsApp Alert (Staff / Admin)', icon: <Smartphone size={16} />, color: '#10b981', bg: '#d1fae5' },
         { id: 'add_tag', label: 'Add Tag', icon: <Tag size={16} />, color: '#10b981', bg: '#d1fae5' },
         { id: 'remove_tag', label: 'Remove Tag', icon: <Tag size={16} />, color: '#ef4444', bg: '#fee2e2' },
         { id: 'human_handoff', label: 'Human Handoff', icon: <UserPlus size={16} />, color: '#6366f1', bg: '#e0e7ff' },

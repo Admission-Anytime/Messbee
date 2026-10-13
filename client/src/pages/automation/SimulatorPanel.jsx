@@ -88,7 +88,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                 return (
                   <div 
                     key={i} 
-                    onClick={() => sendSimulatedReply(bTitle, { buttonId: bId, buttonTitle: bTitle, buttonText: bTitle, buttonIdx: i })}
+                    onClick={() => sendSimulatedReply(bTitle, { isButtonTap: true, buttonId: bId, buttonTitle: bTitle, buttonText: bTitle, buttonIdx: i })}
                     style={{ padding: '8px 12px', background: '#e0f2fe', color: '#0369a1', borderRadius: '6px', textAlign: 'center', fontSize: '13px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s', border: '1px solid #bae6fd' }}
                     onMouseOver={(e) => e.currentTarget.style.background = '#bae6fd'}
                     onMouseOut={(e) => e.currentTarget.style.background = '#e0f2fe'}
@@ -119,7 +119,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
                     {(sec.rows || []).map((r, j) => (
                       <li 
                         key={j} 
-                        onClick={() => sendSimulatedReply(r.title, { listId: r.id || r.postbackId || `row_${j}`, listTitle: r.title, rowId: r.id || r.postbackId || `row_${j}`, rowIdx: j })}
+                        onClick={() => sendSimulatedReply(r.title, { isButtonTap: true, listId: r.id || r.postbackId || `row_${j}`, listTitle: r.title, rowId: r.id || r.postbackId || `row_${j}`, rowIdx: j })}
                         style={{ padding: '4px 0', cursor: 'pointer' }}
                         onMouseOver={(e) => e.currentTarget.style.opacity = '0.7'}
                         onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
@@ -387,8 +387,21 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }]);
 
+    let phoneToUse = simulatorPhone;
+    if (!phoneToUse) {
+      let userId = 'user';
+      try {
+        const storedUser = JSON.parse(localStorage.getItem('user'));
+        if (storedUser?._id || storedUser?.id) {
+          userId = storedUser._id || storedUser.id;
+        }
+      } catch (e) {}
+      phoneToUse = `SIMULATOR_${userId}`;
+      setSimulatorPhone(phoneToUse);
+    }
+
     try {
-      await api.post(`/automation/${automationId}/simulate/start`, { simulatorPhone });
+      await api.post(`/automation/${automationId}/simulate/start`, { simulatorPhone: phoneToUse });
     } catch (error) {
       console.error('Failed to start simulation', error);
       showToast.error('Simulation Failed', 'Please save the flow first.');
