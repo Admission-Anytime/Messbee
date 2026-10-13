@@ -60,7 +60,9 @@ const automationSchema = new mongoose.Schema({
     id: { type: String, required: true },
     source: { type: String, required: true }, // ID of the source node
     target: { type: String, required: true }, // ID of the target node
-    sourceHandle: { type: String } // The specific output port of the source node
+    sourceHandle: { type: String }, // The specific output port of the source node
+    targetHandle: { type: String }, // The specific target port of the destination node
+    type: { type: String }
   }],
   // Draft arrays for safe editing before publishing
   draftNodes: [{

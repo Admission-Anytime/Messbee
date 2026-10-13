@@ -6,6 +6,7 @@
 const axios = require('axios');
 const {  emitNotification  } = require('../config/socket.js');
 const Contact = require('../models/Contact.js');
+const Channel = require('../models/Channel.js');
 
 /**
  * Deeply extracts a value from a nested JSON object using a dot-notation path string.
@@ -613,6 +614,79 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   if (actionType === 'unassign_team') {
     session.status = 'ACTIVE';
     session.assignedTo = null;
+    return 'success';
+  }
+
+  // 📱 Send WhatsApp Notification / Alert to Staff, Doctor, and Admin CC
+  if (['notify_whatsapp', 'send_whatsapp_notification', 'notify_staff', 'whatsapp_notification'].includes(actionType)) {
+    const rawRecipients = node.data.recipientPhone || node.data.targetPhone || node.data.recipient || '';
+    const rawAdminPhone = node.data.adminPhone || '';
+    const rawMsg = node.data.notificationMessage || node.data.messageBody || node.data.message || '';
+
+    // Collect all recipient numbers (staff/doctor + admin CC)
+    const recipientList = [];
+    if (rawRecipients) {
+      recipientList.push(...String(rawRecipients).split(',').map(p => p.trim()).filter(Boolean));
+    }
+    if (rawAdminPhone) {
+      recipientList.push(...String(rawAdminPhone).split(',').map(p => p.trim()).filter(Boolean));
+    }
+
+    if (recipientList.length > 0 && rawMsg) {
+      const parsedMsg = parseDynamicVariables(rawMsg, contextData);
+
+      let channelToUse = contextData?.channel;
+      if (!channelToUse && session.channelId) {
+        try {
+          channelToUse = await Channel.findById(session.channelId).select('+metaAccessToken');
+        } catch (_) {}
+      }
+
+      if (channelToUse) {
+        try {
+          const { sendWhatsAppMessage } = await import('./flowRunner.js');
+
+          for (const rawP of recipientList) {
+            const evaluatedP = parseDynamicVariables(rawP, contextData);
+            const cleanP = String(evaluatedP || '').replace(/\D/g, '');
+            if (cleanP && cleanP.length >= 8) {
+              const payload = {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: cleanP,
+                type: 'text',
+                text: { body: parsedMsg }
+              };
+              await sendWhatsAppMessage(cleanP, payload, channelToUse, true);
+              console.log(`[ActionNode] ✅ WhatsApp Notification sent to: ${cleanP}`);
+            }
+          }
+        } catch (err) {
+          console.error('[ActionNode] Failed to send WhatsApp notification:', err.message);
+        }
+      }
+    }
+
+    // Optional: Auto-assign / handoff in Messbee Live Chat if configured
+    const staffToAssign = node.data.assignToStaff || node.data.assignTo;
+    if (staffToAssign) {
+      const parsedStaff = parseDynamicVariables(staffToAssign, contextData);
+      if (parsedStaff) {
+        session.status = 'HANDOFF';
+        session.assignedTo = parsedStaff;
+        if (targetPhone) {
+          try {
+            await Contact.updateMany(
+              { phone: targetPhone },
+              { $set: { status: 'HANDOFF', isBotPaused: true, assignedTo: parsedStaff } }
+            );
+          } catch (e) {
+            console.error('Failed to update assignedTo on contact:', e);
+          }
+        }
+      }
+    }
+
     return 'success';
   }
 

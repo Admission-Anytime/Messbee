@@ -318,8 +318,8 @@ export const NODE_GUIDES = {
     icon: '⚡',
     shortDesc: 'Performs background CRM operations like adding tags, updating custom fields, or handing off to human agents.',
     howItWorks: [
-      'Executes silently in the background without sending a WhatsApp message.',
-      'Supported Actions: Add Tag, Remove Tag, Update Contact Field, Human Handoff (Live Chat), Opt-in, Opt-out.',
+      'Executes silently in the background or sends direct real-time WhatsApp alerts to designated staff, doctors, or admins.',
+      'Supported Actions: Send WhatsApp Alert (Staff / Admin CC), Add Tag, Remove Tag, Update Contact Field, Human Handoff (Live Chat), Opt-in, Opt-out.',
       'Executes instantaneously and immediately advances to the Next Step.'
     ],
     nextStepHandles: [

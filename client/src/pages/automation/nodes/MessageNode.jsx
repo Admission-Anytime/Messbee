@@ -8,8 +8,8 @@ export default function MessageNode({ id, data, selected }) {
   const isInteractive = data.messageType === 'interactive';
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
-  const hasValidButtons = !isInteractive || (Array.isArray(data.buttons) && data.buttons.length > 0 && data.buttons.every(b => b.title && b.title.trim()));
-  const isValid = !!data.text && hasValidButtons;
+  const hasValidButtons = !isInteractive || (Array.isArray(data.buttons) && data.buttons.length > 0 && data.buttons.every(b => (b.title || b.text) && String(b.title || b.text).trim()));
+  const isValid = !!(data.text || data.question) && hasValidButtons;
   const borderColor = isValid ? '#10b981' : '#ef4444';
 
   return (

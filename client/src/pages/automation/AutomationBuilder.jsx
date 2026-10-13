@@ -423,8 +423,8 @@ export default function AutomationBuilder() {
         .auto-btn-padding { padding: 7px 16px; }
 
         /* Sidebar & Preview Panes Responsiveness */
-        .properties-pane { width: 330px; flex-shrink: 0; }
-        .preview-pane { width: 330px; flex-shrink: 0; }
+        .properties-pane { width: 380px; flex-shrink: 0; }
+        .preview-pane { width: 360px; flex-shrink: 0; }
 
         /* Sleek custom scrollbars for panes */
         .properties-pane::-webkit-scrollbar,
@@ -448,8 +448,8 @@ export default function AutomationBuilder() {
 
         /* Laptops 1440px - 1600px */
         @media (max-width: 1600px) {
-          .properties-pane { width: 310px; }
-          .preview-pane { width: 310px; }
+          .properties-pane { width: 370px; }
+          .preview-pane { width: 340px; }
           .auto-btn-padding { padding: 6px 14px !important; font-size: 13px !important; }
         }
 
@@ -460,8 +460,8 @@ export default function AutomationBuilder() {
           .auto-toolbar-gap { gap: 8px !important; }
           .auto-topbar { padding: 0 12px !important; }
           
-          .properties-pane { width: 295px; }
-          .preview-pane { width: 295px; }
+          .properties-pane { width: 350px; }
+          .preview-pane { width: 320px; }
         }
 
         /* Laptops <= 1300px (13.3", 1366x768 standard) */
@@ -471,8 +471,8 @@ export default function AutomationBuilder() {
           .auto-toolbar-gap { gap: 6px !important; }
           .auto-topbar { padding: 0 10px !important; }
           
-          .properties-pane { width: 280px; }
-          .preview-pane { width: 280px; }
+          .properties-pane { width: 340px; }
+          .preview-pane { width: 300px; }
         }
 
         /* Small Laptops / Split screen <= 1120px */
@@ -481,8 +481,8 @@ export default function AutomationBuilder() {
           .auto-btn-text.optional { display: none !important; }
           .auto-btn-padding { padding: 7px 9px !important; }
           
-          .properties-pane { width: 260px; }
-          .preview-pane { width: 260px; }
+          .properties-pane { width: 320px; }
+          .preview-pane { width: 290px; }
         }
       `}</style>
       

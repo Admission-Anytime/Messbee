@@ -248,18 +248,18 @@ exports.simulateStart = async (req, res, next) => {
       }
     }
 
-    // Upsert a dummy contact for the simulator
+    // Upsert a dummy contact for the simulator and ensure bot is not paused
     const Contact = require('../models/Contact');
     const simName = req.user?.name || req.user?.tenantName || 'Aayush Kumar';
     await Contact.findOneAndUpdate(
-      { phone: simulatorPhone, tenantId, channelId },
-      { name: simName, isOptedOut: false, lastInteractionAt: new Date() },
+      { phone: simulatorPhone, tenantId },
+      { name: simName, isOptedOut: false, isBotPaused: false, status: 'ACTIVE', lastInteractionAt: new Date() },
       { upsert: true, new: true }
     );
 
     // Cancel any stale simulator sessions before starting a new one
     await CustomerSession.updateMany(
-      { phone: simulatorPhone, channelId, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED'] } },
+      { phone: simulatorPhone, status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT', 'PAUSED', 'HANDOFF'] } },
       { $set: { status: 'COMPLETED' } }
     );
 

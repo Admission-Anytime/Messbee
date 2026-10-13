@@ -1243,6 +1243,8 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
 
       const contextData = {
+        channel: channel,
+        channelId: channel?._id?.toString() || channelId,
         contact: contact ? {
           id: contact._id.toString(),
           tenantId: contact.tenantId ? contact.tenantId.toString() : null,
@@ -2102,6 +2104,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     );
 
     // 🛑 Check if Contact has bot paused (Agent in Live Chat is handling this contact)
+    const isSimPhone = typeof customerPhone === 'string' && customerPhone.startsWith('SIMULATOR_');
     try {
       const ContactModel = (await import('../models/Contact.js')).default || require('../models/Contact');
       const existingContact = await ContactModel.findOne({
@@ -2109,11 +2112,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         ...(channel.tenantId ? { tenantId: channel.tenantId } : {})
       });
 
-      if (existingContact?.isBotPaused && !isEscapeWord) {
+      if (!isSimPhone && existingContact?.isBotPaused && !isEscapeWord) {
         logger.log(`[FlowRunner] Bot is paused for contact ${customerPhone} (agent handoff active). Ignoring incoming message.`);
         return;
       }
-      if (existingContact?.isBotPaused && isEscapeWord) {
+      if (existingContact?.isBotPaused && (isEscapeWord || isSimPhone)) {
         await ContactModel.updateMany({ phone: customerPhone }, { $set: { isBotPaused: false, status: 'ACTIVE' } });
       }
     } catch (e) {
