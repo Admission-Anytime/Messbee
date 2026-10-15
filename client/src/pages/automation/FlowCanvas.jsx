@@ -30,6 +30,7 @@ import DeletableEdge from './edges/DeletableEdge';
 function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate, activeDebugNodeId, invalidNodeId }) {
   const nodeTypes = useMemo(() => ({
     messageNode: MessageNode,
+    interactiveNode: MessageNode,
     triggerNode: TriggerNode,
     menuNode: MenuNode,
     inputNode: InputNode,

@@ -2369,71 +2369,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       // Check if user tapped a button that matches a template or interactive node in ANY active flow
       let buttonMatchesAnyFlow = false;
       if (isButtonTap) {
-        const currentActiveFlow = allActiveFlows.find(f => f._id.toString() === session.activeFlowId?.toString());
-        const currentNode = currentActiveFlow?.nodes?.find(n => n.id === session.currentNodeId);
-        const currentOutgoing = currentActiveFlow?.edges?.filter(e => e.source === session.currentNodeId) || [];
-
-        let currentCanHandle = false;
-        if (currentNode) {
-          // If the node is currently waiting for free-form user input (Ask Question / inputNode), it handles it!
-          if (currentNode.type === 'inputNode' || session.status === 'WAITING_FOR_INPUT') {
-            currentCanHandle = true;
-          } else if (['catalogNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
-            // These nodes only have a next step (main-handle) to continue the flow
-            currentCanHandle = currentOutgoing.length > 0;
-          } else {
-            const btnHandles = currentOutgoing.map(e => e.sourceHandle?.toLowerCase()).filter(Boolean);
-            const hasMainOrSingleEdge = btnHandles.includes('main-handle') || currentOutgoing.length === 1;
-
-            // Also check pollNode options if currentNode is pollNode
-            let pollMatches = false;
-            if (currentNode.type === 'pollNode' && Array.isArray(currentNode.data?.options)) {
-              pollMatches = currentNode.data.options.some((opt, idx) => {
-                const optCand = [
-                  opt.text?.trim().toLowerCase(),
-                  opt.id?.toString().trim().toLowerCase(),
-                  String(idx),
-                  `opt-${idx}`,
-                  `opt-${opt.text?.trim().toLowerCase()}`
-                ].filter(Boolean);
-                return candidatePayloads.some(cp => {
-                  const clean = cp.toLowerCase().trim();
-                  return optCand.includes(clean) || optCand.some(oc => oc.replace(/^opt-/, '') === clean.replace(/^opt-/, ''));
-                });
-              });
-            }
-
-            currentCanHandle = pollMatches || candidatePayloads.some(cp => {
-              const cleanCp = cp.toLowerCase().trim();
-              const strippedCp = cleanCp.replace(/^(btn-|row-|row_|opt-)/, '');
-              return btnHandles.includes(cleanCp) ||
-                btnHandles.includes(`btn-${cleanCp}`) ||
-                btnHandles.includes(`row-${cleanCp}`) ||
-                btnHandles.includes(`opt-${cleanCp}`) ||
-                btnHandles.some(sh => {
-                  if (!sh) return false;
-                  const strippedSh = sh.replace(/^(btn-|row-|row_|opt-)/, '');
-                  return (
-                    strippedSh === cleanCp || 
-                    strippedSh === strippedCp ||
-                    cleanCp.replace(/^(btn-|row-|row_|opt-)/, '') === sh ||
-                    sh.includes(strippedCp) ||
-                    strippedCp.includes(strippedSh)
-                  );
-                });
-            });
-
-            if (!currentCanHandle && hasMainOrSingleEdge) {
-              currentCanHandle = true;
-            }
-          }
-        }
-
-        // If current session's node CANNOT handle this button tap, check if ANY active flow has a template/button that matches
-        if (!currentCanHandle) {
-          const externalMatch = await findButtonEdgeMatch(candidatePayloads);
-          if (externalMatch) {
+        const externalMatch = await findButtonEdgeMatch(candidatePayloads);
+        if (externalMatch) {
+          const currentFlowIdStr = session.activeFlowId?.toString();
+          if (externalMatch.flow?._id?.toString() !== currentFlowIdStr) {
+            // Button clicked belongs to another flow/template (e.g. Free Demo) -> Pre-empt current session!
             buttonMatchesAnyFlow = true;
+          } else {
+            const currentActiveFlow = allActiveFlows.find(f => f._id.toString() === currentFlowIdStr);
+            const currentNode = currentActiveFlow?.nodes?.find(n => n.id === session.currentNodeId);
+            if (currentNode?.type === 'inputNode') {
+              // Current node is waiting for free-form text/number/date, not this button click -> Pre-empt!
+              buttonMatchesAnyFlow = true;
+            }
           }
         }
       }
@@ -2739,13 +2687,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      if (session.status === 'WAITING_FOR_INPUT' || session.status === 'ACTIVE') {
-        const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
-        if (!currentNode) {
-          logger.warn('[FlowRunner] Current node not found. Completing session.');
-          await markSessionCompleted(session, customerPhone, channelId);
-          return;
-        }
+      const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
+      if (!currentNode) {
+        logger.warn('[FlowRunner] Current node not found. Completing session.');
+        await markSessionCompleted(session, customerPhone, channelId);
+        return;
+      }
+
+      if (currentNode.type === 'inputNode') {
         const nodeQuestion = String(currentNode?.data?.text || currentNode?.data?.question || '').toLowerCase();
         const validationType = String(session.expectedValidation || currentNode?.data?.validationType || 'text').toLowerCase().trim();
 
@@ -2824,8 +2773,9 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           }
         } else if (validationType === 'number') {
           const stripped = (incomingPayload || '').replace(/[,₹$€£\s]|rs\.?|rupees|inr/gi, '');
-          isValid = !isNaN(Number(stripped)) && stripped.trim() !== '';
-          if (isValid) incomingPayload = stripped.trim();
+          const numMatch = stripped.match(/-?\d+(\.\d+)?/);
+          isValid = numMatch !== null;
+          if (isValid) incomingPayload = numMatch[0];
         } else if (validationType === 'date') {
           const dt = extractDateAndTime(incomingPayload);
           if (dt && dt.hasDate) {
@@ -2969,7 +2919,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           valToSave = typeof messageContext.location === 'object' ? JSON.stringify(messageContext.location) : String(messageContext.location);
         }
 
-        const rawVarName = session.saveVariableAs || (isCombinedNamePhone ? 'contact.name' : 'custom_field');
+        const rawVarName = session.saveVariableAs || currentNode?.data?.variableName || (isCombinedNamePhone ? 'contact.name' : 'custom_field');
         if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
           session.sessionVariables = {};
         } else if (session.sessionVariables instanceof Map) {
@@ -3035,6 +2985,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             session.sessionVariables['slot'] = extractedDateTime.slot;
             session.sessionVariables['datetime'] = extractedDateTime.slot;
           }
+        }
         if (validationType === 'location' && messageContext?.location) {
           const loc = messageContext.location;
           session.sessionVariables['latitude'] = loc.latitude;
@@ -3120,6 +3071,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             logger.error('Failed to sync non-prefixed contact field from inputNode:', e);
           }
         }
+
+        // Universal variable saving: persist both short key and contact-prefixed key
+        const cleanVarName = rawVarName.replace(/^contact\./, '');
+        session.sessionVariables[cleanVarName] = valToSave;
+        session.sessionVariables[`contact.${cleanVarName}`] = valToSave;
         session.markModified('sessionVariables');
 
         session.status = 'ACTIVE';
@@ -3174,6 +3130,40 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
              e.sourceHandle === `btn-${incomingPayload}` || 
              e.sourceHandle === `row-${incomingPayload}`
           );
+
+          if (matchedEdge) {
+            isExplicitChoiceRecognized = true;
+            const chosenBtn = messageContext?.buttonTitle || messageContext?.buttonText || incomingPayload;
+            session.sessionVariables['selected_button'] = chosenBtn;
+            session.sessionVariables['selected_option'] = chosenBtn;
+            session.sessionVariables['contact.last_button_choice'] = chosenBtn;
+
+            const dtDirect = extractDateAndTime(chosenBtn);
+            if (dtDirect?.date) {
+              session.sessionVariables['selected_date'] = dtDirect.date;
+              session.sessionVariables['appointment_date'] = dtDirect.date;
+              session.sessionVariables['date'] = dtDirect.date;
+            }
+            if (dtDirect?.time) {
+              session.sessionVariables['selected_time'] = dtDirect.time;
+              session.sessionVariables['appointment_time'] = dtDirect.time;
+              session.sessionVariables['time'] = dtDirect.time;
+            }
+            if (dtDirect?.slot) {
+              session.sessionVariables['selected_slot'] = chosenBtn;
+              session.sessionVariables['appointment_slot'] = chosenBtn;
+              session.sessionVariables['slot'] = chosenBtn;
+              session.sessionVariables['datetime'] = dtDirect.slot;
+            }
+
+            if (currentNode.data?.saveVariableAs) {
+              const saveKey = currentNode.data.saveVariableAs;
+              session.sessionVariables[saveKey] = chosenBtn;
+              session.sessionVariables[saveKey.replace(/^contact\./, '')] = chosenBtn;
+              session.sessionVariables['contact.' + saveKey.replace(/^contact\./, '')] = chosenBtn;
+            }
+            session.markModified('sessionVariables');
+          }
           
           // Match by title/label case-insensitively (for both Simulator and WhatsApp)
           if (!matchedEdge) {
@@ -3291,7 +3281,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       }
 
                       if (currentNode.data?.saveVariableAs) {
-                        session.sessionVariables[currentNode.data.saveVariableAs] = btn.payload || btn.id || chosenBtnTitle;
+                        session.sessionVariables[currentNode.data.saveVariableAs] = btn.title || btn.text || btn.payload || chosenBtnTitle || btn.id;
                       }
                       session.markModified('sessionVariables');
                     }
@@ -3682,7 +3672,6 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       session.currentNodeId = nextNodeId;
       await session.save();
       await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
-    }
     }
 
   } catch (error) {

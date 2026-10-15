@@ -11,7 +11,7 @@ export default function ConditionNode({ id, data, selected }) {
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} id="target-handle" className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
         background: '#3B4252',

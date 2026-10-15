@@ -345,8 +345,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
       api.get('/whatsapp/channels').then(res => {
         const channel = res.data.find(c => c._id === currentChannelId);
         if (channel && channel.phoneNumber) {
-          // Remove '+' for wa.me link
-          setChannelPhone(channel.phoneNumber.replace('+', ''));
+          // Remove all non-digits (spaces, +, dashes) for valid wa.me link
+          setChannelPhone(channel.phoneNumber.replace(/\D/g, ''));
         }
       }).catch(console.error);
     }
@@ -1040,37 +1040,43 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   />
                 </div>
 
-                {localData.keyword && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
-                        https://wa.me/{channelPhone}?text={encodeURIComponent(localData.keyword)}
-                      </div>
-                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        Copy Link
-                      </button>
-                    </div>
+                {localData.keyword && (() => {
+                  const cleanPhone = (channelPhone || '').replace(/\D/g, '');
+                  const primaryKeyword = (localData.keyword || '').split(',')[0].trim();
+                  const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(primaryKeyword)}`;
 
-                    <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
-                        Your QR Code
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
+                          {waLink}
+                        </div>
+                        <button onClick={() => { navigator.clipboard.writeText(waLink); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
+                          Copy Link
+                        </button>
                       </div>
-                      <div style={{ padding: '8px', background: 'white', borderRadius: '8px', border: '1px solid #F1F5F9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`https://wa.me/${channelPhone}?text=${localData.keyword}`)}`} 
-                          alt="WhatsApp QR Code" 
-                          style={{ width: '150px', height: '150px', display: 'block' }} 
-                        />
+
+                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
+                          Your QR Code
+                        </div>
+                        <div style={{ padding: '8px', background: 'white', borderRadius: '8px', border: '1px solid #F1F5F9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(waLink)}`} 
+                            alt="WhatsApp QR Code" 
+                            style={{ width: '180px', height: '180px', display: 'block' }} 
+                          />
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#64748B', textAlign: 'center', marginTop: '12px', lineHeight: '1.4' }}>
+                          Customers can scan this with their phone's camera to instantly start a chat with the pre-filled keyword: <strong>"{primaryKeyword}"</strong>.
+                        </p>
                       </div>
-                      <p style={{ fontSize: '11px', color: '#64748B', textAlign: 'center', marginTop: '12px', lineHeight: '1.4' }}>
-                        Customers can scan this with their phone's camera to instantly start a chat with the pre-filled keyword.
-                      </p>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             ) : localData.triggerType === 'whatsapp_ad' ? (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>

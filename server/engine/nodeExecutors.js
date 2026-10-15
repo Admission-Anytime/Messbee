@@ -56,6 +56,9 @@ function safeGetSessionVariable(session, key) {
 function parseDynamicVariables(text, contextData = {}) {
   if (!text || typeof text !== 'string') return text;
   
+  // Unescape any literal \r\n, \n into real newlines
+  text = text.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '');
+  
   // Inject system variables automatically
   const now = new Date();
   const tomorrow = new Date(now);
@@ -93,14 +96,14 @@ function parseDynamicVariables(text, contextData = {}) {
       value = deepGet(contextData, lowerPath);
     }
 
-    // 2. Contact field aliases (name, phone, email, tags)
+    // 2. Universal lookup across contextData and CRM contact fields
     if (value === undefined && contextData.contact) {
       if (['name', 'first_name', 'customer_name', 'contact_name', 'contact.name'].includes(lowerPath)) {
-        value = contextData.contact.name;
+        value = contextData.name || contextData.contact.name;
       } else if (['phone', 'mobile', 'phone_number', 'contact_phone', 'contact.phone'].includes(lowerPath)) {
-        value = contextData.contact.phone;
+        value = contextData.phone || contextData.contact.phone;
       } else if (['email', 'contact_email', 'contact.email'].includes(lowerPath)) {
-        value = contextData.contact.email;
+        value = contextData.email || contextData.contact.email;
       } else if (['tags', 'tag', 'contact.tags'].includes(lowerPath)) {
         value = Array.isArray(contextData.contact.tags) ? contextData.contact.tags.join(', ') : contextData.contact.tags;
       } else if (contextData.contact.customFields) {
@@ -115,7 +118,17 @@ function parseDynamicVariables(text, contextData = {}) {
       }
     }
 
-    // 3. System aliases
+    // 3. Universal cross-prefix lookup (e.g. {{score}} <-> {{contact.score}}, {{field}} <-> {{contact.field}})
+    if (value === undefined) {
+      if (rawPath.startsWith('contact.')) {
+        const shortKey = rawPath.replace(/^contact\./, '');
+        value = deepGet(contextData, shortKey) ?? deepGet(contextData, shortKey.toLowerCase());
+      } else {
+        value = deepGet(contextData, `contact.${rawPath}`) ?? deepGet(contextData, `contact.${lowerPath}`);
+      }
+    }
+
+    // 4. System aliases
     if (value === undefined) {
       if (['date', 'current_date', 'system.date'].includes(lowerPath)) value = contextData.system.date;
       else if (['time', 'current_time', 'system.time'].includes(lowerPath)) value = contextData.system.time;
