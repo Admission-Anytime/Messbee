@@ -373,22 +373,46 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
       parsedHeaders['Content-Type'] = 'application/json';
     } catch(e) {}
   }
-  
   try {
-    const axiosConfig = {
-      method: upperMethod,
-      url: parsedEndpoint,
-      headers: parsedHeaders,
-      timeout: 10000
-    };
-    if (requestBody) {
-      // Axios parses strings automatically if header is application/json
-      // but it expects the body payload in the `data` property.
-      axiosConfig.data = requestBody;
+    let finalUrl = parsedEndpoint;
+    if (finalUrl && finalUrl.startsWith('/')) {
+      finalUrl = `http://127.0.0.1:${process.env.PORT || 5002}${finalUrl}`;
     }
 
-    const response = await axios(axiosConfig);
-    const data = response.data;
+    let data;
+    // Internal fast-path for slot availability checks to guarantee zero latency & network resilience
+    if (parsedEndpoint.includes('/check-availability')) {
+      try {
+        const urlObj = new URL(finalUrl);
+        const pathSegments = urlObj.pathname.split('/');
+        const entIdx = pathSegments.indexOf('entities');
+        const entityId = (entIdx !== -1 && pathSegments[entIdx + 1]) ? pathSegments[entIdx + 1] : null;
+        if (entityId) {
+          const slotEngine = require('../services/slotBookingEngine.js');
+          const datetimeVal = contextData?.preferred_datetime ||
+            contextData?.datetime ||
+            contextData?.selected_slot ||
+            contextData?.slot ||
+            (requestBody ? JSON.parse(requestBody)?.datetime : null) || '';
+          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal);
+          data = { success: true, ...data };
+        }
+      } catch (_) {}
+    }
+
+    if (!data) {
+      const axiosConfig = {
+        method: upperMethod,
+        url: finalUrl,
+        headers: parsedHeaders,
+        timeout: 10000
+      };
+      if (requestBody) {
+        axiosConfig.data = requestBody;
+      }
+      const response = await axios(axiosConfig);
+      data = response.data;
+    }
 
     // Map response fields back to session variables if configured
     if (responseMapping) {

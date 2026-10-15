@@ -64,6 +64,7 @@ export default function AddNextStepModal({ onClose, onSelectStep }) {
     {
       group: 'UTILITY',
       items: [
+        { id: 'booking_slot', label: 'Real-time Slot Booking', icon: <CalendarIcon size={16} />, color: '#0ea5e9', bg: '#e0f2fe' },
         { id: 'location_msg', label: 'Location', icon: <MapPin size={16} />, color: '#6366f1', bg: '#e0e7ff' },
         { id: 'contact_msg', label: 'Contact', icon: <Contact size={16} />, color: '#6366f1', bg: '#e0e7ff' },
         { id: 'calendar_msg', label: 'Calendar Invite', icon: <CalendarIcon size={16} />, color: '#6366f1', bg: '#e0e7ff' }
