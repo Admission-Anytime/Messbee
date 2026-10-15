@@ -24,6 +24,7 @@ import ActionNode from './nodes/ActionNode';
 import RandomizerNode from './nodes/RandomizerNode';
 import ShopifyNode from './nodes/ShopifyNode';
 import WaitForEventNode from './nodes/WaitForEventNode';
+import BookingNode from './nodes/BookingNode';
 import AddNextStepModal from '../../components/Modol/automation/AddNextStepModal';
 import DeletableEdge from './edges/DeletableEdge';
 
@@ -50,7 +51,8 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     actionNode: ActionNode,
     randomizerNode: RandomizerNode,
     shopifyNode: ShopifyNode,
-    waitForEventNode: WaitForEventNode
+    waitForEventNode: WaitForEventNode,
+    bookingNode: BookingNode
   }), []);
 
   const edgeTypes = useMemo(() => ({
@@ -209,6 +211,16 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if (stepItem.id === 'wait_event') {
       type = 'waitForEventNode';
       dataPayload = { eventType: 'any_message', waitHours: 24 };
+    } else if (stepItem.id === 'booking_slot') {
+      type = 'bookingNode';
+      dataPayload = {
+        label: 'Real-time Slot Booking',
+        entityId: '',
+        text: 'Please select an appointment slot from the available times below:',
+        menuButtonText: 'View Slots',
+        daysAhead: 3,
+        saveVariableAs: 'booking_slot_id'
+      };
     }
 
     const selectedNode = nodes.find(n => n.selected) || (nodes.length > 0 ? nodes[nodes.length - 1] : null);

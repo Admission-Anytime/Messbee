@@ -336,6 +336,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [approvedTemplates, setApprovedTemplates] = useState([]);
   const [templateSearch, setTemplateSearch] = useState('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [availableEntities, setAvailableEntities] = useState([]);
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('config');
@@ -351,6 +352,16 @@ export default function NodePropertiesPane({ currentChannelId }) {
       }).catch(console.error);
     }
   }, [currentChannelId]);
+
+  useEffect(() => {
+    api.get('/entities')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setAvailableEntities(res.data.data);
+        }
+      })
+      .catch(err => console.error('Error fetching entities for dropdown:', err));
+  }, []);
 
 
 
@@ -1518,6 +1529,127 @@ export default function NodePropertiesPane({ currentChannelId }) {
               />
               <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
                 Sent if customer's response does not pass the expected validation format.
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* Real-time Slot Booking Node Specific */}
+        {type === 'bookingNode' && (
+          <>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                  Select Bookable Resource / Doctor / Entity <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+              </div>
+              <select 
+                name="entityId" 
+                value={localData.entityId || ''} 
+                onChange={(e) => {
+                  handleLocalChange(e);
+                  const selectedEnt = availableEntities.find(ent => ent._id === e.target.value);
+                  if (selectedEnt) {
+                    const newLabel = `Live Slots: ${selectedEnt.name}`;
+                    setLocalData(prev => ({ ...prev, entityId: e.target.value, entityName: selectedEnt.name, label: newLabel }));
+                    updateNodeData(id, { entityId: e.target.value, entityName: selectedEnt.name, label: newLabel });
+                  }
+                }} 
+                style={inputStyle}
+              >
+                <option value="">-- Choose from your configured entities --</option>
+                {availableEntities.map(ent => (
+                  <option key={ent._id} value={ent._id}>
+                    {ent.name} ({ent.identifier})
+                  </option>
+                ))}
+              </select>
+              {availableEntities.length === 0 && (
+                <div style={{ marginTop: '6px' }}>
+                  <input 
+                    type="text" 
+                    name="entityId" 
+                    value={localData.entityId || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="Enter custom Entity ID (e.g. 660f1234567890abcdef1234)" 
+                  />
+                </div>
+              )}
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                Real-time concurrency, capacity, and active shift windows will be evaluated for this resource.
+              </p>
+            </div>
+
+            <WhatsAppMessageField
+              label="Prompt Message"
+              name="text"
+              value={localData.text || ''}
+              placeholder="Please select an appointment slot from the available times below..."
+              maxLength={1024}
+              minHeight="100px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Interactive List Button Title</label>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.menuButtonText || 'View Slots').length}/20</span>
+              </div>
+              <input 
+                type="text" 
+                name="menuButtonText" 
+                value={localData.menuButtonText || ''} 
+                onChange={(e) => { if (e.target.value.length <= 20) { handleLocalChange(e); } }} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="View Slots" 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                Lookahead Range (Days)
+              </label>
+              <input 
+                type="number" 
+                name="daysAhead" 
+                min="1" 
+                max="14" 
+                value={localData.daysAhead || 3} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="3" 
+              />
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                How many future calendar days of real-time slots to display (WhatsApp allows up to 10 rows).
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Selection to Variable</label>
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
+                  <Variable size={14} />
+                </div>
+                <input 
+                  type="text" 
+                  name="saveVariableAs" 
+                  value={localData.saveVariableAs || ''} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  style={{ ...inputStyle, paddingLeft: '32px' }} 
+                  placeholder="e.g. booking_slot_id" 
+                />
+              </div>
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                Automatically exposes {'{{booking_slot_label}}'}, {'{{booking_date_label}}'}, and {'{{booking_allocation_id}}'} downstream!
               </p>
             </div>
           </>
