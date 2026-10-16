@@ -24,12 +24,14 @@ import ActionNode from './nodes/ActionNode';
 import RandomizerNode from './nodes/RandomizerNode';
 import ShopifyNode from './nodes/ShopifyNode';
 import WaitForEventNode from './nodes/WaitForEventNode';
+import BookingNode from './nodes/BookingNode';
 import AddNextStepModal from '../../components/Modol/automation/AddNextStepModal';
 import DeletableEdge from './edges/DeletableEdge';
 
 function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onStartWithTemplate, activeDebugNodeId, invalidNodeId }) {
   const nodeTypes = useMemo(() => ({
     messageNode: MessageNode,
+    interactiveNode: MessageNode,
     triggerNode: TriggerNode,
     menuNode: MenuNode,
     inputNode: InputNode,
@@ -49,7 +51,8 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     actionNode: ActionNode,
     randomizerNode: RandomizerNode,
     shopifyNode: ShopifyNode,
-    waitForEventNode: WaitForEventNode
+    waitForEventNode: WaitForEventNode,
+    bookingNode: BookingNode
   }), []);
 
   const edgeTypes = useMemo(() => ({
@@ -192,9 +195,13 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if (stepItem.id === 'call_chatgpt' || stepItem.id === 'garvik_ai') {
       type = 'aiNode';
       dataPayload = { systemPrompt: '', saveVariable: '' };
-    } else if (['opt_in', 'opt_out', 'update_contact', 'assign_team', 'unassign_team', 'round_robin_assign', 'add_tag', 'remove_tag', 'human_handoff'].includes(stepItem.id)) {
+    } else if (['notify_whatsapp', 'send_whatsapp_notification', 'opt_in', 'opt_out', 'update_contact', 'assign_team', 'unassign_team', 'round_robin_assign', 'add_tag', 'remove_tag', 'human_handoff'].includes(stepItem.id)) {
       type = 'actionNode';
-      dataPayload = { actionType: stepItem.id };
+      const defaultNotifyMsg = `🔔 *NEW RECEPTION TRANSFER ALERT* 🔔\n\n👤 *Customer/Patient:* {{name|Customer}}\n📞 *Mobile:* +{{contact.phone}}\n🩺 *Requirement/Symptoms:* {{problem|{{requirement|General Enquiry}}}}\n⏰ *Slot/Time:* {{appointment_slot|{{preferred_slot|Earliest Available}}}}\n📅 *Date:* {{system.date}} at {{system.time}}\n\n---\n💬 *Tap to chat directly with customer on WhatsApp:*\nhttps://wa.me/{{contact.phone}}?text=Hello%20{{name|there}},%20this%20is%20regarding%20your%20request...`;
+      dataPayload = { 
+        actionType: stepItem.id === 'send_whatsapp_notification' ? 'notify_whatsapp' : stepItem.id,
+        ...(stepItem.id === 'notify_whatsapp' ? { notificationMessage: defaultNotifyMsg } : {})
+      };
     } else if (stepItem.id === 'randomizer') {
       type = 'randomizerNode';
       dataPayload = { splitPercentage: 50 };
@@ -204,6 +211,16 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
     } else if (stepItem.id === 'wait_event') {
       type = 'waitForEventNode';
       dataPayload = { eventType: 'any_message', waitHours: 24 };
+    } else if (stepItem.id === 'booking_slot') {
+      type = 'bookingNode';
+      dataPayload = {
+        label: 'Real-time Slot Booking',
+        entityId: '',
+        text: 'Please select an appointment slot from the available times below:',
+        menuButtonText: 'View Slots',
+        daysAhead: 3,
+        saveVariableAs: 'booking_slot_id'
+      };
     }
 
     const selectedNode = nodes.find(n => n.selected) || (nodes.length > 0 ? nodes[nodes.length - 1] : null);

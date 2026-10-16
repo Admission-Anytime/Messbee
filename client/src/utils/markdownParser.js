@@ -88,7 +88,8 @@ export const formatWhatsAppMarkdown = (text = '', samples = null) => {
     });
   }
   
-  // Handle newlines
+  // Unescape literal \n and handle newlines
+  formatted = formatted.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '');
   formatted = formatted.replace(/\n/g, '<br />');
     
   return formatted;

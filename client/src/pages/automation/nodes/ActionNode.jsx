@@ -11,7 +11,7 @@ export default function ActionNode({ id, data, selected }) {
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} id="target-handle" className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
         background: '#3B4252',
@@ -51,6 +51,11 @@ export default function ActionNode({ id, data, selected }) {
                 👤 {data.assignTo}
               </span>
             )}
+            {['notify_whatsapp', 'send_whatsapp_notification'].includes(data.actionType) && (
+              <span style={{ fontSize: '11px', color: '#10B981', background: '#1e293b', padding: '2px 8px', borderRadius: '4px', fontWeight: '600', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                📱 Alert: {data.recipientPhone || data.targetPhone || 'Configure Recipient'}
+              </span>
+            )}
           </div>
         </div>
 
@@ -73,6 +78,8 @@ export default function ActionNode({ id, data, selected }) {
 
 function formatAction(actionType) {
   const map = {
+    'notify_whatsapp': 'Send WhatsApp Alert (Staff / Admin)',
+    'send_whatsapp_notification': 'Send WhatsApp Alert (Staff / Admin)',
     'add_tag': 'Add Tag',
     'remove_tag': 'Remove Tag',
     'human_handoff': 'Human Handoff (Live Chat)',

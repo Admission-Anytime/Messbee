@@ -6,6 +6,7 @@
 const axios = require('axios');
 const {  emitNotification  } = require('../config/socket.js');
 const Contact = require('../models/Contact.js');
+const Channel = require('../models/Channel.js');
 
 /**
  * Deeply extracts a value from a nested JSON object using a dot-notation path string.
@@ -55,6 +56,9 @@ function safeGetSessionVariable(session, key) {
 function parseDynamicVariables(text, contextData = {}) {
   if (!text || typeof text !== 'string') return text;
   
+  // Unescape any literal \r\n, \n into real newlines
+  text = text.replace(/\\r\\n/g, '\n').replace(/\\n/g, '\n').replace(/\\r/g, '');
+  
   // Inject system variables automatically
   const now = new Date();
   const tomorrow = new Date(now);
@@ -92,14 +96,14 @@ function parseDynamicVariables(text, contextData = {}) {
       value = deepGet(contextData, lowerPath);
     }
 
-    // 2. Contact field aliases (name, phone, email, tags)
+    // 2. Universal lookup across contextData and CRM contact fields
     if (value === undefined && contextData.contact) {
       if (['name', 'first_name', 'customer_name', 'contact_name', 'contact.name'].includes(lowerPath)) {
-        value = contextData.contact.name;
+        value = contextData.name || contextData.contact.name;
       } else if (['phone', 'mobile', 'phone_number', 'contact_phone', 'contact.phone'].includes(lowerPath)) {
-        value = contextData.contact.phone;
+        value = contextData.phone || contextData.contact.phone;
       } else if (['email', 'contact_email', 'contact.email'].includes(lowerPath)) {
-        value = contextData.contact.email;
+        value = contextData.email || contextData.contact.email;
       } else if (['tags', 'tag', 'contact.tags'].includes(lowerPath)) {
         value = Array.isArray(contextData.contact.tags) ? contextData.contact.tags.join(', ') : contextData.contact.tags;
       } else if (contextData.contact.customFields) {
@@ -114,7 +118,17 @@ function parseDynamicVariables(text, contextData = {}) {
       }
     }
 
-    // 3. System aliases
+    // 3. Universal cross-prefix lookup (e.g. {{score}} <-> {{contact.score}}, {{field}} <-> {{contact.field}})
+    if (value === undefined) {
+      if (rawPath.startsWith('contact.')) {
+        const shortKey = rawPath.replace(/^contact\./, '');
+        value = deepGet(contextData, shortKey) ?? deepGet(contextData, shortKey.toLowerCase());
+      } else {
+        value = deepGet(contextData, `contact.${rawPath}`) ?? deepGet(contextData, `contact.${lowerPath}`);
+      }
+    }
+
+    // 4. System aliases
     if (value === undefined) {
       if (['date', 'current_date', 'system.date'].includes(lowerPath)) value = contextData.system.date;
       else if (['time', 'current_time', 'system.time'].includes(lowerPath)) value = contextData.system.time;
@@ -359,22 +373,46 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
       parsedHeaders['Content-Type'] = 'application/json';
     } catch(e) {}
   }
-  
   try {
-    const axiosConfig = {
-      method: upperMethod,
-      url: parsedEndpoint,
-      headers: parsedHeaders,
-      timeout: 10000
-    };
-    if (requestBody) {
-      // Axios parses strings automatically if header is application/json
-      // but it expects the body payload in the `data` property.
-      axiosConfig.data = requestBody;
+    let finalUrl = parsedEndpoint;
+    if (finalUrl && finalUrl.startsWith('/')) {
+      finalUrl = `http://127.0.0.1:${process.env.PORT || 5002}${finalUrl}`;
     }
 
-    const response = await axios(axiosConfig);
-    const data = response.data;
+    let data;
+    // Internal fast-path for slot availability checks to guarantee zero latency & network resilience
+    if (parsedEndpoint.includes('/check-availability')) {
+      try {
+        const urlObj = new URL(finalUrl);
+        const pathSegments = urlObj.pathname.split('/');
+        const entIdx = pathSegments.indexOf('entities');
+        const entityId = (entIdx !== -1 && pathSegments[entIdx + 1]) ? pathSegments[entIdx + 1] : null;
+        if (entityId) {
+          const slotEngine = require('../services/slotBookingEngine.js');
+          const datetimeVal = contextData?.preferred_datetime ||
+            contextData?.datetime ||
+            contextData?.selected_slot ||
+            contextData?.slot ||
+            (requestBody ? JSON.parse(requestBody)?.datetime : null) || '';
+          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal);
+          data = { success: true, ...data };
+        }
+      } catch (_) {}
+    }
+
+    if (!data) {
+      const axiosConfig = {
+        method: upperMethod,
+        url: finalUrl,
+        headers: parsedHeaders,
+        timeout: 10000
+      };
+      if (requestBody) {
+        axiosConfig.data = requestBody;
+      }
+      const response = await axios(axiosConfig);
+      data = response.data;
+    }
 
     // Map response fields back to session variables if configured
     if (responseMapping) {
@@ -613,6 +651,79 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
   if (actionType === 'unassign_team') {
     session.status = 'ACTIVE';
     session.assignedTo = null;
+    return 'success';
+  }
+
+  // 📱 Send WhatsApp Notification / Alert to Staff, Doctor, and Admin CC
+  if (['notify_whatsapp', 'send_whatsapp_notification', 'notify_staff', 'whatsapp_notification'].includes(actionType)) {
+    const rawRecipients = node.data.recipientPhone || node.data.targetPhone || node.data.recipient || '';
+    const rawAdminPhone = node.data.adminPhone || '';
+    const rawMsg = node.data.notificationMessage || node.data.messageBody || node.data.message || '';
+
+    // Collect all recipient numbers (staff/doctor + admin CC)
+    const recipientList = [];
+    if (rawRecipients) {
+      recipientList.push(...String(rawRecipients).split(',').map(p => p.trim()).filter(Boolean));
+    }
+    if (rawAdminPhone) {
+      recipientList.push(...String(rawAdminPhone).split(',').map(p => p.trim()).filter(Boolean));
+    }
+
+    if (recipientList.length > 0 && rawMsg) {
+      const parsedMsg = parseDynamicVariables(rawMsg, contextData);
+
+      let channelToUse = contextData?.channel;
+      if (!channelToUse && session.channelId) {
+        try {
+          channelToUse = await Channel.findById(session.channelId).select('+metaAccessToken');
+        } catch (_) {}
+      }
+
+      if (channelToUse) {
+        try {
+          const { sendWhatsAppMessage } = await import('./flowRunner.js');
+
+          for (const rawP of recipientList) {
+            const evaluatedP = parseDynamicVariables(rawP, contextData);
+            const cleanP = String(evaluatedP || '').replace(/\D/g, '');
+            if (cleanP && cleanP.length >= 8) {
+              const payload = {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: cleanP,
+                type: 'text',
+                text: { body: parsedMsg }
+              };
+              await sendWhatsAppMessage(cleanP, payload, channelToUse, true);
+              console.log(`[ActionNode] ✅ WhatsApp Notification sent to: ${cleanP}`);
+            }
+          }
+        } catch (err) {
+          console.error('[ActionNode] Failed to send WhatsApp notification:', err.message);
+        }
+      }
+    }
+
+    // Optional: Auto-assign / handoff in Messbee Live Chat if configured
+    const staffToAssign = node.data.assignToStaff || node.data.assignTo;
+    if (staffToAssign) {
+      const parsedStaff = parseDynamicVariables(staffToAssign, contextData);
+      if (parsedStaff) {
+        session.status = 'HANDOFF';
+        session.assignedTo = parsedStaff;
+        if (targetPhone) {
+          try {
+            await Contact.updateMany(
+              { phone: targetPhone },
+              { $set: { status: 'HANDOFF', isBotPaused: true, assignedTo: parsedStaff } }
+            );
+          } catch (e) {
+            console.error('Failed to update assignedTo on contact:', e);
+          }
+        }
+      }
+    }
+
     return 'success';
   }
 

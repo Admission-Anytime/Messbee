@@ -8,14 +8,14 @@ export default function MessageNode({ id, data, selected }) {
   const isInteractive = data.messageType === 'interactive';
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
-  const hasValidButtons = !isInteractive || (Array.isArray(data.buttons) && data.buttons.length > 0 && data.buttons.every(b => b.title && b.title.trim()));
-  const isValid = !!data.text && hasValidButtons;
+  const hasValidButtons = !isInteractive || (Array.isArray(data.buttons) && data.buttons.length > 0 && data.buttons.every(b => (b.title || b.text) && String(b.title || b.text).trim()));
+  const isValid = !!(data.text || data.question) && hasValidButtons;
   const borderColor = isValid ? '#10b981' : '#ef4444';
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
       
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
+      <Handle type="target" position={Position.Left} id="target-handle" className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
 
       <div style={{
         background: '#3B4252',

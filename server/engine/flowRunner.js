@@ -21,6 +21,7 @@ import { getIO } from '../config/socket.js';
 import { createRequire } from 'module';
 const _require = createRequire(import.meta.url);
 const logger = _require('../utils/logger.js');
+const _slotEngine = _require('../services/slotBookingEngine.js');
 
 
 async function markSessionCompleted(session, customerPhone, channelId) {
@@ -1108,6 +1109,53 @@ export function buildMessagePayload(phone, nodeType, nodeData, contextData = {})
     };
   }
 
+
+  if (nodeType === 'bookingNode') {
+    // Real-Time Slot Booking Node
+    // Dynamically generates a WhatsApp interactive list menu with live available slots
+    const entityId = nodeData.entityId || '';
+    const bodyText = parseDynamicVariables(nodeData.text || nodeData.question || 'Please select a slot:', contextData);
+    const headerText = parseDynamicVariables(nodeData.headerText || nodeData.header || '', contextData);
+    const footerText = parseDynamicVariables(nodeData.footer || '', contextData);
+    const menuButtonText = parseDynamicVariables(nodeData.menuButtonText || 'View Slots', contextData);
+
+    if (!entityId) {
+      return { ...basePayload, type: 'text', text: { body: '⚠️ Booking node is not configured. Please set an Entity ID.' } };
+    }
+
+    // Build sections asynchronously — note: buildMessagePayload is not async,
+    // so we pass pre-built sections via contextData._bookingSlotSections if available,
+    // or fall back to a loading message (the engine pre-populates sections before calling buildMessagePayload
+    // via the async call in processSpecificNode bookingNode branch above)
+    const sections = contextData[`__booking_sections_${entityId}`] || [];
+
+    if (sections.length === 0) {
+      return {
+        ...basePayload,
+        type: 'text',
+        text: { body: `📅 *No available slots found at the moment.*\n\nPlease try again later or contact us directly.` }
+      };
+    }
+
+    const interactive = {
+      type: 'list',
+      body: { text: bodyText.substring(0, 1024) },
+      action: {
+        button: menuButtonText.substring(0, 20),
+        sections: sections.slice(0, 10)
+      }
+    };
+
+    if (headerText) {
+      interactive.header = { type: 'text', text: headerText.substring(0, 60) };
+    }
+    if (footerText) {
+      interactive.footer = { text: footerText.substring(0, 60) };
+    }
+
+    return { ...basePayload, type: 'interactive', interactive };
+  }
+
   return { ...basePayload, type: 'text', text: { body: 'Unsupported message type' } };
 }
 
@@ -1243,6 +1291,8 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       }
 
       const contextData = {
+        channel: channel,
+        channelId: channel?._id?.toString() || channelId,
         contact: contact ? {
           id: contact._id.toString(),
           tenantId: contact.tenantId ? contact.tenantId.toString() : null,
@@ -1302,7 +1352,23 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
       let nextNodeId = defaultNextEdge ? defaultNextEdge.target : null;
 
       // Handle specific node types
-      if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
+      if (['messageNode', 'interactiveNode', 'menuNode', 'inputNode', 'mediaNode', 'templateNode', 'utilityNode', 'reactionNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode', 'bookingNode'].includes(currentNode.type)) {
+
+        // ── PRE-LOAD: bookingNode async slot injection ──────────────────────
+        // buildMessagePayload is sync, so we pre-load live slots here async
+        // and inject into contextData so bookingNode case can read them.
+        if (currentNode.type === 'bookingNode' && currentNode.data.entityId) {
+          try {
+            const entityId = currentNode.data.entityId;
+            const daysAhead = Number(currentNode.data.daysAhead) || 3;
+            const sections = await _slotEngine.buildSlotMenuSections(entityId, currentNode.data, contextData);
+            contextData[`__booking_sections_${entityId}`] = sections;
+          } catch (slotErr) {
+            logger.error(`[bookingNode] Failed to load slots for entity ${currentNode.data.entityId}:`, slotErr.message);
+          }
+        }
+        // ───────────────────────────────────────────────────────────────────
+
         const payload = buildMessagePayload(customerPhone, currentNode.type, currentNode.data, contextData);
         
         // Inject full template text and buttons for Simulator UI if it's a template node
@@ -1415,6 +1481,21 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
           session.expectedValidation = currentNode.data.validationType || 'text';
           session.saveVariableAs = currentNode.data.variableName || 'contact.custom_field';
           session.validationRetries = 0;
+          await session.save();
+          isBlockingNode = true;
+          keepRunning = false;
+        } else if (currentNode.type === 'bookingNode') {
+          // bookingNode: interactive list of real-time available slots
+          // Blocks and waits for user to select a slot
+          session.status = 'WAITING_FOR_INPUT';
+          session.expectedValidation = 'booking_slot';
+          session.saveVariableAs = currentNode.data.saveVariableAs || 'booking_slot_id';
+          session.validationRetries = 0;
+          // Store entity context on session so the input handler can complete the HOLD → COMMIT
+          if (!session.sessionVariables) session.sessionVariables = {};
+          session.sessionVariables['__booking_node_id'] = currentNode.id;
+          session.sessionVariables['__booking_entity_id'] = currentNode.data.entityId || '';
+          session.markModified('sessionVariables');
           await session.save();
           isBlockingNode = true;
           keepRunning = false;
@@ -1666,6 +1747,18 @@ export async function processSpecificNode(customerPhone, channelId, startNodeId)
         // If jump fails, just move to next node in current flow
         const edge = outgoingEdges[0];
         nextNodeId = edge ? edge.target : null;
+      }
+
+      // ─────────────────────────────────────────────
+      // BOOKING NODE: Real-time slot menu generation
+      // Executed BEFORE the standard message send path
+      // via buildMessagePayload, so we intercept here
+      // ─────────────────────────────────────────────
+      if (currentNode.type === 'bookingNode' && !currentNode._bookingPayloadInjected) {
+        // This branch is never reached because bookingNode is handled inside the
+        // message dispatch block above. The node type is included in the list so
+        // buildMessagePayload generates the slot interactive list.
+        // The actual slot menu is generated in buildMessagePayload below.
       }
 
       if (keepRunning) {
@@ -2102,6 +2195,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
     );
 
     // 🛑 Check if Contact has bot paused (Agent in Live Chat is handling this contact)
+    const isSimPhone = typeof customerPhone === 'string' && customerPhone.startsWith('SIMULATOR_');
     try {
       const ContactModel = (await import('../models/Contact.js')).default || require('../models/Contact');
       const existingContact = await ContactModel.findOne({
@@ -2109,11 +2203,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         ...(channel.tenantId ? { tenantId: channel.tenantId } : {})
       });
 
-      if (existingContact?.isBotPaused && !isEscapeWord) {
+      if (!isSimPhone && existingContact?.isBotPaused && !isEscapeWord) {
         logger.log(`[FlowRunner] Bot is paused for contact ${customerPhone} (agent handoff active). Ignoring incoming message.`);
         return;
       }
-      if (existingContact?.isBotPaused && isEscapeWord) {
+      if (existingContact?.isBotPaused && (isEscapeWord || isSimPhone)) {
         await ContactModel.updateMany({ phone: customerPhone }, { $set: { isBotPaused: false, status: 'ACTIVE' } });
       }
     } catch (e) {
@@ -2366,71 +2460,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       // Check if user tapped a button that matches a template or interactive node in ANY active flow
       let buttonMatchesAnyFlow = false;
       if (isButtonTap) {
-        const currentActiveFlow = allActiveFlows.find(f => f._id.toString() === session.activeFlowId?.toString());
-        const currentNode = currentActiveFlow?.nodes?.find(n => n.id === session.currentNodeId);
-        const currentOutgoing = currentActiveFlow?.edges?.filter(e => e.source === session.currentNodeId) || [];
-
-        let currentCanHandle = false;
-        if (currentNode) {
-          // If the node is currently waiting for free-form user input (Ask Question / inputNode), it handles it!
-          if (currentNode.type === 'inputNode' || session.status === 'WAITING_FOR_INPUT') {
-            currentCanHandle = true;
-          } else if (['catalogNode', 'commerceNode', 'carouselNode'].includes(currentNode.type)) {
-            // These nodes only have a next step (main-handle) to continue the flow
-            currentCanHandle = currentOutgoing.length > 0;
-          } else {
-            const btnHandles = currentOutgoing.map(e => e.sourceHandle?.toLowerCase()).filter(Boolean);
-            const hasMainOrSingleEdge = btnHandles.includes('main-handle') || currentOutgoing.length === 1;
-
-            // Also check pollNode options if currentNode is pollNode
-            let pollMatches = false;
-            if (currentNode.type === 'pollNode' && Array.isArray(currentNode.data?.options)) {
-              pollMatches = currentNode.data.options.some((opt, idx) => {
-                const optCand = [
-                  opt.text?.trim().toLowerCase(),
-                  opt.id?.toString().trim().toLowerCase(),
-                  String(idx),
-                  `opt-${idx}`,
-                  `opt-${opt.text?.trim().toLowerCase()}`
-                ].filter(Boolean);
-                return candidatePayloads.some(cp => {
-                  const clean = cp.toLowerCase().trim();
-                  return optCand.includes(clean) || optCand.some(oc => oc.replace(/^opt-/, '') === clean.replace(/^opt-/, ''));
-                });
-              });
-            }
-
-            currentCanHandle = pollMatches || candidatePayloads.some(cp => {
-              const cleanCp = cp.toLowerCase().trim();
-              const strippedCp = cleanCp.replace(/^(btn-|row-|row_|opt-)/, '');
-              return btnHandles.includes(cleanCp) ||
-                btnHandles.includes(`btn-${cleanCp}`) ||
-                btnHandles.includes(`row-${cleanCp}`) ||
-                btnHandles.includes(`opt-${cleanCp}`) ||
-                btnHandles.some(sh => {
-                  if (!sh) return false;
-                  const strippedSh = sh.replace(/^(btn-|row-|row_|opt-)/, '');
-                  return (
-                    strippedSh === cleanCp || 
-                    strippedSh === strippedCp ||
-                    cleanCp.replace(/^(btn-|row-|row_|opt-)/, '') === sh ||
-                    sh.includes(strippedCp) ||
-                    strippedCp.includes(strippedSh)
-                  );
-                });
-            });
-
-            if (!currentCanHandle && hasMainOrSingleEdge) {
-              currentCanHandle = true;
-            }
-          }
-        }
-
-        // If current session's node CANNOT handle this button tap, check if ANY active flow has a template/button that matches
-        if (!currentCanHandle) {
-          const externalMatch = await findButtonEdgeMatch(candidatePayloads);
-          if (externalMatch) {
+        const externalMatch = await findButtonEdgeMatch(candidatePayloads);
+        if (externalMatch) {
+          const currentFlowIdStr = session.activeFlowId?.toString();
+          if (externalMatch.flow?._id?.toString() !== currentFlowIdStr) {
+            // Button clicked belongs to another flow/template (e.g. Free Demo) -> Pre-empt current session!
             buttonMatchesAnyFlow = true;
+          } else {
+            const currentActiveFlow = allActiveFlows.find(f => f._id.toString() === currentFlowIdStr);
+            const currentNode = currentActiveFlow?.nodes?.find(n => n.id === session.currentNodeId);
+            if (currentNode?.type === 'inputNode') {
+              // Current node is waiting for free-form text/number/date, not this button click -> Pre-empt!
+              buttonMatchesAnyFlow = true;
+            }
           }
         }
       }
@@ -2736,13 +2778,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
       }
 
-      if (session.status === 'WAITING_FOR_INPUT' || session.status === 'ACTIVE') {
-        const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
-        if (!currentNode) {
-          logger.warn('[FlowRunner] Current node not found. Completing session.');
-          await markSessionCompleted(session, customerPhone, channelId);
-          return;
-        }
+      const currentNode = activeFlow.nodes.find(n => n.id === session.currentNodeId);
+      if (!currentNode) {
+        logger.warn('[FlowRunner] Current node not found. Completing session.');
+        await markSessionCompleted(session, customerPhone, channelId);
+        return;
+      }
+
+      if (currentNode.type === 'inputNode') {
         const nodeQuestion = String(currentNode?.data?.text || currentNode?.data?.question || '').toLowerCase();
         const validationType = String(session.expectedValidation || currentNode?.data?.validationType || 'text').toLowerCase().trim();
 
@@ -2821,8 +2864,9 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           }
         } else if (validationType === 'number') {
           const stripped = (incomingPayload || '').replace(/[,₹$€£\s]|rs\.?|rupees|inr/gi, '');
-          isValid = !isNaN(Number(stripped)) && stripped.trim() !== '';
-          if (isValid) incomingPayload = stripped.trim();
+          const numMatch = stripped.match(/-?\d+(\.\d+)?/);
+          isValid = numMatch !== null;
+          if (isValid) incomingPayload = numMatch[0];
         } else if (validationType === 'date') {
           const dt = extractDateAndTime(incomingPayload);
           if (dt && dt.hasDate) {
@@ -2862,6 +2906,109 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         } else if (validationType === 'address') {
           const cleanAddr = (incomingPayload || '').trim();
           isValid = cleanAddr.length >= 3;
+        } else if (validationType === 'booking_slot') {
+          // bookingNode slot selection validation
+          // incomingPayload can be row ID ("SLOT_<entityId>_<startMs>_<endMs>") OR slot title ("12:30 PM - 1:00 PM")
+          const candidateSlotIds = [
+            incomingPayload,
+            messageContext?.listId,
+            messageContext?.rowId,
+            messageContext?.id,
+            messageContext?.optId,
+            messageContext?.buttonId,
+            messageContext?.buttonPayload
+          ].filter(Boolean);
+
+          let parsed = null;
+          for (const cid of candidateSlotIds) {
+            if (typeof cid === 'string' && (cid.toUpperCase().startsWith('SLOT_') || cid.includes('_'))) {
+              parsed = _slotEngine.parseSlotId(cid);
+              if (parsed) break;
+            }
+          }
+
+          const entityId = session.sessionVariables?.['__booking_entity_id'] || parsed?.entityId || currentNode?.data?.entityId;
+
+          // If not parsed by ID directly, search available slots by time label
+          if (!parsed && entityId) {
+            try {
+              const daysAhead = Number(currentNode?.data?.daysAhead) || 4;
+              const range = await _slotEngine.getAvailableSlotsRange(entityId, daysAhead);
+              const searchTexts = [
+                incomingPayload,
+                messageContext?.listTitle,
+                messageContext?.buttonTitle,
+                messageContext?.buttonText
+              ].filter(Boolean).map(t => String(t).toLowerCase().trim());
+
+              for (const dayGroup of range) {
+                for (const s of dayGroup.slots) {
+                  const sLabel = (s.slotLabel || '').toLowerCase();
+                  const sTime = (s.timeLabel || '').toLowerCase();
+                  const matches = searchTexts.some(st => sLabel.includes(st) || st.includes(sTime) || sTime === st || sLabel === st);
+                  if (matches) {
+                    parsed = {
+                      entityId,
+                      startEpochMs: s.startMs,
+                      endEpochMs: s.endMs,
+                      slotLabel: s.slotLabel,
+                      dateLabel: dayGroup.dateLabel
+                    };
+                    break;
+                  }
+                }
+                if (parsed) break;
+              }
+            } catch (err) {
+              logger.error('[bookingNode] Error searching slot by time label:', err.message);
+            }
+          }
+
+          if (!parsed) {
+            isValid = false;
+          } else {
+            // Atomically claim a HOLD on the selected slot
+            const tenantId = channel.tenantId;
+            const targetEntityId = entityId || parsed.entityId;
+            const holdResult = await _slotEngine.claimEntityQuantum({
+              tenantId,
+              entityId: targetEntityId,
+              startEpochMs: parsed.startEpochMs,
+              endEpochMs: parsed.endEpochMs,
+              customerPhone,
+              sessionId: session._id,
+              slotLabel: parsed.slotLabel || `${_slotEngine.formatTimeLabel(parsed.startEpochMs)} - ${_slotEngine.formatTimeLabel(parsed.endEpochMs)}`,
+              dateLabel: parsed.dateLabel || _slotEngine.formatDateLabel(new Date(parsed.startEpochMs)),
+              sessionVariables: session.sessionVariables || {}
+            });
+
+            if (!holdResult.success) {
+              isValid = false;
+              logger.warn(`[bookingNode] Slot ${incomingPayload} CAPACITY_EXHAUSTED for ${customerPhone}. Reason: ${holdResult.reason}`);
+            } else {
+              // Immediately commit the HOLD → COMMITTED
+              await _slotEngine.commitAllocation(holdResult.allocationId, session.sessionVariables || {});
+
+              // Save booking metadata to session variables
+              const slotLabel = parsed.slotLabel || `${_slotEngine.formatTimeLabel(parsed.startEpochMs)} - ${_slotEngine.formatTimeLabel(parsed.endEpochMs)}`;
+              const dateLabel = parsed.dateLabel || _slotEngine.formatDateLabel(new Date(parsed.startEpochMs));
+              session.sessionVariables['booking_slot_label'] = slotLabel;
+              session.sessionVariables['booking_date_label'] = dateLabel;
+              session.sessionVariables['booking_allocation_id'] = holdResult.allocationId ? holdResult.allocationId.toString() : `APT-${Date.now().toString().slice(-6)}`;
+              session.sessionVariables['booking_entity_id'] = targetEntityId;
+              session.sessionVariables['selected_slot'] = `${dateLabel} at ${slotLabel}`;
+              session.sessionVariables['datetime'] = `${dateLabel} at ${slotLabel}`;
+              session.sessionVariables['appointment_date'] = dateLabel;
+              session.sessionVariables['appointment_time'] = slotLabel;
+              session.sessionVariables['contact.booking_slot_label'] = slotLabel;
+              session.sessionVariables['contact.booking_date_label'] = dateLabel;
+              session.markModified('sessionVariables');
+
+              incomingPayload = `${dateLabel} ${slotLabel}`;
+              isValid = true;
+              logger.log(`[bookingNode] ✅ Slot COMMITTED for ${customerPhone}: ${dateLabel} ${slotLabel} (Allocation: ${holdResult.allocationId})`);
+            }
+          }
         } else if (['text', 'string', 'any'].includes(validationType)) {
           isValid = incomingPayload && incomingPayload.trim().length > 0;
         }
@@ -2927,6 +3074,8 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             defaultErrMsg = '⚠️ Video not received. Please attach a video file (🎥), or type *restart* to start over.';
           } else if (validationType === 'address') {
             defaultErrMsg = '⚠️ Address too short. Please provide your complete delivery or office address, or type *restart* to start over.';
+          } else if (validationType === 'booking_slot') {
+            defaultErrMsg = '⚠️ That slot is no longer available — someone else just booked it! Please tap *View Slots* again to see updated availability, or type *restart* to start over.';
           }
 
           let errorMsg = currentNode?.data?.validationErrorMessage || defaultErrMsg;
@@ -2966,7 +3115,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           valToSave = typeof messageContext.location === 'object' ? JSON.stringify(messageContext.location) : String(messageContext.location);
         }
 
-        const rawVarName = session.saveVariableAs || (isCombinedNamePhone ? 'contact.name' : 'custom_field');
+        const rawVarName = session.saveVariableAs || currentNode?.data?.variableName || (isCombinedNamePhone ? 'contact.name' : 'custom_field');
         if (!session.sessionVariables || typeof session.sessionVariables !== 'object') {
           session.sessionVariables = {};
         } else if (session.sessionVariables instanceof Map) {
@@ -3032,6 +3181,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             session.sessionVariables['slot'] = extractedDateTime.slot;
             session.sessionVariables['datetime'] = extractedDateTime.slot;
           }
+        }
         if (validationType === 'location' && messageContext?.location) {
           const loc = messageContext.location;
           session.sessionVariables['latitude'] = loc.latitude;
@@ -3117,6 +3267,11 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
             logger.error('Failed to sync non-prefixed contact field from inputNode:', e);
           }
         }
+
+        // Universal variable saving: persist both short key and contact-prefixed key
+        const cleanVarName = rawVarName.replace(/^contact\./, '');
+        session.sessionVariables[cleanVarName] = valToSave;
+        session.sessionVariables[`contact.${cleanVarName}`] = valToSave;
         session.markModified('sessionVariables');
 
         session.status = 'ACTIVE';
@@ -3148,7 +3303,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         const outgoingEdges = activeFlow.edges.filter(e => e.source === session.currentNodeId);
         nextNodeId = null;
 
-        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode', 'interactiveNode'].includes(currentNode?.type) || 
+        const isInteractiveNode = ['menuNode', 'catalogNode', 'pollNode', 'commerceNode', 'carouselNode', 'interactiveNode', 'bookingNode'].includes(currentNode?.type) || 
                                   (currentNode?.type === 'messageNode' && (currentNode?.data?.messageType === 'interactive' || (currentNode?.data?.buttons && currentNode.data.buttons.length > 0) || (currentNode?.data?.sections && currentNode.data.sections.length > 0))) || 
                                   (currentNode?.type === 'templateNode' && ((currentNode?.data?.buttons && currentNode.data.buttons.length > 0) || outgoingEdges.some(e => e.sourceHandle && e.sourceHandle.startsWith('btn-'))));
 
@@ -3171,6 +3326,40 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
              e.sourceHandle === `btn-${incomingPayload}` || 
              e.sourceHandle === `row-${incomingPayload}`
           );
+
+          if (matchedEdge) {
+            isExplicitChoiceRecognized = true;
+            const chosenBtn = messageContext?.buttonTitle || messageContext?.buttonText || incomingPayload;
+            session.sessionVariables['selected_button'] = chosenBtn;
+            session.sessionVariables['selected_option'] = chosenBtn;
+            session.sessionVariables['contact.last_button_choice'] = chosenBtn;
+
+            const dtDirect = extractDateAndTime(chosenBtn);
+            if (dtDirect?.date) {
+              session.sessionVariables['selected_date'] = dtDirect.date;
+              session.sessionVariables['appointment_date'] = dtDirect.date;
+              session.sessionVariables['date'] = dtDirect.date;
+            }
+            if (dtDirect?.time) {
+              session.sessionVariables['selected_time'] = dtDirect.time;
+              session.sessionVariables['appointment_time'] = dtDirect.time;
+              session.sessionVariables['time'] = dtDirect.time;
+            }
+            if (dtDirect?.slot) {
+              session.sessionVariables['selected_slot'] = chosenBtn;
+              session.sessionVariables['appointment_slot'] = chosenBtn;
+              session.sessionVariables['slot'] = chosenBtn;
+              session.sessionVariables['datetime'] = dtDirect.slot;
+            }
+
+            if (currentNode.data?.saveVariableAs) {
+              const saveKey = currentNode.data.saveVariableAs;
+              session.sessionVariables[saveKey] = chosenBtn;
+              session.sessionVariables[saveKey.replace(/^contact\./, '')] = chosenBtn;
+              session.sessionVariables['contact.' + saveKey.replace(/^contact\./, '')] = chosenBtn;
+            }
+            session.markModified('sessionVariables');
+          }
           
           // Match by title/label case-insensitively (for both Simulator and WhatsApp)
           if (!matchedEdge) {
@@ -3288,7 +3477,7 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       }
 
                       if (currentNode.data?.saveVariableAs) {
-                        session.sessionVariables[currentNode.data.saveVariableAs] = btn.payload || btn.id || chosenBtnTitle;
+                        session.sessionVariables[currentNode.data.saveVariableAs] = btn.title || btn.text || btn.payload || chosenBtnTitle || btn.id;
                       }
                       session.markModified('sessionVariables');
                     }
@@ -3548,7 +3737,86 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   session.markModified('sessionVariables');
                 }
                 matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
-             }
+              } else if (currentNode?.type === 'bookingNode') {
+                // Real-Time Slot Selection from live WhatsApp / Simulator List
+                let parsedSlot = null;
+                const entityId = currentNode.data?.entityId;
+
+                // 1. Try parsing from candidateInputs for slot_ format
+                for (const ci of candidateInputs) {
+                  if (ci && (ci.startsWith('slot_') || ci.includes('_'))) {
+                    const p = _slotEngine.parseSlotId(ci);
+                    if (p) {
+                      parsedSlot = p;
+                      break;
+                    }
+                  }
+                }
+
+                // 2. If user tapped a row with text (e.g. simulator sent title '10:00 AM - 10:30 AM' or 'Today at...')
+                if (!parsedSlot && entityId) {
+                  try {
+                    const daysAhead = Number(currentNode.data?.daysAhead) || 4;
+                    const availableRange = await _slotEngine.getAvailableSlotsRange(entityId, daysAhead);
+                    for (const dayGroup of availableRange) {
+                      for (const s of dayGroup.slots) {
+                        const sLabel = (s.slotLabel || '').toLowerCase();
+                        const sTime = (s.timeLabel || '').toLowerCase();
+                        const matchesCandidate = candidateInputs.some(ci => {
+                          if (!ci) return false;
+                          const cleanCi = ci.toLowerCase().trim();
+                          return sLabel.includes(cleanCi) || cleanCi.includes(sTime) || sTime === cleanCi;
+                        });
+                        if (matchesCandidate) {
+                          parsedSlot = {
+                            entityId,
+                            startEpochMs: s.startMs,
+                            endEpochMs: s.endMs,
+                            slotLabel: s.slotLabel,
+                            dateLabel: dayGroup.dateLabel
+                          };
+                          break;
+                        }
+                      }
+                      if (parsedSlot) break;
+                    }
+                  } catch (e) {
+                    logger.error('[bookingNode] Error searching slot match:', e.message);
+                  }
+                }
+
+                if (parsedSlot) {
+                  isExplicitChoiceRecognized = true;
+
+                  // Atomic Quantum Lock
+                  const claim = await _slotEngine.claimEntityQuantum({
+                    tenantId: channel.tenantId,
+                    entityId: parsedSlot.entityId,
+                    startEpochMs: parsedSlot.startEpochMs,
+                    endEpochMs: parsedSlot.endEpochMs,
+                    customerPhone,
+                    sessionVariables: session.sessionVariables
+                  });
+
+                  const timeStr = parsedSlot.slotLabel || _slotEngine.formatTimeLabel(new Date(parsedSlot.startEpochMs), new Date(parsedSlot.endEpochMs));
+                  const dateStr = parsedSlot.dateLabel || _slotEngine.formatDateLabel(new Date(parsedSlot.startEpochMs));
+
+                  session.sessionVariables['booking_slot_label'] = timeStr;
+                  session.sessionVariables['booking_date_label'] = dateStr;
+                  session.sessionVariables['selected_slot'] = `${dateStr} at ${timeStr}`;
+                  session.sessionVariables['datetime'] = `${dateStr} at ${timeStr}`;
+                  session.sessionVariables['appointment_date'] = dateStr;
+                  session.sessionVariables['appointment_time'] = timeStr;
+                  session.sessionVariables['booking_allocation_id'] = claim.allocationId ? claim.allocationId.toString() : `APT-${Date.now().toString().slice(-6)}`;
+                  
+                  if (currentNode.data?.saveVariableAs) {
+                    session.sessionVariables[currentNode.data.saveVariableAs] = claim.allocationId ? claim.allocationId.toString() : timeStr;
+                  }
+                  session.markModified('sessionVariables');
+
+                  matchedEdge = outgoingEdges.find(e => e.sourceHandle === 'main-handle' || !e.sourceHandle) || outgoingEdges[0];
+                }
+              }
           }
 
           // Fallback edges ONLY allowed if customer actually tapped a button or selected a recognized option
@@ -3679,7 +3947,6 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
       session.currentNodeId = nextNodeId;
       await session.save();
       await processSpecificNode(customerPhone, effectiveChannelId, nextNodeId);
-    }
     }
 
   } catch (error) {

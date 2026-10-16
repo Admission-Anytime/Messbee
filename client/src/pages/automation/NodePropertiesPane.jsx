@@ -336,6 +336,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [approvedTemplates, setApprovedTemplates] = useState([]);
   const [templateSearch, setTemplateSearch] = useState('');
   const [loadingTemplates, setLoadingTemplates] = useState(false);
+  const [availableEntities, setAvailableEntities] = useState([]);
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('config');
@@ -345,12 +346,22 @@ export default function NodePropertiesPane({ currentChannelId }) {
       api.get('/whatsapp/channels').then(res => {
         const channel = res.data.find(c => c._id === currentChannelId);
         if (channel && channel.phoneNumber) {
-          // Remove '+' for wa.me link
-          setChannelPhone(channel.phoneNumber.replace('+', ''));
+          // Remove all non-digits (spaces, +, dashes) for valid wa.me link
+          setChannelPhone(channel.phoneNumber.replace(/\D/g, ''));
         }
       }).catch(console.error);
     }
   }, [currentChannelId]);
+
+  useEffect(() => {
+    api.get('/entities')
+      .then(res => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setAvailableEntities(res.data.data);
+        }
+      })
+      .catch(err => console.error('Error fetching entities for dropdown:', err));
+  }, []);
 
 
 
@@ -415,7 +426,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
     } else if (baseType === 'delayNode') {
       dataPayload = { delayAmount: '5', delayUnit: 'Minutes' };
     } else if (baseType === 'actionNode') {
-      dataPayload = { actionType: recItem.type === 'human_handoff' ? 'human_handoff' : 'add_tag', tag: '' };
+      const actType = recItem.actionType || (recItem.type === 'human_handoff' ? 'human_handoff' : 'notify_whatsapp');
+      dataPayload = { actionType: actType, tag: '' };
     } else if (baseType === 'templateNode') {
       dataPayload = { templateName: '', templateLanguage: 'en', variables: [] };
     }
@@ -866,94 +878,66 @@ export default function NodePropertiesPane({ currentChannelId }) {
         {type === 'triggerNode' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {/* Header card with Active Trigger, Description, Browse All Triggers Button, and Quick Switch */}
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: '8px' }}>
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#10B981' }}>
-                    Active Trigger
-                  </div>
-                  <h2 style={{ fontSize: '18px', fontWeight: '700', color: '#111827', margin: '4px 0 0 0' }}>
-                    {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
-                     localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
-                     localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
-                     localData.triggerType === 'welcome_message' ? 'Welcome Message' :
-                     localData.triggerType === 'away_message' ? 'Away Message' :
-                     localData.triggerType === 'fallback' ? 'Default Fallback' :
-                     localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
-                     localData.triggerType === 'api_webhook' || localData.triggerType === 'webhook' ? 'API Webhook' :
-                     localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
-                     localData.triggerType === 'recurring' ? 'Recurring Trigger' :
-                     localData.triggerType === 'contains' ? 'Keyword Contains' :
-                     localData.triggerType === 'starts_with' ? 'Keyword Starts With' :
-                     localData.triggerType === 'ends_with' ? 'Keyword Ends With' :
-                     localData.triggerType === 'media_any' || localData.triggerType === 'media_received' ? 'Media Received' :
-                     localData.triggerType === 'image_received' ? 'Image Received' :
-                     localData.triggerType === 'video_received' ? 'Video Received' :
-                     localData.triggerType === 'document_received' ? 'Document Received' :
-                     localData.triggerType === 'voice_received' ? 'Voice Note Received' :
-                     localData.triggerType === 'location_received' ? 'Location Shared' :
-                     localData.triggerType === 'contact_shared' ? 'Contact Card Shared' :
-                     localData.triggerType === 'reaction' ? 'Reaction Received' :
-                     localData.triggerType === 'order_created' ? 'Order Created' :
-                     localData.triggerType === 'payment_success' ? 'Payment Success' :
-                     'Keyword Exact Match'}
-                  </h2>
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px', boxSizing: 'border-box' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: '#059669', background: '#ECFDF5', padding: '2px 8px', borderRadius: '4px' }}>
+                  <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
+                  Active Trigger
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
-                  <button
-                    type="button"
-                    onClick={() => setIsGuideOpen(true)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      padding: '7px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#4F46E5',
-                      backgroundColor: '#EEF2FF',
-                      border: '1px solid #C7D2FE',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4F46E5'; e.currentTarget.style.color = '#FFFFFF'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#EEF2FF'; e.currentTarget.style.color = '#4F46E5'; }}
-                    title="Read how this trigger works"
-                  >
-                    <BookOpen size={13} /> How It Works
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIsTriggerModalOpen(true)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '7px 12px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      color: '#065F46',
-                      backgroundColor: '#D1FAE5',
-                      border: '1px solid #A7F3D0',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      transition: 'all 0.15s ease',
-                      boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                      flexShrink: 0
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A7F3D0'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#D1FAE5'; }}
-                  >
-                    <LayoutGrid size={14} />
-                    Browse All Triggers
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsGuideOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 9px',
+                    fontSize: '11px',
+                    fontWeight: '600',
+                    color: '#4F46E5',
+                    backgroundColor: '#EEF2FF',
+                    border: '1px solid #C7D2FE',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#4F46E5'; e.currentTarget.style.color = '#FFFFFF'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#EEF2FF'; e.currentTarget.style.color = '#4F46E5'; }}
+                  title="Read how this trigger works"
+                >
+                  <BookOpen size={12} /> How It Works
+                </button>
               </div>
 
-              <p style={{ fontSize: '12px', color: '#6B7280', margin: '0 0 14px 0', lineHeight: '1.4' }}>
+              <h2 style={{ fontSize: '16px', fontWeight: '700', color: '#0F172A', margin: '0 0 6px 0', lineHeight: '1.35', wordBreak: 'break-word' }}>
+                {localData.triggerType === 'qr_link' ? 'QR & Click-to-Chat Link' :
+                 localData.triggerType === 'whatsapp_ad' ? 'Click-to-WhatsApp Ad' :
+                 localData.triggerType === 'any_message' ? 'Incoming Message (Any)' :
+                 localData.triggerType === 'welcome_message' ? 'Welcome Message' :
+                 localData.triggerType === 'away_message' ? 'Away Message' :
+                 localData.triggerType === 'fallback' ? 'Default Fallback' :
+                 localData.triggerType === 'tag_added' ? 'CRM Tag Added' :
+                 localData.triggerType === 'api_webhook' || localData.triggerType === 'webhook' ? 'API Webhook' :
+                 localData.triggerType === 'schedule' ? 'Scheduled Trigger' :
+                 localData.triggerType === 'recurring' ? 'Recurring Trigger' :
+                 localData.triggerType === 'contains' ? 'Keyword Contains' :
+                 localData.triggerType === 'starts_with' ? 'Keyword Starts With' :
+                 localData.triggerType === 'ends_with' ? 'Keyword Ends With' :
+                 localData.triggerType === 'media_any' || localData.triggerType === 'media_received' ? 'Media Received' :
+                 localData.triggerType === 'image_received' ? 'Image Received' :
+                 localData.triggerType === 'video_received' ? 'Video Received' :
+                 localData.triggerType === 'document_received' ? 'Document Received' :
+                 localData.triggerType === 'voice_received' ? 'Voice Note Received' :
+                 localData.triggerType === 'location_received' ? 'Location Shared' :
+                 localData.triggerType === 'contact_shared' ? 'Contact Card Shared' :
+                 localData.triggerType === 'reaction' ? 'Reaction Received' :
+                 localData.triggerType === 'order_created' ? 'Order Created' :
+                 localData.triggerType === 'payment_success' ? 'Payment Success' :
+                 'Keyword Exact Match'}
+              </h2>
+
+              <p style={{ fontSize: '12px', color: '#64748B', margin: '0 0 12px 0', lineHeight: '1.45', wordBreak: 'break-word' }}>
                 {localData.triggerType === 'qr_link' ? 'Generates a QR code and custom wa.me link for customers to start this automation.' :
                  localData.triggerType === 'whatsapp_ad' ? 'Starts this automation when customers click on your Meta WhatsApp ad.' :
                  localData.triggerType === 'any_message' ? 'Starts whenever any incoming message is received from a contact.' :
@@ -966,7 +950,36 @@ export default function NodePropertiesPane({ currentChannelId }) {
                  'Configure when and how this automated workflow starts.'}
               </p>
 
-              <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0' }}>
+              <button
+                type="button"
+                onClick={() => setIsTriggerModalOpen(true)}
+                style={{
+                  width: '100%',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  color: '#065F46',
+                  backgroundColor: '#D1FAE5',
+                  border: '1px solid #A7F3D0',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  boxSizing: 'border-box'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#A7F3D0'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#D1FAE5'; }}
+              >
+                <LayoutGrid size={14} />
+                Browse All Triggers
+              </button>
+
+              <div style={{ paddingTop: '12px', borderTop: '1px solid #E2E8F0', marginTop: '14px' }}>
                 <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#334155', marginBottom: '6px' }}>
                   When to trigger (Quick Switch)
                 </label>
@@ -1038,37 +1051,43 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   />
                 </div>
 
-                {localData.keyword && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
-                      </div>
-                      <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
-                        https://wa.me/{channelPhone}?text={encodeURIComponent(localData.keyword)}
-                      </div>
-                      <button onClick={() => { navigator.clipboard.writeText(`https://wa.me/${channelPhone}?text=${encodeURIComponent(localData.keyword)}`); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
-                        Copy Link
-                      </button>
-                    </div>
+                {localData.keyword && (() => {
+                  const cleanPhone = (channelPhone || '').replace(/\D/g, '');
+                  const primaryKeyword = (localData.keyword || '').split(',')[0].trim();
+                  const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(primaryKeyword)}`;
 
-                    <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                      <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
-                        Your QR Code
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
+                          {waLink}
+                        </div>
+                        <button onClick={() => { navigator.clipboard.writeText(waLink); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
+                          Copy Link
+                        </button>
                       </div>
-                      <div style={{ padding: '8px', background: 'white', borderRadius: '8px', border: '1px solid #F1F5F9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                        <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(`https://wa.me/${channelPhone}?text=${localData.keyword}`)}`} 
-                          alt="WhatsApp QR Code" 
-                          style={{ width: '150px', height: '150px', display: 'block' }} 
-                        />
+
+                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
+                          Your QR Code
+                        </div>
+                        <div style={{ padding: '8px', background: 'white', borderRadius: '8px', border: '1px solid #F1F5F9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+                          <img 
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(waLink)}`} 
+                            alt="WhatsApp QR Code" 
+                            style={{ width: '180px', height: '180px', display: 'block' }} 
+                          />
+                        </div>
+                        <p style={{ fontSize: '11px', color: '#64748B', textAlign: 'center', marginTop: '12px', lineHeight: '1.4' }}>
+                          Customers can scan this with their phone's camera to instantly start a chat with the pre-filled keyword: <strong>"{primaryKeyword}"</strong>.
+                        </p>
                       </div>
-                      <p style={{ fontSize: '11px', color: '#64748B', textAlign: 'center', marginTop: '12px', lineHeight: '1.4' }}>
-                        Customers can scan this with their phone's camera to instantly start a chat with the pre-filled keyword.
-                      </p>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             ) : localData.triggerType === 'whatsapp_ad' ? (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
@@ -1510,6 +1529,127 @@ export default function NodePropertiesPane({ currentChannelId }) {
               />
               <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
                 Sent if customer's response does not pass the expected validation format.
+              </p>
+            </div>
+          </>
+        )}
+
+        {/* Real-time Slot Booking Node Specific */}
+        {type === 'bookingNode' && (
+          <>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                  Select Bookable Resource / Doctor / Entity <span style={{ color: '#EF4444' }}>*</span>
+                </label>
+              </div>
+              <select 
+                name="entityId" 
+                value={localData.entityId || ''} 
+                onChange={(e) => {
+                  handleLocalChange(e);
+                  const selectedEnt = availableEntities.find(ent => ent._id === e.target.value);
+                  if (selectedEnt) {
+                    const newLabel = `Live Slots: ${selectedEnt.name}`;
+                    setLocalData(prev => ({ ...prev, entityId: e.target.value, entityName: selectedEnt.name, label: newLabel }));
+                    updateNodeData(id, { entityId: e.target.value, entityName: selectedEnt.name, label: newLabel });
+                  }
+                }} 
+                style={inputStyle}
+              >
+                <option value="">-- Choose from your configured entities --</option>
+                {availableEntities.map(ent => (
+                  <option key={ent._id} value={ent._id}>
+                    {ent.name} ({ent.identifier})
+                  </option>
+                ))}
+              </select>
+              {availableEntities.length === 0 && (
+                <div style={{ marginTop: '6px' }}>
+                  <input 
+                    type="text" 
+                    name="entityId" 
+                    value={localData.entityId || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="Enter custom Entity ID (e.g. 660f1234567890abcdef1234)" 
+                  />
+                </div>
+              )}
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                Real-time concurrency, capacity, and active shift windows will be evaluated for this resource.
+              </p>
+            </div>
+
+            <WhatsAppMessageField
+              label="Prompt Message"
+              name="text"
+              value={localData.text || ''}
+              placeholder="Please select an appointment slot from the available times below..."
+              maxLength={1024}
+              minHeight="100px"
+              inputStyle={inputStyle}
+              localData={localData}
+              setLocalData={setLocalData}
+              updateNodeData={updateNodeData}
+              id={id}
+            />
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Interactive List Button Title</label>
+                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.menuButtonText || 'View Slots').length}/20</span>
+              </div>
+              <input 
+                type="text" 
+                name="menuButtonText" 
+                value={localData.menuButtonText || ''} 
+                onChange={(e) => { if (e.target.value.length <= 20) { handleLocalChange(e); } }} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="View Slots" 
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
+                Lookahead Range (Days)
+              </label>
+              <input 
+                type="number" 
+                name="daysAhead" 
+                min="1" 
+                max="14" 
+                value={localData.daysAhead || 3} 
+                onChange={handleLocalChange} 
+                onBlur={handleBlur} 
+                style={inputStyle} 
+                placeholder="3" 
+              />
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                How many future calendar days of real-time slots to display (WhatsApp allows up to 10 rows).
+              </p>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Selection to Variable</label>
+              <div style={{ position: 'relative' }}>
+                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
+                  <Variable size={14} />
+                </div>
+                <input 
+                  type="text" 
+                  name="saveVariableAs" 
+                  value={localData.saveVariableAs || ''} 
+                  onChange={handleLocalChange} 
+                  onBlur={handleBlur} 
+                  style={{ ...inputStyle, paddingLeft: '32px' }} 
+                  placeholder="e.g. booking_slot_id" 
+                />
+              </div>
+              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                Automatically exposes {'{{booking_slot_label}}'}, {'{{booking_date_label}}'}, and {'{{booking_allocation_id}}'} downstream!
               </p>
             </div>
           </>
@@ -2623,6 +2763,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Action Type</label>
               <select name="actionType" value={localData.actionType || 'update_contact'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+                <option value="notify_whatsapp">📱 Send WhatsApp Alert (Staff / Doctor / Admin)</option>
                 <option value="add_tag">🏷️ Add Tag to Contact</option>
                 <option value="remove_tag">🗑️ Remove Tag from Contact</option>
                 <option value="update_contact">✏️ Update Field / Custom Data</option>
@@ -2634,6 +2775,150 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 <option value="unassign_team">❌ Unassign Team Member</option>
               </select>
             </div>
+            {['notify_whatsapp', 'send_whatsapp_notification'].includes(localData.actionType) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: '8px', padding: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#166534', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    📱 Real WhatsApp Direct Transfer
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#15803D', margin: 0, lineHeight: '1.4' }}>
+                    Sends a complete lead summary directly to the staff/doctor's personal WhatsApp. They can tap the one-click link to start chatting with the customer immediately from their Real WhatsApp app.
+                  </p>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                    Staff / Doctor WhatsApp Phone Number(s) *
+                  </label>
+                  <input 
+                    type="text" 
+                    name="recipientPhone" 
+                    value={localData.recipientPhone || localData.targetPhone || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, recipientPhone: e.target.value, targetPhone: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { recipientPhone: localData.recipientPhone || localData.targetPhone, targetPhone: localData.recipientPhone || localData.targetPhone })} 
+                    style={inputStyle} 
+                    placeholder="e.g. +919876543210 or {{doctor_phone}}" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                    Supports country code (e.g. +91) and dynamic variables. Separate with commas to notify multiple numbers.
+                  </div>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                    Admin / Supervisor CC Phone (Optional)
+                  </label>
+                  <input 
+                    type="text" 
+                    name="adminPhone" 
+                    value={localData.adminPhone || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="e.g. +919811122233 (Hospital/Store Admin number)" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                    The 3rd person (Admin/Manager) will receive a duplicate notification for real-time supervision.
+                  </div>
+                </div>
+
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#111827' }}>
+                      Alert Message Body *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defaultTemplate = `🔔 *NEW RECEPTION TRANSFER ALERT* 🔔\n\n👤 *Customer/Patient:* {{name|Customer}}\n📞 *Mobile:* +{{contact.phone}}\n🩺 *Requirement/Symptoms:* {{problem|{{requirement|General Enquiry}}}}\n⏰ *Slot/Time:* {{appointment_slot|{{preferred_slot|Earliest Available}}}}\n📅 *Date:* {{system.date}} at {{system.time}}\n\n---\n💬 *Tap to chat directly with customer on WhatsApp:*\nhttps://wa.me/{{contact.phone}}?text=Hello%20{{name|there}},%20this%20is%20regarding%20your%20reception%20request...`;
+                        setLocalData(prev => ({ ...prev, notificationMessage: defaultTemplate }));
+                        updateNodeData(id, { notificationMessage: defaultTemplate });
+                      }}
+                      style={{ fontSize: '11px', color: '#2563EB', background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}
+                    >
+                      Use Recommended Template
+                    </button>
+                  </div>
+                  <textarea 
+                    name="notificationMessage" 
+                    rows={7}
+                    value={localData.notificationMessage || localData.messageBody || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, notificationMessage: e.target.value, messageBody: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { notificationMessage: localData.notificationMessage || localData.messageBody, messageBody: localData.notificationMessage || localData.messageBody })} 
+                    style={{ ...inputStyle, fontFamily: 'monospace', fontSize: '12px', resize: 'vertical' }} 
+                    placeholder="Type the message that will be sent to the staff/doctor..." 
+                  />
+                </div>
+
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '600', color: '#4B5563', marginBottom: '6px' }}>
+                    Quick Insert Dynamic Variables:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {[
+                      { label: 'Patient/Customer Name', code: '{{name}}' },
+                      { label: 'Customer Mobile', code: '{{contact.phone}}' },
+                      { label: 'Problem/Requirement', code: '{{problem}}' },
+                      { label: 'Slot / Date', code: '{{appointment_slot}}' },
+                      { label: 'Direct Chat Link', code: 'https://wa.me/{{contact.phone}}' }
+                    ].map((item, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => {
+                          const current = localData.notificationMessage || localData.messageBody || '';
+                          const updated = current + (current ? '\n' : '') + item.code;
+                          setLocalData(prev => ({ ...prev, notificationMessage: updated, messageBody: updated }));
+                          updateNodeData(id, { notificationMessage: updated, messageBody: updated });
+                        }}
+                        style={{
+                          background: '#F3F4F6',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '4px',
+                          padding: '3px 8px',
+                          fontSize: '11px',
+                          color: '#1F2937',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}
+                      >
+                        + {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                    Assign in Messbee Live Inbox (Agent Name)
+                  </label>
+                  <input 
+                    type="text" 
+                    name="assignToStaff" 
+                    value={localData.assignToStaff || localData.assignTo || ''} 
+                    onChange={(e) => {
+                      handleLocalChange(e);
+                      setLocalData(prev => ({ ...prev, assignToStaff: e.target.value, assignTo: e.target.value }));
+                    }} 
+                    onBlur={() => updateNodeData(id, { assignToStaff: localData.assignToStaff || localData.assignTo, assignTo: localData.assignToStaff || localData.assignTo })} 
+                    style={inputStyle} 
+                    placeholder="e.g. Dr. Rahul or Sales Team" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748B', marginTop: '4px' }}>
+                    When set, automatically pauses the bot and assigns this conversation to this agent in Messbee's Live Inbox.
+                  </div>
+                </div>
+              </div>
+            )}
+
             {['add_tag', 'remove_tag'].includes(localData.actionType) && (
               <div>
                 <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
