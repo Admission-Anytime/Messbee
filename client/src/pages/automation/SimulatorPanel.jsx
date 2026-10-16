@@ -14,7 +14,7 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
-    if (isOpen && channelId) {
+    if (isOpen) {
       // Connect to Socket.IO — strip /api suffix since Socket.IO runs at the root
       const socketUrl = import.meta.env.VITE_SOCKET_URL || getBackendBaseUrl();
       const newSocket = io(socketUrl, {
@@ -24,7 +24,9 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
       
       newSocket.on('connect', () => {
         console.log('Simulator connected to socket:', newSocket.id);
-        newSocket.emit('join_chat', channelId.toString());
+        if (channelId) {
+          newSocket.emit('join_chat', channelId.toString());
+        }
         if (automationId) {
           newSocket.emit('join_chat', `automation_${automationId}`);
         }
@@ -193,17 +195,63 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
         const amount = params.total_amount?.value ? (params.total_amount.value / 100).toFixed(2) : '0.00';
         const currency = params.currency || 'INR';
         const item = params.order?.items?.[0]?.name || 'Order Item';
+        const paymentUrl = params.payment_url || params.payment_settings?.[0]?.payment_gateway?.payment_url;
+
         return (
-          <div style={{ padding: '10px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>💳 Payment Request</div>
-            <div style={{ fontSize: '13px', fontWeight: '600', color: '#0f172a' }}>{item}</div>
-            <div style={{ fontSize: '20px', fontWeight: '800', color: '#15803d' }}>{currency} {amount}</div>
-            <button 
-              onClick={() => sendSimulatedReply('Payment Completed')}
-              style={{ width: '100%', padding: '8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
-            >
-              ✓ Pay Now (Simulate Success)
-            </button>
+          <div style={{ padding: '12px', background: '#f0fdf4', borderRadius: '8px', border: '1px solid #86efac', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '11px', fontWeight: '700', color: '#166534', textTransform: 'uppercase' }}>💳 PAYMENT REQUEST</span>
+              <span style={{ fontSize: '11px', background: '#dcfce7', color: '#15803d', padding: '2px 6px', borderRadius: '4px', fontWeight: '600' }}>Active</span>
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: '700', color: '#0f172a' }}>{item}</div>
+            <div style={{ fontSize: '22px', fontWeight: '800', color: '#15803d' }}>{currency} {amount}</div>
+            
+            {/* Payment Link Info */}
+            {paymentUrl ? (
+              <div style={{ background: 'white', padding: '8px 10px', borderRadius: '6px', border: '1px solid #bbf7d0', fontSize: '12px', wordBreak: 'break-all' }}>
+                <div style={{ color: '#64748b', fontSize: '11px', marginBottom: '3px', fontWeight: '600' }}>🔗 Your Payment Link:</div>
+                <a 
+                  href={paymentUrl} 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  style={{ color: '#0284c7', textDecoration: 'underline', fontWeight: '600', wordBreak: 'break-all' }}
+                >
+                  {paymentUrl}
+                </a>
+              </div>
+            ) : (
+              <div style={{ background: '#fffbeb', padding: '8px 10px', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '12px' }}>
+                <div style={{ color: '#b45309', fontSize: '11px', fontWeight: '700' }}>⚠️ Payment Link Not Pasted</div>
+                <div style={{ color: '#78350f', fontSize: '11px', marginTop: '2px' }}>
+                  Right sidebar me <b>Payment Link / URL</b> me apna Razorpay / UPI link paste karein.
+                </div>
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+              <button 
+                type="button"
+                onClick={() => {
+                  if (paymentUrl) {
+                    window.open(paymentUrl, '_blank');
+                  } else {
+                    alert('Please paste your Razorpay, UPI, or Payment Gateway link in the "Payment Link / URL" field on the right properties pane first.');
+                  }
+                }}
+                style={{ flex: 1, padding: '8px', background: paymentUrl ? '#0284c7' : '#94a3b8', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '12px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}
+                title={paymentUrl ? "Open payment page in browser tab" : "Paste your payment link in properties"}
+              >
+                ↗ Open Link
+              </button>
+              <button 
+                type="button"
+                onClick={() => sendSimulatedReply('Payment Completed')}
+                style={{ flex: 1.5, padding: '8px', background: '#16a34a', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '12px', cursor: 'pointer' }}
+                title="Simulate successful payment completion"
+              >
+                ✓ Mark Paid (Simulate)
+              </button>
+            </div>
           </div>
         );
       }
@@ -371,10 +419,6 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
 
   const handleStartSimulation = async () => {
     if (!automationId) return;
-    if (!channelId) {
-      showToast.warning("Channel Required", "Please assign a WhatsApp Channel to this flow before starting the simulation.");
-      return;
-    }
     setIsSimulating(true);
     if (onSave) {
       await onSave();
@@ -401,10 +445,16 @@ export default function SimulatorPanel({ automationId, channelId, isOpen, onClos
     }
 
     try {
-      await api.post(`/automation/${automationId}/simulate/start`, { simulatorPhone: phoneToUse });
+      const res = await api.post(`/automation/${automationId}/simulate/start`, { 
+        simulatorPhone: phoneToUse,
+        channelId: channelId || undefined
+      });
+      if (res.data?.channelId && socket) {
+        socket.emit('join_chat', res.data.channelId.toString());
+      }
     } catch (error) {
       console.error('Failed to start simulation', error);
-      showToast.error('Simulation Failed', 'Please save the flow first.');
+      showToast.error('Simulation Failed', error.response?.data?.message || 'Please save the flow first.');
       setIsSimulating(false);
     }
   };

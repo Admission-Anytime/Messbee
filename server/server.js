@@ -363,8 +363,7 @@ if (!isServerless && httpServer) {
   process.on('SIGINT', () => shutdown('SIGINT'));
 
   process.on('unhandledRejection', (err) => {
-    console.error('❌ Unhandled Rejection:', err.message);
-    httpServer.close(() => process.exit(1));
+    console.error('⚠️ Unhandled Rejection (non-fatal):', err?.stack || err?.message || err);
   });
 
   startServer();

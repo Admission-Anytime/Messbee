@@ -380,24 +380,73 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
     }
 
     let data;
+    const isSlotCheckPreset = node.data?.apiPreset === 'slot_availability' ||
+      (parsedEndpoint && parsedEndpoint.includes('/check-availability')) ||
+      (node.data?.entityId && node.data?.checkAvailability);
+
     // Internal fast-path for slot availability checks to guarantee zero latency & network resilience
-    if (parsedEndpoint.includes('/check-availability')) {
+    if (isSlotCheckPreset) {
       try {
-        const urlObj = new URL(finalUrl);
-        const pathSegments = urlObj.pathname.split('/');
-        const entIdx = pathSegments.indexOf('entities');
-        const entityId = (entIdx !== -1 && pathSegments[entIdx + 1]) ? pathSegments[entIdx + 1] : null;
+        let entityId = node.data?.entityId;
+        if (entityId && typeof entityId === 'string' && entityId.includes('{{')) {
+          entityId = parseDynamicVariables(entityId, contextData);
+        }
+        if (!entityId || entityId === 'dynamic') {
+          entityId = contextData?.selected_doctor_id ||
+            contextData?.doctor_id ||
+            contextData?.booking_entity_id ||
+            contextData?.doctor_name ||
+            contextData?.selected_menu_option ||
+            contextData?.selected_row_id ||
+            contextData?.entity_id;
+        }
+
+        if (!entityId && finalUrl) {
+          try {
+            const urlObj = new URL(finalUrl);
+            const pathSegments = urlObj.pathname.split('/');
+            const entIdx = pathSegments.indexOf('entities');
+            if (entIdx !== -1 && pathSegments[entIdx + 1] && pathSegments[entIdx + 1] !== 'dynamic') {
+              entityId = pathSegments[entIdx + 1];
+            }
+          } catch (_) {}
+        }
+
         if (entityId) {
           const slotEngine = require('../services/slotBookingEngine.js');
-          const datetimeVal = contextData?.preferred_datetime ||
+          let parsedBodyObj = null;
+          try {
+            if (requestBody) parsedBodyObj = JSON.parse(requestBody);
+          } catch (_) {}
+
+          const datetimeVal = parsedBodyObj?.datetime ||
+            (node.data?.datetimeVariable ? parseDynamicVariables(node.data.datetimeVariable, contextData) : '') ||
+            contextData?.preferred_datetime ||
             contextData?.datetime ||
             contextData?.selected_slot ||
-            contextData?.slot ||
-            (requestBody ? JSON.parse(requestBody)?.datetime : null) || '';
+            contextData?.appointment_slot ||
+            contextData?.slot || '';
+
           data = await slotEngine.checkSlotAvailability(entityId, datetimeVal);
           data = { success: true, ...data };
+
+          // Automatically populate standard downstream session variables for effortless canvas wiring
+          safeSetSessionVariable(session, 'is_slot_available', data.is_available);
+          safeSetSessionVariable(session, 'booking_slot_label', data.confirmed_slot_label);
+          safeSetSessionVariable(session, 'booking_date_label', data.confirmed_date_label);
+          safeSetSessionVariable(session, 'alt_slot_label', data.alt_slot_label);
+          safeSetSessionVariable(session, 'alt_date_label', data.alt_date_label);
+          safeSetSessionVariable(session, 'booking_entity_name', data.entity_name);
+          safeSetSessionVariable(session, 'booking_entity_id', data.entity_id || entityId);
+          safeSetSessionVariable(session, '__booking_entity_id', data.entity_id || entityId);
+          if (data.matched_start_ms) safeSetSessionVariable(session, 'matched_start_ms', data.matched_start_ms);
+          if (data.matched_end_ms) safeSetSessionVariable(session, 'matched_end_ms', data.matched_end_ms);
+          if (data.alt_start_ms) safeSetSessionVariable(session, 'alt_start_ms', data.alt_start_ms);
+          if (data.alt_end_ms) safeSetSessionVariable(session, 'alt_end_ms', data.alt_end_ms);
         }
-      } catch (_) {}
+      } catch (err) {
+        console.error('[executeApiCallNode] Slot availability check error:', err.message);
+      }
     }
 
     if (!data) {
@@ -426,9 +475,12 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
       } else if (typeof responseMapping === 'string') {
         const extractedValue = deepGet(data, responseMapping);
         if (extractedValue !== undefined) {
-          safeSetSessionVariable(session, node.data.saveVariable || 'api_response', extractedValue);
+          safeSetSessionVariable(session, node.data.saveVariable || node.data.saveVariableAs || 'api_response', extractedValue);
         }
       }
+    } else if (node.data?.saveVariable || node.data?.saveVariableAs) {
+      const targetVar = node.data.saveVariable || node.data.saveVariableAs;
+      safeSetSessionVariable(session, targetVar, data);
     }
 
     return 'success';
@@ -704,18 +756,17 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
       }
     }
 
-    // Optional: Auto-assign / handoff in Messbee Live Chat if configured
+    // Optional: Assign staff/doctor to contact in CRM without breaking active bot flow
     const staffToAssign = node.data.assignToStaff || node.data.assignTo;
     if (staffToAssign) {
       const parsedStaff = parseDynamicVariables(staffToAssign, contextData);
       if (parsedStaff) {
-        session.status = 'HANDOFF';
         session.assignedTo = parsedStaff;
         if (targetPhone) {
           try {
             await Contact.updateMany(
               { phone: targetPhone },
-              { $set: { status: 'HANDOFF', isBotPaused: true, assignedTo: parsedStaff } }
+              { $set: { assignedTo: parsedStaff } }
             );
           } catch (e) {
             console.error('Failed to update assignedTo on contact:', e);

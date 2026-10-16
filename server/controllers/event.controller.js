@@ -24,7 +24,11 @@ export const triggerEvent = async (req, res) => {
     customerPhone = customerPhone.toString().replace(/\D/g, '');
 
     // Verify the flow exists and is active
-    const flow = await Automation.findOne({ _id: flowId, channelId, isActive: true });
+    const flow = await Automation.findOne({
+      _id: flowId,
+      channelId,
+      $or: [{ isActive: true }, { status: 'active' }, { status: 'published' }]
+    });
     if (!flow) {
       return res.status(404).json({ error: 'Flow not found or inactive.' });
     }

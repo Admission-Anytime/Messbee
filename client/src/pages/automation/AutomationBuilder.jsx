@@ -292,8 +292,8 @@ export default function AutomationBuilder() {
           return;
         }
       }
-      if (node.type === 'apiNode' && (!node.data?.endpoint && !node.data?.url)) {
-        toast.error(`API node is missing an endpoint URL`);
+      if (node.type === 'apiNode' && (!node.data?.endpoint && !node.data?.url && !node.data?.entityId)) {
+        toast.error(`API node is missing an endpoint URL or resource selection`);
         setInvalidNodeId(node.id);
         return;
       }
@@ -350,12 +350,30 @@ export default function AutomationBuilder() {
 
     setIsSaving(true);
     try {
+      const extractedTriggers = [];
+      (nodes || []).forEach(node => {
+        if (node?.type === 'triggerNode' && node.data) {
+          const { triggerType = 'keyword', keywords, keyword, adSourceId } = node.data;
+          const kws = Array.isArray(keywords) && keywords.length > 0 ? keywords : (keyword ? String(keyword).split(',').map(s => s.trim()).filter(Boolean) : []);
+          kws.forEach(k => {
+            extractedTriggers.push({ type: triggerType, value: k });
+            if (k.toLowerCase() !== k) extractedTriggers.push({ type: triggerType, value: k.toLowerCase() });
+          });
+          if (triggerType === 'whatsapp_ad' || adSourceId) {
+            extractedTriggers.push({ type: 'whatsapp_ad', value: adSourceId || '' });
+          }
+        } else if (node?.type === 'eventTriggerNode' && node.data?.eventName) {
+          extractedTriggers.push({ type: node.data.eventName, value: node.data.eventValue || node.data.eventName });
+        }
+      });
+
       const payload = {
         name: flowName,
         nodes,
         edges,
         isActive,
         channelId,
+        triggers: extractedTriggers
       };
 
       if (id && id !== 'new') {

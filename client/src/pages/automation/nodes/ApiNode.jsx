@@ -1,12 +1,13 @@
 import React from 'react';
 import { Handle, Position } from 'reactflow';
-import { Copy, Trash2, Webhook, AlertTriangle } from 'lucide-react';
+import { Copy, Trash2, Webhook, AlertTriangle, Calendar, Zap, CheckCircle2 } from 'lucide-react';
 import useCanvasStore from '../../../store/useCanvasStore';
 
 export default function ApiNode({ id, data, selected }) {
   const duplicateNode = useCanvasStore(state => state.duplicateNode);
   const removeNode = useCanvasStore(state => state.removeNode);
-  const isValid = !!data.url;
+  const isSlotCheck = data.apiPreset === 'slot_availability' || (data.url && data.url.includes('/check-availability'));
+  const isValid = isSlotCheck ? (!!data.entityId || data.entityId === 'dynamic' || true) : !!data.url;
   const borderColor = isValid ? '#10b981' : '#ef4444';
   
   return (
@@ -27,8 +28,8 @@ export default function ApiNode({ id, data, selected }) {
 
         <div style={{ padding: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #4C566A' }}>
           <div style={{ fontSize: '14px', fontWeight: '600', color: '#ECEFF4', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Webhook size={16} color="#6b7280" />
-            {data.label || 'API Call'}
+            {isSlotCheck ? <Zap size={16} color="#10b981" /> : <Webhook size={16} color="#6b7280" />}
+            {data.label || (isSlotCheck ? 'Check Slot Availability' : 'API Call')}
             {!isValid && <AlertTriangle size={16} color="#ef4444" style={{ marginLeft: '4px' }} title="Missing required data" />}
           </div>
           <div style={{ display: 'flex', gap: '4px' }}>
@@ -39,10 +40,24 @@ export default function ApiNode({ id, data, selected }) {
 
         <div style={{ padding: '12px', background: '#2E3440' }}>
           <div style={{ background: '#3B4252', borderRadius: '6px', padding: '12px', border: '1px solid #4C566A' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 'bold', background: '#2E3440', padding: '4px 6px', borderRadius: '4px', color: '#4b5563', border: '1px solid #4C566A' }}>{data.method || 'POST'}</span>
-              <span style={{ fontSize: '12px', color: '#ECEFF4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.url || 'https://api.example.com'}</span>
-            </div>
+            {isSlotCheck ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                  <Calendar size={13} color="#10b981" />
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#ECEFF4' }}>
+                    {data.entityName || 'Live Resource Check'}
+                  </span>
+                </div>
+                <div style={{ fontSize: '10px', color: '#9CA3AF' }}>
+                  Auto: <code style={{ color: '#10b981' }}>{'{{is_slot_available}}'}</code>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 'bold', background: '#2E3440', padding: '4px 6px', borderRadius: '4px', color: '#4b5563', border: '1px solid #4C566A' }}>{data.method || 'POST'}</span>
+                <span style={{ fontSize: '12px', color: '#ECEFF4', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data.url || 'https://api.example.com'}</span>
+              </div>
+            )}
           </div>
         </div>
         

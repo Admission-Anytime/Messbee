@@ -20,7 +20,8 @@ const allocationSchema = new mongoose.Schema({
   channelId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Channel',
-    required: true,
+    required: false,
+    default: null,
     index: true
   },
   entityId: {
