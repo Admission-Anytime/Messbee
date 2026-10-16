@@ -169,10 +169,21 @@ router.post('/allocations/:id/fulfill', protect, async (req, res) => {
  */
 router.all('/:id/check-availability', async (req, res) => {
   try {
+    let targetEntityId = req.params.id;
+    if (targetEntityId === 'dynamic') {
+      targetEntityId = req.body?.entityId ||
+        req.body?.selected_doctor_id ||
+        req.body?.doctor_id ||
+        req.body?.booking_entity_id ||
+        req.body?.doctor_name ||
+        req.query?.entityId ||
+        req.query?.selected_doctor_id ||
+        req.query?.doctor_id;
+    }
     const datetime = req.method === 'POST'
       ? (req.body?.datetime || req.body?.preferred_datetime || '')
       : (req.query?.datetime || req.query?.preferred_datetime || '');
-    const result = await checkSlotAvailability(req.params.id, datetime);
+    const result = await checkSlotAvailability(targetEntityId, datetime);
     res.json({ success: true, ...result });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });

@@ -111,7 +111,7 @@ export default function TriggerNode({ id, data, selected }) {
                   placeholder="e.g. VIP"
                   value={data.keyword || ''}
                   onChange={(e) => updateNodeData(id, { keyword: e.target.value })}
-                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #4C566A', borderRadius: '6px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '8px 10px', border: '1px solid #4C566A', background: '#2E3440', color: '#ECEFF4', borderRadius: '6px', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
             ) : (

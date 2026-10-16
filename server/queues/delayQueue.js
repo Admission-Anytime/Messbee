@@ -84,14 +84,17 @@ export const startDelayQueueWorker = () => {
           const INACTIVITY_TIMEOUT_MS = 24 * 60 * 60 * 1000; // 24 hours
           const expiredTime = new Date(Date.now() - INACTIVITY_TIMEOUT_MS);
           
+          // Exclude customers who have pending scheduled delays (e.g. multi-day follow-ups)
+          const pendingDelayPhones = await DelayedJob.distinct('customerPhone', { status: 'PENDING' });
+
           const result = await CustomerSession.updateMany(
             { 
               status: { $in: ['ACTIVE', 'WAITING_FOR_INPUT', 'WAITING_FOR_EVENT'] }, 
-              lastInteractionAt: { $lt: expiredTime } 
+              lastInteractionAt: { $exists: true, $ne: null, $lt: expiredTime },
+              phone: { $nin: pendingDelayPhones }
             },
             { 
-              status: 'CANCELLED',
-              sessionVariables: new Map()
+              status: 'CANCELLED'
             }
           );
           

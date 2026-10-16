@@ -955,6 +955,7 @@ class WhatsAppService {
               timestamp: message.timestamp,
               messageType: message.type,
               phoneNumberId: value.metadata?.phone_number_id,
+              referral: message.referral || null,
               contact: {
                 name: contact?.profile?.name || 'Unknown',
                 phone: message.from

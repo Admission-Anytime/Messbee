@@ -5,6 +5,108 @@ const { PLAN_LIMITS } = require('../utils/planLimits');
 const whatsappService = require('../services/whatsappService');
 const automationService = require('../services/automationService');
 
+function extractTriggersFromNodes(nodes) {
+  if (!Array.isArray(nodes)) return [];
+  const triggers = [];
+
+  for (const node of nodes) {
+    if (!node || !node.data) continue;
+
+    if (node.type === 'triggerNode') {
+      const { triggerType, keyword, keywords, adSourceId, eventName } = node.data;
+      
+      const allKeywords = [];
+      if (Array.isArray(keywords)) {
+        keywords.forEach(k => {
+          if (typeof k === 'string' && k.trim()) allKeywords.push(k.trim());
+        });
+      }
+      if (typeof keyword === 'string' && keyword.trim()) {
+        keyword.split(',').forEach(k => {
+          const trimmed = k.trim();
+          if (trimmed && !allKeywords.includes(trimmed)) {
+            allKeywords.push(trimmed);
+          }
+        });
+      }
+
+      for (const kw of allKeywords) {
+        triggers.push({
+          type: triggerType || 'keyword',
+          value: kw
+        });
+        if (kw.toLowerCase() !== kw) {
+          triggers.push({
+            type: triggerType || 'keyword',
+            value: kw.toLowerCase()
+          });
+        }
+      }
+
+      if (triggerType === 'whatsapp_ad' || adSourceId) {
+        triggers.push({
+          type: 'whatsapp_ad',
+          value: adSourceId || ''
+        });
+      }
+
+      if (triggerType === 'tag_added' && keyword) {
+        triggers.push({
+          type: 'TAG_ADDED',
+          value: keyword.trim()
+        });
+      } else if (triggerType === 'tag_removed' && keyword) {
+        triggers.push({
+          type: 'TAG_REMOVED',
+          value: keyword.trim()
+        });
+      } else if (triggerType === 'new_contact' || triggerType === 'NEW_CONTACT') {
+        triggers.push({
+          type: 'NEW_CONTACT',
+          value: null
+        });
+      } else if (triggerType === 'crm_event' || triggerType === 'crm') {
+        triggers.push({
+          type: eventName || 'CRM_EVENT',
+          value: keyword || ''
+        });
+      } else if (triggerType === 'api_webhook' || triggerType === 'webhook') {
+        triggers.push({
+          type: 'API_EVENT',
+          value: eventName || 'custom'
+        });
+      }
+    } else if (node.type === 'eventTriggerNode') {
+      const { triggerType, eventName, eventValue } = node.data;
+      if (triggerType === 'webhook') {
+        triggers.push({
+          type: 'API_EVENT',
+          value: eventName || 'webhook'
+        });
+      } else if (triggerType === 'crm') {
+        triggers.push({
+          type: eventName || 'CRM_EVENT',
+          value: eventValue || ''
+        });
+      } else if (triggerType === 'schedule' || triggerType === 'recurring') {
+        triggers.push({
+          type: triggerType,
+          value: eventName || ''
+        });
+      } else if (eventName) {
+        triggers.push({
+          type: eventName,
+          value: eventValue || eventName
+        });
+      }
+    }
+  }
+
+  return triggers;
+}
+
+exports.extractTriggersFromNodes = extractTriggersFromNodes;
+
 exports.getAutomations = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
@@ -87,7 +189,11 @@ exports.createAutomation = async (req, res, next) => {
       return res.status(400).json({ message: `An automation with the name "${req.body.name}" already exists.` });
     }
 
-    const automationData = { ...req.body, tenantId };
+    const triggers = (Array.isArray(req.body.triggers) && req.body.triggers.length > 0)
+      ? req.body.triggers
+      : extractTriggersFromNodes(req.body.nodes);
+
+    const automationData = { ...req.body, triggers, tenantId };
     const newAutomation = new Automation(automationData);
     const savedAutomation = await newAutomation.save();
 
@@ -113,9 +219,16 @@ exports.updateAutomation = async (req, res, next) => {
       }
     }
 
+    const updateData = { ...req.body };
+    if (req.body.nodes) {
+      if (!Array.isArray(req.body.triggers) || req.body.triggers.length === 0) {
+        updateData.triggers = extractTriggersFromNodes(req.body.nodes);
+      }
+    }
+
     const updatedAutomation = await Automation.findOneAndUpdate(
       { _id: req.params.id, tenantId },
-      req.body,
+      updateData,
       { new: true, runValidators: true }
     );
     if (!updatedAutomation) {
@@ -178,8 +291,21 @@ exports.testAutomation = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'No WhatsApp channel configured. Please connect a WhatsApp channel first.' });
     }
 
+    let cleanPhone = String(phoneNumber || '').replace(/\D/g, '');
+    if (cleanPhone.length === 10) {
+      cleanPhone = '91' + cleanPhone;
+    }
+
+    // Ensure contact exists and bot is not paused or opted out for testing
+    const Contact = require('../models/Contact');
+    await Contact.findOneAndUpdate(
+      { phone: cleanPhone, tenantId },
+      { $set: { isOptedOut: false, isBotPaused: false, status: 'ACTIVE', lastInteractionAt: new Date() } },
+      { upsert: true }
+    );
+
     // Trigger the real engine for the test number
-    const result = await automationService.startFlow(phoneNumber, channelId, automation._id, { isTest: true });
+    const result = await automationService.startFlow(cleanPhone, channelId, automation._id, { isTest: true });
     
     if (!result.success) {
        return res.status(400).json({ success: false, message: result.message });
@@ -219,7 +345,7 @@ exports.simulateStart = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Automation not found' });
     }
     
-    let channelId = automation.channelId;
+    let channelId = automation.channelId || req.body.channelId;
     if (!channelId) {
       const Channel = require('../models/Channel');
       const defaultChannel = await Channel.findOne({ tenantId });
@@ -275,16 +401,16 @@ exports.simulateStart = async (req, res, next) => {
       const outgoing = automation.edges?.filter(e => e.source === triggerNode.id);
       if (outgoing && outgoing.length > 0) {
         // Start flow directly from the node attached to trigger
-        await startFlowManually(simulatorPhone, channelId, automation._id);
+        await startFlowManually(simulatorPhone, channelId, automation._id, { isTest: true });
       } else {
-        await startFlowManually(simulatorPhone, channelId, automation._id);
+        await startFlowManually(simulatorPhone, channelId, automation._id, { isTest: true });
       }
     } else {
       // Flow directly starts with a message/template node
-      await startFlowManually(simulatorPhone, channelId, automation._id);
+      await startFlowManually(simulatorPhone, channelId, automation._id, { isTest: true });
     }
     
-    res.status(200).json({ success: true, message: 'Simulation started' });
+    res.status(200).json({ success: true, message: 'Simulation started', channelId });
   } catch (error) {
     console.error('[SIMULATOR] simulateStart error:', error);
     next(error);
@@ -294,11 +420,25 @@ exports.simulateStart = async (req, res, next) => {
 exports.simulateMessage = async (req, res, next) => {
   try {
     const tenantId = req.user.tenantId || req.user._id;
-    const { channelId, simulatorPhone, message, messageContext } = req.body;
+    let { channelId, simulatorPhone, message, messageContext } = req.body;
     const automationId = req.params.id; // Get the specific flow ID being tested
     
-    if (!channelId || !simulatorPhone || !message) {
-      return res.status(400).json({ success: false, message: 'Missing required parameters' });
+    if (!simulatorPhone || !message) {
+      return res.status(400).json({ success: false, message: 'Missing simulatorPhone or message' });
+    }
+
+    if (!channelId) {
+      const automation = await Automation.findOne({ _id: automationId, tenantId });
+      channelId = automation?.channelId;
+      if (!channelId) {
+        const Channel = require('../models/Channel');
+        const defaultChannel = await Channel.findOne({ tenantId });
+        if (defaultChannel) channelId = defaultChannel._id;
+      }
+    }
+
+    if (!channelId) {
+      return res.status(400).json({ success: false, message: 'No WhatsApp channel configured. Please connect a WhatsApp channel first.' });
     }
 
     // Enqueue the incoming message to webhookQueue
