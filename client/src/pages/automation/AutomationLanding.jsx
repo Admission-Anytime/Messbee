@@ -22,8 +22,8 @@ const PRE_BUILT_TEMPLATES = [
     categoryBg: '#FEF2F2',
     icon: Stethoscope,
     title: 'QR Reception & Staff Routing',
-    desc: 'Visitor/patient scans QR Code or wa.me link → collects details, routes to specialist & alerts on Real WhatsApp.',
-    tags: ['QR', 'Reception', 'Routing', 'WhatsApp Alert'],
+    desc: 'Visitor/patient scans QR Code or wa.me link → collects details, picks live slot, completes payment & alerts on Real WhatsApp.',
+    tags: ['QR', 'Live Slots', 'Payment', 'WhatsApp Alert'],
     isQRReception: true,
   },
   {

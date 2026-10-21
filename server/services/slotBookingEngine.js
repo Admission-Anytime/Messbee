@@ -25,11 +25,21 @@ async function findEntitySafely(entityId, lean = false) {
   if (mongoose.Types.ObjectId.isValid(idStr)) {
     query = Entity.findById(idStr);
   } else {
+    // Strip common prefixes like 'btn_' or 'btn-' (e.g. 'btn_rahul' -> 'rahul')
+    const cleanTerm = idStr.replace(/^btn[-_]/i, '').trim();
+    const cleanRegex = new RegExp(cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const exactRegex = new RegExp(`^${idStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
     query = Entity.findOne({
       $or: [
+        { identifier: idStr },
+        { identifier: idStr.toUpperCase() },
+        { identifier: cleanRegex },
         { code: idStr },
         { code: idStr.toUpperCase() },
-        { name: new RegExp(idStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') }
+        { code: cleanRegex },
+        { name: exactRegex },
+        { name: cleanRegex }
       ]
     });
   }
@@ -112,14 +122,28 @@ function generateRawSlots(entity, date) {
   const exception = (entity.exceptions || []).find(ex => ex.date === dateStr);
 
   let activeIntervals = [];
+  let blackoutIntervals = [];
 
   if (exception) {
     if (!exception.isAvailable) return []; // Holiday / closed
     activeIntervals = exception.customIntervals || [];
   } else {
-    const window = (entity.availabilityWindows || []).find(w => w.dayOfWeek === dayOfWeek);
-    if (!window) return []; // Not available this day
-    activeIntervals = window.activeIntervals || [];
+    const windows = entity.availabilityWindows || [];
+    const window = windows.find(w => w.dayOfWeek === dayOfWeek);
+    if (window) {
+      activeIntervals = window.activeIntervals || [];
+      blackoutIntervals = window.blackoutIntervals || [];
+    } else if (windows.length === 0) {
+      // Resilient default schedule for clinic/consultation when entity has no custom schedule configured
+      if (dayOfWeek !== 0) {
+        activeIntervals = [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '18:00' }];
+        blackoutIntervals = [{ start: '13:00', end: '14:00' }];
+      } else {
+        activeIntervals = [{ start: '10:00', end: '14:00' }];
+      }
+    } else {
+      return []; // Not available this day
+    }
   }
 
   const stepMs = (entity.allocationStepMinutes || 30) * 60 * 1000;
@@ -136,7 +160,16 @@ function generateRawSlots(entity, date) {
       const slotEnd = cursor + stepMs;
       const slotLabel = `${formatTimeLabel(slotStart)} - ${formatTimeLabel(slotEnd)}`;
 
-      slots.push({ startMs: slotStart, endMs: slotEnd, slotLabel, dateLabel });
+      // Check if this slot overlaps with any blackoutIntervals (e.g. lunch/break)
+      const isBlackout = blackoutIntervals.some(b => {
+        const bStart = toEpochMs(date, b.start);
+        const bEnd = toEpochMs(date, b.end);
+        return slotStart < bEnd && slotEnd > bStart;
+      });
+
+      if (!isBlackout) {
+        slots.push({ startMs: slotStart, endMs: slotEnd, slotLabel, dateLabel });
+      }
       cursor = slotEnd + bufferMs;
     }
   }
@@ -171,9 +204,13 @@ async function getAvailableSlotsForDate(entityId, date) {
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
 
+  const now = new Date();
   const activeAllocations = await Allocation.find({
     entityId: entity._id,
-    state: { $in: ['HOLD', 'COMMITTED'] },
+    $or: [
+      { state: 'COMMITTED' },
+      { state: 'HOLD', leaseExpiresAt: { $gt: now } }
+    ],
     startEpochMs: { $lt: dayEnd.getTime() },
     endEpochMs: { $gt: dayStart.getTime() }
   }).lean();
@@ -289,7 +326,10 @@ async function claimEntityQuantum({
     {
       $match: {
         entityId: entity._id,
-        state: { $in: ['HOLD', 'COMMITTED'] },
+        $or: [
+          { state: 'COMMITTED' },
+          { state: 'HOLD', leaseExpiresAt: { $gt: new Date() } }
+        ],
         startEpochMs: { $lt: endEpochMs },
         endEpochMs: { $gt: startEpochMs }
       }
@@ -401,10 +441,18 @@ async function fulfillAllocation(allocationId) {
  */
 async function buildSlotMenuSections(entityId, nodeData = {}, contextData = {}) {
   const daysAhead = nodeData.daysAhead || 3;
-  const entity = await findEntitySafely(entityId, true);
+  let entity = await findEntitySafely(entityId, true);
+  if (!entity) {
+    const filter = { isActive: true };
+    if (contextData?.tenantId || nodeData?.tenantId) {
+      filter.tenantId = contextData?.tenantId || nodeData?.tenantId;
+    }
+    entity = await Entity.findOne(filter).lean();
+  }
   if (!entity) return [];
 
-  const slotsRange = await getAvailableSlotsRange(entityId, daysAhead);
+  const canonicalEntityId = entity._id.toString();
+  const slotsRange = await getAvailableSlotsRange(canonicalEntityId, daysAhead);
 
   const sections = [];
   let totalRows = 0;
@@ -416,7 +464,7 @@ async function buildSlotMenuSections(entityId, nodeData = {}, contextData = {}) 
     for (const slot of day.slots) {
       if (totalRows >= 10) break;
       rows.push({
-        id: `SLOT_${entityId}_${slot.startMs}_${slot.endMs}`,
+        id: `SLOT_${canonicalEntityId}_${slot.startMs}_${slot.endMs}`,
         title: slot.slotLabel.substring(0, 24),
         description: `${day.dateLabel} · ${slot.availableUnits} available`
       });

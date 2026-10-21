@@ -33,19 +33,9 @@ export const PREBUILT_FLOWS = {
         }
       },
       {
-        id: '4', type: 'inputNode', position: { x: 1040, y: 300 },
+        id: '4', type: 'messageNode', position: { x: 1040, y: 300 },
         data: { 
-          label: 'Step 4: Ask Preferred Slot', 
-          text: 'What is your preferred date or time slot? (e.g. Today 5:00 PM):',
-          question: 'What is your preferred date or time slot? (e.g. Today 5:00 PM):',
-          validationType: 'appointment', 
-          variableName: 'appointment_slot' 
-        }
-      },
-      {
-        id: '5', type: 'messageNode', position: { x: 1370, y: 300 },
-        data: { 
-          label: 'Step 5: Select Doctor', 
+          label: 'Step 4: Select Doctor', 
           messageType: 'interactive',
           text: 'Please select which doctor you would like to consult with:',
           buttons: [
@@ -56,74 +46,63 @@ export const PREBUILT_FLOWS = {
         }
       },
       {
-        id: '6_rahul', type: 'actionNode', position: { x: 1720, y: 120 },
+        id: '5', type: 'bookingNode', position: { x: 1390, y: 300 },
         data: { 
-          label: 'Alert Dr. Rahul (WhatsApp)', 
+          label: 'Step 5: Pick Live Slot', 
+          useDynamicEntity: true,
+          entityId: '{{selected_doctor_id}}',
+          text: '📅 *Live Available Slots:*\n\nPlease tap below to choose an available appointment slot for consultation:',
+          menuButtonText: 'View Available Slots',
+          daysAhead: 3,
+          saveVariableAs: 'booking_slot_id'
+        }
+      },
+      {
+        id: '6', type: 'commerceNode', position: { x: 1740, y: 300 },
+        data: { 
+          label: 'Step 6: Consultation Payment', 
+          commerceType: 'payment',
+          paymentMode: 'upi',
+          upiId: 'clinic@okaxis',
+          paymentUrl: '',
+          itemName: 'Doctor Consultation Fee',
+          amount: '499',
+          currency: 'INR',
+          paymentGateway: 'razorpay',
+          text: '💳 *CONSULTATION PAYMENT*\n\n👨‍⚕️ Doctor: {{doctor_name}}\n⏰ Slot: {{selected_slot}}\n💰 Fee: ₹499\n📋 Booking ID: #{{booking_allocation_id}}\n\n📱 *Scan QR Code above OR Pay via UPI:*\n👉 UPI ID: *{{upi_id}}*\n\n━━━━━━━━━━━━━━━━━━━\n🔢 *CONFIRMATION:*\nAfter paying on GPay / PhonePe / Paytm, reply with your *12-digit UPI Reference / UTR Number* (or type *Done*).'
+        }
+      },
+      {
+        id: '7', type: 'actionNode', position: { x: 2090, y: 300 },
+        data: { 
+          label: 'Step 7: Alert Doctor & Admin (WhatsApp)', 
           actionType: 'notify_whatsapp',
           recipientPhone: '+919876543210',
           adminPhone: '+919800011122',
-          assignToStaff: 'Dr. Rahul',
-          notificationMessage: '🏥 *NEW APPOINTMENT ALERT*\n\nDoctor: Dr. Rahul\nPatient: {{name}}\nPhone: +{{contact.phone}}\nProblem: {{problem}}\nSlot: {{appointment_slot}}\n\nDirect WhatsApp Chat: https://wa.me/{{contact.phone}}?text=Hello%20{{name}}'
+          assignToStaff: 'Assigned Doctor',
+          notificationMessage: '🏥 *NEW CONFIRMED APPOINTMENT*\n\n👤 Patient: {{name}}\n📞 Mobile: +{{contact.phone}}\n👨‍⚕️ Doctor: {{doctor_name}}\n🩺 Problem: {{problem}}\n⏰ Slot: {{selected_slot}}\n📋 Booking ID: #{{booking_allocation_id}}\n💳 Payment: ₹499 (PAID via UPI)\n🔢 UPI UTR No: {{utr_number}}\n\n👉 Tap to chat with patient directly:\nhttps://wa.me/{{contact.phone}}?text=Hello%20{{name}}'
         }
       },
       {
-        id: '7_rahul', type: 'messageNode', position: { x: 2060, y: 120 },
+        id: '8', type: 'messageNode', position: { x: 2440, y: 300 },
         data: { 
-          label: 'Confirmation (Dr. Rahul)', 
+          label: 'Step 8: Confirmation & Token', 
           messageType: 'text',
-          text: '✅ Your appointment request has been sent to *Dr. Rahul*!\n\nDr. Rahul will review your symptoms and connect with you on WhatsApp shortly.'
-        }
-      },
-      {
-        id: '6_anil', type: 'actionNode', position: { x: 1720, y: 300 },
-        data: { 
-          label: 'Alert Dr. Anil (WhatsApp)', 
-          actionType: 'notify_whatsapp',
-          recipientPhone: '+919876543211',
-          adminPhone: '+919800011122',
-          assignToStaff: 'Dr. Anil',
-          notificationMessage: '🏥 *NEW APPOINTMENT ALERT*\n\nDoctor: Dr. Anil\nPatient: {{name}}\nPhone: +{{contact.phone}}\nProblem: {{problem}}\nSlot: {{appointment_slot}}\n\nDirect WhatsApp Chat: https://wa.me/{{contact.phone}}?text=Hello%20{{name}}'
-        }
-      },
-      {
-        id: '7_anil', type: 'messageNode', position: { x: 2060, y: 300 },
-        data: { 
-          label: 'Confirmation (Dr. Anil)', 
-          messageType: 'text',
-          text: '✅ Your appointment request has been sent to *Dr. Anil*!\n\nDr. Anil will review your symptoms and connect with you on WhatsApp shortly.'
-        }
-      },
-      {
-        id: '6_sunil', type: 'actionNode', position: { x: 1720, y: 480 },
-        data: { 
-          label: 'Alert Dr. Sunil (WhatsApp)', 
-          actionType: 'notify_whatsapp',
-          recipientPhone: '+919876543212',
-          adminPhone: '+919800011122',
-          assignToStaff: 'Dr. Sunil',
-          notificationMessage: '🏥 *NEW APPOINTMENT ALERT*\n\nDoctor: Dr. Sunil\nPatient: {{name}}\nPhone: +{{contact.phone}}\nProblem: {{problem}}\nSlot: {{appointment_slot}}\n\nDirect WhatsApp Chat: https://wa.me/{{contact.phone}}?text=Hello%20{{name}}'
-        }
-      },
-      {
-        id: '7_sunil', type: 'messageNode', position: { x: 2060, y: 480 },
-        data: { 
-          label: 'Confirmation (Dr. Sunil)', 
-          messageType: 'text',
-          text: '✅ Your appointment request has been sent to *Dr. Sunil*!\n\nDr. Sunil will review your symptoms and connect with you on WhatsApp shortly.'
+          text: '🎉 *APPOINTMENT & PAYMENT CONFIRMED!*\n\nDear *{{name}}*, your consultation with *{{doctor_name}}* is confirmed:\n\n• 📅 Slot: *{{selected_slot}}*\n• 📋 Reference: *#{{booking_allocation_id}}*\n• 💳 Payment: *PAID (₹499 via UPI)*\n• 🔢 UTR Ref: *{{utr_number}}*\n\nThe doctor has received your details and will connect with you on WhatsApp at your appointed time.'
         }
       }
     ],
     edges: [
       { id: 'e1-2', source: '1', sourceHandle: 'main-handle', target: '2', targetHandle: 'target-handle', type: 'smoothstep' },
       { id: 'e2-3', source: '2', sourceHandle: 'main-handle', target: '3', targetHandle: 'target-handle', type: 'smoothstep' },
-      { id: 'e3-4', source: '3', sourceHandle: 'main-handle', target: '4', targetHandle: 'target-handle', type: 'smoothstep' },
-      { id: 'e4-5', source: '4', sourceHandle: 'main-handle', target: '5', type: 'smoothstep' },
-      { id: 'e5-6r', source: '5', sourceHandle: 'btn-btn_rahul', target: '6_rahul', type: 'smoothstep' },
-      { id: 'e6r-7r', source: '6_rahul', sourceHandle: 'main-handle', target: '7_rahul', type: 'smoothstep' },
-      { id: 'e5-6a', source: '5', sourceHandle: 'btn-btn_anil', target: '6_anil', type: 'smoothstep' },
-      { id: 'e6a-7a', source: '6_anil', sourceHandle: 'main-handle', target: '7_anil', type: 'smoothstep' },
-      { id: 'e5-6s', source: '5', sourceHandle: 'btn-btn_sunil', target: '6_sunil', type: 'smoothstep' },
-      { id: 'e6s-7s', source: '6_sunil', sourceHandle: 'main-handle', target: '7_sunil', type: 'smoothstep' }
+      { id: 'e3-4', source: '3', sourceHandle: 'main-handle', target: '4', type: 'smoothstep' },
+      { id: 'e4-5r', source: '4', sourceHandle: 'btn-btn_rahul', target: '5', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e4-5a', source: '4', sourceHandle: 'btn-btn_anil', target: '5', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e4-5s', source: '4', sourceHandle: 'btn-btn_sunil', target: '5', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e4-5m', source: '4', sourceHandle: 'main-handle', target: '5', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e5-6', source: '5', sourceHandle: 'main-handle', target: '6', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e6-7', source: '6', sourceHandle: 'main-handle', target: '7', targetHandle: 'target-handle', type: 'smoothstep' },
+      { id: 'e7-8', source: '7', sourceHandle: 'main-handle', target: '8', type: 'smoothstep' }
     ]
   },
 
