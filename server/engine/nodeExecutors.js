@@ -721,6 +721,12 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
       recipientList.push(...String(rawAdminPhone).split(',').map(p => p.trim()).filter(Boolean));
     }
 
+    // 👨‍⚕️ Dynamically add selected doctor's phone number if available
+    const doctorPhoneVar = contextData?.doctor_phone || session?.sessionVariables?.doctor_phone;
+    if (doctorPhoneVar && !recipientList.includes(doctorPhoneVar)) {
+      recipientList.unshift(doctorPhoneVar);
+    }
+
     if (recipientList.length > 0 && rawMsg) {
       const parsedMsg = parseDynamicVariables(rawMsg, contextData);
 

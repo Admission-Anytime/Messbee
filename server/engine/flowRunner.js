@@ -413,14 +413,39 @@ export async function sendWhatsAppMessage(toPhone, payload, channel, forceBypass
         }
       } else {
         logger.log(`\n📤 [WhatsApp API] Sending ${payload.type || 'message'} to: ${toPhone}`);
-        const response = await axios.post(url, payload, {
-          headers: {
-            'Authorization': `Bearer ${channel.metaAccessToken}`,
-            'Content-Type': 'application/json'
+        try {
+          const response = await axios.post(url, payload, {
+            headers: {
+              'Authorization': `Bearer ${channel.metaAccessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          metaMessageId = response.data?.messages?.[0]?.id || null;
+          logger.log(`✅ [WhatsApp API] Send Success! Message ID: ${metaMessageId}\n`);
+        } catch (postErr) {
+          // If interactive order_details failed (e.g. WABA payment not configured in Meta), fallback gracefully to formatted text message
+          if (payload.type === 'interactive' && payload.interactive?.type === 'order_details') {
+            logger.warn('[WhatsApp API] order_details rejected by Meta, attempting clean text fallback with payment link...');
+            const fallbackBody = payload.interactive?.body?.text || 'Please complete your payment to confirm your appointment.';
+            const textFallbackPayload = {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: toPhone,
+              type: 'text',
+              text: { body: fallbackBody }
+            };
+            const fbResponse = await axios.post(url, textFallbackPayload, {
+              headers: {
+                'Authorization': `Bearer ${channel.metaAccessToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            metaMessageId = fbResponse.data?.messages?.[0]?.id || null;
+            logger.log(`✅ [WhatsApp API] Payment text fallback Send Success! Message ID: ${metaMessageId}\n`);
+          } else {
+            throw postErr;
           }
-        });
-        metaMessageId = response.data?.messages?.[0]?.id || null;
-        logger.log(`✅ [WhatsApp API] Send Success! Message ID: ${metaMessageId}\n`);
+        }
       }
 
       // Deduct WCC credits for successful automated message
@@ -1088,22 +1113,59 @@ export function buildMessagePayload(phone, nodeType, nodeData, contextData = {})
       const referenceId = parseDynamicVariables(nodeData.referenceId, contextData) || `order_${Date.now()}`;
       const upiId = nodeData.upiId ? parseDynamicVariables(nodeData.upiId, contextData) : '';
       let paymentUrl = nodeData.paymentUrl ? parseDynamicVariables(nodeData.paymentUrl, contextData) : '';
-      if (!paymentUrl && upiId) {
-        paymentUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(parsedItemName)}&am=${resolvedAmount}&cu=INR`;
-      }
+      const upiLink = upiId ? `upi://pay?pa=${upiId}&pn=${encodeURIComponent(parsedItemName)}&am=${resolvedAmount}&cu=INR` : '';
+      const qrCodeUrl = upiId ? `https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=${encodeURIComponent(upiLink)}` : '';
 
-      let bodyText = parseDynamicVariables(nodeData.text, contextData);
+      const updatedContext = {
+        ...contextData,
+        upi_id: upiId,
+        upi_link: upiLink,
+        qr_code_url: qrCodeUrl,
+        payment_url: paymentUrl,
+        amount: resolvedAmount,
+        currency: resolvedCurrency,
+        item_name: parsedItemName
+      };
+
+      let bodyText = parseDynamicVariables(nodeData.text, updatedContext);
       if (!bodyText || bodyText.trim().length === 0) {
-        bodyText = `💳 *PAYMENT REQUEST*\n\n*Item:* ${parsedItemName}\n*Amount:* ${resolvedCurrency} ${resolvedAmount}`;
+        bodyText = `💳 *CONSULTATION PAYMENT*\n\n👨‍⚕️ Doctor: ${updatedContext.doctor_name || 'Assigned Specialist'}\n⏰ Slot: ${updatedContext.selected_slot || 'Selected Slot'}\n💰 Fee: ${resolvedCurrency} ${resolvedAmount}\n📋 Booking ID: #${updatedContext.booking_allocation_id || referenceId}`;
         if (upiId) {
-          bodyText += `\n📱 *UPI ID:* ${upiId}`;
+          bodyText += `\n\n📱 *Scan QR Code above OR Pay via UPI:*\n👉 UPI ID: *${upiId}*`;
         }
         if (paymentUrl) {
-          bodyText += `\n\n🔗 *Payment Link:* ${paymentUrl}\n\nPlease tap the link above to complete payment.`;
+          bodyText += `\n\n💳 *Or Pay via Card / NetBanking Link:*\n🔗 ${paymentUrl}`;
         }
-      } else if (paymentUrl && !bodyText.includes('http')) {
-        bodyText = `${bodyText}\n\n🔗 *Payment Link:* ${paymentUrl}`;
+        bodyText += `\n\n━━━━━━━━━━━━━━━━━━━\n🔢 *CONFIRMATION:*\nAfter paying on GPay / PhonePe / Paytm, reply with your *12-digit UPI Reference / UTR Number* (or type *Done*).`;
+      } else {
+        // If custom text doesn't contain UTR instruction, ensure it's guided
+        if (upiId && !bodyText.includes('UTR') && !bodyText.includes('Reference')) {
+          bodyText += `\n\n━━━━━━━━━━━━━━━━━━━\n🔢 *CONFIRMATION:*\nAfter payment, please reply here with your *12-digit UPI Reference / UTR Number* (or type *Done*).`;
+        }
       }
+
+      // 📱 If UPI ID is configured, send scannable Dynamic UPI QR Code Image directly to WhatsApp
+      if (upiId && qrCodeUrl) {
+        return {
+          ...basePayload,
+          type: 'image',
+          image: {
+            link: qrCodeUrl,
+            caption: bodyText.substring(0, 1024)
+          },
+          _sim_commerce_data: {
+            qrCodeUrl,
+            upiId,
+            upiLink,
+            amount: resolvedAmount,
+            currency: resolvedCurrency,
+            itemName: parsedItemName,
+            paymentUrl: paymentUrl || upiLink
+          }
+        };
+      }
+
+      const effectivePaymentUrl = paymentUrl || upiLink;
 
       return {
         ...basePayload,
@@ -1115,14 +1177,15 @@ export function buildMessagePayload(phone, nodeType, nodeData, contextData = {})
             name: "review_and_pay",
             parameters: {
               reference_id: referenceId,
-              payment_url: paymentUrl,
+              payment_url: effectivePaymentUrl,
+              upi_id: upiId,
               type: nodeData.goodsType || "digital-goods",
               payment_settings: [{
                 type: "payment_gateway",
                 payment_gateway: { 
-                  desc: parseDynamicVariables(nodeData.paymentDescription, contextData) || "Payment", 
+                  desc: parseDynamicVariables(nodeData.paymentDescription, updatedContext) || "Payment", 
                   type: nodeData.paymentGateway || "razorpay",
-                  payment_url: paymentUrl
+                  payment_url: effectivePaymentUrl
                 }
               }],
               currency: resolvedCurrency,
@@ -3444,7 +3507,20 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               sessionVariables: session.sessionVariables || {}
             });
 
-            if (claim && claim.success && claim.allocationId) {
+            if (!claim || !claim.success) {
+              logger.warn(`[bookingNode] Slot ${incomingPayload} CAPACITY_EXHAUSTED for ${customerPhone}. Reason: ${claim?.reason}`);
+              const exhaustMsg = '⚠️ That slot is no longer available — someone else just booked it! Please tap *View Slots* again to choose an available slot, or type *restart* to start over.';
+              await sendWhatsAppMessage(customerPhone, {
+                messaging_product: 'whatsapp',
+                recipient_type: 'individual',
+                to: customerPhone,
+                type: 'text',
+                text: { body: exhaustMsg }
+              }, channel);
+              return;
+            }
+
+            if (claim.allocationId) {
               await _slotEngine.commitAllocation(claim.allocationId, session.sessionVariables || {});
             }
 
@@ -3495,16 +3571,83 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
         }
 
         // ── 2. COMMERCE / PAYMENT NODE RESPONSE ─────────────────────────────────
+        // ── 2. COMMERCE / PAYMENT NODE RESPONSE (DYNAMIC LIVE VALIDATION) ────────
         if (currentNode?.type === 'commerceNode') {
-          const isPayReply = String(incomingPayload).toLowerCase().includes('payment') || 
-                             String(incomingPayload).toLowerCase().includes('paid') || 
-                             String(incomingPayload).toLowerCase().includes('pay') ||
-                             Boolean(messageContext?.isButtonTap);
-          if (isPayReply) {
+          const lowerPayload = String(incomingPayload || '').toLowerCase().trim();
+          const isButtonTap = Boolean(messageContext?.isButtonTap);
+
+          // 1. Detect if customer uploaded a payment screenshot / image
+          const isImageMessage = messageContext?.messageType === 'image' || 
+                                 lowerPayload === '[__media_image__]' || 
+                                 Boolean(messageContext?.mediaUrl || messageContext?.image);
+          const mediaUrl = messageContext?.mediaUrl || messageContext?.image?.link || messageContext?.image?.url || '';
+
+          // 2. Extract real 12-digit UPI UTR / Reference number entered by customer
+          const utr12Match = String(incomingPayload || '').match(/\b\d{12}\b/);
+          const txnRefMatch = String(incomingPayload || '').match(/\b(T\d{16,}|\d{12}|UPI\/\d+)\b/i);
+
+          // 3. Detect explicit payment keywords
+          const payKeywords = ['payment', 'paid', 'pay', 'done', 'yes', 'completed', 'ok', 'confirm', 'success', 'ho gaya', 'kar diya', 'receipt', 'accept', 'bhej diya', 'transfer done'];
+          const isExplicitPayText = payKeywords.some(kw => lowerPayload.includes(kw));
+
+          const isValidPaymentProof = utr12Match || txnRefMatch || isImageMessage || isButtonTap || isExplicitPayText;
+
+          // 🛡️ Live Guard: If customer typed random text (e.g. "hi", "kab aana hai"), guide them to provide real UTR or screenshot
+          if (!isValidPaymentProof && currentNode.data?.commerceType === 'payment') {
+            session.validationRetries = (session.validationRetries || 0) + 1;
+            await session.save();
+
+            const promptMsg = '⚠️ *Payment Confirmation Needed*\n\nPlease complete your consultation fee payment using the UPI QR Code above, and reply with your *12-digit UPI Reference / UTR number* (or send a *screenshot of the payment receipt*) to confirm your appointment.\n\n_(If you have already paid, reply with the 12-digit UTR number or type *Paid*)_';
+            await sendWhatsAppMessage(customerPhone, {
+              messaging_product: 'whatsapp',
+              recipient_type: 'individual',
+              to: customerPhone,
+              type: 'text',
+              text: { body: promptMsg }
+            }, channel);
+            return; // Hold at payment step until customer provides valid proof
+          }
+
+          if (isValidPaymentProof) {
+            let extractedUtr = '';
+            let utrSource = 'MANUAL';
+
+            if (utr12Match) {
+              // Real 12-digit UTR entered by live customer (e.g. 428190672185)
+              extractedUtr = utr12Match[0];
+              utrSource = 'CUSTOMER_ENTERED_12_DIGIT_UTR';
+            } else if (txnRefMatch) {
+              // Transaction reference string
+              extractedUtr = txnRefMatch[0];
+              utrSource = 'TRANSACTION_REFERENCE';
+            } else if (isImageMessage && mediaUrl) {
+              // Payment screenshot photo sent by live customer
+              extractedUtr = 'PAYMENT_SCREENSHOT_ATTACHED';
+              utrSource = 'SCREENSHOT';
+              session.sessionVariables['payment_screenshot'] = mediaUrl;
+            } else if (isButtonTap && messageContext?.utr) {
+              extractedUtr = messageContext.utr;
+              utrSource = 'SIMULATED_TEST';
+            } else {
+              // Customer typed "Paid" or "Done" without 12 digits
+              extractedUtr = `CLAIMED_PAID_BY_PATIENT`;
+              utrSource = 'UNVERIFIED_CLAIM';
+            }
+
+            const txnId = utr12Match ? `UTR-${utr12Match[0]}` : (txnRefMatch ? txnRefMatch[0] : `TXN_${Date.now().toString().slice(-8)}`);
+
+            session.sessionVariables['utr_number'] = extractedUtr;
+            session.sessionVariables['upi_utr'] = extractedUtr;
+            session.sessionVariables['reference_number'] = extractedUtr;
+            session.sessionVariables['utr_source'] = utrSource;
             session.sessionVariables['payment_status'] = 'COMPLETED';
             session.sessionVariables['is_paid'] = true;
+            session.sessionVariables['transaction_id'] = txnId;
+            session.sessionVariables['payment_id'] = txnId;
+            session.sessionVariables['payment_method'] = 'UPI';
+
             if (currentNode.data?.saveVariableAs) {
-              session.sessionVariables[currentNode.data.saveVariableAs] = 'COMPLETED';
+              session.sessionVariables[currentNode.data.saveVariableAs] = extractedUtr;
             }
             session.markModified('sessionVariables');
             await session.save();
@@ -3556,11 +3699,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
           
           let isExplicitChoiceRecognized = false;
 
-          let matchedEdge = outgoingEdges.find(e => 
-             e.sourceHandle === incomingPayload || 
-             e.sourceHandle === `btn-${incomingPayload}` || 
-             e.sourceHandle === `row-${incomingPayload}`
-          );
+          const candidateEdgeHandles = [
+            incomingPayload,
+            `btn-${incomingPayload}`,
+            `row-${incomingPayload}`,
+            messageContext?.buttonId,
+            messageContext?.buttonId ? `btn-${messageContext.buttonId}` : null,
+            messageContext?.rowId,
+            messageContext?.rowId ? `row-${messageContext.rowId}` : null,
+            messageContext?.listId,
+            messageContext?.listId ? `row-${messageContext.listId}` : null
+          ].filter(Boolean);
+
+          let matchedEdge = outgoingEdges.find(e => candidateEdgeHandles.includes(e.sourceHandle));
 
           if (matchedEdge) {
             isExplicitChoiceRecognized = true;
@@ -3615,6 +3766,29 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                 session.sessionVariables['contact.' + currentNode.data.saveVariableAs.replace(/^contact\./, '')] = valToSave;
               }
               chosenBtn = rowTitle;
+            }
+
+            // 🔘 If interactive buttons, resolve button title & ID from buttons array
+            if (currentNode.data?.buttons && Array.isArray(currentNode.data.buttons)) {
+              const matchedBtn = currentNode.data.buttons.find(b => 
+                b.id === incomingPayload || 
+                `btn-${b.id}` === incomingPayload ||
+                b.id === messageContext?.buttonId ||
+                b.title?.trim().toLowerCase() === String(incomingPayload || '').trim().toLowerCase() ||
+                b.text?.trim().toLowerCase() === String(incomingPayload || '').trim().toLowerCase()
+              );
+              if (matchedBtn) {
+                const btnTitle = matchedBtn.title || matchedBtn.text || matchedBtn.id;
+                const btnId = String(matchedBtn.id || incomingPayload);
+                chosenBtn = btnTitle;
+                session.sessionVariables['selected_button'] = btnTitle;
+                session.sessionVariables['selected_button_id'] = btnId;
+                if (btnTitle.toLowerCase().includes('dr.') || btnTitle.toLowerCase().includes('doctor') || currentNode.data?.label?.toLowerCase().includes('doctor')) {
+                  session.sessionVariables['doctor_name'] = btnTitle;
+                  session.sessionVariables['selected_doctor'] = btnTitle;
+                  session.sessionVariables['selected_doctor_id'] = btnId;
+                }
+              }
             }
 
             session.sessionVariables['selected_button'] = chosenBtn;
@@ -3821,6 +3995,12 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                       session.sessionVariables['selected_button'] = chosenBtnTitle;
                       session.sessionVariables['selected_option'] = chosenBtnTitle;
                       session.sessionVariables['contact.last_button_choice'] = chosenBtnTitle;
+
+                      if (chosenBtnTitle.toLowerCase().includes('dr.') || chosenBtnTitle.toLowerCase().includes('doctor') || currentNode.data?.label?.toLowerCase().includes('doctor')) {
+                        session.sessionVariables['doctor_name'] = chosenBtnTitle;
+                        session.sessionVariables['selected_doctor'] = chosenBtnTitle;
+                        session.sessionVariables['selected_doctor_id'] = btnId;
+                      }
 
                       // 📅 Smart Date & Time extraction from button text
                       const dtBtn = extractDateAndTime(chosenBtnTitle);
@@ -4234,8 +4414,13 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                     sessionVariables: session.sessionVariables || {}
                   });
 
-                  // Commit the HOLD allocation permanently
-                  if (claim && claim.success && claim.allocationId) {
+                  // Commit the HOLD allocation permanently if claim was successful
+                  if (!claim || !claim.success) {
+                    logger.warn(`[findNextNodeIdFromBranching] Slot CAPACITY_EXHAUSTED for ${customerPhone}`);
+                    return null;
+                  }
+
+                  if (claim.allocationId) {
                     await _slotEngine.commitAllocation(claim.allocationId, session.sessionVariables || {});
                   }
 

@@ -2032,67 +2032,64 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   </label>
                   <select 
                     name="paymentMode" 
-                    value={localData.paymentMode || (localData.upiId ? 'upi' : 'link')} 
+                    value={localData.paymentMode || 'upi'} 
                     onChange={(e) => { 
-                      const mode = e.target.value;
                       handleLocalChange(e); 
                       handleBlur(e); 
                     }} 
                     style={inputStyle}
                   >
-                    <option value="link">🔗 Payment Link / Page (Razorpay, Stripe, Cashfree, Website)</option>
-                    <option value="upi">📱 Direct UPI ID (Google Pay, PhonePe, Paytm, BHIM)</option>
+                    <option value="upi">📱 Direct UPI (Recommended: GPay, PhonePe, Paytm - 0% Fee)</option>
+                    <option value="link">🔗 Payment Gateway Link (Razorpay / Stripe / Website)</option>
                   </select>
                 </div>
 
-                {(localData.paymentMode === 'upi' || (!localData.paymentMode && localData.upiId)) ? (
-                  <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>
-                      Client UPI ID (VPA) <span style={{ color: '#ef4444' }}>*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      name="upiId" 
-                      value={localData.upiId || ''} 
-                      onChange={(e) => {
-                        const val = e.target.value.trim();
-                        setLocalData(prev => ({ 
-                          ...prev, 
-                          upiId: val,
-                          paymentUrl: val ? `upi://pay?pa=${val}&pn=${encodeURIComponent(localData.itemName || 'Booking')}&am=${localData.amount || '499'}&cu=INR` : ''
-                        }));
-                        updateNodeData(id, { 
-                          upiId: val,
-                          paymentUrl: val ? `upi://pay?pa=${val}&pn=${encodeURIComponent(localData.itemName || 'Booking')}&am=${localData.amount || '499'}&cu=INR` : ''
-                        });
-                      }} 
-                      onBlur={handleBlur} 
-                      style={inputStyle} 
-                      placeholder="e.g. 9876543210@paytm ya clinic@okaxis" 
-                    />
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      💡 Customer ke WhatsApp par direct <b>GPay / PhonePe / Paytm</b> ka clickable link jayega.
-                    </div>
+                {/* Primary: Client UPI ID */}
+                <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>
+                    📱 Client UPI ID (VPA) <span style={{ color: '#16a34a', fontSize: '11px', fontWeight: '500' }}>[Direct Bank Settlement]</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="upiId" 
+                    value={localData.upiId || ''} 
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setLocalData(prev => ({ 
+                        ...prev, 
+                        upiId: val
+                      }));
+                      updateNodeData(id, { 
+                        upiId: val
+                      });
+                    }} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="e.g. clinic@okaxis ya 9876543210@paytm" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                    💡 Customer ke WhatsApp par direct <b>GPay / PhonePe / Paytm</b> ka clickable link jayega. Paisa seedha bank me credit hoga (0% fee).
                   </div>
-                ) : (
-                  <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>
-                      Payment Link / URL <span style={{ color: '#ef4444' }}>*</span>
-                    </label>
-                    <input 
-                      type="text" 
-                      name="paymentUrl" 
-                      value={localData.paymentUrl || ''} 
-                      onChange={handleLocalChange} 
-                      onBlur={handleBlur} 
-                      style={inputStyle} 
-                      placeholder="e.g. https://rzp.io/l/... ya https://pages.razorpay.com/pl_xxxx" 
-                    />
-                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                      💡 Apne Razorpay / Payment Gateway dashboard se link copy karke yahan paste karein.
-                    </div>
+                </div>
+
+                {/* Optional: Razorpay / Gateway Link */}
+                <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>
+                    🔗 Razorpay / Card Payment Link <span style={{ color: '#94a3b8', fontSize: '11px' }}>(Optional)</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="paymentUrl" 
+                    value={localData.paymentUrl || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="https://rzp.io/l/... (Optional for Card / NetBanking)" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                    💡 Optional: Agar customer Credit/Debit Card se pay karna chahe toh apna Razorpay / Payment Link yahan paste karein.
                   </div>
-                )}
+                </div>
 
                 <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Reference / Order ID</label>
