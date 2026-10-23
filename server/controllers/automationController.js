@@ -165,9 +165,9 @@ exports.createAutomation = async (req, res, next) => {
     const tenantId = req.user.tenantId || req.user._id;
 
     // Plan limits check
-    const user = await User.findById(tenantId);
-    const userPlan = (user?.subscriptionPlan || 'free').toLowerCase();
-    const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.free;
+    const user = (await User.findById(tenantId)) || req.user;
+    const userPlan = (user?.subscriptionPlan || req.user?.subscriptionPlan || 'growth').toLowerCase();
+    const limits = PLAN_LIMITS[userPlan] || PLAN_LIMITS.growth || PLAN_LIMITS.free;
 
     if (limits.chatbots !== -1) {
       const count = await Automation.countDocuments({ tenantId });
