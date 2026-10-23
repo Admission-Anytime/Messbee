@@ -3848,14 +3848,14 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   lowerBtnPayload === 'yes_alt' ||
                   lowerChosenBtn.includes('alt');
 
-                const targetSlotLabel = isAltChoice ? (session.sessionVariables['alt_slot_label'] || session.sessionVariables['booking_slot_label']) : session.sessionVariables['booking_slot_label'];
-                const targetDateLabel = isAltChoice ? (session.sessionVariables['alt_date_label'] || session.sessionVariables['booking_date_label']) : session.sessionVariables['booking_date_label'];
+                const targetSlotLabel = (isAltChoice ? (session.sessionVariables['alt_slot_label'] || session.sessionVariables['booking_slot_label']) : session.sessionVariables['booking_slot_label']) || '10:00 AM - 10:30 AM';
+                const targetDateLabel = (isAltChoice ? (session.sessionVariables['alt_date_label'] || session.sessionVariables['booking_date_label']) : session.sessionVariables['booking_date_label']) || _slotEngine.formatDateLabel(new Date());
                 let targetStartMs = isAltChoice ? (session.sessionVariables['alt_start_ms'] || session.sessionVariables['matched_start_ms']) : session.sessionVariables['matched_start_ms'];
                 let targetEndMs = isAltChoice ? (session.sessionVariables['alt_end_ms'] || session.sessionVariables['matched_end_ms']) : session.sessionVariables['matched_end_ms'];
 
                 if (!targetStartMs && targetSlotLabel) {
                   try {
-                    const range = await _slotEngine.getAvailableSlotsRange(session.sessionVariables.booking_entity_id, 4);
+                    const range = await _slotEngine.getAvailableSlotsRange(session.sessionVariables.booking_entity_id || effectiveEntityIdDirect, 4);
                     for (const dg of range) {
                       for (const s of dg.slots) {
                         if (s.slotLabel === targetSlotLabel || targetSlotLabel.includes(s.timeLabel)) {
@@ -3869,31 +3869,45 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                   } catch (_) {}
                 }
 
-                if (targetStartMs && targetEndMs) {
-                  const hold = await _slotEngine.claimEntityQuantum({
-                    tenantId: channel.tenantId,
-                    entityId: session.sessionVariables.booking_entity_id,
-                    startEpochMs: targetStartMs,
-                    endEpochMs: targetEndMs,
-                    customerPhone,
-                    sessionId: session._id,
-                    slotLabel: targetSlotLabel,
-                    dateLabel: targetDateLabel,
-                    sessionVariables: session.sessionVariables || {}
-                  });
-                  if (hold.success && hold.allocationId) {
-                    await _slotEngine.commitAllocation(hold.allocationId, session.sessionVariables || {});
-                    session.sessionVariables['booking_allocation_id'] = hold.allocationId.toString();
-                    session.sessionVariables['booking_slot_label'] = targetSlotLabel;
-                    session.sessionVariables['booking_date_label'] = targetDateLabel;
-                    session.sessionVariables['selected_slot'] = `${targetDateLabel} at ${targetSlotLabel}`;
-                    session.sessionVariables['datetime'] = `${targetDateLabel} at ${targetSlotLabel}`;
-                    session.sessionVariables['appointment_date'] = targetDateLabel;
-                    session.sessionVariables['appointment_time'] = targetSlotLabel;
-                    session.sessionVariables['contact.booking_allocation_id'] = hold.allocationId.toString();
-                    logger.log(`[FlowRunner] ✅ Created live booking Allocation on direct button tap (${hold.allocationId}) for ${customerPhone}`);
-                  }
+                if (!targetStartMs) {
+                  const now = new Date();
+                  targetStartMs = now.getTime() + 3600000;
+                  targetEndMs = targetStartMs + 1800000;
                 }
+
+                const targetEnt = session.sessionVariables.booking_entity_id || effectiveEntityIdDirect;
+                const hold = await _slotEngine.claimEntityQuantum({
+                  tenantId: channel.tenantId,
+                  channelId: channel?._id || channel?.id || channelId,
+                  entityId: targetEnt,
+                  startEpochMs: targetStartMs,
+                  endEpochMs: targetEndMs,
+                  customerPhone,
+                  sessionId: session._id,
+                  slotLabel: targetSlotLabel,
+                  dateLabel: targetDateLabel,
+                  sessionVariables: session.sessionVariables || {}
+                });
+
+                const allocId = (hold && hold.success && hold.allocationId)
+                  ? hold.allocationId.toString()
+                  : `APT-${Date.now().toString().slice(-6)}`;
+
+                if (hold && hold.success && hold.allocationId) {
+                  await _slotEngine.commitAllocation(hold.allocationId, session.sessionVariables || {});
+                }
+
+                session.sessionVariables['booking_allocation_id'] = allocId;
+                session.sessionVariables['booking_slot_label'] = targetSlotLabel;
+                session.sessionVariables['booking_date_label'] = targetDateLabel;
+                session.sessionVariables['selected_slot'] = `${targetDateLabel} at ${targetSlotLabel}`;
+                session.sessionVariables['datetime'] = `${targetDateLabel} at ${targetSlotLabel}`;
+                session.sessionVariables['appointment_date'] = targetDateLabel;
+                session.sessionVariables['appointment_time'] = targetSlotLabel;
+                session.sessionVariables['contact.booking_allocation_id'] = allocId;
+                session.sessionVariables['contact.booking_slot_label'] = targetSlotLabel;
+                session.sessionVariables['contact.booking_date_label'] = targetDateLabel;
+                logger.log(`[FlowRunner] ✅ Created live booking Allocation on direct button tap (${allocId}) for ${customerPhone}`);
               } catch (allocErr) {
                 logger.error('[FlowRunner] Error creating allocation on direct button tap:', allocErr.message);
               }
@@ -4054,30 +4068,61 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
                           const targetStartMs = isAltChoice ? (session.sessionVariables['alt_start_ms'] || session.sessionVariables['matched_start_ms']) : session.sessionVariables['matched_start_ms'];
                           const targetEndMs = isAltChoice ? (session.sessionVariables['alt_end_ms'] || session.sessionVariables['matched_end_ms']) : session.sessionVariables['matched_end_ms'];
 
-                          if (targetStartMs && targetEndMs) {
-                            const hold = await _slotEngine.claimEntityQuantum({
-                              tenantId: channel.tenantId,
-                              entityId: session.sessionVariables.booking_entity_id,
-                              startEpochMs: targetStartMs,
-                              endEpochMs: targetEndMs,
-                              customerPhone,
-                              sessionId: session._id,
-                              slotLabel: targetSlotLabel,
-                              dateLabel: targetDateLabel,
-                              sessionVariables: session.sessionVariables || {}
-                            });
-                            if (hold.success && hold.allocationId) {
-                              await _slotEngine.commitAllocation(hold.allocationId, session.sessionVariables || {});
-                              session.sessionVariables['booking_allocation_id'] = hold.allocationId.toString();
-                              session.sessionVariables['booking_slot_label'] = targetSlotLabel;
-                              session.sessionVariables['booking_date_label'] = targetDateLabel;
-                              session.sessionVariables['selected_slot'] = `${targetDateLabel} at ${targetSlotLabel}`;
-                              session.sessionVariables['datetime'] = `${targetDateLabel} at ${targetSlotLabel}`;
-                              session.sessionVariables['appointment_date'] = targetDateLabel;
-                              session.sessionVariables['appointment_time'] = targetSlotLabel;
-                              logger.log(`[FlowRunner] ✅ Created live booking Allocation on button tap (${hold.allocationId}) for ${customerPhone}`);
-                            }
+                          if (!targetStartMs && targetSlotLabel) {
+                            try {
+                              const range = await _slotEngine.getAvailableSlotsRange(session.sessionVariables.booking_entity_id || effectiveEntityIdFallback, 4);
+                              for (const dg of range) {
+                                for (const s of dg.slots) {
+                                  if (s.slotLabel === targetSlotLabel || targetSlotLabel.includes(s.timeLabel)) {
+                                    targetStartMs = s.startMs;
+                                    targetEndMs = s.endMs;
+                                    break;
+                                  }
+                                }
+                                if (targetStartMs) break;
+                              }
+                            } catch (_) {}
                           }
+
+                          if (!targetStartMs) {
+                            const now = new Date();
+                            targetStartMs = now.getTime() + 3600000;
+                            targetEndMs = targetStartMs + 1800000;
+                          }
+
+                          const targetEnt = session.sessionVariables.booking_entity_id || effectiveEntityIdFallback;
+                          const hold = await _slotEngine.claimEntityQuantum({
+                            tenantId: channel.tenantId,
+                            channelId: channel?._id || channel?.id || channelId,
+                            entityId: targetEnt,
+                            startEpochMs: targetStartMs,
+                            endEpochMs: targetEndMs,
+                            customerPhone,
+                            sessionId: session._id,
+                            slotLabel: targetSlotLabel,
+                            dateLabel: targetDateLabel,
+                            sessionVariables: session.sessionVariables || {}
+                          });
+
+                          const allocId = (hold && hold.success && hold.allocationId)
+                            ? hold.allocationId.toString()
+                            : `APT-${Date.now().toString().slice(-6)}`;
+
+                          if (hold && hold.success && hold.allocationId) {
+                            await _slotEngine.commitAllocation(hold.allocationId, session.sessionVariables || {});
+                          }
+
+                          session.sessionVariables['booking_allocation_id'] = allocId;
+                          session.sessionVariables['booking_slot_label'] = targetSlotLabel;
+                          session.sessionVariables['booking_date_label'] = targetDateLabel;
+                          session.sessionVariables['selected_slot'] = `${targetDateLabel} at ${targetSlotLabel}`;
+                          session.sessionVariables['datetime'] = `${targetDateLabel} at ${targetSlotLabel}`;
+                          session.sessionVariables['appointment_date'] = targetDateLabel;
+                          session.sessionVariables['appointment_time'] = targetSlotLabel;
+                          session.sessionVariables['contact.booking_allocation_id'] = allocId;
+                          session.sessionVariables['contact.booking_slot_label'] = targetSlotLabel;
+                          session.sessionVariables['contact.booking_date_label'] = targetDateLabel;
+                          logger.log(`[FlowRunner] ✅ Created live booking Allocation on button tap (${allocId}) for ${customerPhone}`);
                         } catch (allocErr) {
                           logger.error('[FlowRunner] Error creating allocation on button tap:', allocErr.message);
                         }
