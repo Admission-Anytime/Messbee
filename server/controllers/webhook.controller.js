@@ -288,7 +288,7 @@ export const handleApiEventTrigger = async (req, res) => {
 
     const activeFlow = await Automation.findOne({
       channelId,
-      isActive: true,
+      $or: [{ isActive: true }, { status: 'active' }, { status: 'published' }],
       'triggers.type': 'API_EVENT',
       'triggers.value': eventName
     });

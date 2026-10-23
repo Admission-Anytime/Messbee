@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen, Calendar, Check, Plus, Edit3, Save, UserCheck, Sparkles } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
 import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
 import NodeGuideModal from '../../components/Modol/automation/NodeGuideModal';
@@ -363,9 +363,125 @@ export default function NodePropertiesPane({ currentChannelId }) {
       .catch(err => console.error('Error fetching entities for dropdown:', err));
   }, []);
 
-
-
   const selectedNode = nodes.find(n => n.selected);
+
+  // ─── Inline Booking & Resource Timing States ─────────────────────
+  const [selectedEntityForTiming, setSelectedEntityForTiming] = useState('');
+  const [isSavingTiming, setIsSavingTiming] = useState(false);
+  const [showNewResourceModal, setShowNewResourceModal] = useState(false);
+  const [timingFormData, setTimingFormData] = useState({
+    name: '',
+    category: 'doctor',
+    identifier: '',
+    start1: '09:00',
+    end1: '13:00',
+    hasShift2: true,
+    start2: '17:00',
+    end2: '20:00',
+    stepMinutes: 30,
+    totalCapacity: 1,
+    activeDays: [1, 2, 3, 4, 5, 6] // Mon-Sat
+  });
+
+  const loadEntityTimingIntoForm = (ent) => {
+    if (!ent) return;
+    setSelectedEntityForTiming(ent._id);
+    const w0 = ent.availabilityWindows?.[0] || {};
+    const int1 = w0.activeIntervals?.[0] || { start: '09:00', end: '13:00' };
+    const int2 = w0.activeIntervals?.[1] || null;
+    const days = (ent.availabilityWindows || []).map(w => w.dayOfWeek);
+
+    setTimingFormData({
+      name: ent.name || '',
+      category: ent.category || 'doctor',
+      identifier: ent.identifier || '',
+      start1: int1.start || '09:00',
+      end1: int1.end || '13:00',
+      hasShift2: !!int2,
+      start2: int2?.start || '17:00',
+      end2: int2?.end || '20:00',
+      stepMinutes: ent.allocationStepMinutes || 30,
+      totalCapacity: ent.totalCapacity || 1,
+      activeDays: days.length > 0 ? days : [1, 2, 3, 4, 5, 6]
+    });
+  };
+
+  const handleSaveResourceTiming = async () => {
+    if (!timingFormData.name || !timingFormData.name.trim()) {
+      showToast.error('Please enter a Resource / Doctor Name');
+      return;
+    }
+    setIsSavingTiming(true);
+    try {
+      const activeIntervals = [
+        { start: timingFormData.start1, end: timingFormData.end1 }
+      ];
+      if (timingFormData.hasShift2 && timingFormData.start2 && timingFormData.end2) {
+        activeIntervals.push({ start: timingFormData.start2, end: timingFormData.end2 });
+      }
+
+      const availabilityWindows = (timingFormData.activeDays || [1, 2, 3, 4, 5, 6]).map(day => ({
+        dayOfWeek: day,
+        activeIntervals
+      }));
+
+      const existing = availableEntities.find(ent => 
+        (selectedEntityForTiming && ent._id === selectedEntityForTiming) ||
+        (timingFormData.name && ent.name.trim().toLowerCase() === timingFormData.name.trim().toLowerCase())
+      );
+
+      let targetId = existing?._id;
+
+      if (targetId) {
+        const payload = {
+          name: timingFormData.name.trim(),
+          category: timingFormData.category || 'general',
+          allocationStepMinutes: Number(timingFormData.stepMinutes) || 30,
+          totalCapacity: Number(timingFormData.totalCapacity) || 1,
+          availabilityWindows
+        };
+        const res = await api.put(`/entities/${targetId}`, payload);
+        if (!res.data?.success) throw new Error(res.data?.message || 'Failed to save');
+        showToast.success('Timings Saved!', `Updated schedule for ${timingFormData.name.trim()}`);
+      } else {
+        const idClean = timingFormData.name.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_' + Date.now().toString().slice(-4);
+        const payload = {
+          name: timingFormData.name.trim(),
+          identifier: idClean,
+          category: timingFormData.category || 'general',
+          allocationStepMinutes: Number(timingFormData.stepMinutes) || 30,
+          totalCapacity: Number(timingFormData.totalCapacity) || 1,
+          availabilityWindows,
+          isActive: true
+        };
+        const res = await api.post('/entities', payload);
+        if (!res.data?.success) throw new Error(res.data?.message || 'Failed to create');
+        targetId = res.data.data?._id;
+        showToast.success('Resource Created!', `${timingFormData.name.trim()} added with live schedule!`);
+      }
+
+      if (targetId) {
+        setSelectedEntityForTiming(targetId);
+        if (selectedNode?.type === 'bookingNode') {
+          const up = { entityId: targetId, entityName: timingFormData.name.trim(), useDynamicEntity: false };
+          setLocalData(prev => ({ ...prev, ...up }));
+          updateNodeData(selectedNode.id, up);
+        }
+      }
+
+      const refreshRes = await api.get('/entities');
+      if (refreshRes.data?.success && Array.isArray(refreshRes.data.data)) {
+        setAvailableEntities(refreshRes.data.data);
+      }
+    } catch (err) {
+      console.error('Error saving entity timing:', err);
+      showToast.error('Save Failed', err.response?.data?.message || err.message);
+    } finally {
+      setIsSavingTiming(false);
+    }
+  };
+
+  const handleCreateNewResource = handleSaveResourceTiming;
 
   const handleSelectTrigger = (triggerId) => {
     let mappedType = triggerId;
@@ -518,12 +634,23 @@ export default function NodePropertiesPane({ currentChannelId }) {
           }
         }
       }
+
+      if (selectedNode.type === 'commerceNode' && data.commerceType === 'payment') {
+        let changed = false;
+        if (!data.currency) { data.currency = 'INR'; changed = true; }
+        if (!data.amount) { data.amount = '499'; changed = true; }
+        if (changed) updateNodeData(selectedNode.id, { currency: data.currency, amount: data.amount });
+      }
       setLocalData(data);
       setTemplateSearch('');
+      if (selectedNode.type === 'bookingNode' && availableEntities.length > 0) {
+        const ent = availableEntities.find(e => e._id === data.entityId) || availableEntities[0];
+        if (ent) loadEntityTimingIntoForm(ent);
+      }
     } else {
       setLocalData(null);
     }
-  }, [selectedNode?.id, approvedTemplates]);
+  }, [selectedNode?.id, approvedTemplates, availableEntities]);
 
   // Fetch approved templates when a templateNode is selected
   useEffect(() => {
@@ -1534,126 +1661,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </>
         )}
 
-        {/* Real-time Slot Booking Node Specific */}
-        {type === 'bookingNode' && (
-          <>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>
-                  Select Bookable Resource / Doctor / Entity <span style={{ color: '#EF4444' }}>*</span>
-                </label>
-              </div>
-              <select 
-                name="entityId" 
-                value={localData.entityId || ''} 
-                onChange={(e) => {
-                  handleLocalChange(e);
-                  const selectedEnt = availableEntities.find(ent => ent._id === e.target.value);
-                  if (selectedEnt) {
-                    const newLabel = `Live Slots: ${selectedEnt.name}`;
-                    setLocalData(prev => ({ ...prev, entityId: e.target.value, entityName: selectedEnt.name, label: newLabel }));
-                    updateNodeData(id, { entityId: e.target.value, entityName: selectedEnt.name, label: newLabel });
-                  }
-                }} 
-                style={inputStyle}
-              >
-                <option value="">-- Choose from your configured entities --</option>
-                {availableEntities.map(ent => (
-                  <option key={ent._id} value={ent._id}>
-                    {ent.name} ({ent.identifier})
-                  </option>
-                ))}
-              </select>
-              {availableEntities.length === 0 && (
-                <div style={{ marginTop: '6px' }}>
-                  <input 
-                    type="text" 
-                    name="entityId" 
-                    value={localData.entityId || ''} 
-                    onChange={handleLocalChange} 
-                    onBlur={handleBlur} 
-                    style={inputStyle} 
-                    placeholder="Enter custom Entity ID (e.g. 660f1234567890abcdef1234)" 
-                  />
-                </div>
-              )}
-              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
-                Real-time concurrency, capacity, and active shift windows will be evaluated for this resource.
-              </p>
-            </div>
 
-            <WhatsAppMessageField
-              label="Prompt Message"
-              name="text"
-              value={localData.text || ''}
-              placeholder="Please select an appointment slot from the available times below..."
-              maxLength={1024}
-              minHeight="100px"
-              inputStyle={inputStyle}
-              localData={localData}
-              setLocalData={setLocalData}
-              updateNodeData={updateNodeData}
-              id={id}
-            />
-
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Interactive List Button Title</label>
-                <span style={{ fontSize: '11px', color: '#6B7280' }}>{(localData.menuButtonText || 'View Slots').length}/20</span>
-              </div>
-              <input 
-                type="text" 
-                name="menuButtonText" 
-                value={localData.menuButtonText || ''} 
-                onChange={(e) => { if (e.target.value.length <= 20) { handleLocalChange(e); } }} 
-                onBlur={handleBlur} 
-                style={inputStyle} 
-                placeholder="View Slots" 
-              />
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-                Lookahead Range (Days)
-              </label>
-              <input 
-                type="number" 
-                name="daysAhead" 
-                min="1" 
-                max="14" 
-                value={localData.daysAhead || 3} 
-                onChange={handleLocalChange} 
-                onBlur={handleBlur} 
-                style={inputStyle} 
-                placeholder="3" 
-              />
-              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
-                How many future calendar days of real-time slots to display (WhatsApp allows up to 10 rows).
-              </p>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Save Selection to Variable</label>
-              <div style={{ position: 'relative' }}>
-                <div style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }}>
-                  <Variable size={14} />
-                </div>
-                <input 
-                  type="text" 
-                  name="saveVariableAs" 
-                  value={localData.saveVariableAs || ''} 
-                  onChange={handleLocalChange} 
-                  onBlur={handleBlur} 
-                  style={{ ...inputStyle, paddingLeft: '32px' }} 
-                  placeholder="e.g. booking_slot_id" 
-                />
-              </div>
-              <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
-                Automatically exposes {'{{booking_slot_label}}'}, {'{{booking_date_label}}'}, and {'{{booking_allocation_id}}'} downstream!
-              </p>
-            </div>
-          </>
-        )}
 
         {/* New Nodes Specific */}
         {type === 'mediaNode' && (
@@ -2019,6 +2027,71 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   </select>
                 </div>
                 <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#111827', marginBottom: '6px' }}>
+                    Payment Mode
+                  </label>
+                  <select 
+                    name="paymentMode" 
+                    value={localData.paymentMode || 'upi'} 
+                    onChange={(e) => { 
+                      handleLocalChange(e); 
+                      handleBlur(e); 
+                    }} 
+                    style={inputStyle}
+                  >
+                    <option value="upi">📱 Direct UPI (Recommended: GPay, PhonePe, Paytm - 0% Fee)</option>
+                    <option value="link">🔗 Payment Gateway Link (Razorpay / Stripe / Website)</option>
+                  </select>
+                </div>
+
+                {/* Primary: Client UPI ID */}
+                <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>
+                    📱 Client UPI ID (VPA) <span style={{ color: '#16a34a', fontSize: '11px', fontWeight: '500' }}>[Direct Bank Settlement]</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="upiId" 
+                    value={localData.upiId || ''} 
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setLocalData(prev => ({ 
+                        ...prev, 
+                        upiId: val
+                      }));
+                      updateNodeData(id, { 
+                        upiId: val
+                      });
+                    }} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="e.g. clinic@okaxis ya 9876543210@paytm" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                    💡 Customer ke WhatsApp par direct <b>GPay / PhonePe / Paytm</b> ka clickable link jayega. Paisa seedha bank me credit hoga (0% fee).
+                  </div>
+                </div>
+
+                {/* Optional: Razorpay / Gateway Link */}
+                <div style={{ marginBottom: '12px', background: '#f8fafc', padding: '10px', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#0f172a', marginBottom: '4px' }}>
+                    🔗 Razorpay / Card Payment Link <span style={{ color: '#94a3b8', fontSize: '11px' }}>(Optional)</span>
+                  </label>
+                  <input 
+                    type="text" 
+                    name="paymentUrl" 
+                    value={localData.paymentUrl || ''} 
+                    onChange={handleLocalChange} 
+                    onBlur={handleBlur} 
+                    style={inputStyle} 
+                    placeholder="https://rzp.io/l/... (Optional for Card / NetBanking)" 
+                  />
+                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                    💡 Optional: Agar customer Credit/Debit Card se pay karna chahe toh apna Razorpay / Payment Link yahan paste karein.
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>Reference / Order ID</label>
                   <input type="text" name="referenceId" value={localData.referenceId || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="e.g. ORD_{{contact.phone}}" />
                 </div>
@@ -2199,6 +2272,10 @@ export default function NodePropertiesPane({ currentChannelId }) {
             const bodyComp = (tmpl.components || []).find(c => c.type === 'BODY');
             if (bodyComp?.example?.body_text?.[0]) {
               variables = bodyComp.example.body_text[0].map(() => ({ value: '' }));
+            } else if (bodyComp?.text) {
+              const matches = bodyComp.text.match(/\{\{(\d+)\}\}/g) || [];
+              const uniqueIndices = Array.from(new Set(matches));
+              variables = uniqueIndices.map(() => ({ value: '' }));
             }
             const btnComp = (tmpl.components || []).find(c => c.type === 'BUTTONS');
             if (btnComp?.buttons) {
@@ -2621,89 +2698,796 @@ export default function NodePropertiesPane({ currentChannelId }) {
           </>
         )}
 
-        {type === 'apiNode' && (
-          <>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>HTTP Method</label>
-              <select name="method" value={localData.method || 'POST'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-                <option value="PUT">PUT</option>
-                <option value="PATCH">PATCH</option>
-                <option value="DELETE">DELETE</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Endpoint URL</label>
-              <input type="text" name="url" value={localData.url || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="https://api.yoursystem.com/webhook" />
-              <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.phone}}'}, {'{{contact.name}}'}</p>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Headers (JSON)</label>
-              <textarea name="headers" value={localData.headers || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '60px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"Authorization": "Bearer YOUR_TOKEN"}' />
-            </div>
-            {['POST', 'PUT', 'PATCH'].includes(localData.method || 'POST') && (
-              <div>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Request Body (JSON)</label>
-                <textarea name="body" value={localData.body || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '90px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"phone": "{{contact.phone}}", "name": "{{contact.name}}"}' />
-              </div>
-            )}
-            <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Response Mapping</label>
-                <span style={{ fontSize: '11px', color: '#64748B' }}>Extract API data</span>
-              </div>
-              {(localData.responseMapping || []).map((m, mIdx) => (
-                <div key={mIdx} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
-                  <input 
-                    type="text" 
-                    value={m.responseField || ''} 
-                    placeholder="e.g. data.id"
-                    onChange={(e) => {
-                      const newMap = [...(localData.responseMapping || [])];
-                      newMap[mIdx] = { ...newMap[mIdx], responseField: e.target.value };
-                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
-                    }}
-                    onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
-                    style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
-                  />
-                  <span style={{ fontSize: '12px', color: '#94A3B8' }}>→</span>
-                  <input 
-                    type="text" 
-                    value={m.sessionVariable || ''} 
-                    placeholder="contact.api_id"
-                    onChange={(e) => {
-                      const newMap = [...(localData.responseMapping || [])];
-                      newMap[mIdx] = { ...newMap[mIdx], sessionVariable: e.target.value };
-                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
-                    }}
-                    onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
-                    style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
-                  />
-                  <button 
+        {type === 'apiNode' && (() => {
+          const currentMode = localData.apiPreset || (localData.url && localData.url.includes('/check-availability') ? 'slot_availability' : (localData.url ? 'custom_webhook' : 'slot_availability'));
+
+          const handleSelectSlotEntity = (entId) => {
+            const isDynamic = entId === 'dynamic';
+            const selectedEnt = availableEntities.find(ent => ent._id === entId);
+            const defaultVar = localData.datetimeVariable || '{{preferred_datetime}}';
+            const autoPayload = {
+              apiPreset: 'slot_availability',
+              entityId: entId,
+              entityName: isDynamic ? 'Dynamic (Customer Choice)' : (selectedEnt ? selectedEnt.name : ''),
+              method: 'POST',
+              url: entId ? `/api/entities/${entId}/check-availability` : '',
+              endpoint: entId ? `/api/entities/${entId}/check-availability` : '',
+              datetimeVariable: defaultVar,
+              body: JSON.stringify({ datetime: defaultVar }),
+              headers: '{"Content-Type": "application/json"}',
+              label: isDynamic ? 'Check Slots: Dynamic Doctor' : (selectedEnt ? `Check Slots: ${selectedEnt.name}` : 'Check Slot Availability'),
+              responseMapping: [
+                { responseField: 'is_available', sessionVariable: 'is_slot_available' },
+                { responseField: 'confirmed_slot_label', sessionVariable: 'booking_slot_label' },
+                { responseField: 'confirmed_date_label', sessionVariable: 'booking_date_label' },
+                { responseField: 'alt_slot_label', sessionVariable: 'alt_slot_label' },
+                { responseField: 'alt_date_label', sessionVariable: 'alt_date_label' },
+                { responseField: 'entity_name', sessionVariable: 'booking_entity_name' }
+              ]
+            };
+            setLocalData(prev => ({ ...prev, ...autoPayload }));
+            updateNodeData(id, autoPayload);
+          };
+
+          const handleSelectDatetimeVar = (varName) => {
+            const updated = {
+              datetimeVariable: varName,
+              body: JSON.stringify({ datetime: varName })
+            };
+            setLocalData(prev => ({ ...prev, ...updated }));
+            updateNodeData(id, updated);
+          };
+
+          const handleSwitchMode = (mode) => {
+            if (mode === 'slot_availability') {
+              const firstEntId = localData.entityId || (availableEntities[0]?._id || '');
+              handleSelectSlotEntity(firstEntId);
+            } else {
+              const customPayload = {
+                apiPreset: 'custom_webhook',
+                method: localData.method || 'POST',
+                url: (localData.url && !localData.url.includes('/check-availability')) ? localData.url : ''
+              };
+              setLocalData(prev => ({ ...prev, ...customPayload }));
+              updateNodeData(id, customPayload);
+            }
+          };
+
+          return (
+            <>
+              {/* Mode Selector */}
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                  Integration Mode
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <button
                     type="button"
-                    onClick={() => {
-                      const newMap = localData.responseMapping.filter((_, i) => i !== mIdx);
-                      setLocalData(prev => ({ ...prev, responseMapping: newMap }));
-                      updateNodeData(id, { responseMapping: newMap });
-                    }} 
-                    style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                    onClick={() => handleSwitchMode('slot_availability')}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: currentMode === 'slot_availability' ? '2px solid #10B981' : '1px solid #D1D5DB',
+                      background: currentMode === 'slot_availability' ? '#F0FDF4' : '#F9FAFB',
+                      color: currentMode === 'slot_availability' ? '#065F46' : '#374151',
+                      fontWeight: currentMode === 'slot_availability' ? '700' : '500',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                      textAlign: 'center'
+                    }}
                   >
-                    ×
+                    <span style={{ fontSize: '15px' }}>⚡</span>
+                    <span>Check Slots (Auto)</span>
+                    <span style={{ fontSize: '10px', color: '#059669', fontWeight: 'normal' }}>Zero API URL needed</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSwitchMode('custom_webhook')}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: currentMode === 'custom_webhook' ? '2px solid #3B82F6' : '1px solid #D1D5DB',
+                      background: currentMode === 'custom_webhook' ? '#EFF6FF' : '#F9FAFB',
+                      color: currentMode === 'custom_webhook' ? '#1E40AF' : '#374151',
+                      fontWeight: currentMode === 'custom_webhook' ? '700' : '500',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '4px',
+                      textAlign: 'center'
+                    }}
+                  >
+                    <span style={{ fontSize: '15px' }}>🌐</span>
+                    <span>External Webhook</span>
+                    <span style={{ fontSize: '10px', color: '#6B7280', fontWeight: 'normal' }}>Zapier / Custom API</span>
                   </button>
                 </div>
-              ))}
-              <button 
-                type="button"
-                onClick={() => {
-                  const newMap = [...(localData.responseMapping || []), { responseField: '', sessionVariable: '' }];
-                  setLocalData(prev => ({ ...prev, responseMapping: newMap }));
-                  updateNodeData(id, { responseMapping: newMap });
-                }} 
-                style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '4px 0' }}
-              >
-                + Add Variable Mapping
-              </button>
+              </div>
+
+              {currentMode === 'slot_availability' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* Automated Slot Check Form */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                      Select Bookable Resource / Doctor <span style={{ color: '#EF4444' }}>*</span>
+                    </label>
+                    <select
+                      value={localData.entityId || ''}
+                      onChange={(e) => handleSelectSlotEntity(e.target.value)}
+                      style={inputStyle}
+                    >
+                      <option value="">-- Choose from your configured entities --</option>
+                      <option value="dynamic">✨ Dynamic (Use Doctor selected by customer in flow)</option>
+                      {availableEntities.map(ent => (
+                        <option key={ent._id} value={ent._id}>
+                          {ent.name} ({ent.identifier})
+                        </option>
+                      ))}
+                    </select>
+                    {availableEntities.length === 0 && (
+                      <div style={{ marginTop: '6px' }}>
+                        <input 
+                          type="text" 
+                          value={localData.entityId || ''} 
+                          onChange={(e) => handleSelectSlotEntity(e.target.value)} 
+                          style={inputStyle} 
+                          placeholder="Enter custom Entity ID (e.g. 660f1234567890abcdef1234)" 
+                        />
+                      </div>
+                    )}
+                    <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                      Real-time shift calendar & live capacity will be evaluated automatically.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                      Customer Requested Time Variable
+                    </label>
+                    <input
+                      type="text"
+                      value={localData.datetimeVariable || '{{preferred_datetime}}'}
+                      onChange={(e) => handleSelectDatetimeVar(e.target.value)}
+                      style={inputStyle}
+                      placeholder="{{preferred_datetime}}"
+                    />
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '6px' }}>
+                      {['{{preferred_datetime}}', '{{appointment_slot}}', '{{datetime}}', '{{preferred_slot}}'].map(chip => (
+                        <button
+                          key={chip}
+                          type="button"
+                          onClick={() => handleSelectDatetimeVar(chip)}
+                          style={{
+                            background: (localData.datetimeVariable || '{{preferred_datetime}}') === chip ? '#E0E7FF' : '#F1F5F9',
+                            color: (localData.datetimeVariable || '{{preferred_datetime}}') === chip ? '#4338CA' : '#475569',
+                            border: '1px solid ' + ((localData.datetimeVariable || '{{preferred_datetime}}') === chip ? '#C7D2FE' : '#E2E8F0'),
+                            borderRadius: '4px',
+                            fontSize: '11px',
+                            padding: '2px 6px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                    <p style={{ fontSize: '11px', color: '#6B7280', margin: '4px 0 0 0' }}>
+                      Variable captured from earlier input node (e.g. "Kal sham 5 baje").
+                    </p>
+                  </div>
+
+                  {/* Automatic Output Variables Card */}
+                  <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '12px' }}>
+                    <div style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span>✨</span> Automatic Variables Created Downstream:
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '11.5px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#FFFFFF', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        <code style={{ color: '#059669', fontWeight: '600' }}>{'{{is_slot_available}}'}</code>
+                        <span style={{ color: '#64748B' }}>true / false (Use in Condition Node!)</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#FFFFFF', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        <code style={{ color: '#2563EB', fontWeight: '600' }}>{'{{booking_slot_label}}'}</code>
+                        <span style={{ color: '#64748B' }}>e.g. 10:00 AM - 10:30 AM</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#FFFFFF', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        <code style={{ color: '#2563EB', fontWeight: '600' }}>{'{{booking_date_label}}'}</code>
+                        <span style={{ color: '#64748B' }}>e.g. 16 Oct 2026</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#FFFFFF', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        <code style={{ color: '#D97706', fontWeight: '600' }}>{'{{alt_slot_label}}'}</code>
+                        <span style={{ color: '#64748B' }}>Next free alternative slot</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', background: '#FFFFFF', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E2E8F0' }}>
+                        <code style={{ color: '#4B5563', fontWeight: '600' }}>{'{{booking_entity_name}}'}</code>
+                        <span style={{ color: '#64748B' }}>Resource / Doctor Name</span>
+                      </div>
+                    </div>
+                    <div style={{ marginTop: '10px', fontSize: '11px', color: '#059669', background: '#ECFDF5', padding: '6px 8px', borderRadius: '6px' }}>
+                      💡 <strong>Next Step:</strong> Connect the <strong>Success</strong> handle to a <strong>Condition Node</strong> with condition <code>is_slot_available == true</code>.
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Custom External Webhook View */
+                <>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>HTTP Method</label>
+                    <select name="method" value={localData.method || 'POST'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
+                      <option value="GET">GET</option>
+                      <option value="POST">POST</option>
+                      <option value="PUT">PUT</option>
+                      <option value="PATCH">PATCH</option>
+                      <option value="DELETE">DELETE</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Endpoint URL</label>
+                    <input type="text" name="url" value={localData.url || ''} onChange={handleLocalChange} onBlur={handleBlur} style={inputStyle} placeholder="https://api.yoursystem.com/webhook" />
+                    <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>Supports variables: {'{{contact.phone}}'}, {'{{contact.name}}'}</p>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Headers (JSON)</label>
+                    <textarea name="headers" value={localData.headers || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '60px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"Authorization": "Bearer YOUR_TOKEN"}' />
+                  </div>
+                  {['POST', 'PUT', 'PATCH'].includes(localData.method || 'POST') && (
+                    <div>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Request Body (JSON)</label>
+                      <textarea name="body" value={localData.body || ''} onChange={handleLocalChange} onBlur={handleBlur} style={{ ...inputStyle, minHeight: '90px', fontFamily: 'monospace', fontSize: '12px' }} placeholder='{"phone": "{{contact.phone}}", "name": "{{contact.name}}"}' />
+                    </div>
+                  )}
+                  <div style={{ borderTop: '1px dashed #E2E8F0', paddingTop: '12px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827' }}>Response Mapping</label>
+                      <span style={{ fontSize: '11px', color: '#64748B' }}>Extract API data</span>
+                    </div>
+                    {(localData.responseMapping || []).map((m, mIdx) => (
+                      <div key={mIdx} style={{ display: 'flex', gap: '6px', marginBottom: '6px', alignItems: 'center' }}>
+                        <input 
+                          type="text" 
+                          value={m.responseField || ''} 
+                          placeholder="e.g. data.id"
+                          onChange={(e) => {
+                            const newMap = [...(localData.responseMapping || [])];
+                            newMap[mIdx] = { ...newMap[mIdx], responseField: e.target.value };
+                            setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                          }}
+                          onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
+                          style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
+                        />
+                        <span style={{ fontSize: '12px', color: '#94A3B8' }}>→</span>
+                        <input 
+                          type="text" 
+                          value={m.sessionVariable || ''} 
+                          placeholder="contact.api_id"
+                          onChange={(e) => {
+                            const newMap = [...(localData.responseMapping || [])];
+                            newMap[mIdx] = { ...newMap[mIdx], sessionVariable: e.target.value };
+                            setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                          }}
+                          onBlur={() => updateNodeData(id, { responseMapping: localData.responseMapping })}
+                          style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '12px' }} 
+                        />
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            const newMap = localData.responseMapping.filter((_, i) => i !== mIdx);
+                            setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                            updateNodeData(id, { responseMapping: newMap });
+                          }} 
+                          style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', padding: '4px' }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const newMap = [...(localData.responseMapping || []), { responseField: '', sessionVariable: '' }];
+                        setLocalData(prev => ({ ...prev, responseMapping: newMap }));
+                        updateNodeData(id, { responseMapping: newMap });
+                      }} 
+                      style={{ background: 'transparent', color: '#3B82F6', border: 'none', fontSize: '12px', fontWeight: '600', cursor: 'pointer', padding: '4px 0' }}
+                    >
+                      + Add Variable Mapping
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          );
+        })()}
+
+        {type === 'bookingNode' && (
+          <>
+            {/* Header info badge */}
+            <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '10px', padding: '12px', marginBottom: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#0369A1', fontWeight: '700', fontSize: '13px' }}>
+                <Calendar size={16} />
+                <span>Real-Time Dynamic Slot Booking</span>
+              </div>
+              <p style={{ fontSize: '11.5px', color: '#0284C7', margin: '4px 0 0 0', lineHeight: '1.4' }}>
+                Computes live slot availability, prevents double-booking, and displays real-time WhatsApp interactive list menus.
+              </p>
+            </div>
+
+            {/* 1. Resource Mode Selection */}
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                Bookable Resource Target
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const up = { useDynamicEntity: true, entityId: '{{selected_doctor_id}}', entityName: '{{doctor_name}}' };
+                    setLocalData(prev => ({ ...prev, ...up }));
+                    updateNodeData(id, up);
+                  }}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: (localData.useDynamicEntity !== false) ? '2px solid #0EA5E9' : '1px solid #D1D5DB',
+                    background: (localData.useDynamicEntity !== false) ? '#F0F9FF' : '#F9FAFB',
+                    color: (localData.useDynamicEntity !== false) ? '#0369A1' : '#374151',
+                    fontWeight: (localData.useDynamicEntity !== false) ? '700' : '500',
+                    fontSize: '11.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <Sparkles size={14} color="#0EA5E9" />
+                  <span>Dynamic Resource</span>
+                  <span style={{ fontSize: '10px', color: '#0284C7' }}>From Previous Menu / Bot</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const firstEnt = availableEntities[0];
+                    const up = { useDynamicEntity: false, entityId: firstEnt?._id || '', entityName: firstEnt?.name || '' };
+                    setLocalData(prev => ({ ...prev, ...up }));
+                    updateNodeData(id, up);
+                  }}
+                  style={{
+                    padding: '8px',
+                    borderRadius: '8px',
+                    border: (localData.useDynamicEntity === false) ? '2px solid #0EA5E9' : '1px solid #D1D5DB',
+                    background: (localData.useDynamicEntity === false) ? '#F0F9FF' : '#F9FAFB',
+                    color: (localData.useDynamicEntity === false) ? '#0369A1' : '#374151',
+                    fontWeight: (localData.useDynamicEntity === false) ? '700' : '500',
+                    fontSize: '11.5px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <UserCheck size={14} color="#64748B" />
+                  <span>Fixed Specific Resource</span>
+                  <span style={{ fontSize: '10px', color: '#64748B' }}>Choose 1 Doctor/Room</span>
+                </button>
+              </div>
+
+              {localData.useDynamicEntity === false ? (
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#4B5563', marginBottom: '4px' }}>
+                    Specific Resource Name
+                  </label>
+                  <input
+                    type="text"
+                    list="specific-resource-list"
+                    value={timingFormData.name || localData.entityName || ''}
+                    onChange={(e) => {
+                      const typed = e.target.value;
+                      setTimingFormData(prev => ({ ...prev, name: typed }));
+                      const sel = availableEntities.find(ent => ent.name.toLowerCase() === typed.toLowerCase() || ent._id === typed);
+                      if (sel) {
+                        loadEntityTimingIntoForm(sel);
+                        const up = { entityId: sel._id, entityName: sel.name, useDynamicEntity: false };
+                        setLocalData(prev => ({ ...prev, ...up }));
+                        updateNodeData(id, up);
+                      } else {
+                        setSelectedEntityForTiming('');
+                        const up = { entityName: typed, useDynamicEntity: false };
+                        setLocalData(prev => ({ ...prev, ...up }));
+                        updateNodeData(id, up);
+                      }
+                    }}
+                    placeholder="Type name (e.g. raj, Dr. Rajesh, Room 101...)"
+                    style={{ ...inputStyle, background: 'white' }}
+                  />
+                  <datalist id="specific-resource-list">
+                    {availableEntities.map(ent => (
+                      <option key={ent._id} value={ent.name}>
+                        {ent.category ? `(${ent.category})` : ''}
+                      </option>
+                    ))}
+                  </datalist>
+                </div>
+              ) : (
+                <div style={{ background: '#F8FAFC', padding: '8px 12px', borderRadius: '6px', border: '1px solid #E2E8F0', fontSize: '11.5px', color: '#475569' }}>
+                  Variable: <code style={{ color: '#0284C7', fontWeight: '600' }}>{localData.entityId || '{{selected_doctor_id}}'}</code> (Automatically passes the doctor, room, or table selected by the user).
+                </div>
+              )}
+            </div>
+
+            {/* 2. Direct Real-Time Timing & Schedule Editor (In-Node!) */}
+            <div style={{ background: '#F8FAFC', border: '1.5px solid #CBD5E1', borderRadius: '12px', padding: '14px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700', color: '#0F172A' }}>
+                  <Clock size={16} color="#0EA5E9" />
+                  <span>Configure Resource Timings (Live)</span>
+                </div>
+                {selectedEntityForTiming && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEntityForTiming('');
+                      setTimingFormData({
+                        name: '',
+                        category: '',
+                        identifier: '',
+                        start1: '09:00',
+                        end1: '13:00',
+                        hasShift2: true,
+                        start2: '17:00',
+                        end2: '20:00',
+                        stepMinutes: 30,
+                        totalCapacity: 1,
+                        activeDays: [1, 2, 3, 4, 5, 6]
+                      });
+                    }}
+                    style={{
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      color: '#0284C7',
+                      background: '#E0F2FE',
+                      border: '1px solid #BAE6FD',
+                      borderRadius: '6px',
+                      padding: '3px 8px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    + New Resource
+                  </button>
+                )}
+              </div>
+
+              {/* Resource / Doctor Name Text Input */}
+              <div style={{ marginBottom: '10px' }}>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '700', color: '#334155', marginBottom: '4px' }}>
+                  Resource / Doctor / Room Name:
+                </label>
+                <input
+                  type="text"
+                  list="resource-datalist"
+                  value={timingFormData.name || ''}
+                  onChange={(e) => {
+                    const typed = e.target.value;
+                    setTimingFormData(prev => ({ ...prev, name: typed }));
+                    const matched = availableEntities.find(ent => 
+                      ent.name.toLowerCase() === typed.toLowerCase() ||
+                      ent._id === typed
+                    );
+                    if (matched) {
+                      loadEntityTimingIntoForm(matched);
+                      const up = { entityId: matched._id, entityName: matched.name, useDynamicEntity: false };
+                      setLocalData(prev => ({ ...prev, ...up }));
+                      updateNodeData(id, up);
+                    } else {
+                      setSelectedEntityForTiming('');
+                      const up = { entityName: typed, useDynamicEntity: false };
+                      setLocalData(prev => ({ ...prev, ...up }));
+                      updateNodeData(id, up);
+                    }
+                  }}
+                  placeholder="Type name directly (e.g. raj, Dr. Rajesh, Room 101, Deluxe Cabin...)"
+                  style={{ ...inputStyle, background: '#FFFFFF', fontSize: '13px', fontWeight: '600', color: '#0F172A', border: '1.5px solid #94A3B8' }}
+                />
+                <datalist id="resource-datalist">
+                  {availableEntities.map(ent => (
+                    <option key={ent._id} value={ent.name}>
+                      {ent.category ? `(${ent.category})` : ''}
+                    </option>
+                  ))}
+                </datalist>
+                <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '3px' }}>
+                  💡 Direct text likhein ya suggestions me se click karein.
+                </div>
+              </div>
+
+              {/* Category / Type Text Input (Free Text) */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                  Category (Koi bhi category text likhein):
+                </label>
+                <input
+                  type="text"
+                  list="category-datalist"
+                  value={timingFormData.category || ''}
+                  onChange={(e) => setTimingFormData(prev => ({ ...prev, category: e.target.value }))}
+                  placeholder="e.g. room, doctor, salon, consultation, tutor, clinic, table, opd..."
+                  style={{ ...inputStyle, background: '#FFFFFF', fontSize: '12.5px' }}
+                />
+                <datalist id="category-datalist">
+                  <option value="doctor" />
+                  <option value="room" />
+                  <option value="salon" />
+                  <option value="consultation" />
+                  <option value="clinic" />
+                  <option value="tutor" />
+                  <option value="table" />
+                  <option value="service" />
+                </datalist>
+
+                {/* Quick suggestion pills */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '6px' }}>
+                  {['doctor', 'room', 'salon', 'clinic', 'consultation', 'table', 'service'].map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setTimingFormData(prev => ({ ...prev, category: cat }))}
+                      style={{
+                        padding: '2px 8px',
+                        borderRadius: '12px',
+                        border: timingFormData.category === cat ? '1px solid #0EA5E9' : '1px solid #E2E8F0',
+                        background: timingFormData.category === cat ? '#E0F2FE' : '#F1F5F9',
+                        color: timingFormData.category === cat ? '#0284C7' : '#64748B',
+                        fontSize: '10.5px',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      +{cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Timing Fields - ALWAYS visible */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: '#FFFFFF', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
+                  
+                  {/* Shift 1 Timing */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      ☀️ Shift 1 (Morning / Opening Hours)
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      <div>
+                        <span style={{ fontSize: '10px', color: '#64748B' }}>Start Time</span>
+                        <input
+                          type="time"
+                          value={timingFormData.start1}
+                          onChange={(e) => setTimingFormData(prev => ({ ...prev, start1: e.target.value }))}
+                          style={{ ...inputStyle, padding: '4px 8px', fontSize: '12px' }}
+                        />
+                      </div>
+                      <div>
+                        <span style={{ fontSize: '10px', color: '#64748B' }}>End Time</span>
+                        <input
+                          type="time"
+                          value={timingFormData.end1}
+                          onChange={(e) => setTimingFormData(prev => ({ ...prev, end1: e.target.value }))}
+                          style={{ ...inputStyle, padding: '4px 8px', fontSize: '12px' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Shift 2 Timing (Optional Evening) */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '11.5px', fontWeight: '600', color: '#334155' }}>
+                        🌙 Shift 2 (Evening Hours - Optional)
+                      </label>
+                      <input
+                        type="checkbox"
+                        checked={timingFormData.hasShift2}
+                        onChange={(e) => setTimingFormData(prev => ({ ...prev, hasShift2: e.target.checked }))}
+                        style={{ cursor: 'pointer' }}
+                      />
+                    </div>
+                    {timingFormData.hasShift2 && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748B' }}>Start Time</span>
+                          <input
+                            type="time"
+                            value={timingFormData.start2}
+                            onChange={(e) => setTimingFormData(prev => ({ ...prev, start2: e.target.value }))}
+                            style={{ ...inputStyle, padding: '4px 8px', fontSize: '12px' }}
+                          />
+                        </div>
+                        <div>
+                          <span style={{ fontSize: '10px', color: '#64748B' }}>End Time</span>
+                          <input
+                            type="time"
+                            value={timingFormData.end2}
+                            onChange={(e) => setTimingFormData(prev => ({ ...prev, end2: e.target.value }))}
+                            style={{ ...inputStyle, padding: '4px 8px', fontSize: '12px' }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Slot Duration Step */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      ⏱️ Slot Duration (Time per Booking)
+                    </label>
+                    <select
+                      value={timingFormData.stepMinutes}
+                      onChange={(e) => setTimingFormData(prev => ({ ...prev, stepMinutes: Number(e.target.value) }))}
+                      style={{ ...inputStyle, padding: '6px 8px', fontSize: '12px' }}
+                    >
+                      <option value="15">15 Minutes (Fast Consultation / Interview)</option>
+                      <option value="30">30 Minutes (Standard Clinic OPD / Salon)</option>
+                      <option value="45">45 Minutes</option>
+                      <option value="60">60 Minutes (1 Hour - Therapy / Meeting)</option>
+                      <option value="90">90 Minutes (Restaurant Dining / Studio)</option>
+                      <option value="120">120 Minutes (2 Hours - Turf / Service)</option>
+                      <option value="1440">1440 Minutes (Full Day - Hotel Room / Car)</option>
+                    </select>
+                  </div>
+
+                  {/* Working Days */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11.5px', fontWeight: '600', color: '#334155', marginBottom: '4px' }}>
+                      📅 Working Days of Week
+                    </label>
+                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                      {[
+                        { day: 1, label: 'Mon' },
+                        { day: 2, label: 'Tue' },
+                        { day: 3, label: 'Wed' },
+                        { day: 4, label: 'Thu' },
+                        { day: 5, label: 'Fri' },
+                        { day: 6, label: 'Sat' },
+                        { day: 0, label: 'Sun' }
+                      ].map(d => {
+                        const isSelected = (timingFormData.activeDays || []).includes(d.day);
+                        return (
+                          <button
+                            key={d.day}
+                            type="button"
+                            onClick={() => {
+                              const curr = [...(timingFormData.activeDays || [])];
+                              const next = isSelected ? curr.filter(x => x !== d.day) : [...curr, d.day];
+                              setTimingFormData(prev => ({ ...prev, activeDays: next }));
+                            }}
+                            style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              border: isSelected ? '1px solid #0EA5E9' : '1px solid #D1D5DB',
+                              background: isSelected ? '#E0F2FE' : '#F8FAFC',
+                              color: isSelected ? '#0369A1' : '#64748B',
+                              fontSize: '11px',
+                              fontWeight: isSelected ? '700' : '500',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {d.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Save Timing Button */}
+                  <div style={{ marginTop: '6px' }}>
+                    <button
+                      type="button"
+                      disabled={isSavingTiming}
+                      onClick={handleSaveResourceTiming}
+                      style={{
+                        width: '100%',
+                        padding: '9px 12px',
+                        background: '#0EA5E9',
+                        color: 'white',
+                        fontWeight: '700',
+                        fontSize: '12.5px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        cursor: isSavingTiming ? 'not-allowed' : 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(14, 165, 233, 0.25)'
+                      }}
+                    >
+                      <Save size={14} />
+                      {isSavingTiming ? 'Saving to Database...' : 'Save Resource & Live Schedule'}
+                    </button>
+                  </div>
+
+                </div>
+            </div>
+
+            {/* 3. WhatsApp Interactive Message Configuration */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                WhatsApp Slot Menu Body Text
+              </label>
+              <textarea
+                name="text"
+                value={localData.text || ''}
+                onChange={handleLocalChange}
+                onBlur={handleBlur}
+                rows={3}
+                style={{ ...inputStyle, resize: 'vertical' }}
+                placeholder="e.g. 📅 Live Available Slots for {{doctor_name}}:\n\nTap below to choose your consultation slot for the next 3 days:"
+              />
+              <p style={{ fontSize: '11px', color: '#64748B', margin: '4px 0 0 0' }}>
+                Supports dynamic variables like <code>{'{{doctor_name}}'}</code>, <code>{'{{patient_name}}'}</code>.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '8px', marginBottom: '12px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                  Menu Button Text
+                </label>
+                <input
+                  type="text"
+                  name="menuButtonText"
+                  value={localData.menuButtonText || 'View Live Slots'}
+                  onChange={handleLocalChange}
+                  onBlur={handleBlur}
+                  style={inputStyle}
+                  placeholder="View Live Slots"
+                  maxLength={20}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                  Days Ahead
+                </label>
+                <select
+                  name="daysAhead"
+                  value={localData.daysAhead || 3}
+                  onChange={(e) => { handleLocalChange(e); handleBlur(e); }}
+                  style={inputStyle}
+                >
+                  <option value={1}>1 Day (Today only)</option>
+                  <option value={2}>2 Days</option>
+                  <option value={3}>3 Days (Recommended)</option>
+                  <option value={5}>5 Days</option>
+                  <option value={7}>7 Days (Full Week)</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                Save Confirmed Slot to Variable
+              </label>
+              <input
+                type="text"
+                name="saveVariableAs"
+                value={localData.saveVariableAs || 'booking_slot_id'}
+                onChange={handleLocalChange}
+                onBlur={handleBlur}
+                style={inputStyle}
+                placeholder="booking_slot_id"
+              />
             </div>
           </>
         )}

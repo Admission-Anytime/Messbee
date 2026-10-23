@@ -48,17 +48,28 @@ exports.updateSettings = async (req, res) => {
       settings.crmSync = crmSync;
       settings.markModified('crmSync');
     }
+
+    const Automation = require('../models/Automation');
     if (welcomeMessage !== undefined) {
       settings.welcomeMessage = welcomeMessage;
       settings.markModified('welcomeMessage');
+      if (welcomeMessage.enabled && welcomeMessage.automationId) {
+        await Automation.updateOne({ _id: welcomeMessage.automationId, tenantId }, { $set: { isActive: true, status: 'active' } }).catch(() => {});
+      }
     }
     if (awayMessage !== undefined) {
       settings.awayMessage = awayMessage;
       settings.markModified('awayMessage');
+      if (awayMessage.enabled && awayMessage.automationId) {
+        await Automation.updateOne({ _id: awayMessage.automationId, tenantId }, { $set: { isActive: true, status: 'active' } }).catch(() => {});
+      }
     }
     if (fallbackMessage !== undefined) {
       settings.fallbackMessage = fallbackMessage;
       settings.markModified('fallbackMessage');
+      if (fallbackMessage.enabled && fallbackMessage.automationId) {
+        await Automation.updateOne({ _id: fallbackMessage.automationId, tenantId }, { $set: { isActive: true, status: 'active' } }).catch(() => {});
+      }
     }
     if (spamProtection !== undefined) {
       settings.spamProtection = spamProtection;

@@ -173,7 +173,14 @@ function FlowCanvasInner({ onNodesChange: notifyNodesChange, onAddTrigger, onSta
       dataPayload = { options: [], allowMultipleAnswers: false };
     } else if (['otp_msg', 'coupon_msg', 'invoice_msg', 'payment_msg'].includes(stepItem.id)) {
       type = 'commerceNode';
-      dataPayload = { commerceType: stepItem.id.replace('_msg', '') };
+      const cType = stepItem.id.replace('_msg', '');
+      dataPayload = {
+        commerceType: cType,
+        currency: 'INR',
+        amount: '499',
+        itemName: 'Consultation / Service Fee',
+        paymentGateway: 'razorpay'
+      };
     } else if (['location_msg', 'contact_msg', 'calendar_msg'].includes(stepItem.id)) {
       type = 'utilityNode';
       dataPayload = { utilityType: stepItem.id.replace('_msg', '') };

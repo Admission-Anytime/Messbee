@@ -11,8 +11,41 @@
  *   doctors, hotels, vehicles, seats, interview slots, grooming bays, CA consultations, etc.
  */
 
+const mongoose = require('mongoose');
 const Entity = require('../models/Entity.js');
 const Allocation = require('../models/Allocation.js');
+
+/**
+ * Safely resolves an entity by MongoDB _id, code, or name without throwing CastError.
+ */
+async function findEntitySafely(entityId, lean = false) {
+  if (!entityId) return null;
+  const idStr = String(entityId).trim();
+  let query = null;
+  if (mongoose.Types.ObjectId.isValid(idStr)) {
+    query = Entity.findById(idStr);
+  } else {
+    // Strip common prefixes like 'btn_' or 'btn-' (e.g. 'btn_rahul' -> 'rahul')
+    const cleanTerm = idStr.replace(/^btn[-_]/i, '').trim();
+    const cleanRegex = new RegExp(cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const exactRegex = new RegExp(`^${idStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
+
+    query = Entity.findOne({
+      $or: [
+        { identifier: idStr },
+        { identifier: idStr.toUpperCase() },
+        { identifier: cleanRegex },
+        { code: idStr },
+        { code: idStr.toUpperCase() },
+        { code: cleanRegex },
+        { name: exactRegex },
+        { name: cleanRegex }
+      ]
+    });
+  }
+  return lean ? query.lean() : query;
+}
+
 
 // ─────────────────────────────────────────────────────────
 // 1. SLOT GENERATION UTILITIES
@@ -53,6 +86,17 @@ function formatTimeLabel(epochMs) {
 }
 
 /**
+ * Returns "YYYY-MM-DD" in local wall-clock time (avoids UTC shift bug in +05:30)
+ */
+function getLocalDateString(date) {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
  * Formats a Date object to "DD Mon YYYY" display label
  */
 function formatDateLabel(date) {
@@ -70,7 +114,7 @@ function formatDateLabel(date) {
  * @returns {Array<{startMs, endMs, slotLabel, dateLabel}>}
  */
 function generateRawSlots(entity, date) {
-  const dateStr = date.toISOString().split('T')[0]; // "YYYY-MM-DD"
+  const dateStr = getLocalDateString(date); // "YYYY-MM-DD"
   const dayOfWeek = date.getDay(); // 0=Sun..6=Sat
   const dateLabel = formatDateLabel(date);
 
@@ -78,14 +122,28 @@ function generateRawSlots(entity, date) {
   const exception = (entity.exceptions || []).find(ex => ex.date === dateStr);
 
   let activeIntervals = [];
+  let blackoutIntervals = [];
 
   if (exception) {
     if (!exception.isAvailable) return []; // Holiday / closed
     activeIntervals = exception.customIntervals || [];
   } else {
-    const window = (entity.availabilityWindows || []).find(w => w.dayOfWeek === dayOfWeek);
-    if (!window) return []; // Not available this day
-    activeIntervals = window.activeIntervals || [];
+    const windows = entity.availabilityWindows || [];
+    const window = windows.find(w => w.dayOfWeek === dayOfWeek);
+    if (window) {
+      activeIntervals = window.activeIntervals || [];
+      blackoutIntervals = window.blackoutIntervals || [];
+    } else if (windows.length === 0) {
+      // Resilient default schedule for clinic/consultation when entity has no custom schedule configured
+      if (dayOfWeek !== 0) {
+        activeIntervals = [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '18:00' }];
+        blackoutIntervals = [{ start: '13:00', end: '14:00' }];
+      } else {
+        activeIntervals = [{ start: '10:00', end: '14:00' }];
+      }
+    } else {
+      return []; // Not available this day
+    }
   }
 
   const stepMs = (entity.allocationStepMinutes || 30) * 60 * 1000;
@@ -102,7 +160,16 @@ function generateRawSlots(entity, date) {
       const slotEnd = cursor + stepMs;
       const slotLabel = `${formatTimeLabel(slotStart)} - ${formatTimeLabel(slotEnd)}`;
 
-      slots.push({ startMs: slotStart, endMs: slotEnd, slotLabel, dateLabel });
+      // Check if this slot overlaps with any blackoutIntervals (e.g. lunch/break)
+      const isBlackout = blackoutIntervals.some(b => {
+        const bStart = toEpochMs(date, b.start);
+        const bEnd = toEpochMs(date, b.end);
+        return slotStart < bEnd && slotEnd > bStart;
+      });
+
+      if (!isBlackout) {
+        slots.push({ startMs: slotStart, endMs: slotEnd, slotLabel, dateLabel });
+      }
       cursor = slotEnd + bufferMs;
     }
   }
@@ -125,7 +192,7 @@ function generateRawSlots(entity, date) {
  * @returns {Array<{startMs, endMs, slotLabel, dateLabel, availableUnits}>}
  */
 async function getAvailableSlotsForDate(entityId, date) {
-  const entity = await Entity.findById(entityId);
+  const entity = await findEntitySafely(entityId, true);
   if (!entity || !entity.isActive) return [];
 
   const rawSlots = generateRawSlots(entity, date);
@@ -137,18 +204,28 @@ async function getAvailableSlotsForDate(entityId, date) {
   const dayEnd = new Date(date);
   dayEnd.setHours(23, 59, 59, 999);
 
+  const now = new Date();
   const activeAllocations = await Allocation.find({
     entityId: entity._id,
-    state: { $in: ['HOLD', 'COMMITTED'] },
+    $or: [
+      { state: 'COMMITTED' },
+      { state: 'HOLD', leaseExpiresAt: { $gt: now } }
+    ],
     startEpochMs: { $lt: dayEnd.getTime() },
     endEpochMs: { $gt: dayStart.getTime() }
   }).lean();
 
   // For each raw slot, compute claimed units via overlap math
   const availableSlots = [];
+  const nowMs = Date.now();
 
   for (const slot of rawSlots) {
     const { startMs, endMs } = slot;
+
+    // Skip slots in the past for today (with 5-minute lead buffer)
+    if (startMs <= nowMs + 5 * 60 * 1000) {
+      continue;
+    }
 
     // Σ units claimed for all active allocations overlapping [startMs, endMs)
     const claimed = activeAllocations.reduce((sum, alloc) => {
@@ -182,7 +259,7 @@ async function getAvailableSlotsRange(entityId, daysAhead = 7) {
     const slots = await getAvailableSlotsForDate(entityId, date);
     if (slots.length > 0) {
       result.push({
-        date: date.toISOString().split('T')[0],
+        date: getLocalDateString(date),
         dateLabel: formatDateLabel(date),
         slots
       });
@@ -218,6 +295,7 @@ async function getAvailableSlotsRange(entityId, daysAhead = 7) {
  */
 async function claimEntityQuantum({
   tenantId,
+  channelId = null,
   entityId,
   startEpochMs,
   endEpochMs,
@@ -228,9 +306,19 @@ async function claimEntityQuantum({
   dateLabel = '',
   sessionVariables = {}
 }) {
-  const entity = await Entity.findById(entityId);
+  const entity = await findEntitySafely(entityId);
   if (!entity || !entity.isActive) {
     return { success: false, reason: 'ENTITY_NOT_FOUND' };
+  }
+
+  // Resolve channelId safely: prefer passed channelId, then entity.channelId, then fallback
+  let resolvedChannelId = channelId || entity.channelId || null;
+  if (!resolvedChannelId) {
+    try {
+      const Channel = require('../models/Channel');
+      const fallbackCh = await Channel.findOne({ tenantId });
+      if (fallbackCh) resolvedChannelId = fallbackCh._id;
+    } catch (_) {}
   }
 
   // Aggregate claimed units overlapping the requested interval
@@ -238,7 +326,10 @@ async function claimEntityQuantum({
     {
       $match: {
         entityId: entity._id,
-        state: { $in: ['HOLD', 'COMMITTED'] },
+        $or: [
+          { state: 'COMMITTED' },
+          { state: 'HOLD', leaseExpiresAt: { $gt: new Date() } }
+        ],
         startEpochMs: { $lt: endEpochMs },
         endEpochMs: { $gt: startEpochMs }
       }
@@ -263,7 +354,7 @@ async function claimEntityQuantum({
   // Atomically create 5-minute HOLD lease
   const holdAllocation = await Allocation.create({
     tenantId,
-    channelId: entity.channelId,
+    channelId: resolvedChannelId,
     entityId: entity._id,
     customerPhone,
     sessionId,
@@ -350,10 +441,18 @@ async function fulfillAllocation(allocationId) {
  */
 async function buildSlotMenuSections(entityId, nodeData = {}, contextData = {}) {
   const daysAhead = nodeData.daysAhead || 3;
-  const entity = await Entity.findById(entityId).lean();
+  let entity = await findEntitySafely(entityId, true);
+  if (!entity) {
+    const filter = { isActive: true };
+    if (contextData?.tenantId || nodeData?.tenantId) {
+      filter.tenantId = contextData?.tenantId || nodeData?.tenantId;
+    }
+    entity = await Entity.findOne(filter).lean();
+  }
   if (!entity) return [];
 
-  const slotsRange = await getAvailableSlotsRange(entityId, daysAhead);
+  const canonicalEntityId = entity._id.toString();
+  const slotsRange = await getAvailableSlotsRange(canonicalEntityId, daysAhead);
 
   const sections = [];
   let totalRows = 0;
@@ -365,7 +464,7 @@ async function buildSlotMenuSections(entityId, nodeData = {}, contextData = {}) 
     for (const slot of day.slots) {
       if (totalRows >= 10) break;
       rows.push({
-        id: `SLOT_${entityId}_${slot.startMs}_${slot.endMs}`,
+        id: `SLOT_${canonicalEntityId}_${slot.startMs}_${slot.endMs}`,
         title: slot.slotLabel.substring(0, 24),
         description: `${day.dateLabel} · ${slot.availableUnits} available`
       });
@@ -410,7 +509,7 @@ function parseSlotId(slotId) {
  * @returns {Promise<{ is_available: boolean, confirmed_slot_label: string, confirmed_date_label: string, alt_slot_label: string, alt_date_label: string, entity_name: string }>}
  */
 async function checkSlotAvailability(entityId, datetimeStr = '') {
-  const entity = await Entity.findById(entityId).lean();
+  const entity = await findEntitySafely(entityId, true);
   if (!entity) {
     return {
       is_available: false,
@@ -492,9 +591,22 @@ async function checkSlotAvailability(entityId, datetimeStr = '') {
     isAvailable = false;
   }
 
-  const nextAvailableSlot = matchedSlot
+  let nextAvailableSlot = matchedSlot
     ? (availableSlots.find(s => s !== matchedSlot) || availableSlots[0])
     : availableSlots[0];
+
+  // If no alternative found today, search up to 4 days ahead
+  if (!nextAvailableSlot) {
+    try {
+      const range = await getAvailableSlotsRange(entity._id, 4);
+      for (const dayGroup of range) {
+        if (dayGroup.slots && dayGroup.slots.length > 0) {
+          nextAvailableSlot = dayGroup.slots[0];
+          break;
+        }
+      }
+    } catch (_) {}
+  }
 
   return {
     is_available: isAvailable,
@@ -502,7 +614,12 @@ async function checkSlotAvailability(entityId, datetimeStr = '') {
     confirmed_date_label: isAvailable && matchedSlot ? matchedSlot.dateLabel : formatDateLabel(targetDate),
     alt_slot_label: nextAvailableSlot ? nextAvailableSlot.slotLabel : '10:00 AM - 10:30 AM',
     alt_date_label: nextAvailableSlot ? nextAvailableSlot.dateLabel : formatDateLabel(targetDate),
-    entity_name: entity.name
+    entity_name: entity.name,
+    entity_id: entity._id.toString(),
+    matched_start_ms: isAvailable && matchedSlot ? matchedSlot.startMs : null,
+    matched_end_ms: isAvailable && matchedSlot ? matchedSlot.endMs : null,
+    alt_start_ms: nextAvailableSlot ? nextAvailableSlot.startMs : null,
+    alt_end_ms: nextAvailableSlot ? nextAvailableSlot.endMs : null
   };
 }
 

@@ -22,8 +22,8 @@ const PRE_BUILT_TEMPLATES = [
     categoryBg: '#FEF2F2',
     icon: Stethoscope,
     title: 'QR Reception & Staff Routing',
-    desc: 'Visitor/patient scans QR Code or wa.me link → collects details, routes to specialist & alerts on Real WhatsApp.',
-    tags: ['QR', 'Reception', 'Routing', 'WhatsApp Alert'],
+    desc: 'Visitor/patient scans QR Code or wa.me link → collects details, picks live slot, completes payment & alerts on Real WhatsApp.',
+    tags: ['QR', 'Live Slots', 'Payment', 'WhatsApp Alert'],
     isQRReception: true,
   },
   {
@@ -461,7 +461,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
           fetchAutomations();
           showToast.success(existing.name, newStatus ? 'Automation Activated' : 'Automation Paused');
         } else if (automationName?.includes('QR Reception')) {
-          await handleCreateReceptionTemplate();
+          await handleCreateReceptionTemplate(true);
         } else {
           // If it doesn't exist yet, auto-create it as active!
           let keyword = 'start';
@@ -473,7 +473,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
             keyword = 'report';
             action = 'Here is your weekly report summary.';
           }
-          await handleCreateTemplate(automationName, keyword, action);
+          await handleCreateTemplate(automationName, keyword, action, true);
         }
       }
     } catch (e) {
@@ -495,7 +495,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     return existing ? existing.isActive : false;
   };
 
-  const handleCreateRichTemplate = async (tpl) => {
+  const handleCreateRichTemplate = async (tpl, startActive = false) => {
     try {
       const flowId = tpl?.id || (tpl?.isQRReception ? 'qr_reception' : null);
       const prebuilt = (flowId && PREBUILT_FLOWS[flowId]) ? PREBUILT_FLOWS[flowId] : null;
@@ -565,7 +565,7 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
 
       const res = await api.post('/automation', {
         name: finalName,
-        isActive: false,
+        isActive: startActive,
         channelId,
         nodes,
         edges
@@ -582,17 +582,17 @@ export default function AutomationLanding({ onNavigateFlows, onCreateAutomation,
     }
   };
 
-  const handleCreateTemplate = async (templateName, triggerKeyword, actionText) => {
+  const handleCreateTemplate = async (templateName, triggerKeyword, actionText, startActive = false) => {
     const match = PRE_BUILT_TEMPLATES.find(t => t.title === templateName || t.keyword === triggerKeyword);
     if (match) {
-      await handleCreateRichTemplate(match);
+      await handleCreateRichTemplate(match, startActive);
     } else {
-      await handleCreateRichTemplate({ title: templateName, keyword: triggerKeyword, actionText });
+      await handleCreateRichTemplate({ title: templateName, keyword: triggerKeyword, actionText }, startActive);
     }
   };
 
-  const handleCreateReceptionTemplate = async () => {
-    await handleCreateRichTemplate({ id: 'qr_reception', title: 'QR Reception Desk & Doctor Routing', isQRReception: true });
+  const handleCreateReceptionTemplate = async (startActive = false) => {
+    await handleCreateRichTemplate({ id: 'qr_reception', title: 'QR Reception Desk & Doctor Routing', isQRReception: true }, startActive);
   };
 
   const AutomationCard = ({ 

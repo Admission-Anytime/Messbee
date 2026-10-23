@@ -1235,7 +1235,7 @@ exports.handleWebhook = async (req, res) => {
  */
 async function handleIncomingMessage(data) {
   try {
-    const { from, contact, message, messageId, messageType, timestamp, phoneNumberId } = data;
+    const { from, contact, message, messageId, messageType, timestamp, phoneNumberId, referral } = data;
 
     // Resolve Channel ID
     let resolvedChannelId = null;
@@ -1621,6 +1621,7 @@ async function handleIncomingMessage(data) {
         fileName: fileName,
         location: location,
         isNewContact: isNewContact,
+        referral: referral || message?.referral || null,
         buttonText: message?.buttonText || message?.buttonTitle || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
         buttonPayload: message?.buttonPayload || message?.buttonId || (messageType === 'button' ? (messageText || lastMsgText) : undefined),
         buttonTitle: message?.buttonTitle || message?.buttonText || (messageType === 'button' ? (messageText || lastMsgText) : undefined),

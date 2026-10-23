@@ -31,7 +31,13 @@ export default function CommerceNode({ id, data, selected }) {
 
   return (
     <div style={{ position: 'relative', width: '280px', fontFamily: '"Inter", "Outfit", sans-serif' }}>
-      <Handle type="target" position={Position.Left} className="custom-handle" style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} />
+      <Handle 
+        type="target" 
+        position={Position.Left} 
+        id="target-handle"
+        className="custom-handle" 
+        style={{ left: '-6px', top: '50%', background: '#3B4252', border: '2px solid #10B981', width: '12px', height: '12px' }} 
+      />
 
       <div style={{
         background: '#3B4252',
@@ -68,8 +74,13 @@ export default function CommerceNode({ id, data, selected }) {
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
                 <div style={{ fontSize: '12px', color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Amount Due</div>
                 <div style={{ fontSize: '24px', fontWeight: '800', color: '#10b981' }}>
-                  {data.currency || 'USD'} {data.amount || '0.00'}
+                  {data.currency || 'INR'} {data.amount || '499.00'}
                 </div>
+                {data.paymentUrl && (
+                  <div style={{ fontSize: '10px', color: '#38bdf8', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    🔗 {data.paymentUrl}
+                  </div>
+                )}
                 <div style={{ width: '100%', background: '#ecfdf5', color: '#059669', padding: '8px', borderRadius: '6px', textAlign: 'center', fontWeight: '600', marginTop: '4px', border: '1px solid #a7f3d0' }}>
                   Pay Now
                 </div>
