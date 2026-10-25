@@ -667,6 +667,176 @@ async function checkSlotAvailability(entityId, datetimeStr = '') {
   };
 }
 
+// ─────────────────────────────────────────────────────────
+// 5. RESCHEDULE & CANCELLATION UTILITIES (Domain-Agnostic)
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Finds the upcoming active COMMITTED allocation for a given customer phone number.
+ * Supports exact or trailing 10-digit phone match.
+ *
+ * @param {string} customerPhone - e.g. "919876543210" or "9876543210"
+ * @param {string|null} [tenantId] - Optional tenant filter
+ * @returns {Promise<Object|null>}
+ */
+async function getActiveBookingForCustomer(customerPhone, tenantId = null) {
+  if (!customerPhone) return null;
+  const digits = String(customerPhone).replace(/\D/g, '');
+  const last10 = digits.length >= 10 ? digits.slice(-10) : digits;
+
+  const filter = {
+    customerPhone: { $regex: `${last10}$` },
+    state: 'COMMITTED',
+    endEpochMs: { $gt: Date.now() }
+  };
+  if (tenantId) filter.tenantId = tenantId;
+
+  const allocation = await Allocation.findOne(filter)
+    .populate('entityId', 'name identifier category')
+    .sort({ startEpochMs: 1 })
+    .lean();
+
+  if (!allocation) return null;
+
+  return {
+    allocationId: allocation._id.toString(),
+    entityId: allocation.entityId?._id?.toString() || allocation.entityId,
+    entityName: allocation.entityId?.name || 'Resource',
+    entityCategory: allocation.entityId?.category || 'general',
+    startEpochMs: allocation.startEpochMs,
+    endEpochMs: allocation.endEpochMs,
+    slotLabel: allocation.slotLabel || `${formatTimeLabel(allocation.startEpochMs)} - ${formatTimeLabel(allocation.endEpochMs)}`,
+    dateLabel: allocation.dateLabel || formatDateLabel(new Date(allocation.startEpochMs)),
+    unitsClaimed: allocation.unitsClaimed || 1,
+    contextSnapshot: allocation.contextSnapshot || {},
+    createdAt: allocation.createdAt
+  };
+}
+
+/**
+ * Safely releases/cancels an active allocation and records cancellation audit notes.
+ *
+ * @param {string} allocationId - MongoDB ObjectId string
+ * @param {string} [reason] - Reason for cancellation
+ * @returns {Promise<{ success: boolean, reason?: string, allocation?: Object }>}
+ */
+async function cancelAndReleaseAllocation(allocationId, reason = 'Customer requested cancellation') {
+  if (!allocationId) return { success: false, reason: 'ALLOCATION_ID_REQUIRED' };
+
+  const alloc = await Allocation.findById(allocationId);
+  if (!alloc) return { success: false, reason: 'ALLOCATION_NOT_FOUND' };
+
+  alloc.state = 'RELEASED';
+  alloc.leaseExpiresAt = null;
+  alloc.notes = reason;
+  await alloc.save();
+
+  return {
+    success: true,
+    allocationId: alloc._id.toString(),
+    releasedSlotLabel: alloc.slotLabel,
+    releasedDateLabel: alloc.dateLabel
+  };
+}
+
+/**
+ * 2-Phase Atomic Rescheduling Swap:
+ * Claims new slot HOLD -> releases old slot -> commits new slot.
+ * Ensures customer never loses original slot if new slot hold fails.
+ *
+ * @param {Object} params
+ * @param {string} params.oldAllocationId - ID of existing COMMITTED booking
+ * @param {string} params.newEntityId - Target resource ID
+ * @param {number} params.newStartEpochMs - New start time ms
+ * @param {number} params.newEndEpochMs - New end time ms
+ * @param {string} params.customerPhone - Customer WhatsApp number
+ * @param {string} params.tenantId - Tenant ID
+ * @param {string} [params.channelId] - Channel ID
+ * @param {string} [params.sessionId] - Customer session ID
+ * @param {string} [params.newSlotLabel] - Formatted label for new slot
+ * @param {string} [params.newDateLabel] - Formatted date for new slot
+ * @param {Object} [params.sessionVariables] - Session context variables
+ * @returns {Promise<{ success: boolean, reason?: string, newAllocationId?: string, oldAllocationId?: string }>}
+ */
+async function atomicRescheduleSwap({
+  oldAllocationId,
+  newEntityId,
+  newStartEpochMs,
+  newEndEpochMs,
+  customerPhone,
+  tenantId,
+  channelId = null,
+  sessionId = null,
+  newSlotLabel = '',
+  newDateLabel = '',
+  sessionVariables = {}
+}) {
+  if (!oldAllocationId) {
+    return { success: false, reason: 'OLD_ALLOCATION_ID_REQUIRED' };
+  }
+
+  // 1. Validate that the old allocation exists
+  const oldAlloc = await Allocation.findById(oldAllocationId);
+  if (!oldAlloc) {
+    return { success: false, reason: 'OLD_ALLOCATION_NOT_FOUND' };
+  }
+
+  const targetEntityId = newEntityId || oldAlloc.entityId.toString();
+
+  // 2. Phase 1: Atomically claim 5-min HOLD on the NEW slot
+  const holdResult = await claimEntityQuantum({
+    tenantId: tenantId || oldAlloc.tenantId,
+    channelId: channelId || oldAlloc.channelId,
+    entityId: targetEntityId,
+    startEpochMs: newStartEpochMs,
+    endEpochMs: newEndEpochMs,
+    units: oldAlloc.unitsClaimed || 1,
+    customerPhone: customerPhone || oldAlloc.customerPhone,
+    sessionId: sessionId || oldAlloc.sessionId,
+    slotLabel: newSlotLabel || `${formatTimeLabel(newStartEpochMs)} - ${formatTimeLabel(newEndEpochMs)}`,
+    dateLabel: newDateLabel || formatDateLabel(new Date(newStartEpochMs)),
+    sessionVariables: {
+      ...(oldAlloc.contextSnapshot || {}),
+      ...sessionVariables,
+      rescheduledFrom: oldAlloc._id.toString()
+    }
+  });
+
+  if (!holdResult.success) {
+    // New slot unavailable — original booking remains completely untouched
+    return {
+      success: false,
+      reason: holdResult.reason || 'NEW_SLOT_UNAVAILABLE',
+      originalSlotPreserved: true,
+      originalSlotLabel: oldAlloc.slotLabel,
+      originalDateLabel: oldAlloc.dateLabel
+    };
+  }
+
+  // 3. Phase 2: Release old allocation
+  oldAlloc.state = 'RELEASED';
+  oldAlloc.leaseExpiresAt = null;
+  oldAlloc.notes = `Rescheduled to allocation ${holdResult.allocationId}`;
+  await oldAlloc.save();
+
+  // 4. Commit new allocation
+  await commitAllocation(holdResult.allocationId, {
+    ...(oldAlloc.contextSnapshot || {}),
+    ...sessionVariables,
+    rescheduledFrom: oldAlloc._id.toString()
+  });
+
+  return {
+    success: true,
+    newAllocationId: holdResult.allocationId,
+    oldAllocationId: oldAlloc._id.toString(),
+    newSlotLabel: newSlotLabel || `${formatTimeLabel(newStartEpochMs)} - ${formatTimeLabel(newEndEpochMs)}`,
+    newDateLabel: newDateLabel || formatDateLabel(new Date(newStartEpochMs)),
+    oldSlotLabel: oldAlloc.slotLabel,
+    oldDateLabel: oldAlloc.dateLabel
+  };
+}
+
 module.exports = {
   generateRawSlots,
   getAvailableSlotsForDate,
@@ -679,6 +849,9 @@ module.exports = {
   parseSlotId,
   checkSlotAvailability,
   formatDateLabel,
-  formatTimeLabel
+  formatTimeLabel,
+  getActiveBookingForCustomer,
+  cancelAndReleaseAllocation,
+  atomicRescheduleSwap
 };
 

@@ -3114,6 +3114,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
               // Immediately commit the HOLD → COMMITTED
               await _slotEngine.commitAllocation(holdResult.allocationId, session.sessionVariables || {});
 
+              // 🔄 Atomic Reschedule Swap: If customer was rescheduling, release their previous allocation
+              const oldRescheduleId = session.sessionVariables['reschedule_old_allocation_id'];
+              if (oldRescheduleId && oldRescheduleId !== holdResult.allocationId.toString()) {
+                try {
+                  await _slotEngine.releaseAllocation(oldRescheduleId);
+                  session.sessionVariables['rescheduled_from_allocation_id'] = oldRescheduleId;
+                  delete session.sessionVariables['reschedule_old_allocation_id'];
+                  logger.log(`[bookingNode] 🔄 Reschedule swap: Released old allocation ${oldRescheduleId}`);
+                } catch (rErr) {
+                  logger.error(`[bookingNode] Failed to release old allocation ${oldRescheduleId}:`, rErr.message);
+                }
+              }
+
               // Save booking metadata to session variables
               const slotLabel = parsed.slotLabel || `${_slotEngine.formatTimeLabel(parsed.startEpochMs)} - ${_slotEngine.formatTimeLabel(parsed.endEpochMs)}`;
               const dateLabel = parsed.dateLabel || _slotEngine.formatDateLabel(new Date(parsed.startEpochMs));
@@ -3522,6 +3535,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
             if (claim.allocationId) {
               await _slotEngine.commitAllocation(claim.allocationId, session.sessionVariables || {});
+
+              // 🔄 Atomic Reschedule Swap: If customer was rescheduling, release their previous allocation
+              const oldRescheduleId = session.sessionVariables['reschedule_old_allocation_id'];
+              if (oldRescheduleId && oldRescheduleId !== claim.allocationId.toString()) {
+                try {
+                  await _slotEngine.releaseAllocation(oldRescheduleId);
+                  session.sessionVariables['rescheduled_from_allocation_id'] = oldRescheduleId;
+                  delete session.sessionVariables['reschedule_old_allocation_id'];
+                  logger.log(`[bookingNode] 🔄 Reschedule swap: Released old allocation ${oldRescheduleId}`);
+                } catch (rErr) {
+                  logger.error(`[bookingNode] Failed to release old allocation ${oldRescheduleId}:`, rErr.message);
+                }
+              }
             }
 
             const timeStr = parsedSlot.slotLabel || `${_slotEngine.formatTimeLabel(parsedSlot.startEpochMs)} - ${_slotEngine.formatTimeLabel(parsedSlot.endEpochMs)}`;
@@ -4467,6 +4493,19 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
                   if (claim.allocationId) {
                     await _slotEngine.commitAllocation(claim.allocationId, session.sessionVariables || {});
+
+                    // 🔄 Atomic Reschedule Swap: If customer was rescheduling, release their previous allocation
+                    const oldRescheduleId = session.sessionVariables['reschedule_old_allocation_id'];
+                    if (oldRescheduleId && oldRescheduleId !== claim.allocationId.toString()) {
+                      try {
+                        await _slotEngine.releaseAllocation(oldRescheduleId);
+                        session.sessionVariables['rescheduled_from_allocation_id'] = oldRescheduleId;
+                        delete session.sessionVariables['reschedule_old_allocation_id'];
+                        logger.log(`[bookingNode] 🔄 Reschedule swap: Released old allocation ${oldRescheduleId}`);
+                      } catch (rErr) {
+                        logger.error(`[bookingNode] Failed to release old allocation ${oldRescheduleId}:`, rErr.message);
+                      }
+                    }
                   }
 
                   const timeStr = parsedSlot.slotLabel || `${_slotEngine.formatTimeLabel(parsedSlot.startEpochMs)} - ${_slotEngine.formatTimeLabel(parsedSlot.endEpochMs)}`;
