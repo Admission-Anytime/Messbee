@@ -5,7 +5,11 @@ const { PLAN_LIMITS } = require('../utils/planLimits');
 exports.getQuickReplies = async (req, res) => {
     try {
         const user = req.user?._id;
-        const replies = await QuickReply.find({ user }).sort({ createdAt: -1 });
+        const tenantId = req.user?.tenantId;
+        const query = (tenantId && tenantId.toString() !== user?.toString())
+            ? { user: { $in: [user, tenantId] } }
+            : { user };
+        const replies = await QuickReply.find(query).sort({ createdAt: -1 });
         res.status(200).json(replies || []);
     } catch (err) {
         console.error('❌ Error fetching quick replies:', err.message);

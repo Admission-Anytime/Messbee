@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen, Calendar, Check, Plus, Edit3, Save, UserCheck, Sparkles } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen, Calendar, Check, Plus, Edit3, Save, UserCheck, Sparkles, Copy } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
 import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
 import NodeGuideModal from '../../components/Modol/automation/NodeGuideModal';
@@ -341,6 +341,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('config');
+  const [showQrPreview, setShowQrPreview] = useState(false);
+  const [isStandeeModalOpen, setIsStandeeModalOpen] = useState(false);
 
   useEffect(() => {
     if (currentChannelId) {
@@ -865,7 +867,7 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const totalRowsCount = (localData.sections || []).reduce((acc, sec) => acc + (sec.rows?.length || 0), 0);
 
   return (
-    <div className={`properties-pane ${type === 'triggerNode' && localData?.triggerType === 'qr_link' ? 'is-wide' : ''}`} style={{
+    <div className="properties-pane" style={{
       borderLeft: '1px solid #E5E7EB',
       background: 'white',
       display: 'flex',
@@ -4029,6 +4031,61 @@ export default function NodePropertiesPane({ currentChannelId }) {
           onClose={() => setIsGuideOpen(false)}
           nodeType={type}
         />
+      )}
+
+      {isStandeeModalOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }} 
+          onClick={() => setIsStandeeModalOpen(false)}
+        >
+          <div 
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              width: '900px',
+              maxWidth: '95vw',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              padding: '24px',
+              position: 'relative'
+            }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#0F172A' }}>
+                📱 WhatsApp QR Code Designer
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsStandeeModalOpen(false)}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <StandeeQrGenerator
+              localData={localData}
+              updateNodeData={updateNodeData}
+              id={id}
+              channelPhone={channelPhone}
+              inputStyle={inputStyle}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
 import axios from "../../context/axios";
+import QuickReplyApi from "../../services/QuickReplyApi";
 import { getPresenceInfo } from "../../utils/presence";
 import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates, getTemplateHeaderPreviewCache } from "../../services/TemplateApi";
 import { getBackendFileUrl } from "../../utils/urlHelper";
@@ -410,6 +411,9 @@ const Conversion = ({
    const [isMenuOpen, setIsMenuOpen] = useState(false);
    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
    const [showQuickReplies, setShowQuickReplies] = useState(false);
+   const [quickReplySearch, setQuickReplySearch] = useState("");
+   const [internalQuickReplies, setInternalQuickReplies] = useState(Array.isArray(quickReplies) ? quickReplies : []);
+   const [attachedQuickReplyMedia, setAttachedQuickReplyMedia] = useState(null);
    const [showTemplates, setShowTemplates] = useState(false);
    const [templateSearch, setTemplateSearch] = useState("");
   const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState("");
@@ -471,6 +475,7 @@ const Conversion = ({
    const menuRef = useRef(null);
    const emojiRef = useRef(null);
    const templateRef = useRef(null);
+   const quickReplyRef = useRef(null);
    const fileInputRef = useRef(null);
 
    // Sync isLoadingChat from prop - true while parent is fetching messages
@@ -502,11 +507,26 @@ const Conversion = ({
    }, []);
 
    useEffect(() => {
+      if (Array.isArray(quickReplies) && quickReplies.length > 0) {
+         setInternalQuickReplies(quickReplies);
+      } else {
+         QuickReplyApi.getQuickReplies()
+            .then(data => {
+               const list = Array.isArray(data) ? data : (Array.isArray(data?.data) ? data.data : []);
+               setInternalQuickReplies(list);
+            })
+            .catch(err => console.error("Error loading quick replies in chat:", err));
+      }
+   }, [quickReplies]);
+
+   useEffect(() => {
       const handleClickOutside = (event) => {
          if (menuRef.current && !menuRef.current.contains(event.target)) setIsMenuOpen(false);
          if (emojiRef.current && !emojiRef.current.contains(event.target)) setShowEmojiPicker(false);
          if (templateRef.current && !templateRef.current.contains(event.target)) {
             setShowTemplates(false);
+         }
+         if (quickReplyRef.current && !quickReplyRef.current.contains(event.target)) {
             setShowQuickReplies(false);
          }
       };
@@ -538,12 +558,26 @@ const Conversion = ({
 
    const handleSubmit = (e) => {
       e.preventDefault();
-      if (!inputText || !inputText.trim()) return;
+      const hasText = inputText && inputText.trim();
+      const hasMedia = !!attachedQuickReplyMedia;
+      if (!hasText && !hasMedia) return;
+
       if (Number(user?.credits || 0) <= 0) {
-         onSendMessage(inputText);
+         if (attachedQuickReplyMedia) {
+            onSendMessage(inputText, attachedQuickReplyMedia);
+         } else {
+            onSendMessage(inputText);
+         }
          return; // Don't clear inputText when sending fails due to zero credits
       }
-      onSendMessage(inputText);
+
+      if (attachedQuickReplyMedia) {
+         onSendMessage(inputText, attachedQuickReplyMedia);
+         setAttachedQuickReplyMedia(null);
+      } else {
+         onSendMessage(inputText);
+      }
+
       setInputText("");
       setShowEmojiPicker(false);
       setShowTemplates(false);
@@ -552,9 +586,55 @@ const Conversion = ({
 
    const onEmojiClick = (emojiObject) => setInputText((prev) => prev + emojiObject.emoji);
 
-   const handleQuickReplySelect = (text) => {
-      setInputText(text);
-      setShowTemplates(false);
+   const handleQuickReplySelect = (reply) => {
+      let content = typeof reply === 'string' ? reply : (reply?.content || '');
+      const customerName = data?.name || data?.contactName || data?.phone || 'Customer';
+      const agentName = user?.name || 'Support';
+      const orderId = data?.orderId || data?.order_id || '';
+
+      // Dynamically replace variables: {{customer_name}}, {{agent_name}}, {{order_id}}
+      content = content
+         .replace(/\{\{\s*customer_name\s*\}\}/gi, customerName)
+         .replace(/\{\{\s*agent_name\s*\}\}/gi, agentName)
+         .replace(/\{\{\s*order_id\s*\}\}/gi, orderId);
+
+      // Append CTA URL if present
+      if (reply?.type === 'CTA URL' || (reply?.url && reply?.url.trim())) {
+         const cleanUrl = reply.url.trim();
+         if (!content.includes(cleanUrl)) {
+            const btnText = reply.buttonText?.trim() ? `${reply.buttonText.trim()}: ` : '';
+            content = content.trim()
+               ? `${content.trim()}\n\n👉 ${btnText}${cleanUrl}`
+               : `${btnText}${cleanUrl}`;
+         }
+      }
+
+      // Attach media if quick reply has uploaded file/image/audio/video/document
+      if (reply?.mediaUrl) {
+         const BASE_URL = import.meta.env.VITE_API_URL 
+            ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, '') 
+            : '';
+         const fullUrl = reply.mediaUrl.startsWith('http') ? reply.mediaUrl : `${BASE_URL}${reply.mediaUrl}`;
+         const mediaType = (reply.type || 'image').toLowerCase();
+         setAttachedQuickReplyMedia({
+            url: fullUrl,
+            rawUrl: reply.mediaUrl,
+            name: reply.shortcut ? `${reply.shortcut.replace(/^\//, '')} (${mediaType})` : `Media (${mediaType})`,
+            type: mediaType,
+            mediaType: mediaType
+         });
+      } else {
+         setAttachedQuickReplyMedia(null);
+      }
+
+      setInputText((prev) => {
+         if (prev.startsWith("/")) {
+            return content;
+         }
+         return prev ? `${prev} ${content}` : content;
+      });
+      setShowQuickReplies(false);
+      setQuickReplySearch("");
    };
 
    const handleTemplateSelect = async (template) => {
@@ -976,40 +1056,81 @@ const Conversion = ({
       return availableLabels.filter(l => data.labels.includes(l.name));
    }, [data.labels, availableLabels]);
 
-   // Limit Quick Replies to top 5 contextually relevant
+   const resolvedQuickReplies = useMemo(() => {
+      if (Array.isArray(internalQuickReplies) && internalQuickReplies.length > 0) {
+         return internalQuickReplies;
+      }
+      if (Array.isArray(quickReplies) && quickReplies.length > 0) {
+         return quickReplies;
+      }
+      return [];
+   }, [internalQuickReplies, quickReplies]);
+
+   // Quick replies shown as chips above the input box ("uppar me") - sorted by matching input text
+   const activeQuickReplies = useMemo(() => {
+      if (!resolvedQuickReplies || resolvedQuickReplies.length === 0) return [];
+
+      const search = (inputText || "").trim().toLowerCase();
+      if (search) {
+         const cleanSearch = search.startsWith("/") ? search.slice(1) : search;
+         return [...resolvedQuickReplies].sort((a, b) => {
+            const aMatch = (a.shortcut || "").toLowerCase().includes(cleanSearch) || (a.content || "").toLowerCase().includes(cleanSearch);
+            const bMatch = (b.shortcut || "").toLowerCase().includes(cleanSearch) || (b.content || "").toLowerCase().includes(cleanSearch);
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+         });
+      }
+      return resolvedQuickReplies;
+   }, [resolvedQuickReplies, inputText]);
+
+   // All Quick Replies sorted contextually or by search: top 5 visible, rest scrollable
    const displayQuickReplies = useMemo(() => {
-      if (!quickReplies || quickReplies.length === 0) return [];
+      if (!resolvedQuickReplies || resolvedQuickReplies.length === 0) return [];
+
+      let list = [...resolvedQuickReplies];
+
+      // Filter by search query if any (typed in quick reply search box or slash command)
+      const query = (quickReplySearch || "").trim().toLowerCase();
+      if (query) {
+         return list.filter(reply => {
+            const sc = (reply.shortcut || "").toLowerCase();
+            const ct = (reply.content || "").toLowerCase();
+            return sc.includes(query) || ct.includes(query);
+         });
+      }
+
       const lastThemMsg = [...(data?.messages || [])].reverse().find(m => m.sender === 'them');
-      
-      if (!lastThemMsg || !lastThemMsg.text) return quickReplies.slice(0, 5);
-      
+
+      if (!lastThemMsg || !lastThemMsg.text) return list;
+
       const txt = lastThemMsg.text.toLowerCase();
       // Basic word tokenization (minimum 3 characters)
       const words = txt.split(/[\s,.-]+/).filter(w => w.length > 2);
-      
-      let sorted = [...quickReplies].map(reply => {
-         const replyTxt = (reply.content + " " + reply.shortcut).toLowerCase();
+
+      let sorted = list.map(reply => {
+         const replyTxt = ((reply.content || "") + " " + (reply.shortcut || "")).toLowerCase();
          let score = 0;
-         
+
          // Increase score for each word match
          words.forEach(word => {
             if (replyTxt.includes(word)) score += 1;
          });
-         
+
          // Boost score for specific strong intents
          if ((txt.includes("price") || txt.includes("cost") || txt.includes("plan")) && replyTxt.includes("price")) score += 3;
          if ((txt.includes("help") || txt.includes("support") || txt.includes("issue")) && (replyTxt.includes("help") || replyTxt.includes("support"))) score += 3;
          if ((txt.includes("hi") || txt.includes("hello")) && (replyTxt.includes("hi") || replyTxt.includes("hello"))) score += 2;
          if ((txt.includes("thank")) && (replyTxt.includes("welcome") || replyTxt.includes("glad"))) score += 3;
-         
+
          return { ...reply, _score: score };
       });
-      
-      // Sort by score descending
-      sorted.sort((a, b) => b._score - a._score);
-      
-      return sorted.slice(0, 5);
-   }, [quickReplies, data?.messages]);
+
+      // Sort by score descending - top relevant items appear first, but do NOT slice so user can scroll to see all!
+      sorted.sort((a, b) => (b._score || 0) - (a._score || 0));
+
+      return sorted;
+   }, [resolvedQuickReplies, data?.messages, quickReplySearch]);
 
    // Only approved templates can be used in chat send flow.
    const approvedTemplates = useMemo(() => {
@@ -1628,14 +1749,32 @@ const selectedTemplate = useMemo(() => {
          {/* 3. INPUT AREA */}
          <div className="p-3 lg:p-4 bg-white z-20 relative border-t border-slate-100">
 
-            {!isTemplateOnlyMode && (
-            <div className="flex gap-1.5 overflow-x-auto hide-scrollbar pb-2 px-1 mb-1">
-               {dynamicSuggestions.map((reply, idx) => (
-                  <button key={idx} type="button" onClick={() => onSendMessage(reply)} className="px-3 py-1 bg-slate-50 border border-slate-200 hover:bg-slate-100 text-[11px] font-bold rounded-full whitespace-nowrap transition-colors shadow-sm shrink-0">
-                     {reply}
-                  </button>
-               ))}
-            </div>
+            {/* CRM Quick Replies Chips Bar above input field ("uppar me") */}
+            {activeQuickReplies && activeQuickReplies.length > 0 && (
+               <div className="flex items-center gap-1.5 overflow-x-auto hide-scrollbar pb-2 px-1 mb-1">
+                  <div className="flex items-center gap-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0 mr-1 select-none">
+                     <BoltIcon className="w-3.5 h-3.5 text-[#22C55E]" />
+                     <span>Quick Reply:</span>
+                  </div>
+                  {activeQuickReplies.map((reply) => (
+                     <button
+                        key={reply._id}
+                        type="button"
+                        onClick={() => handleQuickReplySelect(reply)}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-green-50 border border-slate-200 hover:border-green-300 text-slate-700 hover:text-green-800 text-[11px] font-semibold rounded-full whitespace-nowrap transition-all shadow-2xs shrink-0 group active:scale-95 cursor-pointer"
+                        title={reply.content || reply.shortcut}
+                     >
+                        <span className="font-bold text-[#22C55E]">
+                           {reply.shortcut?.startsWith('/') ? reply.shortcut : `/${reply.shortcut}`}
+                        </span>
+                        {reply.content && (
+                           <span className="text-slate-500 group-hover:text-green-700 max-w-[160px] truncate font-normal">
+                              • {reply.content.trim()}
+                           </span>
+                        )}
+                     </button>
+                  ))}
+               </div>
             )}
 
             {isTemplateOnlyMode && (
@@ -1659,39 +1798,77 @@ const selectedTemplate = useMemo(() => {
             )}
 
             {showQuickReplies && (
-               <div className="absolute bottom-28 left-2 right-2 sm:left-6 sm:right-auto sm:w-[340px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={templateRef}>
-                  <div className="p-3 border-b border-slate-100 flex items-center justify-between">
-                     <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Quick Replies</h4>
-                     <span className="text-[10px] font-bold text-slate-400">{displayQuickReplies.length} REPLIES</span>
+               <div className="absolute bottom-28 left-2 right-2 sm:left-6 sm:right-auto sm:w-[360px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2" ref={quickReplyRef}>
+                  <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-white">
+                     <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-green-50 text-[#22C55E] flex items-center justify-center">
+                           <BoltIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Quick Replies</h4>
+                     </div>
+                     <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{displayQuickReplies.length} REPLIES</span>
                   </div>
-                  <div className="max-h-72 overflow-y-auto p-2 space-y-1 custom-scrollbar">
+
+                  {/* Inline Search Bar */}
+                  <div className="p-2 border-b border-slate-100 bg-slate-50/60">
+                     <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] transition-all">
+                        <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <input
+                           type="text"
+                           value={quickReplySearch}
+                           onChange={(e) => setQuickReplySearch(e.target.value)}
+                           placeholder="Search shortcut or message..."
+                           className="bg-transparent border-none outline-none text-xs text-slate-700 w-full placeholder:text-slate-400"
+                           autoFocus
+                        />
+                        {quickReplySearch && (
+                           <button type="button" onClick={() => setQuickReplySearch("")} className="text-slate-400 hover:text-slate-600 p-0.5">
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                           </button>
+                        )}
+                     </div>
+                  </div>
+
+                  {/* Top 5 visible by default (~300px), remaining scrollable */}
+                  <div className="max-h-[300px] overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
                      {displayQuickReplies.map((reply) => (
                         <div
                            key={reply._id}
-                           onClick={() => { handleQuickReplySelect(reply.content); setShowQuickReplies(false); }}
-                           className="flex gap-3 p-3 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border-l-2 border-l-transparent hover:border-l-[#22C55E]"
+                           onClick={() => handleQuickReplySelect(reply)}
+                           className="flex gap-3 p-2.5 hover:bg-slate-50 rounded-xl cursor-pointer transition-colors group border border-transparent hover:border-slate-100"
                         >
-                           <div className="w-10 h-10 rounded-xl bg-green-50 text-[#22C55E] flex items-center justify-center shrink-0">
-                              <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                           <div className="w-9 h-9 rounded-xl bg-green-50 text-[#22C55E] group-hover:bg-[#22C55E] group-hover:text-white flex items-center justify-center shrink-0 transition-colors">
+                              <BoltIcon className="w-4 h-4" />
                            </div>
                            <div className="flex-1 min-w-0">
-                              <div className="flex justify-between items-center mb-1">
-                                 <h4 className="text-xs font-bold text-slate-900 truncate">{reply.shortcut}</h4>
-                                 <span className="text-[9px] font-extrabold text-green-600 bg-green-100 px-1.5 py-0.5 rounded uppercase">Reply</span>
+                              <div className="flex justify-between items-center mb-0.5">
+                                 <h4 className="text-xs font-bold text-slate-900 truncate">
+                                    {reply.shortcut?.startsWith('/') ? reply.shortcut : `/${reply.shortcut}`}
+                                 </h4>
+                                 <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded uppercase">
+                                    {reply.type || 'REPLY'}
+                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 truncate">{reply.content}</p>
+                              <p className="text-[11px] text-slate-500 line-clamp-2 leading-relaxed">
+                                 {reply.content || (reply.mediaUrl ? '📎 Media attachment' : 'Quick reply')}
+                              </p>
                            </div>
                         </div>
                      ))}
                      {displayQuickReplies.length === 0 && (
                         <div className="p-8 text-center">
-                           <p className="text-sm text-slate-400 font-medium">No quick replies found.</p>
-                           <p className="text-[10px] text-slate-400 mt-1">Add them in CRM Settings</p>
+                           <p className="text-xs text-slate-400 font-medium">No quick replies found</p>
+                           <a href="/admin/contacts/quick-replies" className="text-[11px] text-emerald-600 hover:underline mt-1 inline-block font-semibold">
+                              + Add in CRM Quick Replies
+                           </a>
                         </div>
                      )}
                   </div>
-                  <div className="px-4 py-2.5 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between">
-                     <span>Click to insert</span><span>Closes after selecting</span>
+                  <div className="px-3 py-2 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between items-center">
+                     <span>Click to insert</span>
+                     {displayQuickReplies.length > 5 && (
+                        <span className="font-semibold text-slate-500">Scroll for more ({displayQuickReplies.length}) ↓</span>
+                     )}
                   </div>
                </div>
             )}
@@ -2113,6 +2290,25 @@ const selectedTemplate = useMemo(() => {
                      </div>
                   )}
 
+                  {attachedQuickReplyMedia && (
+                     <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs shadow-2xs animate-in fade-in">
+                        <div className="flex items-center gap-2 min-w-0">
+                           <span className="font-extrabold text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-200/80 text-emerald-900 shrink-0">
+                              {attachedQuickReplyMedia.type}
+                           </span>
+                           <span className="truncate font-semibold">{attachedQuickReplyMedia.name}</span>
+                        </div>
+                        <button
+                           type="button"
+                           onClick={() => setAttachedQuickReplyMedia(null)}
+                           className="text-slate-400 hover:text-red-500 transition-colors p-0.5"
+                           title="Remove media"
+                        >
+                           <XMarkIcon className="w-4 h-4" />
+                        </button>
+                     </div>
+                  )}
+
                   <form onSubmit={handleSubmit} className="flex items-center bg-white border border-[#86efac] focus-within:border-[#22C55E] focus-within:ring-1 focus-within:ring-[#22C55E] rounded-full p-1 shadow-sm transition-all relative overflow-hidden">
                      <div className="flex items-center gap-0.5 pl-2 shrink-0">
                         <button type="button" onClick={() => setIsMediaModalOpen(true)} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors">
@@ -2128,13 +2324,20 @@ const selectedTemplate = useMemo(() => {
                         onChange={(e) => {
                            const val = e.target.value;
                            setInputText(val);
-                           if (val.endsWith("/")) {
-                              setShowTemplates(true);
-                              setShowQuickReplies(false);
+                           if (val.startsWith("/")) {
+                              setShowQuickReplies(true);
+                              setShowTemplates(false);
+                              setQuickReplySearch(val.slice(1));
+                           } else if (val.endsWith("/")) {
+                              setShowQuickReplies(true);
+                              setShowTemplates(false);
+                           } else {
+                              if (!val) {
+                                 setQuickReplySearch("");
+                              }
                            }
-                           if (!val.includes("/")) setShowTemplates(false);
                         }}
-                        placeholder="Type a message..."
+                        placeholder="Type a message or / for quick reply..."
                         className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
                      />
                      <div className="flex items-center gap-1.5 pr-1 shrink-0">

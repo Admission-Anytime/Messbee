@@ -192,8 +192,10 @@ const effectiveUploadDir = process.env.UPLOAD_PATH && fs.existsSync(process.env.
   ? process.env.UPLOAD_PATH
   : path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(effectiveUploadDir));
+app.use('/api/uploads', express.static(effectiveUploadDir));
 if (effectiveUploadDir !== path.join(__dirname, 'uploads')) {
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 }
 
 // ================== SWAGGER DOCS ==================
