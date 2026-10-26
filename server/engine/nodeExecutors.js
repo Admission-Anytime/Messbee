@@ -843,6 +843,69 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
     return 'success';
   }
 
+  // 🗓️ Cancel / Release Booking Allocation
+  if (['release_booking', 'cancel_booking'].includes(actionType)) {
+    try {
+      const slotEngine = require('../services/slotBookingEngine.js');
+      const targetPhone = contextData?.contact?.phone || session.phone || session.customerPhone;
+      const tenantId = contextData?.channel?.tenantId || contextData?.tenantId || session.tenantId || null;
+      let allocId = node.data.allocationId ? parseDynamicVariables(node.data.allocationId, contextData) : '';
+      if (!allocId) {
+        allocId = contextData?.booking_allocation_id || contextData?.allocation_id || session?.sessionVariables?.booking_allocation_id;
+      }
+      if (!allocId && targetPhone) {
+        const active = await slotEngine.getActiveBookingForCustomer(targetPhone, tenantId);
+        if (active) allocId = active.allocationId;
+      }
+
+      if (allocId) {
+        const cancelReason = (node.data.reason ? parseDynamicVariables(node.data.reason, contextData) : '') || 'Customer requested cancellation via WhatsApp';
+        const cancelRes = await slotEngine.cancelAndReleaseAllocation(allocId, cancelReason);
+        if (cancelRes.success) {
+          safeSetSessionVariable(session, 'cancellation_status', 'SUCCESS');
+          safeSetSessionVariable(session, 'is_booking_cancelled', true);
+          if (cancelRes.releasedSlotLabel) safeSetSessionVariable(session, 'cancelled_slot_label', cancelRes.releasedSlotLabel);
+          if (cancelRes.releasedDateLabel) safeSetSessionVariable(session, 'cancelled_date_label', cancelRes.releasedDateLabel);
+          console.log(`[ActionNode] ✅ Allocation ${allocId} successfully RELEASED for ${targetPhone}`);
+        } else {
+          safeSetSessionVariable(session, 'cancellation_status', 'FAILED');
+        }
+      } else {
+        safeSetSessionVariable(session, 'cancellation_status', 'NOT_FOUND');
+      }
+      if (session.save) await session.save();
+    } catch (err) {
+      console.error('[ActionNode] release_booking error:', err.message);
+    }
+    return 'success';
+  }
+
+  // 🔍 Lookup Active Booking for Customer
+  if (['lookup_active_booking', 'lookup_booking', 'check_active_booking'].includes(actionType)) {
+    try {
+      const slotEngine = require('../services/slotBookingEngine.js');
+      const targetPhone = contextData?.contact?.phone || session.phone || session.customerPhone;
+      const tenantId = contextData?.channel?.tenantId || contextData?.tenantId || session.tenantId || null;
+      const active = await slotEngine.getActiveBookingForCustomer(targetPhone, tenantId);
+      if (active) {
+        safeSetSessionVariable(session, 'has_active_booking', true);
+        safeSetSessionVariable(session, 'active_booking_id', active.allocationId);
+        safeSetSessionVariable(session, 'active_booking_entity_name', active.entityName);
+        safeSetSessionVariable(session, 'active_booking_entity_id', active.entityId);
+        safeSetSessionVariable(session, 'active_booking_slot_label', active.slotLabel);
+        safeSetSessionVariable(session, 'active_booking_date_label', active.dateLabel);
+        safeSetSessionVariable(session, 'booking_allocation_id', active.allocationId);
+        safeSetSessionVariable(session, 'reschedule_old_allocation_id', active.allocationId);
+      } else {
+        safeSetSessionVariable(session, 'has_active_booking', false);
+      }
+      if (session.save) await session.save();
+    } catch (err) {
+      console.error('[ActionNode] lookup_active_booking error:', err.message);
+    }
+    return 'success';
+  }
+
   return 'success';
 }
 

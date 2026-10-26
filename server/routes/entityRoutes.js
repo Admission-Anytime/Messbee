@@ -19,7 +19,10 @@ const {
   commitAllocation,
   releaseAllocation,
   fulfillAllocation,
-  checkSlotAvailability
+  checkSlotAvailability,
+  getActiveBookingForCustomer,
+  cancelAndReleaseAllocation,
+  atomicRescheduleSwap
 } = require('../services/slotBookingEngine.js');
 const { protect } = require('../middleware/auth.js');
 
@@ -89,6 +92,48 @@ router.get('/allocations', protect, async (req, res) => {
       .limit(200);
 
     res.json({ success: true, data: allocations });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * GET /api/entities/allocations/active?customerPhone=...
+ * Finds upcoming active COMMITTED allocation for a customer
+ */
+router.get('/allocations/active', protect, async (req, res) => {
+  try {
+    const { customerPhone } = req.query;
+    if (!customerPhone) {
+      return res.status(400).json({ success: false, message: 'customerPhone query parameter is required' });
+    }
+    const tenantId = req.user.tenantId || req.user._id;
+    const activeBooking = await getActiveBookingForCustomer(customerPhone, tenantId);
+    if (!activeBooking) {
+      return res.status(404).json({ success: false, message: 'No active booking found for this customer' });
+    }
+    res.json({ success: true, data: activeBooking });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/**
+ * POST /api/entities/allocations/:id/reschedule
+ * Atomically swaps an existing allocation to a new slot quantum
+ */
+router.post('/allocations/:id/reschedule', protect, async (req, res) => {
+  try {
+    const tenantId = req.user.tenantId || req.user._id;
+    const result = await atomicRescheduleSwap({
+      oldAllocationId: req.params.id,
+      tenantId,
+      ...req.body
+    });
+    if (!result.success) {
+      return res.status(409).json({ success: false, ...result });
+    }
+    res.json({ success: true, message: 'Allocation rescheduled successfully', data: result });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
