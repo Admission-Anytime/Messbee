@@ -442,7 +442,6 @@ export default function AutomationBuilder() {
 
         /* Sidebar & Preview Panes Responsiveness */
         .properties-pane { width: 380px; flex-shrink: 0; }
-        .properties-pane.is-wide { width: 840px !important; max-width: 92vw !important; }
         .preview-pane { width: 360px; flex-shrink: 0; }
 
         /* Sleek custom scrollbars for panes */

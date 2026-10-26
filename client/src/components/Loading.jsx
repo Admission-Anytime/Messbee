@@ -1,6 +1,7 @@
 import React from "react";
 import LodingLogo from "../assets/MessBee logo with name.png";
 
+// Optimized full-page workspace loader
 const Loading = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen w-full bg-[#fcfdfd]">

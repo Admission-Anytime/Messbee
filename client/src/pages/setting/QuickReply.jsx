@@ -10,6 +10,7 @@ import ErrorState from '../../components/ui/ErrorState';
 import { userContext } from '../../context/Context';
 import { PLAN_LIMITS } from '../../utils/planLimits';
 import { useContext } from 'react';
+import { getBackendFileUrl } from '../../utils/urlHelper';
 
 const QuickReply = () => {
   const { user } = useContext(userContext);
@@ -97,7 +98,7 @@ const QuickReply = () => {
       return URL.createObjectURL(selectedFile);
     }
     if (activePreview?.mediaUrl) {
-      return `${BASE_URL}${activePreview.mediaUrl}`;
+      return getBackendFileUrl(activePreview.mediaUrl);
     }
     return null;
   };
@@ -113,17 +114,20 @@ const QuickReply = () => {
       case 'VIDEO':
         return 'Video';
       case 'FILE':
-      case 'AUDIO':
-      case 'STICKER':
         return 'Document';
+      case 'AUDIO':
+        return 'Audio';
+      case 'STICKER':
+        return 'Sticker';
+      case 'CTA URL':
+        return 'Link';
       case 'TEXT':
-        return 'Text';
       default:
-        return 'None';
+        return 'Text';
     }
   })();
 
-  const previewButtons = previewData?.type === 'CTA URL'
+  const previewButtons = previewData?.type === 'CTA URL' || previewData?.url
     ? [{ type: 'Visit Website', text: previewData?.buttonText || 'Open Link' }]
     : [];
 
@@ -135,9 +139,23 @@ const QuickReply = () => {
       toast.warning("⚠️ Please enter a shortcut!");
       return;
     }
-    if (!message.trim() && !selectedFile) {
-      toast.warning("⚠️ Please add a message or select a file!");
-      return;
+    const hasExistingMedia = editingIndex !== null && replies[editingIndex]?.mediaUrl;
+    if (selectedType === 'CTA URL') {
+      if (!message.trim() && !url.trim()) {
+        toast.warning("⚠️ Please enter a message or a URL for CTA URL!");
+        return;
+      }
+    } else if (selectedType === 'TEXT') {
+      if (!message.trim()) {
+        toast.warning("⚠️ Please enter message content!");
+        return;
+      }
+    } else {
+      // IMAGE, STICKER, AUDIO, VIDEO, FILE
+      if (!message.trim() && !selectedFile && !hasExistingMedia) {
+        toast.warning("⚠️ Please upload a file or enter message content!");
+        return;
+      }
     }
 
     const formData = new FormData();
@@ -284,12 +302,14 @@ const QuickReply = () => {
                     onChange={e => { setFilterType(e.target.value); setCurrentPage(1); }}
                     className="appearance-none pl-3 pr-8 py-1.5 border border-gray-200 rounded-lg text-sm text-gray-700 font-medium bg-white cursor-pointer outline-none focus:border-green-400 transition-colors shadow-sm capitalize"
                   >
-                    <option>All Types</option>
+                    <option value="All Types">All Types</option>
                     <option value="TEXT">Text</option>
                     <option value="IMAGE">Image</option>
-                    <option value="VIDEO">Video</option>
-                    <option value="DOCUMENT">Document</option>
+                    <option value="STICKER">Sticker</option>
                     <option value="AUDIO">Audio</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="FILE">File</option>
+                    <option value="CTA URL">CTA URL</option>
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
                 </div>
@@ -551,22 +571,26 @@ const QuickReply = () => {
                 {(selectedType === 'CTA URL' || selectedType === 'IMAGE') && (
                   <>
                     <div>
-                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">Button Text (Optional)</label>
+                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">
+                        {selectedType === 'CTA URL' ? 'Button Label (e.g. Visit Website)' : 'Button Text (Optional)'}
+                      </label>
                       <input
                         type="text"
                         value={buttonText}
                         onChange={(e) => setButtonText(e.target.value)}
-                        placeholder="e.g. Visit"
+                        placeholder={selectedType === 'CTA URL' ? "e.g. Visit Website" : "e.g. View Details"}
                         className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
                       />
                     </div>
                     <div className="md:col-span-2">
-                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">URL (Optional)</label>
+                      <label className="text-[13px] font-bold text-gray-700 mb-1.5 block">
+                        {selectedType === 'CTA URL' ? 'Website / Action URL *' : 'URL (Optional)'}
+                      </label>
                       <input
                         type="text"
                         value={url}
                         onChange={(e) => setUrl(e.target.value)}
-                        placeholder="https://"
+                        placeholder="https://example.com"
                         className="w-full border border-gray-200 rounded-xl px-4 py-2.5 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 transition-all outline-none text-sm font-medium bg-gray-50/30"
                       />
                     </div>
@@ -602,15 +626,27 @@ const QuickReply = () => {
                 />
               </div>
 
-              {selectedType !== 'TEXT' && (
+              {['IMAGE', 'STICKER', 'AUDIO', 'VIDEO', 'FILE'].includes(selectedType) && (
                 <div>
-                  <label className="text-[13px] font-bold text-gray-700 mb-2 block">Media Upload</label>
+                  <label className="text-[13px] font-bold text-gray-700 mb-2 block">
+                    {selectedType === 'IMAGE' ? 'Image File Upload' :
+                     selectedType === 'STICKER' ? 'Sticker File Upload (WebP / PNG)' :
+                     selectedType === 'AUDIO' ? 'Audio File Upload (MP3 / WAV / OGG)' :
+                     selectedType === 'VIDEO' ? 'Video File Upload (MP4)' :
+                     'Document / File Upload (PDF / DOC / Sheet)'}
+                  </label>
                   <input
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileChange}
                     className="hidden"
-                    accept={selectedType === 'IMAGE' ? 'image/*' : selectedType === 'AUDIO' ? 'audio/*' : selectedType === 'VIDEO' ? 'video/*' : '*/*'}
+                    accept={
+                      selectedType === 'IMAGE' ? 'image/*' :
+                      selectedType === 'STICKER' ? 'image/webp,image/png,image/*' :
+                      selectedType === 'AUDIO' ? 'audio/*' :
+                      selectedType === 'VIDEO' ? 'video/*' :
+                      '.pdf,.doc,.docx,.xls,.xlsx,.txt,application/*'
+                    }
                   />
                   <button
                     type="button"
@@ -622,10 +658,10 @@ const QuickReply = () => {
                     </div>
                     <p className="text-[12px] font-semibold text-slate-600 text-center">
                       {selectedFile ? (
-                        <span className="text-emerald-600">Selected: {selectedFile.name}</span>
+                        <span className="text-emerald-600 font-bold">Selected: {selectedFile.name}</span>
                       ) : (
                         <>
-                          Drag and drop your file here, or <span className="text-emerald-500 underline">browse</span>
+                          Drag and drop your {selectedType.toLowerCase()} here, or <span className="text-emerald-500 underline">browse</span>
                         </>
                       )}
                     </p>
@@ -655,7 +691,7 @@ const QuickReply = () => {
 };
 
 const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText, buttons = [] }) => {
-  const isMedia = headerType && ['Image', 'Video', 'Document'].includes(headerType);
+  const isMedia = headerType && ['Image', 'Video', 'Document', 'Sticker', 'Audio'].includes(headerType);
   const isTextHeader = headerType === 'Text';
   const previewName = name || 'Business Update';
 
@@ -701,11 +737,16 @@ const MobilePreview = ({ name, body, headerType, headerMediaUrl = '', footerText
           <div className="bg-white rounded-2xl rounded-tl-md shadow-[0_12px_24px_-14px_rgba(15,23,42,0.65)] overflow-hidden max-w-[95%] border border-[#eef1f4]">
             {isMedia && (
               <>
-                {headerType === 'Image' && headerMediaUrl ? (
+                {(headerType === 'Image' || headerType === 'Sticker') && headerMediaUrl ? (
                   <img
                     src={headerMediaUrl}
                     alt={`${name || 'template'} header`}
                     className="h-28 sm:h-36 w-full object-cover border-b border-gray-200/70"
+                    onError={(e) => {
+                      console.warn("Failed to load header media:", headerMediaUrl);
+                      e.target.onerror = null;
+                      e.target.src = "data:image/svg+xml;charset=UTF-8,%3Csvg%20width%3D%22200%22%20height%3D%22120%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Crect%20width%3D%22100%25%22%20height%3D%22100%25%22%20fill%3D%22%23f1f5f9%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2250%25%22%20fill%3D%22%2394a3b8%22%20font-family%3D%22sans-serif%22%20font-size%3D%2211%22%20text-anchor%3D%22middle%22%20dominant-baseline%3D%22middle%22%3EMedia%20Preview%3C%2Ftext%3E%3C%2Fsvg%3E";
+                    }}
                   />
                 ) : headerType === 'Video' && headerMediaUrl ? (
                   <video
