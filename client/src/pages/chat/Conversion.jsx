@@ -2347,7 +2347,7 @@ const selectedTemplate = useMemo(() => {
                         <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
                            <BoltIcon className="w-5 h-5" />
                         </button>
-                        <button type="submit" disabled={!inputText || !inputText.trim()} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
+                        <button type="submit" disabled={(!inputText || !inputText.trim()) && !attachedQuickReplyMedia} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
                            <PaperAirplaneIcon className="w-4 h-4" />
                         </button>
                      </div>

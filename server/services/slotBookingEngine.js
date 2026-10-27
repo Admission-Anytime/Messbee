@@ -18,10 +18,17 @@ const Allocation = require('../models/Allocation.js');
 /**
  * Safely resolves an entity by MongoDB _id, code, or name without throwing CastError.
  */
-async function findEntitySafely(entityId, lean = false) {
+async function findEntitySafely(entityId, lean = false, tenantId = null) {
+  const tenantFilter = tenantId ? { tenantId } : {};
+
   if (!entityId) {
-    // If no entityId provided, fallback to first active entity
-    const defaultDoc = await Entity.findOne({ isActive: { $ne: false } });
+    // If no entityId provided, fallback to first active entity in tenant
+    const defaultDoc = await Entity.findOne({ ...tenantFilter, isActive: { $ne: false } });
+    if (!defaultDoc && tenantId) {
+      const fallbackDoc = await Entity.findOne({ isActive: { $ne: false } });
+      if (!fallbackDoc) return null;
+      return lean ? (fallbackDoc.toObject ? fallbackDoc.toObject() : fallbackDoc) : fallbackDoc;
+    }
     if (!defaultDoc) return null;
     return lean ? (defaultDoc.toObject ? defaultDoc.toObject() : defaultDoc) : defaultDoc;
   }
@@ -30,7 +37,10 @@ async function findEntitySafely(entityId, lean = false) {
   let found = null;
 
   if (mongoose.Types.ObjectId.isValid(idStr)) {
-    found = await (lean ? Entity.findById(idStr).lean() : Entity.findById(idStr));
+    found = await (lean ? Entity.findOne({ _id: idStr, ...tenantFilter }).lean() : Entity.findOne({ _id: idStr, ...tenantFilter }));
+    if (!found && tenantId) {
+      found = await (lean ? Entity.findById(idStr).lean() : Entity.findById(idStr));
+    }
     if (found) return found;
   }
 
@@ -40,6 +50,7 @@ async function findEntitySafely(entityId, lean = false) {
   const exactRegex = new RegExp(`^${idStr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
 
   found = await Entity.findOne({
+    ...tenantFilter,
     $or: [
       { identifier: idStr },
       { identifier: idStr.toUpperCase() },
@@ -56,10 +67,16 @@ async function findEntitySafely(entityId, lean = false) {
   // Search by doctor name substring (e.g. 'rajesh', 'priya', 'amit', 'sneha')
   if (cleanTerm.length >= 3) {
     found = await Entity.findOne({
+      ...tenantFilter,
       name: new RegExp(cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'),
       isActive: { $ne: false }
     });
     if (found) return lean ? (found.toObject ? found.toObject() : found) : found;
+  }
+
+  // Fallback to global search if tenant filter had no match
+  if (tenantId) {
+    return await findEntitySafely(entityId, lean, null);
   }
 
   // Ultimate resilient fallback: return the first active entity so slots never crash
@@ -529,8 +546,8 @@ function parseSlotId(slotId) {
  * @param {string} datetimeStr
  * @returns {Promise<{ is_available: boolean, confirmed_slot_label: string, confirmed_date_label: string, alt_slot_label: string, alt_date_label: string, entity_name: string }>}
  */
-async function checkSlotAvailability(entityId, datetimeStr = '') {
-  const entity = await findEntitySafely(entityId, true);
+async function checkSlotAvailability(entityId, datetimeStr = '', tenantId = null) {
+  const entity = await findEntitySafely(entityId, true, tenantId);
   if (!entity) {
     const now = new Date();
     const todayLabel = formatDateLabel(now);
