@@ -478,7 +478,8 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
             contextData?.appointment_slot ||
             contextData?.slot || '';
 
-          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal);
+          const tenantIdForSlot = session?.tenantId || contextData?.tenantId || contextData?.channel?.tenantId || session?.channelId?.tenantId;
+          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal, tenantIdForSlot);
           data = { success: true, ...data };
 
           // Automatically populate standard downstream session variables for effortless canvas wiring
@@ -804,6 +805,12 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
             const evaluatedP = parseDynamicVariables(rawP, contextData);
             const cleanP = String(evaluatedP || '').replace(/\D/g, '');
             if (cleanP && cleanP.length >= 8) {
+              const channelPhone = String(channelToUse.phoneNumber || '').replace(/\D/g, '');
+              const channelPhoneId = String(channelToUse.activeWhatsappPhoneNumberId || '').trim();
+              if (cleanP === channelPhone || cleanP === channelPhoneId) {
+                console.log(`[ActionNode] ℹ️ Skipping WhatsApp notification to ${cleanP} as it matches the sender's own channel number.`);
+                continue;
+              }
               const payload = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
