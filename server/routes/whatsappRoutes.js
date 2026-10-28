@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const whatsappController = require('../controllers/whatsappController');
-const { protect, authorize } = require('../middleware/auth');
+const { protect, authorize, requireMetaPro } = require('../middleware/auth');
 const upload = require('../middleware/upload');
 
 /**
@@ -38,11 +38,11 @@ router.get('/message-status/:messageId', protect, whatsappController.getMessageS
 // Send WhatsApp message from dashboard (Protected route)
 router.post('/send', protect, whatsappController.sendWhatsAppMessage);
 
-// Send template message (Protected route)
-router.post('/send-template', protect, whatsappController.sendTemplateMessage);
+// Send template message (Protected route - Meta WABA required)
+router.post('/send-template', protect, requireMetaPro, whatsappController.sendTemplateMessage);
 
-// Debug: Test send to a number and return full WhatsApp API error (Protected route)
-router.post('/debug-send', protect, async (req, res) => {
+// Debug: Test send to a number and return full WhatsApp API error (Protected route - Meta WABA required)
+router.post('/debug-send', protect, requireMetaPro, async (req, res) => {
   const { to, message = 'Test message from Messbee debug' } = req.body;
   const { getTenantWhatsAppService } = require('../controllers/whatsappController');
   const { normalizePhoneNumber } = require('../utils/phoneHelper');
@@ -145,8 +145,8 @@ router.post('/debug-send', protect, async (req, res) => {
  *         description: Server error
  */
 // Upload media for template header (image/video/document) — must come BEFORE /:templateId routes
-router.post('/templates/upload-media', protect, upload.single('file'), whatsappController.uploadTemplateMedia);
-router.post('/templates/upload-media-by-url', protect, whatsappController.uploadTemplateMediaByUrl);
+router.post('/templates/upload-media', protect, requireMetaPro, upload.single('file'), whatsappController.uploadTemplateMedia);
+router.post('/templates/upload-media-by-url', protect, requireMetaPro, whatsappController.uploadTemplateMediaByUrl);
 
 // Get connected WhatsApp Channels (Real DB Data with Local Fallback)
 router.get('/channels', protect, async (req, res) => {
@@ -197,23 +197,23 @@ router.get('/phone-status', protect, authorize('ADMIN', 'admin'), async (req, re
   }
 });
 
-// Get WhatsApp message templates (Protected route)
-router.get('/templates', protect, whatsappController.getTemplates);
+// Get WhatsApp message templates (Protected route - Meta WABA required)
+router.get('/templates', protect, requireMetaPro, whatsappController.getTemplates);
 
-// Create a new template (Protected route)
-router.post('/templates', protect, whatsappController.createTemplate);
+// Create a new template (Protected route - Meta WABA required)
+router.post('/templates', protect, requireMetaPro, whatsappController.createTemplate);
 
-// Get template details (Protected route)
-router.get('/templates/:templateId', protect, whatsappController.getTemplateDetails);
+// Get template details (Protected route - Meta WABA required)
+router.get('/templates/:templateId', protect, requireMetaPro, whatsappController.getTemplateDetails);
 
-// Test send a template (Protected route)
-router.post('/test-template', protect, whatsappController.testSendTemplate);
+// Test send a template (Protected route - Meta WABA required)
+router.post('/test-template', protect, requireMetaPro, whatsappController.testSendTemplate);
 
-// Update template (Protected route)
-router.put('/templates/:templateId', protect, whatsappController.updateTemplate);
+// Update template (Protected route - Meta WABA required)
+router.put('/templates/:templateId', protect, requireMetaPro, whatsappController.updateTemplate);
 
-// Delete template (Protected route)
-router.delete('/templates/:templateId', protect, whatsappController.deleteTemplate);
+// Delete template (Protected route - Meta WABA required)
+router.delete('/templates/:templateId', protect, requireMetaPro, whatsappController.deleteTemplate);
 
 /**
  * Temporary Testing Routes

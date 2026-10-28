@@ -141,8 +141,14 @@ const SUBITEM_PLAN_FEATURES = {
 const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, activeFloating, onToggle, onFloatingToggle }) => {
   const { user, promptUpgrade } = useContext(userContext);
   const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
+  const isFreeTier = user?.whatsappChannelType === "free_qr";
   const planFeature = ITEM_PLAN_FEATURES[item.title];
-  const isPlanLocked = planFeature ? !hasPlanFeature(currentPlan, planFeature) : false;
+  const isMetaRestricted = isFreeTier && (
+    item.title === "Templates" ||
+    item.title === "Campaign" ||
+    item.title === "Automation"
+  );
+  const isPlanLocked = isMetaRestricted || (planFeature ? !hasPlanFeature(currentPlan, planFeature, user) : false);
 
   const isOpen = openSubmenu === item.title || !!item._forceOpen;
   const isFloatingOpen = activeFloating === item.title;
@@ -159,7 +165,14 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
           <button
             onClick={(e) => {
               e.stopPropagation();
-              if (isPlanLocked) {
+              if (isMetaRestricted) {
+                promptUpgrade({
+                  feature: "metaWaba",
+                  featureName: item.title,
+                  requiredPlan: "Meta Verified WABA",
+                  description: "Official WhatsApp Message Templates require a verified Meta Business Account.",
+                });
+              } else if (isPlanLocked) {
                 promptUpgrade({ feature: planFeature, featureName: item.title });
               } else {
                 onFloatingToggle(item.title, e);
@@ -182,7 +195,15 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
       <Link 
         to={isPlanLocked ? "#" : (item.path || "#")} 
         onClick={(e) => {
-          if (isPlanLocked) {
+          if (isMetaRestricted) {
+            e.preventDefault();
+            promptUpgrade({
+              feature: "metaWaba",
+              featureName: item.title,
+              requiredPlan: "Meta Verified WABA",
+              description: "This feature requires a verified Meta Business Account.",
+            });
+          } else if (isPlanLocked) {
             e.preventDefault();
             promptUpgrade({ feature: planFeature, featureName: item.title });
           }
@@ -199,13 +220,27 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
   if (item.isSubmenu) {
     return (
       <div className="mb-1">
-        <div onClick={() => onToggle(item.title)} className={`group flex items-center justify-between px-4 py-3 cursor-pointer transition-all duration-200 ${isChildActive ? activeClass : inactiveClass}`}>
+        <div 
+          onClick={() => {
+            if (isMetaRestricted) {
+              promptUpgrade({
+                feature: "metaWaba",
+                featureName: item.title,
+                requiredPlan: "Meta Verified WABA",
+                description: "Official WhatsApp Message Templates require a verified Meta Business Account.",
+              });
+              return;
+            }
+            onToggle(item.title);
+          }} 
+          className={`group flex items-center justify-between px-4 py-3 cursor-pointer transition-all duration-200 ${isChildActive ? activeClass : inactiveClass}`}
+        >
           <div className="flex items-center gap-3 overflow-hidden">
             <Icon icon={item.icon} className={`w-5 h-5 min-w-[20px] transition-colors ${isChildActive ? "text-[#10B981]" : "text-slate-500 group-hover:text-black"}`} />
             <span className="truncate text-[14px] font-medium">{item.title}</span>
           </div>
           <div className="flex items-center gap-1.5">
-            {isPlanLocked && <Icon icon="feather:lock" className="w-3.5 h-3.5 text-amber-500" title="Upgrade Plan Required" />}
+            {isPlanLocked && <Icon icon="feather:lock" className="w-3.5 h-3.5 text-amber-500" title={isMetaRestricted ? "Meta Business Account Required" : "Upgrade Plan Required"} />}
             <Icon icon="feather:chevron-down" className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
           </div>
         </div>
@@ -213,10 +248,20 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
           <div className="bg-white py-1 space-y-0.5 border-l border-slate-100 ml-6 pl-2">
             {item.children.map((sub, idx) => {
               const subFeature = SUBITEM_PLAN_FEATURES[sub.path];
-              const isSubLocked = subFeature ? !hasPlanFeature(currentPlan, subFeature) : false;
+              const isSubMetaRestricted = isFreeTier && (sub.path.includes("/templates") || sub.path === "/admin/settings/onboarding");
+              const isSubLocked = isSubMetaRestricted || (subFeature ? !hasPlanFeature(currentPlan, subFeature, user) : false);
               
               const handleSubClick = (e) => {
-                if (isSubLocked) {
+                if (isSubMetaRestricted) {
+                  e.preventDefault();
+                  promptUpgrade({
+                    feature: "metaWaba",
+                    featureName: sub.title,
+                    requiredPlan: "Meta Verified WABA",
+                    isMetaLock: true,
+                    description: `${sub.title} requires a verified Meta WhatsApp Business Account (WABA). Connect your official Meta WhatsApp to unlock it.`,
+                  });
+                } else if (isSubLocked) {
                   e.preventDefault();
                   promptUpgrade({
                     feature: subFeature,
@@ -249,6 +294,17 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
   const displayBadge = item.title === "Chats" ? (unreadCount > 0 ? (unreadCount > 99 ? "99+" : unreadCount) : null) : item.badge;
 
   const handleItemClick = (e) => {
+    if (isMetaRestricted) {
+      e.preventDefault();
+      promptUpgrade({
+        feature: "metaWaba",
+        featureName: item.title,
+        requiredPlan: "Meta Verified WABA",
+        isMetaLock: true,
+        description: `${item.title} requires a verified Meta WhatsApp Business Account (WABA). Connect your official Meta WhatsApp to unlock it.`,
+      });
+      return;
+    }
     if (isPlanLocked) {
       e.preventDefault();
       promptUpgrade({

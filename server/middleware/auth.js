@@ -130,3 +130,15 @@ exports.authorize = (...roles) => {
     next();
   };
 };
+
+// Require Meta Verified WABA channel (blocks Free QR users from Meta Cloud API features)
+exports.requireMetaPro = (req, res, next) => {
+  if (req.user?.whatsappChannelType === 'free_qr') {
+    return res.status(403).json({
+      success: false,
+      error: 'This feature requires a verified Meta WhatsApp Business Account (WABA). Please link a Meta account to access this feature.',
+      errorCode: 'META_WABA_REQUIRED'
+    });
+  }
+  next();
+};

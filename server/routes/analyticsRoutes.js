@@ -6,7 +6,7 @@ const {
   getTemplateAnalytics,
   getConversationAnalytics
 } = require('../controllers/analyticsController');
-const { protect } = require('../middleware/auth');
+const { protect, requireMetaPro } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -96,7 +96,7 @@ router.get('/messages', getMessageAnalytics);
  *       200:
  *         description: Campaign analytics data
  */
-router.get('/campaigns', getCampaignAnalytics);
+router.get('/campaigns', requireMetaPro, getCampaignAnalytics);
 
 /**
  * @swagger
@@ -126,7 +126,7 @@ router.get('/campaigns', getCampaignAnalytics);
  *       200:
  *         description: Template analytics data
  */
-router.get('/templates', getTemplateAnalytics);
+router.get('/templates', requireMetaPro, getTemplateAnalytics);
 
 /**
  * @swagger

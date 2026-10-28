@@ -31,6 +31,7 @@ import logoName from "../../assets/MessBee Name.png";
 
 // --- MODALS ---
 import ConnectWhatsAppModal from "../Modol/ConnectWhatsAppModal";
+import QrConnectModal from "../Modol/QrConnectModal";
 
 const MainHeading = ({ onMenuClick }) => {
   const navigate = useNavigate(); 
@@ -41,6 +42,7 @@ const MainHeading = ({ onMenuClick }) => {
   const [activeTab, setActiveTab] = useState("All");
   const [loadingNotif, setLoadingNotif] = useState(false);
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
   const profileRef = useRef(null);
   const notifRef = useRef(null);
@@ -250,6 +252,22 @@ const MainHeading = ({ onMenuClick }) => {
       {/* --- RIGHT: STATUS, CREDITS & PROFILE --- */}
       <div className="flex items-center gap-4 shrink-0">
         
+        {user?.whatsappChannelType === "free_qr" && (
+          <button
+            onClick={() => setIsQrModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#16a34a] rounded-full border border-[#22c55e]/30 transition-all text-xs font-semibold shadow-xs cursor-pointer"
+            title="Scan QR to connect your personal or business WhatsApp"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>Link WhatsApp (QR)</span>
+          </button>
+        )}
+
         <button onClick={() => navigate('/admin/developer/api')} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">
            <span className="relative flex h-2 w-2">
              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
@@ -444,6 +462,12 @@ const MainHeading = ({ onMenuClick }) => {
       <ConnectWhatsAppModal
         isOpen={isWhatsAppModalOpen}
         onClose={() => setIsWhatsAppModalOpen(false)}
+      />
+
+      {/* QR Connect Modal for Free Tier */}
+      <QrConnectModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
       />
     </div>
   );

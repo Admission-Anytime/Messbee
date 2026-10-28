@@ -68,7 +68,8 @@ exports.requestSignupOTP = async (req, res, next) => {
     const { 
       email, name, password, phone,
       businessName, businessCategory, businessType, city, state, country, gst, website,
-      referralCode, clientId, trialId
+      referralCode, clientId, trialId,
+      whatsappChannelType
     } = req.body;
 
     // Check if user already exists
@@ -106,6 +107,7 @@ exports.requestSignupOTP = async (req, res, next) => {
       if (referralCode !== undefined) existingUser.referralCode = referralCode;
       if (clientId) existingUser.clientId = clientId;
       if (trialId) existingUser.trialId = trialId;
+      if (whatsappChannelType) existingUser.whatsappChannelType = whatsappChannelType;
       existingUser.otp = otp;
       existingUser.otpExpiry = otpExpiry;
       existingUser.otpAttempts = 0;
@@ -129,6 +131,7 @@ exports.requestSignupOTP = async (req, res, next) => {
         referralCode,
         clientId,
         trialId,
+        whatsappChannelType: whatsappChannelType === 'free_qr' ? 'free_qr' : 'meta_pro',
         otp,
         otpExpiry,
         isEmailVerified: false,
@@ -243,7 +246,8 @@ exports.verifySignupOTP = async (req, res, next) => {
         user: {
           id: user._id,
           name: user.name,
-          email: user.email
+          email: user.email,
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
         }
       }
     });
@@ -461,7 +465,8 @@ exports.verifyLoginOTP = async (req, res, next) => {
               subscriptionEndDate: user.subscriptionEndDate,
               lastLogin: user.lastLogin,
               whatsappConfig: whatsappConfig,
-              tenantWhatsAppConnected: tenantWhatsAppConnected
+              tenantWhatsAppConnected: tenantWhatsAppConnected,
+              whatsappChannelType: user.whatsappChannelType || 'meta_pro'
             }
           }
         });
@@ -583,7 +588,8 @@ exports.login = async (req, res, next) => {
           subscriptionEndDate: user.subscriptionEndDate,
           lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
-          tenantWhatsAppConnected: tenantWhatsAppConnected
+          tenantWhatsAppConnected: tenantWhatsAppConnected,
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
         }
       }
     });
@@ -953,6 +959,28 @@ exports.getMe = async (req, res, next) => {
       
       user.tenantWhatsAppConnected = !!channel;
 
+      // Check QrSession for free_qr users
+      if (!user.tenantWhatsAppConnected && user.whatsappChannelType === 'free_qr') {
+        try {
+          const QrSession = require('../models/QrSession');
+          const qrSession = await QrSession.findOne({
+            $or: [
+              { tenantId: tenantId },
+              { tenantId: user._id }
+            ],
+            status: 'CONNECTED'
+          });
+          if (qrSession) {
+            user.tenantWhatsAppConnected = true;
+            user.phoneNumber = user.phoneNumber || qrSession.phoneNumber;
+            if (!user.whatsappConfig) user.whatsappConfig = {};
+            user.whatsappConfig.phoneNumberId = qrSession.phoneNumber;
+          }
+        } catch (qrErr) {
+          console.error('[getMe] Error checking QrSession:', qrErr.message);
+        }
+      }
+
       console.log(`[DEBUG getMe] User: ${user.email}, Role: ${user.role}, tenantId: ${tenantId}, channelFound: ${!!channel}, tenantWhatsAppConnected: ${user.tenantWhatsAppConnected}`);
 
       // Ensure free plan has subscriptionEndDate (30 days from creation)
@@ -1291,7 +1319,8 @@ exports.socialLogin = async (req, res, next) => {
           subscriptionEndDate: user.subscriptionEndDate,
           lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
-          tenantWhatsAppConnected: tenantWhatsAppConnected
+          tenantWhatsAppConnected: tenantWhatsAppConnected,
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
         }
       }
     });
