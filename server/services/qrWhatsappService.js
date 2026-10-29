@@ -2,7 +2,9 @@ const {
   default: makeWASocket,
   useMultiFileAuthState,
   DisconnectReason,
-  fetchLatestBaileysVersion
+  fetchLatestBaileysVersion,
+  downloadMediaMessage,
+  WAMessageStatus
 } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode');
 const path = require('path');
@@ -15,6 +17,12 @@ const { getIO } = require('../config/socket');
 const SESSIONS_DIR = path.join(__dirname, '../sessions');
 if (!fs.existsSync(SESSIONS_DIR)) {
   fs.mkdirSync(SESSIONS_DIR, { recursive: true });
+}
+
+// Directory to store inbound downloaded QR media
+const QR_MEDIA_DIR = path.join(__dirname, '../uploads/qr_media');
+if (!fs.existsSync(QR_MEDIA_DIR)) {
+  fs.mkdirSync(QR_MEDIA_DIR, { recursive: true });
 }
 
 // In-memory map of active Baileys socket connections by tenantId (string)
@@ -124,6 +132,17 @@ const startSession = async (tenantId) => {
           sessionDoc.qrExpiresAt = new Date(Date.now() + 45000);
           await sessionDoc.save();
 
+          try {
+            const User = require('../models/User');
+            await User.findByIdAndUpdate(tenantId, {
+              $set: {
+                tenantWhatsAppConnected: false
+              }
+            });
+          } catch (uErr) {
+            console.warn('[QRService] Failed to reset connected state on User:', uErr.message);
+          }
+
           console.log(`[QRService] Generated new QR code for tenant: ${tenantIdStr}`);
           emitTenantUpdate(tenantId, 'qr_code', {
             status: 'QR_READY',
@@ -148,6 +167,18 @@ const startSession = async (tenantId) => {
         sessionDoc.qrCodeDataUrl = '';
         sessionDoc.qrRaw = '';
         await sessionDoc.save();
+
+        try {
+          const User = require('../models/User');
+          await User.findByIdAndUpdate(tenantId, {
+            $set: {
+              tenantWhatsAppConnected: true,
+              whatsappChannelType: 'free_qr'
+            }
+          });
+        } catch (uErr) {
+          console.warn('[QRService] Failed to sync connected state to User:', uErr.message);
+        }
 
         console.log(`[QRService] ✅ WhatsApp CONNECTED for tenant ${tenantIdStr}: +${cleanNumber}`);
         emitTenantUpdate(tenantId, 'qr_connected', {
@@ -177,6 +208,17 @@ const startSession = async (tenantId) => {
           await sessionDoc.save();
 
           try {
+            const User = require('../models/User');
+            await User.findByIdAndUpdate(tenantId, {
+              $set: {
+                tenantWhatsAppConnected: false
+              }
+            });
+          } catch (uErr) {
+            console.warn('[QRService] Failed to reset connected state on User:', uErr.message);
+          }
+
+          try {
             if (fs.existsSync(sessionPath)) {
               fs.rmSync(sessionPath, { recursive: true, force: true });
             }
@@ -192,6 +234,17 @@ const startSession = async (tenantId) => {
           // Reconnectable drop (e.g. network hiccup)
           sessionDoc.status = 'CONNECTING';
           await sessionDoc.save();
+
+          try {
+            const User = require('../models/User');
+            await User.findByIdAndUpdate(tenantId, {
+              $set: {
+                tenantWhatsAppConnected: false
+              }
+            });
+          } catch (uErr) {
+            console.warn('[QRService] Failed to reset connected state on User:', uErr.message);
+          }
 
           const timeout = setTimeout(() => {
             console.log(`[QRService] Attempting reconnection for tenant: ${tenantIdStr}`);
@@ -216,27 +269,172 @@ const startSession = async (tenantId) => {
           const senderPhone = remoteJid.split('@')[0].split(':')[0];
           const pushName = m.pushName || senderPhone;
 
+          // Unwrap ephemeral, viewOnce, or nested document messages
+          let msgContent = m.message;
+          if (msgContent?.ephemeralMessage) msgContent = msgContent.ephemeralMessage.message;
+          if (msgContent?.viewOnceMessage) msgContent = msgContent.viewOnceMessage.message;
+          if (msgContent?.viewOnceMessageV2) msgContent = msgContent.viewOnceMessageV2.message;
+          if (msgContent?.documentWithCaptionMessage) msgContent = msgContent.documentWithCaptionMessage.message;
+
+          const isImage = !!msgContent?.imageMessage;
+          const isVideo = !!msgContent?.videoMessage;
+          const isAudio = !!msgContent?.audioMessage;
+          const isDocument = !!msgContent?.documentMessage;
+          const isSticker = !!msgContent?.stickerMessage;
+          const hasMedia = isImage || isVideo || isAudio || isDocument || isSticker;
+
+          let mediaType = 'text';
+          let caption = '';
+          let fileName = '';
+          let mimetype = '';
+
+          if (isImage) {
+            mediaType = 'image';
+            caption = msgContent.imageMessage.caption || '';
+            mimetype = msgContent.imageMessage.mimetype || 'image/jpeg';
+          } else if (isVideo) {
+            mediaType = 'video';
+            caption = msgContent.videoMessage.caption || '';
+            mimetype = msgContent.videoMessage.mimetype || 'video/mp4';
+          } else if (isAudio) {
+            mediaType = 'audio';
+            mimetype = msgContent.audioMessage.mimetype || 'audio/ogg; codecs=opus';
+          } else if (isDocument) {
+            mediaType = 'document';
+            caption = msgContent.documentMessage.caption || '';
+            fileName = msgContent.documentMessage.fileName || 'document.pdf';
+            mimetype = msgContent.documentMessage.mimetype || 'application/pdf';
+          } else if (isSticker) {
+            mediaType = 'image';
+            mimetype = msgContent.stickerMessage.mimetype || 'image/webp';
+          }
+
+          let relativeMediaUrl = '';
+          if (hasMedia) {
+            try {
+              const mediaBuffer = await downloadMediaMessage(
+                m,
+                'buffer',
+                {},
+                {
+                  logger: pino({ level: 'silent' }),
+                  reuploadRequest: sock.updateMediaMessage
+                }
+              );
+
+              if (mediaBuffer && mediaBuffer.length > 0) {
+                let ext = 'bin';
+                if (mimetype.includes('jpeg') || mimetype.includes('jpg')) ext = 'jpg';
+                else if (mimetype.includes('png')) ext = 'png';
+                else if (mimetype.includes('webp')) ext = 'webp';
+                else if (mimetype.includes('mp4')) ext = 'mp4';
+                else if (mimetype.includes('ogg') || mimetype.includes('opus')) ext = 'ogg';
+                else if (mimetype.includes('mp3') || mimetype.includes('mpeg')) ext = 'mp3';
+                else if (mimetype.includes('pdf')) ext = 'pdf';
+                else if (fileName && fileName.includes('.')) ext = fileName.split('.').pop();
+                else if (mediaType === 'image') ext = 'jpg';
+                else if (mediaType === 'video') ext = 'mp4';
+                else if (mediaType === 'audio') ext = 'ogg';
+
+                const safeName = `qr_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+                const fullPath = path.join(QR_MEDIA_DIR, safeName);
+                fs.writeFileSync(fullPath, mediaBuffer);
+                relativeMediaUrl = `/uploads/qr_media/${safeName}`;
+                if (!fileName) fileName = safeName;
+              }
+            } catch (dlErr) {
+              console.error('[QRService] Failed to download inbound media:', dlErr.message);
+            }
+          }
+
           // Extract text from standard message types
           const text =
-            m.message?.conversation ||
-            m.message?.extendedTextMessage?.text ||
-            m.message?.imageMessage?.caption ||
-            m.message?.videoMessage?.caption ||
-            (m.message?.imageMessage ? '[Image]' : '') ||
-            (m.message?.documentMessage ? (m.message?.documentMessage?.fileName || '[Document]') : '') ||
-            (m.message?.audioMessage ? '[Voice Note]' : '[Message]');
+            caption ||
+            msgContent?.conversation ||
+            msgContent?.extendedTextMessage?.text ||
+            (isImage ? '📷 Photo' : isAudio ? '🎵 Voice Note' : isVideo ? '🎥 Video' : isDocument ? (fileName ? `📎 ${fileName}` : '📎 Document') : isSticker ? '✨ Sticker' : '[Message]');
 
           const Chat = require('../models/Chat');
           const Message = require('../models/Message');
+          const Contact = require('../models/Contact');
 
           const now = new Date();
           const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-          // Find or create chat document
+          const rawDigits = senderPhone.replace(/\D/g, '');
+          const last10 = rawDigits.slice(-10);
+          const phoneVariants = [
+            senderPhone,
+            rawDigits,
+            last10,
+            `+${rawDigits}`,
+            `91${last10}`,
+            `+91${last10}`
+          ];
+
+          // 1. Find or auto-create CRM Contact
+          let contact = null;
+          try {
+            contact = await Contact.findOne({
+              $or: [
+                { user: tenantId, whatsapp: { $in: phoneVariants } },
+                { user: tenantId, phone: { $in: phoneVariants } },
+                { tenantId: tenantId, whatsapp: { $in: phoneVariants } },
+                { tenantId: tenantId, phone: { $in: phoneVariants } }
+              ]
+            });
+
+            if (!contact) {
+              try {
+                contact = await Contact.create({
+                  user: tenantId,
+                  tenantId: tenantId,
+                  name: pushName || senderPhone,
+                  whatsapp: senderPhone,
+                  phone: senderPhone,
+                  status: 'ACTIVE',
+                  tags: ['WhatsApp Web'],
+                  lastInteractionAt: now
+                });
+
+                const io = getIO();
+                if (io) {
+                  io.to(`tenant_${tenantId.toString()}`).emit('contact_created', contact);
+                }
+              } catch (createErr) {
+                contact = await Contact.findOne({
+                  $or: [
+                    { user: tenantId, whatsapp: { $in: phoneVariants } },
+                    { user: tenantId, phone: { $in: phoneVariants } }
+                  ]
+                });
+              }
+            } else {
+              contact.lastInteractionAt = now;
+              if (pushName && (contact.name === senderPhone || !contact.name || contact.name === 'Unknown')) {
+                contact.name = pushName;
+              }
+              await contact.save().catch(() => {});
+            }
+          } catch (cErr) {
+            console.warn('[QRService] Contact sync warning:', cErr.message);
+          }
+
+          // 2. Fetch avatar if available from WhatsApp
+          let avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(pushName)}&background=random`;
+          try {
+            const pp = await sock.profilePictureUrl(remoteJid, 'image').catch(() => null);
+            if (pp) avatarUrl = pp;
+          } catch (e) {}
+
+          // 3. Find or create chat document
           let isNewChat = false;
           let chat = await Chat.findOne({
             user: tenantId,
-            $or: [{ phone: senderPhone }, { whatsappId: senderPhone }]
+            $or: [
+              { phone: { $in: phoneVariants } },
+              { whatsappId: { $in: phoneVariants } }
+            ]
           });
 
           if (!chat) {
@@ -245,6 +443,7 @@ const startSession = async (tenantId) => {
               name: pushName,
               phone: senderPhone,
               whatsappId: senderPhone,
+              avatar: avatarUrl,
               source: 'whatsapp',
               status: 'active',
               chatStatus: 'open',
@@ -261,48 +460,169 @@ const startSession = async (tenantId) => {
             chat.lastMsgTime = timeStr;
             chat.lastInboundAt = now;
             chat.lastActivity = now;
+            if (!chat.avatar || chat.avatar.includes('ui-avatars.com')) {
+              chat.avatar = avatarUrl;
+            }
             await chat.save();
           }
 
-          // Save Message
+          // 4. Save Message
           const newMsg = await Message.create({
             chatId: chat._id,
             tenantId: tenantId,
+            contactId: contact ? contact._id : undefined,
             sender: 'customer',
             senderType: 'CUSTOMER',
             direction: 'INBOUND',
             text: text,
-            messageType: 'text',
+            messageType: mediaType,
+            mediaUrl: relativeMediaUrl || undefined,
+            fileName: fileName || undefined,
             time: timeStr,
             whatsappMessageId: m.key.id,
             status: 'delivered'
           });
 
-          // Broadcast real-time message to socket.io (matching chat.jsx listeners)
+          // 5. Broadcast real-time message to socket.io
           const io = getIO();
           if (io) {
             const tenantRoom = `tenant_${tenantId.toString()}`;
             const chatRoom = chat._id.toString();
 
-            // 1. Emit receive_message to active chat window & tenant room
+            // Emit receive_message to active chat window & tenant room
             io.to(chatRoom).to(tenantRoom).to(tenantId.toString()).emit('receive_message', {
               chatId: chat._id,
               message: newMsg,
               chat: chat
             });
 
-            // 2. Emit chat list update strictly to this tenant's sidebar
+            // Emit chat list update strictly to this tenant's sidebar
             if (isNewChat) {
               io.to(tenantRoom).to(tenantId.toString()).emit('chat_created', chat);
             } else {
               io.to(tenantRoom).to(tenantId.toString()).emit('chat_updated', chat);
             }
 
-            // 3. Emit analytics update event
+            // Emit analytics update event
             io.to(tenantRoom).emit('analytics_updated');
+          }
+
+          // 6. Check Auto-Reply / Welcome Trigger
+          try {
+            const TenantSettings = require('../models/TenantSettings');
+            const tenantSettings = await TenantSettings.findOne({ tenantId });
+
+            let autoReplyText = null;
+
+            // A. Welcome Message for first-time chats
+            if (isNewChat && tenantSettings?.welcomeMessage?.enabled && tenantSettings.welcomeMessage?.textMessage) {
+              autoReplyText = tenantSettings.welcomeMessage.textMessage;
+            }
+
+            // B. Keyword Auto-Response via QuickReplies (e.g. customer types "/menu" or "menu")
+            if (!autoReplyText && text && typeof text === 'string') {
+              const cleanKeyword = text.trim().toLowerCase().replace(/^\//, '');
+              const QuickReply = require('../models/QuickReply');
+              const matchedReply = await QuickReply.findOne({
+                user: tenantId,
+                shortcut: new RegExp(`^${cleanKeyword}$`, 'i')
+              });
+              if (matchedReply && matchedReply.content) {
+                autoReplyText = matchedReply.content;
+              }
+            }
+
+            if (autoReplyText) {
+              // Send auto-reply with a short natural human-like delay (1.5 seconds)
+              setTimeout(async () => {
+                try {
+                  const botRes = await sendQrMessage(tenantId, senderPhone, autoReplyText);
+                  const botTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                  const botMsg = await Message.create({
+                    chatId: chat._id,
+                    tenantId: tenantId,
+                    contactId: contact ? contact._id : undefined,
+                    sender: 'bot',
+                    senderType: 'BOT',
+                    direction: 'OUTBOUND',
+                    text: autoReplyText,
+                    messageType: 'text',
+                    time: botTimeStr,
+                    whatsappMessageId: botRes?.key?.id,
+                    status: 'delivered'
+                  });
+
+                  chat.lastMsg = autoReplyText;
+                  chat.lastMsgTime = botTimeStr;
+                  chat.lastActivity = new Date();
+                  await chat.save();
+
+                  if (io) {
+                    const tenantRoom = `tenant_${tenantId.toString()}`;
+                    const chatRoom = chat._id.toString();
+                    io.to(chatRoom).to(tenantRoom).to(tenantId.toString()).emit('receive_message', {
+                      chatId: chat._id,
+                      message: botMsg,
+                      chat: chat
+                    });
+                    io.to(tenantRoom).to(tenantId.toString()).emit('chat_updated', chat);
+                  }
+                } catch (botErr) {
+                  console.warn('[QRService] Auto-reply send error:', botErr.message);
+                }
+              }, 1500);
+            }
+          } catch (autoErr) {
+            console.warn('[QRService] Auto-responder evaluation error:', autoErr.message);
           }
         } catch (msgErr) {
           console.error('[QRService] Error processing inbound message:', msgErr);
+        }
+      }
+    });
+
+    // Handle delivery & read receipts (Double Blue Ticks)
+    sock.ev.on('messages.update', async (updates) => {
+      for (const update of updates) {
+        const { key, update: updateFields } = update;
+        if (!key?.id) continue;
+
+        let newStatus = null;
+        if (updateFields?.status !== undefined) {
+          const st = updateFields.status;
+          if (st === 2) newStatus = 'sent';
+          else if (st === 3) newStatus = 'delivered';
+          else if (st === 4 || st === 5) newStatus = 'read';
+          else if (st === 0) newStatus = 'failed';
+        }
+
+        if (newStatus) {
+          try {
+            const Message = require('../models/Message');
+            const updatedMsg = await Message.findOneAndUpdate(
+              { whatsappMessageId: key.id },
+              { status: newStatus, statusTimestamp: new Date() },
+              { new: true }
+            );
+
+            if (updatedMsg) {
+              const io = getIO();
+              if (io) {
+                const tenantRoom = `tenant_${tenantIdStr}`;
+                const chatRoom = updatedMsg.chatId?.toString();
+                const payload = {
+                  messageId: updatedMsg._id,
+                  whatsappMessageId: key.id,
+                  chatId: updatedMsg.chatId,
+                  status: newStatus
+                };
+                if (chatRoom) io.to(chatRoom).emit('message_status_update', payload);
+                io.to(tenantRoom).to(tenantIdStr).emit('message_status_update', payload);
+              }
+            }
+          } catch (err) {
+            console.error('[QRService] Error updating message status:', err.message);
+          }
         }
       }
     });
@@ -381,6 +701,15 @@ const disconnectSession = async (tenantId) => {
     { upsert: true }
   );
 
+  try {
+    const User = require('../models/User');
+    await User.findByIdAndUpdate(tenantId, {
+      $set: { tenantWhatsAppConnected: false }
+    });
+  } catch (uErr) {
+    console.warn('[QRService] Failed to reset connected state on User:', uErr.message);
+  }
+
   emitTenantUpdate(tenantId, 'qr_disconnected', { status: 'DISCONNECTED' });
 
   return {
@@ -410,7 +739,23 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
   }
 
   // Format payload: if string, convert to text: string
-  const content = typeof messagePayload === 'string' ? { text: messagePayload } : messagePayload;
+  let content = typeof messagePayload === 'string' ? { text: messagePayload } : { ...messagePayload };
+
+  // Resolve local upload URLs to buffer if needed so Baileys doesn't fail fetch
+  const mediaKeys = ['image', 'video', 'audio', 'document', 'sticker'];
+  for (const k of mediaKeys) {
+    if (content[k] && content[k].url && typeof content[k].url === 'string') {
+      const urlStr = content[k].url;
+      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+        const cleanPath = urlStr.replace(/^\/?(api\/)?uploads\//, '');
+        const localPath = path.join(__dirname, '../uploads', cleanPath);
+        if (fs.existsSync(localPath)) {
+          content[k] = fs.readFileSync(localPath);
+        }
+      }
+    }
+  }
+
   const result = await sock.sendMessage(cleanPhone, content);
   return result;
 };
