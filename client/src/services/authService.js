@@ -77,9 +77,10 @@ export const loginWithFacebook = async (accessToken) => {
 /**
  * Login with Social Provider (Google, Facebook, etc.)
  */
-export const loginWithSocial = async (provider, accessToken) => {
+export const loginWithSocial = async (provider, accessToken, extra = {}) => {
   const { data } = await axios.post(`/auth/social/${provider}`, {
     accessToken,
+    ...extra
   });
   if (data.isNewUser) {
     localStorage.setItem('isNewUser', 'true');

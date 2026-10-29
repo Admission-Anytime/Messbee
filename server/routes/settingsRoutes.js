@@ -173,13 +173,14 @@ router.post("/", async (req, res) => {
                   { tenantId },
                   {
                     $set: {
+                      tenantId,
                       activeWhatsappPhoneNumberId: value.phoneNumberId,
                       metaAccessToken: value.accessToken,
                       "metadata.wabaId": value.businessAccountId,
                       status: "connected"
                     }
                   },
-                  { upsert: false }
+                  { upsert: true, new: true, setDefaultsOnInsert: true }
                 );
                 user.whatsappConfig = {
                   ...(user.whatsappConfig || {}),
@@ -187,7 +188,21 @@ router.post("/", async (req, res) => {
                   accessToken: value.accessToken,
                   wabaId: value.businessAccountId
                 };
+                user.whatsappChannelType = "meta_pro";
+                user.tenantWhatsAppConnected = true;
                 await user.save();
+
+                if (tenantId && tenantId.toString() !== user._id.toString()) {
+                  await User.findByIdAndUpdate(tenantId, {
+                    $set: {
+                      whatsappChannelType: "meta_pro",
+                      tenantWhatsAppConnected: true,
+                      "whatsappConfig.phoneNumberId": value.phoneNumberId,
+                      "whatsappConfig.accessToken": value.accessToken,
+                      "whatsappConfig.wabaId": value.businessAccountId
+                    }
+                  });
+                }
               }
             }
           }

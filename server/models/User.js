@@ -244,6 +244,12 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: 'English (United States)'
   },
+  // WhatsApp Channel Tier: 'free_qr' (Normal WhatsApp via QR) or 'meta_pro' (Meta Cloud API)
+  whatsappChannelType: {
+    type: String,
+    enum: ['free_qr', 'meta_pro'],
+    default: 'meta_pro'
+  },
   // OTP fields for authentication
   otp: {
     type: String,

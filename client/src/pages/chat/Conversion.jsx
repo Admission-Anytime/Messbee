@@ -487,8 +487,11 @@ const Conversion = ({
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
    }, [data.messages]);
 
-   // Load templates from API
+   // Load templates from API (Meta WABA users only)
    useEffect(() => {
+      if (user?.whatsappChannelType === "free_qr") {
+         return;
+      }
       const loadTemplates = async () => {
          try {
             const whatsappTemplates = await fetchWhatsAppTemplates();
@@ -2275,7 +2278,7 @@ const selectedTemplate = useMemo(() => {
                <>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-                  {Number(user?.credits || 0) <= 0 && (
+                  {user?.whatsappChannelType !== "free_qr" && Number(user?.credits || 0) <= 0 && (
                      <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-1.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs shadow-sm">
                         <div className="flex items-center gap-2 min-w-0">
                            <span className="text-base shrink-0">⚠️</span>
@@ -2341,7 +2344,19 @@ const selectedTemplate = useMemo(() => {
                         className="flex-1 min-w-0 bg-transparent border-none outline-none text-sm px-3 text-slate-800 placeholder:text-slate-400"
                      />
                      <div className="flex items-center gap-1.5 pr-1 shrink-0">
-                        <button type="button" onClick={() => { setShowQuickReplies(false); setShowTemplates(!showTemplates); }} className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors" title="Templates">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (user?.whatsappChannelType === "free_qr") {
+                              showToast("info", "Meta Business Account Required", "Official WhatsApp Templates require a verified Meta WABA. Use Quick Replies (⚡) for instant messaging!");
+                              return;
+                            }
+                            setShowQuickReplies(false);
+                            setShowTemplates(!showTemplates);
+                          }}
+                          className="text-slate-400 hover:text-slate-600 p-1.5 transition-colors"
+                          title="Templates"
+                        >
                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </button>
                         <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">

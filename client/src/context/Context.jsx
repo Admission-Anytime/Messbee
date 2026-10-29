@@ -3,6 +3,7 @@ import { getCurrentUser, clearAuthData, logout } from "../services/authService";
 import axios from "./axios";
 import io from "socket.io-client";
 import UpgradePromptModal from "../components/Modol/UpgradePromptModal";
+import ConnectWhatsAppModal from "../components/Modol/ConnectWhatsAppModal";
 import { hasPlanFeature, getRequiredPlan } from "../utils/planLimits";
 
 export const userContext = createContext();
@@ -217,20 +218,31 @@ const Context = (props) => {
     featureName: "",
     requiredPlan: "Growth",
     description: "",
-    benefits: []
+    benefits: [],
+    isMetaLock: false
   });
 
-  const promptUpgrade = ({ feature, featureName, requiredPlan, description, benefits } = {}) => {
+  // Global Connect WhatsApp Modal State
+  const [isConnectWhatsAppOpen, setIsConnectWhatsAppOpen] = useState(false);
+  const openConnectWhatsApp = () => setIsConnectWhatsAppOpen(true);
+  const closeConnectWhatsApp = () => setIsConnectWhatsAppOpen(false);
+
+  const promptUpgrade = ({ feature, featureName, requiredPlan, description, benefits, isMetaLock } = {}) => {
     let reqPlan = requiredPlan;
     if (feature && !reqPlan) {
       reqPlan = getRequiredPlan(feature)?.name || "Growth";
     }
+
+    const metaFeatures = ["metaWaba", "Templates", "Campaign", "Automation", "templateAnalytics"];
+    const isMeta = isMetaLock || (user?.whatsappChannelType === "free_qr" && (metaFeatures.includes(feature) || reqPlan === "Meta Verified WABA"));
+
     setUpgradeModal({
       isOpen: true,
       featureName: featureName || (feature ? feature.replace(/([A-Z])/g, ' $1').trim() : "This Feature"),
-      requiredPlan: reqPlan || "Growth",
+      requiredPlan: isMeta ? "Meta Verified WABA" : (reqPlan || "Growth"),
       description: description || "",
-      benefits: benefits || []
+      benefits: benefits || [],
+      isMetaLock: !!isMeta
     });
   };
 
@@ -244,7 +256,7 @@ const Context = (props) => {
    */
   const checkPlanAccess = (feature, featureDisplayName) => {
     const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
-    if (hasPlanFeature(currentPlan, feature)) {
+    if (hasPlanFeature(currentPlan, feature, user)) {
       return true;
     }
     promptUpgrade({
@@ -253,6 +265,9 @@ const Context = (props) => {
     });
     return false;
   };
+
+  const isFreeTier = user?.whatsappChannelType === "free_qr";
+  const isMetaPro = user?.whatsappChannelType !== "free_qr";
 
   const contextValue = {
     user,
@@ -267,7 +282,11 @@ const Context = (props) => {
     rolePermissions,
     setRolePermissions,
     promptUpgrade,
-    checkPlanAccess
+    checkPlanAccess,
+    isFreeTier,
+    isMetaPro,
+    openConnectWhatsApp,
+    closeConnectWhatsApp
   };
 
   const currentPlanCapitalized = (user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1);
@@ -283,6 +302,16 @@ const Context = (props) => {
         requiredPlan={upgradeModal.requiredPlan}
         description={upgradeModal.description}
         benefits={upgradeModal.benefits}
+        isMetaLock={upgradeModal.isMetaLock}
+        onConnectMeta={() => {
+          closeUpgradeModal();
+          openConnectWhatsApp();
+        }}
+      />
+      <ConnectWhatsAppModal
+        isOpen={isConnectWhatsAppOpen}
+        onClose={closeConnectWhatsApp}
+        user={user}
       />
     </userContext.Provider>
   );

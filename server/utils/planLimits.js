@@ -215,7 +215,11 @@ const getPlanLimit = (planName, feature) => {
   return PLAN_LIMITS['free'][feature];
 };
 
-const hasPlanFeature = (planName, feature) => {
+const hasPlanFeature = (planName, feature, user = null) => {
+  // Free Tier users get full Commerce & Inventory Management access
+  if (feature === 'commerce' && user?.whatsappChannelType === 'free_qr') {
+    return true;
+  }
   const plan = planName ? planName.toLowerCase() : 'free';
   const resolved = PLAN_LIMITS[plan] || PLAN_LIMITS['free'];
   if (resolved && resolved.features && resolved.features[feature] !== undefined) {

@@ -49,22 +49,24 @@ function Dashboard() {
 
    // Message Limit Tier Logic
    const getMessageTier = () => {
-      const metaLimit = performanceData?.wabaConfig?.messagingLimit;
-      if (metaLimit) {
-         // Meta returns raw API strings like "TIER_250", "TIER_1K", "TIER_10K", "TIER_50K", "TIER_UNLIMITED"
-         let displayLimit = metaLimit.replace('TIER_', '');
-         if (displayLimit === 'UNLIMITED') return 'Unlimited';
-         return displayLimit.replace('K', ',000');
-      }
-
-      if (user?.messageLimitTier) return user.messageLimitTier;
-
-      // Dynamic fallback: agar Meta connected hai ya phone number configured hai par Meta se tier assign nahi hua hai, to official default 250 dikhega
-      if (performanceData?.wabaConfig?.displayPhoneNumber || performanceData?.wabaConfig?.phoneNumberId || user?.phoneNumber || user?.phone) {
+      // 1. If Meta is connected (official Pro)
+      if (performanceData?.wabaConfig?.isConnected && !performanceData?.wabaConfig?.isFreeQr) {
+         const metaLimit = performanceData?.wabaConfig?.messagingLimit;
+         if (metaLimit && metaLimit !== "Standard Web" && metaLimit !== "Pending Meta" && metaLimit !== "Not Connected") {
+            let displayLimit = String(metaLimit).replace('TIER_', '');
+            if (displayLimit === 'UNLIMITED') return 'Unlimited';
+            return displayLimit.replace('K', ',000');
+         }
+         if (user?.messageLimitTier) return user.messageLimitTier;
          return "250";
       }
 
-      return "Pending Meta";
+      // 2. If Free QR User
+      if (user?.whatsappChannelType === "free_qr" || performanceData?.wabaConfig?.isFreeQr) {
+         return "Standard Web";
+      }
+
+      return "Not Connected";
    };
 
    // --- DATE STATE ---
@@ -163,10 +165,28 @@ function Dashboard() {
                   </div>
                   <div>
                      <h2 className="text-xl font-bold text-slate-900 flex flex-wrap items-center gap-2">
-                        {performanceData?.wabaConfig?.verifiedName || user?.businessName || user?.company || user?.name || "Your Business"}
-                        <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">Official API</span>
+                        {performanceData?.wabaConfig?.verifiedName || user?.businessName || user?.company || user?.name || "Business Not Verified"}
+                        {performanceData?.wabaConfig?.isConnected && !performanceData?.wabaConfig?.isFreeQr ? (
+                           <span className="text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-blue-200 whitespace-nowrap">
+                              Official Meta API
+                           </span>
+                        ) : (user?.whatsappChannelType === "free_qr" || performanceData?.wabaConfig?.isFreeQr) ? (
+                           <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-emerald-200 whitespace-nowrap">
+                              WhatsApp Web (Free)
+                           </span>
+                        ) : (
+                           <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded uppercase font-bold tracking-wider border border-slate-200 whitespace-nowrap">
+                              Business Not Verified
+                           </span>
+                        )}
                      </h2>
-                     <p className="text-sm text-slate-500 font-medium">{performanceData?.wabaConfig?.displayPhoneNumber || user?.phoneNumber || user?.phone || "Connect WhatsApp to display number"}</p>
+                     <p className="text-sm text-slate-500 font-medium">
+                        {performanceData?.wabaConfig?.displayPhoneNumber || user?.phoneNumber || user?.phone || (
+                           user?.whatsappChannelType === "free_qr" || performanceData?.wabaConfig?.isFreeQr
+                              ? "Scan QR Code to connect WhatsApp Web"
+                              : "Meta WABA not connected"
+                        )}
+                     </p>
                   </div>
                </div>
 
@@ -191,51 +211,50 @@ function Dashboard() {
                <div>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Quality Score</p>
                   {(() => {
-                      const rawQs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Pending";
-                      const qsUpper = String(rawQs).toUpperCase();
-                      
-                      let displayLabel = rawQs;
-                      let qsColor = 'text-emerald-500';
-                      let dotColor = 'bg-emerald-500';
+                      const isFree = user?.whatsappChannelType === "free_qr" || performanceData?.wabaConfig?.isFreeQr;
+                      const isConnected = isFree
+                         ? !!(performanceData?.wabaConfig?.isConnected || performanceData?.wabaConfig?.displayPhoneNumber)
+                         : !!(performanceData?.wabaConfig?.isConnected || user?.tenantWhatsAppConnected);
 
-                      if (qsUpper === 'GREEN' || qsUpper === 'HIGH') {
-                         displayLabel = 'Green';
-                         qsColor = 'text-emerald-500';
-                         dotColor = 'bg-emerald-500';
-                      } else if (qsUpper === 'YELLOW' || qsUpper === 'MEDIUM') {
-                         displayLabel = 'Medium';
-                         qsColor = 'text-amber-500';
-                         dotColor = 'bg-amber-500';
-                      } else if (qsUpper === 'RED' || qsUpper === 'LOW') {
-                         displayLabel = 'Low';
-                         qsColor = 'text-red-500';
-                         dotColor = 'bg-red-500';
-                      } else if (qsUpper === 'UNKNOWN' || qsUpper === 'PENDING') {
-                         displayLabel = 'Unknown';
-                         qsColor = 'text-slate-400';
-                         dotColor = 'bg-slate-400';
-                      } else {
-                         displayLabel = rawQs;
+                      if (isFree) {
+                         return (
+                            <p className="text-xl font-bold text-emerald-600 flex items-center gap-2">
+                               {isConnected ? "Active" : "Not Linked"} <span className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-emerald-500" : "bg-slate-300"}`}></span>
+                            </p>
+                         );
                       }
 
+                      if (!isConnected) {
+                         return (
+                            <p className="text-xl font-bold text-slate-400 flex items-center gap-2">
+                               Not Connected <span className="w-2.5 h-2.5 rounded-full bg-slate-300"></span>
+                            </p>
+                         );
+                      }
+
+                      const rawQs = performanceData?.wabaConfig?.phoneQuality || user?.qualityScore || "Green";
                       return (
-                         <p className={`text-xl font-bold ${qsColor} flex items-center gap-2 capitalize`}>
-                            {displayLabel} <span className={`w-2.5 h-2.5 rounded-full ${dotColor}`}></span>
+                         <p className="text-xl font-bold text-emerald-500 flex items-center gap-2 capitalize">
+                            {rawQs} <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
                          </p>
                       );
                    })()}
                </div>
-                <div>
-                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
-                   {(() => {
-                      const isConnected = !!performanceData?.wabaConfig?.phoneNumberId || !!user?.whatsappConfig?.phoneNumberId || !!user?.tenantWhatsAppConnected || !!user?.whatsappConnected;
-                      return (
-                         <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            {isConnected ? "Connected" : "Disconnected"} {isConnected ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
-                         </p>
-                      );
-                   })()}
-                </div>
+               <div>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Connection Status</p>
+                  {(() => {
+                     const isFree = user?.whatsappChannelType === "free_qr" || performanceData?.wabaConfig?.isFreeQr;
+                     const isConnected = isFree
+                        ? !!(performanceData?.wabaConfig?.isConnected || performanceData?.wabaConfig?.displayPhoneNumber)
+                        : !!(performanceData?.wabaConfig?.isConnected || user?.tenantWhatsAppConnected);
+
+                     return (
+                        <p className="text-xl font-bold text-slate-800 flex items-center gap-2">
+                           {isConnected ? "Connected" : "Disconnected"} {isConnected ? <CheckCircleIcon className="w-5 h-5 text-emerald-500" /> : <span className="w-2.5 h-2.5 rounded-full bg-red-500" />}
+                        </p>
+                     );
+                  })()}
+               </div>
             </div>
          </div>
 

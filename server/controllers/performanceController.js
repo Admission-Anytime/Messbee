@@ -6,7 +6,7 @@ const axios = require('axios');
 const Channel = require('../models/Channel');
 const Setting = require('../models/Setting');
 
-// ─── Resolve WhatsApp Config (per user/tenant from User, Channel, Setting or .env) ──────────────
+// ─── Resolve WhatsApp Config (strictly per user/tenant without global credential leaks) ──────────────
 const getWABAConfig = async (user) => {
   let phoneNumberId = user?.whatsappConfig?.phoneNumberId || user?.whatsappPhoneNumberId || null;
   let accessToken = user?.whatsappConfig?.accessToken || user?.whatsappAccessToken || null;
@@ -16,62 +16,113 @@ const getWABAConfig = async (user) => {
   let verifiedName = null;
   let displayPhoneNumber = null;
 
-  // Check Channel collection first for this tenant (authoritative multi-tenant config)
-  if (user) {
+  const tenantId = user?.tenantId || user?._id;
+  let channel = null;
+
+  // 1. First priority: Check if this tenant has an official connected Meta Channel
+  if (tenantId) {
     try {
-      const tenantId = user.tenantId || user._id;
-      const channel = await Channel.findOne({
+      channel = await Channel.findOne({
         tenantId,
-        activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
+        activeWhatsappPhoneNumberId: { $exists: true, $ne: null },
+        status: { $ne: 'disconnected' }
       }).select('+metaAccessToken').lean();
 
-      if (channel) {
-        phoneNumberId = channel.activeWhatsappPhoneNumberId || phoneNumberId;
-        accessToken = channel.metaAccessToken || accessToken;
-        wabaId = channel.metadata?.wabaId || wabaId;
-        qualityRating = channel.metadata?.qualityRating || null;
-        if (channel.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
-          verifiedName = channel.name;
-        }
-        if (channel.phoneNumber) {
-          displayPhoneNumber = channel.phoneNumber;
-        }
+      if (!channel && user?._id && user._id.toString() !== tenantId.toString()) {
+        channel = await Channel.findOne({
+          tenantId: user._id,
+          activeWhatsappPhoneNumberId: { $exists: true, $ne: null },
+          status: { $ne: 'disconnected' }
+        }).select('+metaAccessToken').lean();
       }
     } catch (chanErr) {
-      console.warn('Channel lookup in getWABAConfig failed:', chanErr.message);
+      console.warn('[getWABAConfig] Channel lookup error:', chanErr.message);
     }
   }
 
-  // Fallback to user.businessName and user.phone if channel name/phone missing
-  if (!verifiedName && user?.businessName && user.businessName !== 'Your Business') {
-    verifiedName = user.businessName;
-  }
-  if (!displayPhoneNumber && (user?.phoneNumber || user?.phone)) {
-    displayPhoneNumber = user.phoneNumber || user.phone;
+  // Extract credentials from Channel if present
+  if (channel && channel.activeWhatsappPhoneNumberId && channel.metaAccessToken) {
+    phoneNumberId = channel.activeWhatsappPhoneNumberId;
+    accessToken = channel.metaAccessToken;
+    wabaId = channel.metadata?.wabaId || wabaId;
+    qualityRating = channel.metadata?.qualityRating || null;
+    if (channel.name && channel.name !== 'WhatsApp Business' && channel.name !== 'Default WhatsApp Channel') {
+      verifiedName = channel.name;
+    }
+    if (channel.phoneNumber) {
+      displayPhoneNumber = channel.phoneNumber;
+    }
   }
 
-  // Fallback to global setting if still missing
-  if (!phoneNumberId || !accessToken) {
+  const hasMetaCredentials = Boolean(phoneNumberId && accessToken);
+
+  // If user has connected official Meta credentials:
+  if (hasMetaCredentials) {
+    // Auto-heal user record in DB if it was previously marked as free_qr
+    if (user && (user.whatsappChannelType === 'free_qr' || !user.tenantWhatsAppConnected)) {
+      const idsToUpdate = [user._id];
+      if (tenantId && tenantId.toString() !== user._id.toString()) idsToUpdate.push(tenantId);
+      await User.updateMany(
+        { _id: { $in: idsToUpdate } },
+        { $set: { whatsappChannelType: 'meta_pro', tenantWhatsAppConnected: true } }
+      ).catch(() => {});
+    }
+
+    return {
+      channelType: 'meta_pro',
+      isFreeQr: false,
+      isConnected: true,
+      phoneNumberId,
+      accessToken,
+      wabaId,
+      appId,
+      verifiedName: verifiedName || user?.businessName || user?.name || 'Business Not Verified',
+      displayPhoneNumber: displayPhoneNumber || user?.phoneNumber || user?.phone || null,
+      qualityRating: qualityRating || 'Green',
+      messagingLimit: null, // Will be fetched live from Meta Graph API
+      apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
+    };
+  }
+
+  // 2. If NO Meta credentials, check if user is configured for Free QR (Baileys)
+  const isFreeQr = user?.whatsappChannelType === 'free_qr';
+  if (isFreeQr) {
+    const QrSession = require('../models/QrSession');
+    let qrSession = null;
     try {
-      const setting = await Setting.findOne({ key: 'whatsapp_config' }).lean();
-      if (setting && setting.value) {
-        if (!phoneNumberId) phoneNumberId = setting.value.phoneNumberId || null;
-        if (!accessToken) accessToken = setting.value.accessToken || null;
-        if (!wabaId) wabaId = setting.value.businessAccountId || null;
-      }
-    } catch (setErr) {
-      console.warn('Setting lookup in getWABAConfig failed:', setErr.message);
-    }
+      qrSession = await QrSession.findOne({ tenantId }).lean();
+    } catch (_) {}
+
+    const isConnected = qrSession?.status === 'CONNECTED';
+    return {
+      channelType: 'free_qr',
+      isFreeQr: true,
+      isConnected,
+      phoneNumberId: null,
+      accessToken: null,
+      wabaId: null,
+      appId: null,
+      verifiedName: user?.businessName || user?.name || 'Business Not Verified',
+      displayPhoneNumber: qrSession?.phoneNumber ? `+${qrSession.phoneNumber}` : null,
+      qualityRating: isConnected ? 'Normal' : 'Disconnected',
+      messagingLimit: 'Standard Web',
+      apiVersion: 'v20.0',
+    };
   }
 
+  // 3. Fallback: Unverified / Not connected user (NO global leaks)
   return {
-    phoneNumberId,
-    accessToken,
-    wabaId,
+    channelType: 'meta_pro',
+    isFreeQr: false,
+    isConnected: false,
+    phoneNumberId: null,
+    accessToken: null,
+    wabaId: null,
     appId,
-    verifiedName,
-    displayPhoneNumber,
-    qualityRating,
+    verifiedName: user?.businessName || user?.name || 'Business Not Verified',
+    displayPhoneNumber: null,
+    qualityRating: 'Not Connected',
+    messagingLimit: 'Not Connected',
     apiVersion: process.env.WHATSAPP_API_VERSION || 'v20.0',
   };
 };
@@ -224,8 +275,11 @@ exports.getPerformanceOverview = async (req, res) => {
             status: 'active'
           }
         },
-        // Global WhatsApp API config snapshot (credentials masked)
+        // WhatsApp API / Web channel config snapshot (credentials masked)
         wabaConfig: {
+          channelType:     wabaConfig.channelType,
+          isFreeQr:        wabaConfig.isFreeQr,
+          isConnected:     wabaConfig.isConnected,
           phoneNumberId:   wabaConfig.phoneNumberId,
           wabaId:          wabaConfig.wabaId,
           appId:           wabaConfig.appId,
@@ -233,11 +287,11 @@ exports.getPerformanceOverview = async (req, res) => {
           accessTokenMasked: wabaConfig.accessToken
             ? `${wabaConfig.accessToken.substring(0, 8)}...${wabaConfig.accessToken.slice(-4)}`
             : null,
-          // Live data from Meta API
-          phoneQuality,
-          messagingLimit,
-          verifiedName,
-          displayPhoneNumber,
+          // Live data from Meta API or QR session
+          phoneQuality:    phoneQuality || (wabaConfig.isFreeQr ? (wabaConfig.isConnected ? 'Normal' : 'Disconnected') : (wabaConfig.isConnected ? 'Green' : 'Not Connected')),
+          messagingLimit:  messagingLimit || (wabaConfig.isFreeQr ? 'Standard Web' : (wabaConfig.isConnected ? '250' : 'Not Connected')),
+          verifiedName:    verifiedName || wabaConfig.verifiedName,
+          displayPhoneNumber: displayPhoneNumber || wabaConfig.displayPhoneNumber,
         }
       }
     });
@@ -249,17 +303,42 @@ exports.getPerformanceOverview = async (req, res) => {
 };
 
 // ─── GET /api/performance/waba-config ─────────────────────────────────────────
-// @desc  Get the current global WhatsApp API configuration
+// @desc  Get the current WhatsApp API / Web configuration
 // @route GET /api/performance/waba-config
 // @access Private
 exports.getWABAConfigDetails = async (req, res) => {
   try {
     const wabaConfig = await getWABAConfig(req.user);
 
-    // Try to fetch live phone number details from Meta
+    // If Free QR tier, return QR session details without calling Meta
+    if (wabaConfig.isFreeQr) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          config: {
+            channelType: 'free_qr',
+            isFreeQr: true,
+            isConnected: wabaConfig.isConnected,
+            phoneNumberId: null,
+            wabaId: null,
+            appId: null,
+            apiVersion: 'v20.0',
+            hasAccessToken: false,
+            accessTokenMasked: null,
+          },
+          livePhoneData: {
+            verified_name: wabaConfig.verifiedName || 'Business Not Verified',
+            display_phone_number: wabaConfig.displayPhoneNumber || null,
+            status: wabaConfig.isConnected ? 'CONNECTED' : 'DISCONNECTED'
+          }
+        }
+      });
+    }
+
+    // Try to fetch live phone number details from Meta ONLY if valid credentials exist
     let liveData = null;
-    try {
-      if (wabaConfig.phoneNumberId && wabaConfig.accessToken) {
+    if (wabaConfig.phoneNumberId && wabaConfig.accessToken) {
+      try {
         const metaRes = await axios.get(
           `https://graph.facebook.com/${wabaConfig.apiVersion}/${wabaConfig.phoneNumberId}`,
           {
@@ -271,17 +350,17 @@ exports.getWABAConfigDetails = async (req, res) => {
           }
         );
         liveData = metaRes.data;
+      } catch (err) {
+        console.warn('⚠️  Meta config fetch skipped:', err?.response?.data?.error?.message || err.message);
       }
-    } catch (err) {
-      console.warn('⚠️  Meta config fetch skipped:', err?.response?.data?.error?.message || err.message);
     }
 
     // Fallback if Meta API is unreachable but channel has verified info
     if (!liveData && (wabaConfig.verifiedName || wabaConfig.displayPhoneNumber)) {
       liveData = {
-        verified_name: wabaConfig.verifiedName || null,
+        verified_name: wabaConfig.verifiedName || 'Business Not Verified',
         display_phone_number: wabaConfig.displayPhoneNumber || null,
-        status: 'CONNECTED'
+        status: wabaConfig.isConnected ? 'CONNECTED' : 'DISCONNECTED'
       };
     }
 
@@ -289,6 +368,9 @@ exports.getWABAConfigDetails = async (req, res) => {
       success: true,
       data: {
         config: {
+          channelType: 'meta_pro',
+          isFreeQr: false,
+          isConnected: wabaConfig.isConnected,
           phoneNumberId:   wabaConfig.phoneNumberId,
           wabaId:          wabaConfig.wabaId,
           appId:           wabaConfig.appId,

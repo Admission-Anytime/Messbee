@@ -21,7 +21,7 @@ const PlanGuard = ({
   const navigate = useNavigate();
 
   const currentPlan = (user?.subscriptionPlan || "free").toLowerCase();
-  const isAllowed = hasPlanFeature(currentPlan, feature);
+  const isAllowed = hasPlanFeature(currentPlan, feature, user);
 
   if (isAllowed) {
     return <>{children}</>;

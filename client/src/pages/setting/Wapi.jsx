@@ -7,6 +7,8 @@ import { Lock } from "lucide-react";
 import HealthDiagnosticModal from "../../components/Modol/HealthDiagnosticModal";
 import TestConnectionModal from "../../components/Modol/TestConnectionModal";
 import ConnectWhatsAppModal from "../../components/Modol/ConnectWhatsAppModal";
+import QrConnectModal from "../../components/Modol/QrConnectModal";
+import { getQrStatus, disconnectQrSession } from "../../services/qrWhatsappService";
 import { useWhatsAppConfig } from "../../hooks/useWhatsAppConfig";
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
@@ -146,6 +148,17 @@ export default function WhatsAppConfig() {
   const [showTestModal, setShowTestModal] = useState(false);
   const [showHealthModal, setShowHealthModal] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const isFreeTier = user?.whatsappChannelType === "free_qr";
+  const [showQrModal, setShowQrModal] = useState(false);
+  const [qrStatus, setQrStatus] = useState({ status: "DISCONNECTED", phoneNumber: "", pushName: "" });
+
+  useEffect(() => {
+    if (isFreeTier) {
+      getQrStatus().then(res => {
+        if (res.success) setQrStatus(res);
+      }).catch(() => {});
+    }
+  }, [isFreeTier, showQrModal]);
 
   // ── Phone Registration Status ──────────────────────────────────────────────
   const [phoneStatus, setPhoneStatus] = useState('UNKNOWN'); // 'ACTIVE' | 'PENDING' | 'UNKNOWN'
@@ -282,6 +295,165 @@ export default function WhatsAppConfig() {
   ];
 
   const activeCount = Object.values(events).filter(Boolean).length;
+
+  if (isFreeTier) {
+    return (
+      <div className="min-h-screen bg-slate-50 p-6 font-['Urbanist']">
+        {/* Header */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center justify-center text-[#16a34a] shadow-xs">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-bold text-slate-900 leading-none">
+                  WhatsApp Web Connection
+                </h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#22c55e]/10 text-[#16a34a] border border-[#22c55e]/20">
+                  Free Starter
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Connected via WhatsApp Multi-Device QR Code without Meta WABA requirements
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setShowConnectModal(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl shadow-sm text-xs font-semibold transition-all cursor-pointer"
+          >
+            <span>⚡ Upgrade to Official Meta WABA</span>
+          </button>
+        </div>
+
+        {/* Grid Container */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Connection Status Card */}
+          <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className={`w-3.5 h-3.5 rounded-full ${qrStatus.status === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Connection Status: {qrStatus.status === 'CONNECTED' ? 'Active & Ready' : 'Disconnected'}
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    {qrStatus.status === 'CONNECTED'
+                      ? `Linked phone: +${qrStatus.phoneNumber} (${qrStatus.pushName || 'WhatsApp User'})`
+                      : 'Scan QR code from WhatsApp on your phone to link device'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowQrModal(true)}
+                className="py-2 px-4 bg-[#22c55e] hover:bg-[#16a34a] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M23 4v6h-6"></path>
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                </svg>
+                <span>{qrStatus.status === 'CONNECTED' ? 'Re-scan / Change Phone' : 'Scan QR Code'}</span>
+              </button>
+            </div>
+
+            {/* Quick Stats & Action Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Device Mode</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">Multi-Device Web</p>
+                <span className="text-[10px] text-emerald-600 font-medium">Independent Socket</span>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Commerce Suite</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">100% Free</p>
+                <span className="text-[10px] text-emerald-600 font-medium">Products & Inventory Active</span>
+              </div>
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Broadcast Engine</span>
+                <p className="text-sm font-bold text-slate-800 mt-1">Safe Throttled</p>
+                <span className="text-[10px] text-blue-600 font-medium">5 msgs + cooldown delay</span>
+              </div>
+            </div>
+
+            {qrStatus.status === 'CONNECTED' && (
+              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                <span className="text-xs text-slate-500">Need to disconnect this phone?</span>
+                <button
+                  onClick={async () => {
+                    if (window.confirm("Disconnect this WhatsApp number?")) {
+                      await disconnectQrSession();
+                      setQrStatus({ status: 'DISCONNECTED', phoneNumber: '', pushName: '' });
+                      toast.info("WhatsApp disconnected.");
+                    }
+                  }}
+                  className="py-1.5 px-3 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-semibold transition-all"
+                >
+                  Unlink Phone
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Free Included Services & Anti-Ban Best Practices */}
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <span>Services Included in Free Hub</span>
+              </h3>
+              <ul className="space-y-2.5 text-xs text-slate-600">
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>Full Commerce & Inventory Management</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>Direct 1-on-1 Customer Live Chat</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>Send Product Cards with Images & Price</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>Order Tracking & Invoice Generation</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-emerald-500 font-bold">✓</span>
+                  <span>Contacts & Custom Labels</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="bg-amber-50/70 border border-amber-200/80 rounded-2xl p-5 space-y-2">
+              <h4 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                <span>🛡️ Anti-Ban Best Practices</span>
+              </h4>
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                When sending broadcasts on normal WhatsApp, our automated queue sends in batches of 5 messages with cooldown delays. To ensure safety, only message customers who know your business.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <QrConnectModal
+          isOpen={showQrModal}
+          onClose={() => setShowQrModal(false)}
+        />
+        <ConnectWhatsAppModal
+          isOpen={showConnectModal}
+          onClose={() => setShowConnectModal(false)}
+        />
+      </div>
+    );
+  }
 
   return (
     <>
