@@ -159,6 +159,7 @@ const Step1 = ({ onNext }) => {
     password: "",
     confirmPassword: "",
     referralCode: "",
+    whatsappChannelType: "free_qr",
   });
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -171,12 +172,18 @@ const Step1 = ({ onNext }) => {
       await triggerGoogleLogin({
         onSuccess: async (accessToken) => {
           try {
-            const res = await loginWithSocial("google", accessToken);
+            const res = await loginWithSocial("google", accessToken, {
+              whatsappChannelType: formData.whatsappChannelType || "free_qr",
+            });
             if (res.success) {
               toast.success("Successfully signed up with Google!");
               saveAuthData(res);
               loginUser(res.data?.user || res.user || res.data);
-              navigate("/admin/dashboard");
+              if (formData.whatsappChannelType === "free_qr") {
+                navigate("/admin/dashboard?welcome_qr=true");
+              } else {
+                navigate("/onboarding");
+              }
             }
           } catch (error) {
             const message = error?.response?.data?.message || "Google signup failed";
@@ -394,6 +401,62 @@ const Step1 = ({ onNext }) => {
                 value={formData.referralCode} onChange={handle}
               />
             </Field>
+          </div>
+
+          {/* WhatsApp Channel Setup Preference */}
+          <div className="border-t border-slate-100 pt-2 mb-2.5">
+            <SectionLabel
+              text="WhatsApp Setup Preference"
+              icon={
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                </svg>
+              }
+            />
+            <p className="text-[10px] font-semibold text-slate-800 mb-1.5">
+              Do you have a Meta Verified WhatsApp Business Account?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, whatsappChannelType: "free_qr" })}
+                className={`p-2.5 rounded-[9px] border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                  formData.whatsappChannelType === "free_qr"
+                    ? "border-[#22c55e] bg-green-50/50 shadow-[0_0_0_2px_rgba(34,197,94,0.18)]"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[11px] font-bold text-slate-800">No (Instant QR)</span>
+                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-[#22c55e] text-white rounded-full">Free</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    Scan QR code in 30s. Free Commerce & Inventory included!
+                  </p>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFormData({ ...formData, whatsappChannelType: "meta_pro" })}
+                className={`p-2.5 rounded-[9px] border text-left transition-all relative flex flex-col justify-between cursor-pointer ${
+                  formData.whatsappChannelType === "meta_pro"
+                    ? "border-[#22c55e] bg-green-50/50 shadow-[0_0_0_2px_rgba(34,197,94,0.18)]"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-[11px] font-bold text-slate-800">Yes (Meta WABA)</span>
+                    <span className="px-1.5 py-0.5 text-[8px] font-bold bg-blue-600 text-white rounded-full">Pro</span>
+                  </div>
+                  <p className="text-[9px] text-slate-500 leading-tight">
+                    Official Meta Cloud API. Unlimited broadcasts & Green Tick ready.
+                  </p>
+                </div>
+              </button>
+            </div>
           </div>
 
           {/* Auto-generated */}
@@ -671,6 +734,7 @@ const Step3OTP = ({ allData, onBack, onPendingApproval }) => {
           referralCode: allData.referralCode,
           clientId: allData.clientId,
           trialId: allData.trialId,
+          whatsappChannelType: allData.whatsappChannelType || "free_qr",
         }
       );
       if (res.success) {
@@ -706,7 +770,11 @@ const Step3OTP = ({ allData, onBack, onPendingApproval }) => {
           toast.success("Account created successfully!");
           saveAuthData(res);
           loginUser(res.data?.user || res.user || res.data);
-          navigate("/onboarding");
+          if (allData?.whatsappChannelType === "free_qr") {
+            navigate("/admin/dashboard?welcome_qr=true");
+          } else {
+            navigate("/onboarding");
+          }
         }
       } else {
         toast.error(res.message || "Invalid OTP");

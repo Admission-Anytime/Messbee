@@ -106,6 +106,14 @@ connectDB().then(async () => {
 const { startDelayQueueWorker } = require('./queues/delayQueue');
 startDelayQueueWorker();
 
+// Auto-restore Baileys QR WhatsApp sessions on boot
+try {
+  const { restoreActiveSessions } = require('./services/qrWhatsappService');
+  restoreActiveSessions();
+} catch (qrBootErr) {
+  console.warn('QR sessions auto-restore warning:', qrBootErr.message);
+}
+
 const app = express();
 
 // Only create HTTP server and Socket.IO in non-serverless environment
@@ -192,8 +200,10 @@ const effectiveUploadDir = process.env.UPLOAD_PATH && fs.existsSync(process.env.
   ? process.env.UPLOAD_PATH
   : path.join(__dirname, 'uploads');
 app.use('/uploads', express.static(effectiveUploadDir));
+app.use('/api/uploads', express.static(effectiveUploadDir));
 if (effectiveUploadDir !== path.join(__dirname, 'uploads')) {
   app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+  app.use('/api/uploads', express.static(path.join(__dirname, 'uploads')));
 }
 
 // ================== SWAGGER DOCS ==================
@@ -253,6 +263,7 @@ app.use('/api/billing', require('./routes/billingRoutes'));
 app.use('/api/notifications', require('./routes/notificationRoutes')); // Notification routes
 app.use('/api/webhook', require('./routes/webhookRoutes')); // Webhook routes (/api/webhook)
 app.use('/webhook', require('./routes/webhookRoutes')); // Root webhook fallback (/webhook)
+app.use('/api/qr-whatsapp', require('./routes/qrWhatsappRoutes')); // WhatsApp Web QR for Free Tier
 
 // ================== INVENTORY & BILLING ROUTES ==================
 app.use('/api/categories', require('./routes/categoryRoutes'));

@@ -253,6 +253,7 @@ exports.connectOAuthToken = async (req, res, next) => {
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
+      const tenantId = req.user.tenantId || req.user._id;
       const userRecord = await User.findById(req.user._id);
       if (userRecord) {
         userRecord.whatsappConfig = {
@@ -260,7 +261,20 @@ exports.connectOAuthToken = async (req, res, next) => {
           phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
           accessToken: accessToken
         };
+        userRecord.whatsappChannelType = 'meta_pro';
+        userRecord.tenantWhatsAppConnected = true;
         await userRecord.save();
+      }
+      if (tenantId && tenantId.toString() !== req.user._id.toString()) {
+        await User.findByIdAndUpdate(tenantId, {
+          $set: {
+            whatsappChannelType: 'meta_pro',
+            tenantWhatsAppConnected: true,
+            'whatsappConfig.wabaId': wabaId,
+            'whatsappConfig.phoneNumberId': phoneNumberId,
+            'whatsappConfig.accessToken': accessToken
+          }
+        });
       }
     }
     
@@ -518,6 +532,7 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
+      const tenantId = req.user.tenantId || req.user._id;
       const userRecord = await User.findById(req.user._id);
       if (userRecord) {
         userRecord.whatsappConfig = {
@@ -528,7 +543,20 @@ exports.embeddedSignupCallback = async (req, res, next) => {
         // Auto-approve user upon successful WhatsApp connection
         userRecord.isApproved = true;
         userRecord.isActive = true;
+        userRecord.whatsappChannelType = 'meta_pro';
+        userRecord.tenantWhatsAppConnected = true;
         await userRecord.save();
+      }
+      if (tenantId && tenantId.toString() !== req.user._id.toString()) {
+        await User.findByIdAndUpdate(tenantId, {
+          $set: {
+            whatsappChannelType: 'meta_pro',
+            tenantWhatsAppConnected: true,
+            'whatsappConfig.wabaId': wabaId,
+            'whatsappConfig.phoneNumberId': phoneNumberId,
+            'whatsappConfig.accessToken': accessToken
+          }
+        });
       }
     }
     
@@ -818,6 +846,7 @@ exports.connectManual = async (req, res, next) => {
     // Save mapping to User configuration details (mapped by user ID)
     if (req.user && req.user._id) {
       const User = require('../models/User');
+      const tenantId = req.user.tenantId || req.user._id;
       const userRecord = await User.findById(req.user._id);
       if (userRecord) {
         userRecord.whatsappConfig = {
@@ -825,7 +854,20 @@ exports.connectManual = async (req, res, next) => {
           phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
           accessToken: accessToken
         };
+        userRecord.whatsappChannelType = 'meta_pro';
+        userRecord.tenantWhatsAppConnected = true;
         await userRecord.save();
+      }
+      if (tenantId && tenantId.toString() !== req.user._id.toString()) {
+        await User.findByIdAndUpdate(tenantId, {
+          $set: {
+            whatsappChannelType: 'meta_pro',
+            tenantWhatsAppConnected: true,
+            'whatsappConfig.wabaId': wabaId,
+            'whatsappConfig.phoneNumberId': phoneNumberId,
+            'whatsappConfig.accessToken': accessToken
+          }
+        });
       }
     }
     

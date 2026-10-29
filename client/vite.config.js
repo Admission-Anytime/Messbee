@@ -8,7 +8,7 @@ export default defineConfig({
   ],
   
   resolve: {
-    dedupe: ['apexcharts']
+    dedupe: ['react', 'react-dom', 'apexcharts']
   },
   
   // Build optimizations

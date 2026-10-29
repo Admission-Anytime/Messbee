@@ -460,38 +460,55 @@ router.post("/message", async (req, res) => {
       let outboundMessageType = media ? normalizedMessageType : 'text';
       let whatsappMediaType = 'document'; // default, overridden below if media present
 
-      const { getTenantWhatsAppService } = require('../controllers/whatsappController');
-      const targetTenantId = req.user?.tenantId || req.user?._id || chat.user;
-      const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
-
-      if (!tenantWhatsAppService) {
-        return res.status(403).json({ success: false, error: 'WhatsApp is not connected for this account.' });
-      }
-
-      const canSendFreeText = await hasActiveCustomerWindow(chat);
-
-      if (!canSendFreeText && (text?.trim() || media)) {
-        return res.status(500).json({
-          success: false,
-          error: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use an approved template message to initiate.',
-          errorCode: 131047
-        });
-      }
-
-      // 💳 Pre-flight WCC Wallet Balance Check (text & media both)
-      const walletService = require('../services/walletService');
       const User = require('../models/User');
-      const { getMessageCost } = require('../config/pricingConfig');
-      const msgCategory = media ? 'SERVICE' : 'SERVICE';
-      const userPricingDoc = await User.findById(targetTenantId).select('customPricing').lean();
-      const msgCost = getMessageCost(msgCategory, whatsappRecipient, userPricingDoc?.customPricing);
-      const hasBal = await walletService.hasSufficientCredits(targetTenantId, msgCost);
-      if (!hasBal) {
-        return res.status(402).json({
-          success: false,
-          error: `Insufficient WCC Credits. Sending this message costs ₹${msgCost.toFixed(2)}. Please recharge your WCC Wallet.`,
-          errorCode: 'INSUFFICIENT_WCC_CREDITS'
-        });
+      const targetTenantId = req.user?.tenantId || req.user?._id || chat.user;
+      const senderUser = await User.findById(targetTenantId).select('customPricing whatsappChannelType').lean();
+      const isFreeQrTier = (senderUser?.whatsappChannelType === 'free_qr') || (req.user?.whatsappChannelType === 'free_qr');
+
+      let tenantWhatsAppService = null;
+      const qrWhatsappService = require('../services/qrWhatsappService');
+
+      if (isFreeQrTier) {
+        // Free QR tier check
+        const qrStatus = await qrWhatsappService.getSessionStatus(targetTenantId);
+        if (qrStatus.status !== 'CONNECTED') {
+          return res.status(403).json({
+            success: false,
+            error: 'WhatsApp Web is not linked. Please scan the QR code in Settings > WhatsApp Integration.',
+            errorCode: 'QR_NOT_CONNECTED'
+          });
+        }
+      } else {
+        // Meta Pro tier
+        const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+        tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+
+        if (!tenantWhatsAppService) {
+          return res.status(403).json({ success: false, error: 'WhatsApp is not connected for this account.' });
+        }
+
+        const canSendFreeText = await hasActiveCustomerWindow(chat);
+        if (!canSendFreeText && (text?.trim() || media)) {
+          return res.status(500).json({
+            success: false,
+            error: '24-hour window expired — the contact must message you first, then you can reply within 24 hours. Use an approved template message to initiate.',
+            errorCode: 131047
+          });
+        }
+
+        // 💳 Pre-flight WCC Wallet Balance Check (text & media both)
+        const walletService = require('../services/walletService');
+        const { getMessageCost } = require('../config/pricingConfig');
+        const msgCategory = media ? 'SERVICE' : 'SERVICE';
+        const msgCost = getMessageCost(msgCategory, whatsappRecipient, senderUser?.customPricing);
+        const hasBal = await walletService.hasSufficientCredits(targetTenantId, msgCost);
+        if (!hasBal) {
+          return res.status(402).json({
+            success: false,
+            error: `Insufficient WCC Credits. Sending this message costs ₹${msgCost.toFixed(2)}. Please recharge your WCC Wallet.`,
+            errorCode: 'INSUFFICIENT_WCC_CREDITS'
+          });
+        }
       }
 
       // Handle media messages
@@ -499,8 +516,9 @@ router.post("/message", async (req, res) => {
         let mediaIdToUse = media.whatsappMediaId || media.id || media.mediaId;
 
         // If the mediaId looks like a MongoDB ObjectId, it's likely a local gallery image
-        // We MUST use its whatsappMediaId instead, or upload it to WhatsApp if missing.
-        if (mediaIdToUse && (mongoose.Types.ObjectId.isValid(mediaIdToUse) || (mediaIdToUse.length === 24 && /^[0-9a-fA-F]+$/.test(mediaIdToUse)))) {
+        // For Meta Pro: We MUST use its whatsappMediaId instead, or upload it to WhatsApp if missing.
+        // For Free QR: Baileys sends the file directly via local file/URL.
+        if (!isFreeQrTier && mediaIdToUse && (mongoose.Types.ObjectId.isValid(mediaIdToUse) || (mediaIdToUse.length === 24 && /^[0-9a-fA-F]+$/.test(mediaIdToUse)))) {
 
           const dbMedia = await Media.findById(mediaIdToUse);
           if (dbMedia) {
@@ -555,7 +573,7 @@ router.post("/message", async (req, res) => {
           }
         }
 
-        if (!mediaIdToUse) {
+        if (!isFreeQrTier && !mediaIdToUse) {
           return res.status(400).json({
             error: "Media ID required. Please upload media to WhatsApp first using /api/chats/upload-file"
           });
@@ -570,29 +588,63 @@ router.post("/message", async (req, res) => {
         const sidebarText = text || `📎 ${whatsappMediaType.charAt(0).toUpperCase() + whatsappMediaType.slice(1)}`;
         displayText = text || '';
 
-        const result = await tenantWhatsAppService.sendMediaMessage(
-          whatsappRecipient,
-          whatsappMediaType,
-          mediaIdToUse,
-          text || ''
-        );
-
-        if (result.success) {
-          whatsappResult = result;
+        if (isFreeQrTier) {
+          try {
+            let mediaUrl = media.url || media.fileUrl;
+            if (!mediaUrl && (media.id || media.mediaId || mediaIdToUse)) {
+              const dbMedia = await Media.findById(media.id || media.mediaId || mediaIdToUse);
+              if (dbMedia) mediaUrl = dbMedia.url;
+            }
+            let qrPayload;
+            if (mediaType.includes('image')) {
+              qrPayload = { image: { url: mediaUrl }, caption: text || '' };
+            } else if (mediaType.includes('video')) {
+              qrPayload = { video: { url: mediaUrl }, caption: text || '' };
+            } else if (mediaType.includes('audio')) {
+              qrPayload = { audio: { url: mediaUrl }, mimetype: 'audio/mp4' };
+            } else {
+              qrPayload = { document: { url: mediaUrl }, fileName: media.fileName || 'file', caption: text || '' };
+            }
+            const result = await qrWhatsappService.sendQrMessage(targetTenantId, whatsappRecipient, qrPayload);
+            whatsappResult = { success: true, messageId: result?.key?.id || ('baileys_' + Date.now()) };
+          } catch (qrErr) {
+            whatsappError = { message: qrErr.message };
+            console.error("❌ QR WhatsApp media send failed:", qrErr.message);
+          }
         } else {
-          whatsappError = result.error;
-          console.error("❌ WhatsApp media send failed:", JSON.stringify(result.error));
+          const result = await tenantWhatsAppService.sendMediaMessage(
+            whatsappRecipient,
+            whatsappMediaType,
+            mediaIdToUse,
+            text || ''
+          );
+
+          if (result.success) {
+            whatsappResult = result;
+          } else {
+            whatsappError = result.error;
+            console.error("❌ WhatsApp media send failed:", JSON.stringify(result.error));
+          }
         }
 
       } else if (text && text.trim()) {
-        // Send text message via WhatsApp
-        const result = await tenantWhatsAppService.sendTextMessage(whatsappRecipient, text);
-        if (result.success) {
-          whatsappResult = result;
-
+        if (isFreeQrTier) {
+          try {
+            const result = await qrWhatsappService.sendQrMessage(targetTenantId, whatsappRecipient, text.trim());
+            whatsappResult = { success: true, messageId: result?.key?.id || ('baileys_' + Date.now()) };
+          } catch (qrErr) {
+            whatsappError = { message: qrErr.message };
+            console.error(`❌ QR WhatsApp text send failed for ${whatsappRecipient}:`, qrErr.message);
+          }
         } else {
-          whatsappError = result.error;
-          console.error(`❌ WhatsApp text send failed for ${whatsappRecipient}:`, JSON.stringify(result.error));
+          // Send text message via WhatsApp
+          const result = await tenantWhatsAppService.sendTextMessage(whatsappRecipient, text);
+          if (result.success) {
+            whatsappResult = result;
+          } else {
+            whatsappError = result.error;
+            console.error(`❌ WhatsApp text send failed for ${whatsappRecipient}:`, JSON.stringify(result.error));
+          }
         }
       } else {
         return res.status(400).json({ error: "Message text or media is required" });
@@ -682,9 +734,11 @@ router.post("/message", async (req, res) => {
         });
       }
 
-      // 💸 Deduct WCC credits after confirmed successful dispatch
-      if (whatsappResult) {
+      // 💸 Deduct WCC credits after confirmed successful dispatch (Meta Pro only)
+      if (whatsappResult && !isFreeQrTier) {
         try {
+          const walletService = require('../services/walletService');
+          const msgCategory = media ? 'SERVICE' : 'SERVICE';
           await walletService.deductMessageCredits({
             tenantId: targetTenantId,
             category: msgCategory,
@@ -803,28 +857,40 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
 
 
 
-    // Upload to WhatsApp servers with sanitized MIME type using this tenant's own WhatsApp connection
-    const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+    const User = require('../models/User');
     const targetTenantId = req.user?.tenantId || req.user?._id;
-    const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
+    const senderUser = await User.findById(targetTenantId).select('whatsappChannelType').lean();
+    const isFreeQrTier = (senderUser?.whatsappChannelType === 'free_qr') || (req.user?.whatsappChannelType === 'free_qr');
 
-    if (!tenantWhatsAppService) {
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-      return res.status(403).json({ error: "WhatsApp is not connected for this account. Cannot upload media." });
-    }
+    let whatsappMediaId = null;
 
-    const result = await tenantWhatsAppService.uploadMedia(filePath, mimeType);
+    if (!isFreeQrTier) {
+      // Upload to WhatsApp servers with sanitized MIME type using this tenant's own WhatsApp connection
+      const { getTenantWhatsAppService } = require('../controllers/whatsappController');
+      const tenantWhatsAppService = await getTenantWhatsAppService(targetTenantId);
 
-    if (!result.success) {
-      // Clean up local file on failure
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
+      if (!tenantWhatsAppService) {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        return res.status(403).json({ error: "WhatsApp is not connected for this account. Cannot upload media." });
       }
 
-      return res.status(500).json({
-        error: "Failed to upload media to WhatsApp",
-        details: result.error
-      });
+      const result = await tenantWhatsAppService.uploadMedia(filePath, mimeType);
+
+      if (!result.success) {
+        // Clean up local file on failure
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+
+        return res.status(500).json({
+          error: "Failed to upload media to WhatsApp",
+          details: result.error
+        });
+      }
+      whatsappMediaId = result.mediaId;
+    } else {
+      // Free QR Tier uses local media directly via Baileys socket
+      whatsappMediaId = 'qr_media_' + Date.now();
     }
 
     // Generate asset preview URL
@@ -841,7 +907,7 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
       type: assetType,
       user: req.user.id,
       thumb: assetType === 'IMAGE' ? fileUrl : null,
-      whatsappMediaId: result.mediaId
+      whatsappMediaId: whatsappMediaId
     });
 
 
@@ -849,7 +915,7 @@ router.post("/upload-file", upload.single('file'), async (req, res) => {
     res.json({
       success: true,
       mediaId: media._id, // Use Database ID so it can be resolved properly later
-      whatsappMediaId: result.mediaId,
+      whatsappMediaId: whatsappMediaId,
       fileUrl: fileUrl,
       fileName: req.file.originalname,
       mimeType: mimeType,

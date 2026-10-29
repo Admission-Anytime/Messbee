@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import useCanvasStore from '../../store/useCanvasStore';
 import api from '../../context/axios';
-import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen, Calendar, Check, Plus, Edit3, Save, UserCheck, Sparkles } from 'lucide-react';
+import { Settings, Zap, Variable, AlertTriangle, Link as LinkIcon, Phone, MessageCircle, Trash2, ClipboardList, Clock, Tag, Image as ImageIcon, LayoutGrid, Bold, Italic, Strikethrough, Code, BookOpen, Calendar, Check, Plus, Edit3, Save, UserCheck, Sparkles, Copy } from 'lucide-react';
 import { showToast } from '../../utils/showToast';
 import TriggerSelectionModal from '../../components/Modol/automation/TriggerSelectionModal';
 import NodeGuideModal from '../../components/Modol/automation/NodeGuideModal';
@@ -9,6 +9,7 @@ import { NextStepRecommendationCard, NodeInlineGuideView } from '../../component
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import StandeeQrGenerator from './StandeeQrGenerator';
 
 // Fix Leaflet's default marker icon issue
 delete L.Icon.Default.prototype._getIconUrl;
@@ -340,6 +341,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
   const [isTriggerModalOpen, setIsTriggerModalOpen] = useState(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('config');
+  const [showQrPreview, setShowQrPreview] = useState(false);
+  const [isStandeeModalOpen, setIsStandeeModalOpen] = useState(false);
 
   useEffect(() => {
     if (currentChannelId) {
@@ -873,7 +876,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
       boxShadow: '-4px 0 15px rgba(0,0,0,0.03)',
       overflowY: 'auto',
       overflowX: 'hidden',
-      boxSizing: 'border-box'
+      boxSizing: 'border-box',
+      transition: 'width 0.25s ease'
     }}>
       {/* Top Segmented Tabs: ⚙️ Configuration | 💡 How It Works & Guide */}
       <div style={{
@@ -1157,65 +1161,13 @@ export default function NodePropertiesPane({ currentChannelId }) {
 
             {/* Specific Trigger Sub-panels */}
             {localData.triggerType === 'qr_link' ? (
-              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
-                <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <LinkIcon size={16} color="#10B981" /> QR & Link Generator
-                </div>
-                <p style={{ fontSize: '12px', color: '#64748B', marginBottom: '16px', lineHeight: '1.4' }}>
-                  Create a pre-filled WhatsApp link and QR code. When customers use them, they'll send this exact keyword to start the flow.
-                </p>
-
-                <div style={{ marginBottom: '16px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '6px' }}>Pre-filled Keyword</label>
-                  <input
-                    type="text"
-                    name="keyword"
-                    value={localData.keyword || ''}
-                    onChange={handleLocalChange}
-                    onBlur={handleBlur}
-                    style={{ ...inputStyle, background: 'white', borderColor: '#CBD5E1' }}
-                    placeholder="e.g. I want to order"
-                  />
-                </div>
-
-                {localData.keyword && (() => {
-                  const cleanPhone = (channelPhone || '').replace(/\D/g, '');
-                  const primaryKeyword = (localData.keyword || '').split(',')[0].trim();
-                  const waLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(primaryKeyword)}`;
-
-                  return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px' }}>
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <LinkIcon size={14} color="#3B82F6" /> Your WhatsApp Link
-                        </div>
-                        <div style={{ fontSize: '11px', color: '#475569', wordBreak: 'break-all', background: '#F8FAFC', padding: '10px', borderRadius: '6px', border: '1px solid #E2E8F0', marginBottom: '12px' }}>
-                          {waLink}
-                        </div>
-                        <button onClick={() => { navigator.clipboard.writeText(waLink); showToast.success('Link Copied', 'Link copied to clipboard!'); }} style={{ width: '100%', background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', padding: '8px', borderRadius: '6px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', transition: 'background 0.2s' }}>
-                          Copy Link
-                        </button>
-                      </div>
-
-                      <div style={{ background: 'white', border: '1px solid #E2E8F0', borderRadius: '8px', padding: '16px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <div style={{ fontSize: '12px', fontWeight: '700', color: '#334155', marginBottom: '12px', alignSelf: 'flex-start' }}>
-                          Your QR Code
-                        </div>
-                        <div style={{ padding: '8px', background: 'white', borderRadius: '8px', border: '1px solid #F1F5F9', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                          <img 
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(waLink)}`} 
-                            alt="WhatsApp QR Code" 
-                            style={{ width: '180px', height: '180px', display: 'block' }} 
-                          />
-                        </div>
-                        <p style={{ fontSize: '11px', color: '#64748B', textAlign: 'center', marginTop: '12px', lineHeight: '1.4' }}>
-                          Customers can scan this with their phone's camera to instantly start a chat with the pre-filled keyword: <strong>"{primaryKeyword}"</strong>.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
+              <StandeeQrGenerator
+                localData={localData}
+                updateNodeData={updateNodeData}
+                id={id}
+                channelPhone={channelPhone}
+                inputStyle={inputStyle}
+              />
             ) : localData.triggerType === 'whatsapp_ad' ? (
               <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '12px', padding: '16px' }}>
                 <div style={{ fontSize: '14px', fontWeight: '700', color: '#1E293B', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -3489,6 +3441,24 @@ export default function NodePropertiesPane({ currentChannelId }) {
                 placeholder="booking_slot_id"
               />
             </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+                Booking Operation Mode
+              </label>
+              <select
+                name="bookingMode"
+                value={localData.bookingMode || 'new'}
+                onChange={(e) => { handleLocalChange(e); handleBlur(e); }}
+                style={inputStyle}
+              >
+                <option value="new">📅 Standard New Booking</option>
+                <option value="reschedule">🔄 Reschedule Mode (Atomic Swap - Releases Old Slot)</option>
+              </select>
+              <div style={{ fontSize: '10.5px', color: '#64748B', marginTop: '3px' }}>
+                In Reschedule Mode, when a new slot is chosen, the customer's previous booking is automatically released.
+              </div>
+            </div>
           </>
         )}
 
@@ -3548,6 +3518,8 @@ export default function NodePropertiesPane({ currentChannelId }) {
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>Action Type</label>
               <select name="actionType" value={localData.actionType || 'update_contact'} onChange={(e) => { handleLocalChange(e); handleBlur(e); }} style={inputStyle}>
                 <option value="notify_whatsapp">📱 Send WhatsApp Alert (Staff / Doctor / Admin)</option>
+                <option value="release_booking">❌ Cancel / Release Booking Slot</option>
+                <option value="lookup_active_booking">🔍 Lookup Customer Active Booking</option>
                 <option value="add_tag">🏷️ Add Tag to Contact</option>
                 <option value="remove_tag">🗑️ Remove Tag from Contact</option>
                 <option value="update_contact">✏️ Update Field / Custom Data</option>
@@ -3720,6 +3692,49 @@ export default function NodePropertiesPane({ currentChannelId }) {
                   style={inputStyle} 
                   placeholder="e.g. VIP, Demo Requested, Qualified" 
                 />
+              </div>
+            )}
+
+            {['release_booking', 'cancel_booking'].includes(localData.actionType) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px', padding: '12px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: '700', color: '#991B1B', marginBottom: '4px' }}>
+                    ❌ Atomic Slot Release
+                  </div>
+                  <p style={{ fontSize: '12px', color: '#B91C1C', margin: 0, lineHeight: '1.4' }}>
+                    Safely releases the customer's upcoming active booking slot and returns capacity immediately to the public availability pool.
+                  </p>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                    Specific Allocation ID (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    name="allocationId"
+                    value={localData.allocationId || ''}
+                    onChange={handleLocalChange}
+                    onBlur={handleBlur}
+                    style={inputStyle}
+                    placeholder="e.g. {{booking_allocation_id}} (leave blank to auto-detect)"
+                  />
+                  <div style={{ fontSize: '11px', color: '#6B7280', marginTop: '4px' }}>
+                    If blank, automatically detects the upcoming active booking for this customer's WhatsApp number.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {['lookup_active_booking', 'lookup_booking'].includes(localData.actionType) && (
+              <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: '8px', padding: '12px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#0369A1', marginBottom: '4px' }}>
+                  🔍 Active Booking Auto-Lookup
+                </div>
+                <p style={{ fontSize: '12px', color: '#0284C7', margin: 0, lineHeight: '1.4' }}>
+                  Automatically checks for any upcoming COMMITTED booking for the current customer's phone and populates variables:
+                  <br />
+                  <code>{'{{has_active_booking}}'}</code>, <code>{'{{active_booking_id}}'}</code>, <code>{'{{active_booking_entity_name}}'}</code>, <code>{'{{active_booking_slot_label}}'}</code>.
+                </p>
               </div>
             )}
             {localData.actionType === 'update_contact' && (
@@ -4016,6 +4031,61 @@ export default function NodePropertiesPane({ currentChannelId }) {
           onClose={() => setIsGuideOpen(false)}
           nodeType={type}
         />
+      )}
+
+      {isStandeeModalOpen && (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }} 
+          onClick={() => setIsStandeeModalOpen(false)}
+        >
+          <div 
+            style={{
+              background: 'white',
+              borderRadius: '16px',
+              width: '900px',
+              maxWidth: '95vw',
+              maxHeight: '92vh',
+              overflowY: 'auto',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              padding: '24px',
+              position: 'relative'
+            }} 
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '700', color: '#0F172A' }}>
+                📱 WhatsApp QR Code Designer
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsStandeeModalOpen(false)}
+                style={{ background: '#F1F5F9', border: 'none', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}
+              >
+                ✕ Close
+              </button>
+            </div>
+            <StandeeQrGenerator
+              localData={localData}
+              updateNodeData={updateNodeData}
+              id={id}
+              channelPhone={channelPhone}
+              inputStyle={inputStyle}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

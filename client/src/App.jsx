@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 import { Suspense, lazy, useState, memo, useEffect, useContext } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate, Outlet } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate, useSearchParams, Outlet } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ToastContainer } from "react-toastify";
@@ -16,7 +16,9 @@ import PublicRoute from "./components/PublicRoute";
 import WhatsAppConfig from "./pages/setting/Wapi";
 import LazyOnboardingModal from "./components/LazyOnboardingModal";
 import ConnectWhatsAppModal from "./components/Modol/ConnectWhatsAppModal";
+import QrConnectModal from "./components/Modol/QrConnectModal";
 import PlanGuard from "./components/common/PlanGuard";
+import MetaRouteGuard from "./components/common/MetaRouteGuard";
 import { userContext } from "./context/Context";
 
 
@@ -156,6 +158,17 @@ Placeholder.propTypes = {
 // --- LAYOUT WRAPPER ---
 const AppLayout = memo(() => {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+
+  // Auto open QR modal if user registered via Free QR flow
+  useEffect(() => {
+    if (searchParams.get("welcome_qr") === "true") {
+      setIsQrModalOpen(true);
+      searchParams.delete("welcome_qr");
+      setSearchParams(searchParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   
   // Collapse sidebar by default on specific pages
   const isPricingPage = location.pathname === "/admin/plan/upgrade" || location.pathname === "/admin/plan/contact-sales" || location.pathname === "/admin/contact-sales";
@@ -188,8 +201,9 @@ const AppLayout = memo(() => {
 
   const showExpiryLock = isPlanExpired && !isPlanAllowedRoute;
 
+  const isFreeTier = user?.whatsappChannelType === "free_qr";
   const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  const showWhatsAppLock = !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
+  const showWhatsAppLock = !isFreeTier && !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">
@@ -203,6 +217,12 @@ const AppLayout = memo(() => {
           user={user}
         />
       )}
+
+      {/* QR Connect Modal for Free Tier WhatsApp */}
+      <QrConnectModal
+        isOpen={isQrModalOpen}
+        onClose={() => setIsQrModalOpen(false)}
+      />
       
       {/* 1. Sidebar now stretches full height as the first child of the flex-row */}
       {!isChangePasswordPage && !showWhatsAppLock && (
@@ -343,27 +363,27 @@ function App() {
           <Route path="/admin/contacts/import"     element={<ImportContacts />} />
           <Route path="/admin/contacts/map-fields" element={<MapFields />} />
           <Route path="/admin/contacts/review"     element={<ReviewSummary />} />
-          {/* 5. Templates */}
-          <Route path="/admin/templates/list" element={<Templates />} />
-          <Route path="/admin/campaigns/templates" element={<Templates />} />
+          {/* 5. Templates (Meta WABA Required) */}
+          <Route path="/admin/templates/list" element={<MetaRouteGuard featureName="Message Templates"><Templates /></MetaRouteGuard>} />
+          <Route path="/admin/campaigns/templates" element={<MetaRouteGuard featureName="Message Templates"><Templates /></MetaRouteGuard>} />
           <Route
             path="/admin/templates/gallery"
-            element={<TemplatesGallery />}
+            element={<MetaRouteGuard featureName="Template Gallery"><TemplatesGallery /></MetaRouteGuard>}
           />
           <Route
             path="/admin/templates/create"
-            element={<CreateTemplate />}
+            element={<MetaRouteGuard featureName="Create Template"><CreateTemplate /></MetaRouteGuard>}
           />
-          {/* 6. Campaigns */}
-          <Route path="/admin/campaign" element={<Campaign />} />
-          <Route path="/admin/campaigns" element={<Campaign />} />
-          <Route path="/admin/campaign/:id" element={<Campaign />} />
-          <Route path="/admin/campaigns/:id" element={<Campaign />} />
-          <Route path="/admin/campaign/create" element={<CreateCampaign />} />
-          <Route path="/admin/campaign-success" element={<CampaignLaunchSuccess />} />
+          {/* 6. Campaigns (Meta WABA Required) */}
+          <Route path="/admin/campaign" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
+          <Route path="/admin/campaigns" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
+          <Route path="/admin/campaign/:id" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
+          <Route path="/admin/campaigns/:id" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
+          <Route path="/admin/campaign/create" element={<MetaRouteGuard featureName="Create Campaign"><CreateCampaign /></MetaRouteGuard>} />
+          <Route path="/admin/campaign-success" element={<MetaRouteGuard featureName="Campaign Launch"><CampaignLaunchSuccess /></MetaRouteGuard>} />
           <Route
             path="/admin/campaigns/bulk"
-            element={<Placeholder title="Bulk Send" />}
+            element={<MetaRouteGuard featureName="Bulk Send"><Placeholder title="Bulk Send" /></MetaRouteGuard>}
           />
           {/* 7. Commerce (Requires Growth plan and above) */}
           <Route
@@ -390,13 +410,14 @@ function App() {
               </PlanGuard>
             }
           />
-          {/* 8. Automation */}
-          <Route path="/admin/automation" element={<Automation />} />
-          <Route path="/admin/automation/:id" element={<AutomationBuilder />} />
+          {/* 8. Automation (Meta WABA Required) */}
+          <Route path="/admin/automation" element={<MetaRouteGuard featureName="Flow Automation"><Automation /></MetaRouteGuard>} />
+          <Route path="/admin/automation/:id" element={<MetaRouteGuard featureName="Automation Builder"><AutomationBuilder /></MetaRouteGuard>} />
+          <Route path="/admin/automation/builder" element={<MetaRouteGuard featureName="Automation Builder"><AutomationBuilder /></MetaRouteGuard>} />
           {/* 9. Analytics */}
           <Route
             path="/admin/analytic/campaign"
-            element={<CampaignAnalytics />}
+            element={<MetaRouteGuard featureName="Campaign Analytics"><CampaignAnalytics /></MetaRouteGuard>}
           />
           <Route
             path="/admin/analytic"
@@ -413,9 +434,11 @@ function App() {
           <Route
             path="/admin/analytic/template"
             element={
-              <PlanGuard feature="templateAnalytics" title="Template Analytics">
-                <TemplateAnalytics />
-              </PlanGuard>
+              <MetaRouteGuard featureName="Template Analytics">
+                <PlanGuard feature="templateAnalytics" title="Template Analytics">
+                  <TemplateAnalytics />
+                </PlanGuard>
+              </MetaRouteGuard>
             }
           />
           <Route
@@ -464,7 +487,7 @@ function App() {
             }
           />
           {/* 11. Settings */}
-          <Route path="/admin/settings/onboarding" element={<SettingsOnboarding />} />
+          <Route path="/admin/settings/onboarding" element={<MetaRouteGuard featureName="Meta Onboarding"><SettingsOnboarding /></MetaRouteGuard>} />
           <Route path="/admin/settings/whatsapp" element={<Wapi />} />
           <Route path="/admin/settings/media" element={<Media />} />
           <Route path="/admin/settings/teams" element={<ManageTeams />} />

@@ -8,12 +8,13 @@ const {
   updateCampaignStats,
   sendCampaign
 } = require('../controllers/campaignController');
-const { protect } = require('../middleware/auth');
+const { protect, requireMetaPro } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Protect all campaign routes
+// Protect all campaign routes (Authentication + Meta WABA requirement)
 router.use(protect);
+router.use(requireMetaPro);
 
 /**
  * @swagger

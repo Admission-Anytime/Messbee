@@ -175,7 +175,7 @@ const Chat = () => {
           original: s
         })));
         const replies = await QuickReplyApi.getQuickReplies();
-        setQuickReplies(replies);
+        setQuickReplies(Array.isArray(replies) ? replies : (Array.isArray(replies?.data) ? replies.data : []));
       } catch (error) {
         console.error("Error fetching dynamic chat data:", error);
       }

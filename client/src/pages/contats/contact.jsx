@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useContext } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
+import chatService from "../../services/chatService";
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -678,7 +679,7 @@ function EditContactModal({ contact, onClose, onSave, customFields = [], labels 
 }
 
 /* ─── Contact Profile Side Panel ─────────────────────────────────────────────── */
-function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields = [], statuses = [], labels = [], canEdit = true, canDelete = true }) {
+function ContactProfilePanel({ contact, onClose, onEdit, onDelete, onStartChat, customFields = [], statuses = [], labels = [], canEdit = true, canDelete = true }) {
   if (!contact) return null;
 
   const infoRows = [
@@ -761,17 +762,25 @@ function ContactProfilePanel({ contact, onClose, onEdit, onDelete, customFields 
           </>
         )}
       </div>
-      <div className="px-4 py-4 border-t border-gray-100 flex gap-2">
-        {canEdit && (
-          <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>Edit
-          </button>
-        )}
-        {canDelete && (
-          <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 bg-red-50 border border-red-100 rounded-xl text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Delete
-          </button>
-        )}
+      <div className="px-4 py-3 border-t border-gray-100 flex flex-col gap-2">
+        <button
+          onClick={() => onStartChat && onStartChat(contact)}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-emerald-500 hover:bg-emerald-600 rounded-xl text-sm font-semibold text-white transition-colors cursor-pointer shadow-xs"
+        >
+          <ChatBubbleLeftIcon className="h-4 w-4" /> Message on WhatsApp
+        </button>
+        <div className="flex gap-2">
+          {canEdit && (
+            <button onClick={onEdit} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>Edit
+            </button>
+          )}
+          {canDelete && (
+            <button onClick={onDelete} className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-red-50 border border-red-100 rounded-xl text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>Delete
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1894,12 +1903,30 @@ export default function ContactsCRM() {
   };
 
   const handleSendCampaign = () => {
+    if (user?.whatsappChannelType === "free_qr") {
+      showToast("info", "Meta Business Account Required", "Broadcasting campaigns requires a verified Meta WhatsApp Business Account (WABA). Free QR users can chat directly via Chats.");
+      return;
+    }
     navigate("/admin/campaign/create", {
       state: {
         selectedContactIds: selectedRows,
         source: "contacts_bulk_action"
       }
     });
+  };
+
+  const handleStartChat = async (contact) => {
+    const phone = contact.whatsapp || contact.phone;
+    if (!phone) {
+      showToast("error", "No Phone Number", "This contact doesn't have a valid WhatsApp phone number.");
+      return;
+    }
+    try {
+      await chatService.createChat(contact.name || phone, phone);
+      navigate("/admin/chat");
+    } catch (err) {
+      showToast("error", "Chat Error", err?.response?.data?.message || err.message || "Failed to open chat");
+    }
   };
 
   const handleBulkExport = () => {
@@ -2299,6 +2326,7 @@ export default function ContactsCRM() {
               onClose={() => setProfileContact(null)}
               onEdit={() => setEditingContact(profileContact)}
               onDelete={() => handleDeleteSingle(profileContact._id)}
+              onStartChat={handleStartChat}
               customFields={allCustomFields}
               statuses={allStatuses}
               labels={labelConfig}

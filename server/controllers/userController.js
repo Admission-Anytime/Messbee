@@ -62,6 +62,14 @@ exports.getAccountLimits = async (req, res, next) => {
       console.error(err);
     }
 
+    let chatbotsCount = 0;
+    try {
+      const Automation = require('../models/Automation');
+      chatbotsCount = await Automation.countDocuments({ tenantId });
+    } catch(err) {
+      console.error(err);
+    }
+
     res.status(200).json({
       success: true,
       data: {
@@ -75,7 +83,7 @@ exports.getAccountLimits = async (req, res, next) => {
         storage: { used: 45, limit: 100, isPercent: true }, // mock percent for now
         activeFeatures: {
           campaigns: { used: campaignsCount, limit: limits.campaigns === -1 ? 'Unlimited' : limits.campaigns },
-          chatbots: { used: 7, limit: limits.chatbots }, // Mocking chatbots since there's no model
+          chatbots: { used: chatbotsCount, limit: limits.chatbots === -1 ? 'Unlimited' : limits.chatbots },
         },
         developerTools: {
           apiAccess: { active: limits.features?.restApiCalls || false, version: 'v2.0' },

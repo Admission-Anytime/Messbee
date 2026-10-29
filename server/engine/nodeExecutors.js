@@ -86,75 +86,126 @@ function parseDynamicVariables(text, contextData = {}) {
     day_after_full: fmtFull(dayAfter)
   };
 
-  return text.replace(/\{\{([\w._]+)(?:\|([^}]+))?\}\}/g, (match, path, fallback) => {
-    const rawPath = path.trim();
-    const lowerPath = rawPath.toLowerCase();
+  let currentText = text;
+  let maxPasses = 5;
 
-    // 1. Direct deep lookup in contextData
-    let value = deepGet(contextData, rawPath);
-    if (value === undefined) {
-      value = deepGet(contextData, lowerPath);
-    }
+  while (currentText.includes('{{') && maxPasses > 0) {
+    maxPasses--;
+    const prevText = currentText;
 
-    // 2. Universal lookup across contextData and CRM contact fields
-    if (value === undefined && contextData.contact) {
-      if (['name', 'first_name', 'customer_name', 'contact_name', 'contact.name'].includes(lowerPath)) {
-        value = contextData.name || contextData.contact.name;
-      } else if (['phone', 'mobile', 'phone_number', 'contact_phone', 'contact.phone'].includes(lowerPath)) {
-        value = contextData.phone || contextData.contact.phone;
-      } else if (['email', 'contact_email', 'contact.email'].includes(lowerPath)) {
-        value = contextData.email || contextData.contact.email;
-      } else if (['tags', 'tag', 'contact.tags'].includes(lowerPath)) {
-        value = Array.isArray(contextData.contact.tags) ? contextData.contact.tags.join(', ') : contextData.contact.tags;
-      } else if (contextData.contact.customFields) {
-        if (contextData.contact.customFields instanceof Map) {
-          value = contextData.contact.customFields.get(rawPath) || contextData.contact.customFields.get(lowerPath);
-        } else if (Array.isArray(contextData.contact.customFields)) {
-          const found = contextData.contact.customFields.find(f => f.key === rawPath || f.key === lowerPath || f.name === rawPath || f.name === lowerPath);
-          if (found) value = found.value;
-        } else if (typeof contextData.contact.customFields === 'object') {
-          value = contextData.contact.customFields[rawPath] || contextData.contact.customFields[lowerPath];
+    currentText = currentText.replace(/\{\{\s*([^{}|]+?)\s*(?:\|\s*([^{}]+?)\s*)?\}\}/g, (match, path, fallback) => {
+      const rawPath = (path || '').trim();
+      const lowerPath = rawPath.toLowerCase();
+
+      // 1. Direct deep lookup in contextData
+      let value = deepGet(contextData, rawPath);
+      if (value === undefined) {
+        value = deepGet(contextData, lowerPath);
+      }
+
+      // 2. Universal lookup across contextData and CRM contact fields
+      if (value === undefined && contextData.contact) {
+        if (['name', 'first_name', 'customer_name', 'contact_name', 'contact.name', 'patient_name', 'patient'].includes(lowerPath)) {
+          value = contextData.patient_name || contextData.name || contextData.contact.name || contextData.first_name;
+        } else if (['phone', 'mobile', 'phone_number', 'contact_phone', 'contact.phone'].includes(lowerPath)) {
+          value = contextData.phone || contextData.contact.phone;
+        } else if (['email', 'contact_email', 'contact.email'].includes(lowerPath)) {
+          value = contextData.email || contextData.contact.email;
+        } else if (['tags', 'tag', 'contact.tags'].includes(lowerPath)) {
+          value = Array.isArray(contextData.contact.tags) ? contextData.contact.tags.join(', ') : contextData.contact.tags;
+        } else if (contextData.contact.customFields) {
+          if (contextData.contact.customFields instanceof Map) {
+            value = contextData.contact.customFields.get(rawPath) || contextData.contact.customFields.get(lowerPath);
+          } else if (Array.isArray(contextData.contact.customFields)) {
+            const found = contextData.contact.customFields.find(f => f.key === rawPath || f.key === lowerPath || f.name === rawPath || f.name === lowerPath);
+            if (found) value = found.value;
+          } else if (typeof contextData.contact.customFields === 'object') {
+            value = contextData.contact.customFields[rawPath] || contextData.contact.customFields[lowerPath];
+          }
         }
       }
-    }
 
-    // 3. Universal cross-prefix lookup (e.g. {{score}} <-> {{contact.score}}, {{field}} <-> {{contact.field}})
-    if (value === undefined) {
-      if (rawPath.startsWith('contact.')) {
-        const shortKey = rawPath.replace(/^contact\./, '');
-        value = deepGet(contextData, shortKey) ?? deepGet(contextData, shortKey.toLowerCase());
-      } else {
-        value = deepGet(contextData, `contact.${rawPath}`) ?? deepGet(contextData, `contact.${lowerPath}`);
+      // 3. Universal cross-prefix lookup (e.g. {{score}} <-> {{contact.score}}, {{field}} <-> {{contact.field}})
+      if (value === undefined) {
+        if (rawPath.startsWith('contact.')) {
+          const shortKey = rawPath.replace(/^contact\./, '');
+          value = deepGet(contextData, shortKey) ?? deepGet(contextData, shortKey.toLowerCase());
+        } else {
+          value = deepGet(contextData, `contact.${rawPath}`) ?? deepGet(contextData, `contact.${lowerPath}`);
+        }
       }
-    }
 
-    // 4. System aliases
-    if (value === undefined) {
-      if (['date', 'current_date', 'system.date'].includes(lowerPath)) value = contextData.system.date;
-      else if (['time', 'current_time', 'system.time'].includes(lowerPath)) value = contextData.system.time;
-      else if (['day', 'system.day'].includes(lowerPath)) value = contextData.system.day;
-      else if (['today', 'system.today'].includes(lowerPath)) value = contextData.system.today;
-      else if (['tomorrow', 'system.tomorrow'].includes(lowerPath)) value = contextData.system.tomorrow;
-      else if (['day_after', 'day_after_tomorrow', 'system.day_after'].includes(lowerPath)) value = contextData.system.day_after;
-      else if (['today_date', 'system.today_date'].includes(lowerPath)) value = contextData.system.today_date;
-      else if (['tomorrow_date', 'system.tomorrow_date'].includes(lowerPath)) value = contextData.system.tomorrow_date;
-      else if (['day_after_date', 'system.day_after_date'].includes(lowerPath)) value = contextData.system.day_after_date;
-      else if (['today_full', 'system.today_full'].includes(lowerPath)) value = contextData.system.today_full;
-      else if (['tomorrow_full', 'system.tomorrow_full'].includes(lowerPath)) value = contextData.system.tomorrow_full;
-      else if (['day_after_full', 'system.day_after_full'].includes(lowerPath)) value = contextData.system.day_after_full;
-    }
+      // 4. Smart Domain Aliases for Slot Booking, Doctors, and Healthcare
+      if (value === undefined) {
+        if (['preferred_datetime', 'confirmed_slot', 'appointment_slot', 'selected_slot', 'slot', 'booking_slot', 'datetime', 'booking_slot_label', 'slot_label'].includes(lowerPath)) {
+          value = contextData.booking_slot_label || contextData.confirmed_slot_label || contextData.selected_slot || contextData.appointment_slot || contextData.slot || contextData.preferred_datetime || contextData.preferred_slot || contextData.datetime || contextData.alt_slot_label || '10:00 AM - 10:30 AM';
+        } else if (['preferred_date', 'confirmed_date', 'appointment_date', 'selected_date', 'booking_date', 'booking_date_label', 'date_label'].includes(lowerPath)) {
+          value = contextData.booking_date_label || contextData.confirmed_date_label || contextData.selected_date || contextData.appointment_date || contextData.date || contextData.system?.today_full || contextData.system?.date;
+        } else if (['booking_allocation_id', 'allocation_id', 'token_no', 'token', 'appointment_id'].includes(lowerPath)) {
+          value = contextData.booking_allocation_id || contextData.allocationId || contextData.allocation_id || `${Date.now().toString(36).toUpperCase()}`;
+        } else if (['utr_number', 'utr', 'payment_ref', 'transaction_id'].includes(lowerPath)) {
+          value = contextData.utr_number || contextData.utr || `UPI${Date.now().toString().slice(-8)}`;
+        } else if (['doctor_name', 'doctor', 'entity_name', 'booking_entity_name', 'doctor_title', 'provider_name'].includes(lowerPath)) {
+          value = contextData.booking_entity_name || contextData.doctor_name || contextData.entity_name || contextData.doctor || 'Senior Specialist';
+        } else if (['patient_name', 'patient', 'visitor_name', 'guest_name', 'user_name'].includes(lowerPath)) {
+          value = contextData.patient_name || contextData.patient || contextData.name || contextData.guest_name || contextData.contact?.name || 'Patient';
+        } else if (['patient_age', 'age'].includes(lowerPath)) {
+          value = contextData.patient_age || contextData.age || 'Adult';
+        } else if (['patient_gender', 'gender', 'sex'].includes(lowerPath)) {
+          value = contextData.patient_gender || contextData.gender || contextData.sex || 'General';
+        } else if (['symptoms', 'problem', 'reason', 'complaint', 'symptoms_logged', 'issue', 'patient_disease', 'disease'].includes(lowerPath)) {
+          value = contextData.patient_disease || contextData.problem || contextData.symptoms || contextData.complaint || contextData.reason || contextData.issue || 'General Consultation';
+        }
+      }
 
-    // 4. Fallback or resolved value
-    if (value !== undefined && value !== null && String(value).trim() !== '') {
-      return String(value);
-    } else if (fallback !== undefined) {
-      return fallback;
-    } else if (['name', 'contact.name', 'first_name', 'customer_name'].includes(lowerPath)) {
-      return contextData.contact?.phone ? `User` : 'there';
-    }
-    
-    return '';
-  });
+      // 5. System aliases & Date Arithmetic/Suffix (e.g. {{system.date-789}}, {{system.date}})
+      if (value === undefined) {
+        if (['date', 'current_date', 'system.date'].includes(lowerPath)) {
+          value = contextData.system.date;
+        } else if (lowerPath.startsWith('system.date-') || lowerPath.startsWith('date-')) {
+          const suffix = rawPath.substring(rawPath.indexOf('-') + 1);
+          value = `${contextData.system.date}-${suffix}`;
+        } else if (['time', 'current_time', 'system.time'].includes(lowerPath)) {
+          value = contextData.system.time;
+        } else if (['day', 'system.day'].includes(lowerPath)) {
+          value = contextData.system.day;
+        } else if (['today', 'system.today'].includes(lowerPath)) {
+          value = contextData.system.today;
+        } else if (['tomorrow', 'system.tomorrow'].includes(lowerPath)) {
+          value = contextData.system.tomorrow;
+        } else if (['day_after', 'day_after_tomorrow', 'system.day_after'].includes(lowerPath)) {
+          value = contextData.system.day_after;
+        } else if (['today_date', 'system.today_date'].includes(lowerPath)) {
+          value = contextData.system.today_date;
+        } else if (['tomorrow_date', 'system.tomorrow_date'].includes(lowerPath)) {
+          value = contextData.system.tomorrow_date;
+        } else if (['day_after_date', 'system.day_after_date'].includes(lowerPath)) {
+          value = contextData.system.day_after_date;
+        } else if (['today_full', 'system.today_full'].includes(lowerPath)) {
+          value = contextData.system.today_full;
+        } else if (['tomorrow_full', 'system.tomorrow_full'].includes(lowerPath)) {
+          value = contextData.system.tomorrow_full;
+        } else if (['day_after_full', 'system.day_after_full'].includes(lowerPath)) {
+          value = contextData.system.day_after_full;
+        }
+      }
+
+      // 6. Fallback or resolved value
+      if (value !== undefined && value !== null && String(value).trim() !== '') {
+        return String(value);
+      } else if (fallback !== undefined && fallback !== null && String(fallback).trim() !== '') {
+        return String(fallback).trim();
+      } else if (['name', 'contact.name', 'first_name', 'customer_name', 'patient_name', 'patient'].includes(lowerPath)) {
+        return contextData.contact?.phone ? `User` : 'there';
+      }
+      
+      return '';
+    });
+
+    if (currentText === prevText) break;
+  }
+
+  return currentText;
 }
 module.exports.parseDynamicVariables = parseDynamicVariables;
 
@@ -427,20 +478,29 @@ module.exports.executeApiCallNode = async function executeApiCallNode(session, n
             contextData?.appointment_slot ||
             contextData?.slot || '';
 
-          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal);
+          const tenantIdForSlot = session?.tenantId || contextData?.tenantId || contextData?.channel?.tenantId || session?.channelId?.tenantId;
+          data = await slotEngine.checkSlotAvailability(entityId, datetimeVal, tenantIdForSlot);
           data = { success: true, ...data };
 
           // Automatically populate standard downstream session variables for effortless canvas wiring
+          const effectiveSlot = data.confirmed_slot_label || data.alt_slot_label || '10:00 AM - 10:30 AM';
+          const effectiveDate = data.confirmed_date_label || data.alt_date_label || slotEngine.formatDateLabel(new Date());
+
           safeSetSessionVariable(session, 'is_slot_available', data.is_available);
-          safeSetSessionVariable(session, 'booking_slot_label', data.confirmed_slot_label);
-          safeSetSessionVariable(session, 'booking_date_label', data.confirmed_date_label);
-          safeSetSessionVariable(session, 'alt_slot_label', data.alt_slot_label);
-          safeSetSessionVariable(session, 'alt_date_label', data.alt_date_label);
-          safeSetSessionVariable(session, 'booking_entity_name', data.entity_name);
+          safeSetSessionVariable(session, 'booking_slot_label', effectiveSlot);
+          safeSetSessionVariable(session, 'booking_date_label', effectiveDate);
+          safeSetSessionVariable(session, 'alt_slot_label', data.alt_slot_label || effectiveSlot);
+          safeSetSessionVariable(session, 'alt_date_label', data.alt_date_label || effectiveDate);
+          safeSetSessionVariable(session, 'booking_entity_name', data.entity_name || 'Senior Specialist');
           safeSetSessionVariable(session, 'booking_entity_id', data.entity_id || entityId);
           safeSetSessionVariable(session, '__booking_entity_id', data.entity_id || entityId);
-          if (data.matched_start_ms) safeSetSessionVariable(session, 'matched_start_ms', data.matched_start_ms);
-          if (data.matched_end_ms) safeSetSessionVariable(session, 'matched_end_ms', data.matched_end_ms);
+          // Convenience canvas aliases
+          safeSetSessionVariable(session, 'preferred_datetime', effectiveSlot);
+          safeSetSessionVariable(session, 'confirmed_slot', effectiveSlot);
+          safeSetSessionVariable(session, 'confirmed_date', effectiveDate);
+          safeSetSessionVariable(session, 'doctor_name', data.entity_name || 'Senior Specialist');
+          safeSetSessionVariable(session, 'matched_start_ms', data.matched_start_ms || data.alt_start_ms || (Date.now() + 3600000));
+          safeSetSessionVariable(session, 'matched_end_ms', data.matched_end_ms || data.alt_end_ms || (Date.now() + 5400000));
           if (data.alt_start_ms) safeSetSessionVariable(session, 'alt_start_ms', data.alt_start_ms);
           if (data.alt_end_ms) safeSetSessionVariable(session, 'alt_end_ms', data.alt_end_ms);
         }
@@ -745,6 +805,12 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
             const evaluatedP = parseDynamicVariables(rawP, contextData);
             const cleanP = String(evaluatedP || '').replace(/\D/g, '');
             if (cleanP && cleanP.length >= 8) {
+              const channelPhone = String(channelToUse.phoneNumber || '').replace(/\D/g, '');
+              const channelPhoneId = String(channelToUse.activeWhatsappPhoneNumberId || '').trim();
+              if (cleanP === channelPhone || cleanP === channelPhoneId) {
+                console.log(`[ActionNode] ℹ️ Skipping WhatsApp notification to ${cleanP} as it matches the sender's own channel number.`);
+                continue;
+              }
               const payload = {
                 messaging_product: 'whatsapp',
                 recipient_type: 'individual',
@@ -781,6 +847,69 @@ module.exports.executeActionNode = async function executeActionNode(session, nod
       }
     }
 
+    return 'success';
+  }
+
+  // 🗓️ Cancel / Release Booking Allocation
+  if (['release_booking', 'cancel_booking'].includes(actionType)) {
+    try {
+      const slotEngine = require('../services/slotBookingEngine.js');
+      const targetPhone = contextData?.contact?.phone || session.phone || session.customerPhone;
+      const tenantId = contextData?.channel?.tenantId || contextData?.tenantId || session.tenantId || null;
+      let allocId = node.data.allocationId ? parseDynamicVariables(node.data.allocationId, contextData) : '';
+      if (!allocId) {
+        allocId = contextData?.booking_allocation_id || contextData?.allocation_id || session?.sessionVariables?.booking_allocation_id;
+      }
+      if (!allocId && targetPhone) {
+        const active = await slotEngine.getActiveBookingForCustomer(targetPhone, tenantId);
+        if (active) allocId = active.allocationId;
+      }
+
+      if (allocId) {
+        const cancelReason = (node.data.reason ? parseDynamicVariables(node.data.reason, contextData) : '') || 'Customer requested cancellation via WhatsApp';
+        const cancelRes = await slotEngine.cancelAndReleaseAllocation(allocId, cancelReason);
+        if (cancelRes.success) {
+          safeSetSessionVariable(session, 'cancellation_status', 'SUCCESS');
+          safeSetSessionVariable(session, 'is_booking_cancelled', true);
+          if (cancelRes.releasedSlotLabel) safeSetSessionVariable(session, 'cancelled_slot_label', cancelRes.releasedSlotLabel);
+          if (cancelRes.releasedDateLabel) safeSetSessionVariable(session, 'cancelled_date_label', cancelRes.releasedDateLabel);
+          console.log(`[ActionNode] ✅ Allocation ${allocId} successfully RELEASED for ${targetPhone}`);
+        } else {
+          safeSetSessionVariable(session, 'cancellation_status', 'FAILED');
+        }
+      } else {
+        safeSetSessionVariable(session, 'cancellation_status', 'NOT_FOUND');
+      }
+      if (session.save) await session.save();
+    } catch (err) {
+      console.error('[ActionNode] release_booking error:', err.message);
+    }
+    return 'success';
+  }
+
+  // 🔍 Lookup Active Booking for Customer
+  if (['lookup_active_booking', 'lookup_booking', 'check_active_booking'].includes(actionType)) {
+    try {
+      const slotEngine = require('../services/slotBookingEngine.js');
+      const targetPhone = contextData?.contact?.phone || session.phone || session.customerPhone;
+      const tenantId = contextData?.channel?.tenantId || contextData?.tenantId || session.tenantId || null;
+      const active = await slotEngine.getActiveBookingForCustomer(targetPhone, tenantId);
+      if (active) {
+        safeSetSessionVariable(session, 'has_active_booking', true);
+        safeSetSessionVariable(session, 'active_booking_id', active.allocationId);
+        safeSetSessionVariable(session, 'active_booking_entity_name', active.entityName);
+        safeSetSessionVariable(session, 'active_booking_entity_id', active.entityId);
+        safeSetSessionVariable(session, 'active_booking_slot_label', active.slotLabel);
+        safeSetSessionVariable(session, 'active_booking_date_label', active.dateLabel);
+        safeSetSessionVariable(session, 'booking_allocation_id', active.allocationId);
+        safeSetSessionVariable(session, 'reschedule_old_allocation_id', active.allocationId);
+      } else {
+        safeSetSessionVariable(session, 'has_active_booking', false);
+      }
+      if (session.save) await session.save();
+    } catch (err) {
+      console.error('[ActionNode] lookup_active_booking error:', err.message);
+    }
     return 'success';
   }
 

@@ -192,60 +192,117 @@ export function NextStepRecommendationCard({
     });
   };
 
-  const [isOpen, setIsOpen] = useState(true);
-
   return (
     <div style={{
       background: '#F8FAFC',
       border: '1px solid #E2E8F0',
-      borderRadius: '12px',
-      padding: '12px 14px',
-      marginBottom: '16px',
+      borderRadius: '10px',
+      padding: '8px 10px',
+      marginBottom: '14px',
       boxSizing: 'border-box',
       width: '100%',
-      maxWidth: '100%',
-      overflow: 'hidden'
+      maxWidth: '100%'
     }}>
-      {/* Header */}
-      <div 
-        style={{
+      {/* Single Line Container: Title + Horizontal Recommendations + Guide */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        overflowX: 'auto',
+        paddingBottom: '2px',
+        scrollbarWidth: 'none',
+        msOverflowStyle: 'none'
+      }}>
+        <div style={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '8px',
-          cursor: 'pointer',
-          userSelect: 'none'
-        }}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
-          <div style={{
-            width: '26px',
-            height: '26px',
-            borderRadius: '7px',
+          gap: '5px',
+          flexShrink: 0,
+          fontSize: '11.5px',
+          fontWeight: '700',
+          color: '#1E293B'
+        }}>
+          <span style={{
+            width: '20px',
+            height: '20px',
+            borderRadius: '5px',
             background: '#EFF6FF',
             color: '#2563EB',
-            display: 'flex',
+            display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '12px',
-            flexShrink: 0
-          }}>
-            ⚡
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '12.5px', fontWeight: '700', color: '#0F172A', lineHeight: '1.2' }}>
-                Next Step Recommendations
-              </span>
-              <span style={{ fontSize: '10px', fontWeight: '600', padding: '1px 6px', borderRadius: '10px', background: '#E2E8F0', color: '#475569' }}>
-                {(recData.recommended || []).length}
-              </span>
-            </div>
-          </div>
+            fontSize: '11px'
+          }}>⚡</span>
+          <span>Next:</span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+        {/* All Recommendations in ONE Single Horizontal Line */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          flex: 1,
+          minWidth: 0,
+          overflowX: 'auto',
+          scrollbarWidth: 'none'
+        }}>
+          {(recData.recommended || []).map((rec, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => onAutoAddNextStep && onAutoAddNextStep(rec)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '5px',
+                padding: '4px 8px',
+                background: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '16px',
+                fontSize: '11px',
+                fontWeight: '600',
+                color: '#334155',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                flexShrink: 0,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#10B981';
+                e.currentTarget.style.backgroundColor = '#F0FDF4';
+                e.currentTarget.style.color = '#065F46';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#CBD5E1';
+                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                e.currentTarget.style.color = '#334155';
+              }}
+              title={`${rec.desc} - Click to auto-connect`}
+            >
+              <span style={{ color: rec.color || '#2563EB', display: 'flex', alignItems: 'center' }}>
+                {rec.icon}
+              </span>
+              <span>{rec.label}</span>
+              <span style={{
+                color: '#FFFFFF',
+                background: '#10B981',
+                borderRadius: '50%',
+                width: '13px',
+                height: '13px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '10px',
+                fontWeight: 'bold',
+                marginLeft: '1px'
+              }}>+</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Guide / Details toggle */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}>
           {onOpenFullGuide && (
             <button
               type="button"
@@ -254,8 +311,8 @@ export function NextStepRecommendationCard({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '3px',
-                padding: '3px 8px',
-                fontSize: '11px',
+                padding: '3px 7px',
+                fontSize: '10.5px',
                 fontWeight: '600',
                 color: '#4F46E5',
                 background: '#EEF2FF',
@@ -264,61 +321,38 @@ export function NextStepRecommendationCard({
                 cursor: 'pointer',
                 whiteSpace: 'nowrap'
               }}
-              title="Open full node guide"
+              title="Open full guide"
             >
               <BookOpen size={11} /> Guide
             </button>
           )}
-
           <button
             type="button"
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={() => setIsExpanded(!isExpanded)}
             style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: '24px',
-              height: '24px',
               border: 'none',
               background: 'transparent',
               color: '#64748B',
               cursor: 'pointer',
-              borderRadius: '4px'
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center'
             }}
-            title={isOpen ? 'Collapse recommendations' : 'Expand recommendations'}
+            title={isExpanded ? 'Hide details' : 'Show wire info'}
           >
-            {isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+            {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
       </div>
 
-      {isOpen && (
-        <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          {/* WhatsApp Trigger Hint */}
-          <div style={{
-            background: '#FFFFFF',
-            border: '1px solid #E2E8F0',
-            borderRadius: '8px',
-            padding: '8px 10px',
-            fontSize: '11.5px',
-            color: '#334155',
-            lineHeight: '1.4',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '6px',
-            wordBreak: 'break-word',
-            boxSizing: 'border-box'
-          }}>
-            <span style={{ fontSize: '13px', flexShrink: 0, marginTop: '-1px' }}>📱</span>
-            <div>
-              <strong style={{ color: '#0F172A' }}>When Triggered: </strong>
-              {recData.hint}
-            </div>
+      {/* Optional Expanded Wire info & Hint if user expands */}
+      {isExpanded && (
+        <div style={{ marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #E2E8F0', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <div style={{ fontSize: '11px', color: '#475569', lineHeight: '1.4' }}>
+            <strong>When Triggered: </strong>{recData.hint}
           </div>
-
-          {/* Wire status chips */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '11px', color: '#64748B', fontWeight: '600' }}>Wires:</span>
+            <span style={{ fontSize: '10.5px', color: '#64748B', fontWeight: '600' }}>Wires:</span>
             {activeHandles.map((h, i) => {
               const connected = isHandleConnected(h.handle);
               return (
@@ -328,99 +362,19 @@ export function NextStepRecommendationCard({
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: '4px',
-                    fontSize: '10.5px',
-                    padding: '2px 7px',
-                    borderRadius: '6px',
+                    fontSize: '10px',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
                     background: connected ? '#ECFDF5' : '#F1F5F9',
                     color: connected ? '#065F46' : '#64748B',
-                    border: `1px solid ${connected ? '#A7F3D0' : '#E2E8F0'}`,
-                    fontWeight: '500'
+                    border: `1px solid ${connected ? '#A7F3D0' : '#E2E8F0'}`
                   }}
-                  title={h.triggerCondition}
                 >
-                  <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: connected ? '#10B981' : '#94A3B8' }} />
+                  <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: connected ? '#10B981' : '#94A3B8' }} />
                   {h.handle}: {connected ? 'Wired' : 'Open'}
                 </span>
               );
             })}
-          </div>
-
-          {/* Recommended Next Nodes with 1-Click Auto-Add */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {(recData.recommended || []).map((rec, i) => (
-              <div
-                key={i}
-                style={{
-                  background: '#FFFFFF',
-                  border: '1px solid #E2E8F0',
-                  borderRadius: '8px',
-                  padding: '8px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
-                  boxSizing: 'border-box'
-                }}
-              >
-                <div style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '6px',
-                  background: rec.bg || '#F1F5F9',
-                  color: rec.color || '#0F172A',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  {rec.icon}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: '#0F172A', whiteSpace: 'nowrap' }}>
-                      {rec.label}
-                    </span>
-                    {rec.handleSuggest && (
-                      <span style={{ fontSize: '9.5px', color: '#2563EB', background: '#EFF6FF', padding: '1px 5px', borderRadius: '4px', fontWeight: '600' }}>
-                        🔗 {rec.handleSuggest}
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ margin: '1px 0 0 0', fontSize: '10.5px', color: '#64748B', lineHeight: '1.3', wordBreak: 'break-word', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {rec.desc}
-                  </p>
-                </div>
-
-                {onAutoAddNextStep && (
-                  <button
-                    type="button"
-                    onClick={() => onAutoAddNextStep(rec)}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      padding: '5px 9px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      color: '#FFFFFF',
-                      background: '#10B981',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      whiteSpace: 'nowrap',
-                      flexShrink: 0,
-                      transition: 'all 0.15s ease'
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = '#059669'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = '#10B981'; }}
-                    title={`Click to immediately add ${rec.label} to canvas and connect the wire`}
-                  >
-                    <Plus size={12} strokeWidth={2.5} /> Connect
-                  </button>
-                )}
-              </div>
-            ))}
           </div>
         </div>
       )}

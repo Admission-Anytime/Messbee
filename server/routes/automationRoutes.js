@@ -10,12 +10,13 @@ const {
   simulateStart,
   simulateMessage
 } = require('../controllers/automationController');
-const { protect } = require('../middleware/auth');
+const { protect, requireMetaPro } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Protect all automation routes
+// Protect all automation routes (Authentication + Meta WABA requirement)
 router.use(protect);
+router.use(requireMetaPro);
 
 router.route('/')
   .get(getAutomations)

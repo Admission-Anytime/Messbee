@@ -56,6 +56,16 @@ export default function ActionNode({ id, data, selected }) {
                 📱 Alert: {data.recipientPhone || data.targetPhone || 'Configure Recipient'}
               </span>
             )}
+            {['release_booking', 'cancel_booking'].includes(data.actionType) && (
+              <span style={{ fontSize: '11px', color: '#EF4444', background: '#1e293b', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                ❌ Release / Cancel Allocation
+              </span>
+            )}
+            {['lookup_active_booking', 'lookup_booking'].includes(data.actionType) && (
+              <span style={{ fontSize: '11px', color: '#0EA5E9', background: '#1e293b', padding: '2px 8px', borderRadius: '4px', fontWeight: '600' }}>
+                🔍 Find Customer Active Slot
+              </span>
+            )}
           </div>
         </div>
 
@@ -80,6 +90,9 @@ function formatAction(actionType) {
   const map = {
     'notify_whatsapp': 'Send WhatsApp Alert (Staff / Admin)',
     'send_whatsapp_notification': 'Send WhatsApp Alert (Staff / Admin)',
+    'release_booking': 'Cancel / Release Booking',
+    'cancel_booking': 'Cancel / Release Booking',
+    'lookup_active_booking': 'Lookup Active Booking',
     'add_tag': 'Add Tag',
     'remove_tag': 'Remove Tag',
     'human_handoff': 'Human Handoff (Live Chat)',
