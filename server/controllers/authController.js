@@ -230,6 +230,34 @@ exports.verifySignupOTP = async (req, res, next) => {
     user.otpExpiry = undefined;
     user.otpAttempts = 0;
     user.otpBlockedUntil = undefined;
+
+    const isFreeAccount = user.whatsappChannelType === 'free_qr';
+
+    if (isFreeAccount) {
+      // Free QR accounts require Super Admin approval before login
+      user.isApproved = false;
+      user.approvalStatus = 'PENDING';
+      await user.save();
+
+      return res.status(201).json({
+        success: true,
+        message: 'Signup successful! Your account has been submitted for Super Admin approval. You will be able to log in once approved.',
+        pendingApproval: true,
+        data: {
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            whatsappChannelType: 'free_qr',
+            approvalStatus: 'PENDING',
+            isApproved: false
+          }
+        }
+      });
+    }
+
+    user.isApproved = true;
+    user.approvalStatus = 'APPROVED';
     await user.save();
 
     // Send welcome email (async, don't wait)
@@ -247,7 +275,9 @@ exports.verifySignupOTP = async (req, res, next) => {
           id: user._id,
           name: user.name,
           email: user.email,
-          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro',
+          approvalStatus: 'APPROVED',
+          isApproved: true
         }
       }
     });
@@ -292,7 +322,24 @@ exports.requestLoginOTP = async (req, res, next) => {
       });
     }
 
-    // Admin approval no longer blocks login, check removed
+    // Check Free QR account Super Admin approval
+    if (user.whatsappChannelType === 'free_qr') {
+      if (!user.isApproved || user.approvalStatus === 'PENDING') {
+        return res.status(403).json({
+          success: false,
+          pendingApproval: true,
+          message: 'Your Free account is awaiting Super Admin approval. You will be able to log in once approved.'
+        });
+      }
+      if (user.approvalStatus === 'REJECTED') {
+        return res.status(403).json({
+          success: false,
+          pendingApproval: false,
+          rejected: true,
+          message: 'Your Free account registration was rejected by the Super Admin.'
+        });
+      }
+    }
 
     // Check if blocked
     if (isOTPBlocked(user.otpBlockedUntil)) {
@@ -424,51 +471,56 @@ exports.verifyLoginOTP = async (req, res, next) => {
         ],
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
       });
-          tenantWhatsAppConnected = !!channel;
+      tenantWhatsAppConnected = !!channel;
+      if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+        tenantWhatsAppConnected = false;
+      }
 
-          if (tenantWhatsAppConnected) {
-            if (!whatsappConfig) whatsappConfig = {};
-            whatsappConfig.wabaId = whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
-          }
-        } catch(e) {
-          console.error("Error checking WhatsApp status on login", e);
-        }
+      if (tenantWhatsAppConnected) {
+        if (!whatsappConfig) whatsappConfig = {};
+        whatsappConfig.wabaId = whatsappConfig.wabaId || channel?.metadata?.wabaId || 'tenant-connected';
+      }
+    } catch(e) {
+      console.error("Error checking WhatsApp status on login", e);
+    }
 
-        res.status(200).json({
-          success: true,
-          message: 'Login successful',
-          tokens: {
-            accessToken,
-            refreshToken
-          },
-          accessToken,
-          refreshToken,
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      tokens: {
+        accessToken,
+        refreshToken
+      },
+      accessToken,
+      refreshToken,
       tenantWhatsAppConnected,
       data: {
         tenantWhatsAppConnected,
         tokens: {
-              accessToken,
-              refreshToken
-            },
-            accessToken,
-            refreshToken,
-            user: {
-              id: user._id,
-              name: user.name,
-              email: user.email,
-              role: user.role,
-              avatar: user.avatar,
-              phone: user.phone,
-              company: user.company,
-              subscriptionPlan: user.subscriptionPlan,
-              credits: user.credits,
-              subscriptionEndDate: user.subscriptionEndDate,
-              lastLogin: user.lastLogin,
-              whatsappConfig: whatsappConfig,
-              tenantWhatsAppConnected: tenantWhatsAppConnected,
-              whatsappChannelType: user.whatsappChannelType || 'meta_pro'
-            }
-          }
+          accessToken,
+          refreshToken
+        },
+        accessToken,
+        refreshToken,
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          avatar: user.avatar,
+          phone: user.phone,
+          company: user.company,
+          subscriptionPlan: user.subscriptionPlan,
+          credits: user.credits,
+          subscriptionEndDate: user.subscriptionEndDate,
+          lastLogin: user.lastLogin,
+          whatsappConfig: whatsappConfig,
+          tenantWhatsAppConnected: tenantWhatsAppConnected,
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro',
+          approvalStatus: user.approvalStatus || 'APPROVED',
+          wabaApprovalStatus: user.wabaApprovalStatus || 'NONE'
+        }
+      }
         });
   } catch (error) {
     console.error('Verify login OTP error:', error);
@@ -511,7 +563,24 @@ exports.login = async (req, res, next) => {
       });
     }
 
-    // Admin approval no longer blocks login, check removed
+    // Check Free QR account Super Admin approval
+    if (user.whatsappChannelType === 'free_qr') {
+      if (!user.isApproved || user.approvalStatus === 'PENDING') {
+        return res.status(403).json({
+          success: false,
+          pendingApproval: true,
+          message: 'Your Free account is awaiting Super Admin approval. You will be able to log in once approved.'
+        });
+      }
+      if (user.approvalStatus === 'REJECTED') {
+        return res.status(403).json({
+          success: false,
+          pendingApproval: false,
+          rejected: true,
+          message: 'Your Free account registration was rejected by the Super Admin.'
+        });
+      }
+    }
 
     // Check password
     const isPasswordMatch = await user.matchPassword(password);
@@ -549,6 +618,9 @@ exports.login = async (req, res, next) => {
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
       });
       tenantWhatsAppConnected = !!channel;
+      if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+        tenantWhatsAppConnected = false;
+      }
 
       if (tenantWhatsAppConnected) {
         if (!whatsappConfig) whatsappConfig = {};
@@ -567,6 +639,7 @@ exports.login = async (req, res, next) => {
       },
       accessToken,
       refreshToken,
+      tenantWhatsAppConnected,
       data: {
         tenantWhatsAppConnected,
         tokens: {
@@ -589,7 +662,9 @@ exports.login = async (req, res, next) => {
           lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
           tenantWhatsAppConnected: tenantWhatsAppConnected,
-          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro',
+          approvalStatus: user.approvalStatus || 'APPROVED',
+          wabaApprovalStatus: user.wabaApprovalStatus || 'NONE'
         }
       }
     });
@@ -958,6 +1033,9 @@ exports.getMe = async (req, res, next) => {
       });
       
       user.tenantWhatsAppConnected = !!channel;
+      if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+        user.tenantWhatsAppConnected = false;
+      }
 
       // Check QrSession for free_qr users
       if (!user.tenantWhatsAppConnected && user.whatsappChannelType === 'free_qr') {
@@ -1278,6 +1356,9 @@ exports.socialLogin = async (req, res, next) => {
         activeWhatsappPhoneNumberId: { $exists: true, $ne: null }
       });
       tenantWhatsAppConnected = !!channel;
+      if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+        tenantWhatsAppConnected = false;
+      }
 
       if (tenantWhatsAppConnected) {
         if (!whatsappConfig) whatsappConfig = {};
@@ -1320,7 +1401,9 @@ exports.socialLogin = async (req, res, next) => {
           lastLogin: user.lastLogin,
           whatsappConfig: whatsappConfig,
           tenantWhatsAppConnected: tenantWhatsAppConnected,
-          whatsappChannelType: user.whatsappChannelType || 'meta_pro'
+          whatsappChannelType: user.whatsappChannelType || 'meta_pro',
+          approvalStatus: user.approvalStatus || 'APPROVED',
+          wabaApprovalStatus: user.wabaApprovalStatus || 'NONE'
         }
       }
     });

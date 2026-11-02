@@ -58,8 +58,8 @@ const getWABAConfig = async (user) => {
 
   // If user has connected official Meta credentials:
   if (hasMetaCredentials) {
-    // Auto-heal user record in DB if it was previously marked as free_qr
-    if (user && (user.whatsappChannelType === 'free_qr' || !user.tenantWhatsAppConnected)) {
+    // Auto-heal user record in DB if it was previously marked as free_qr (only if approved)
+    if (user && user.wabaApprovalStatus === 'APPROVED' && (user.whatsappChannelType === 'free_qr' || !user.tenantWhatsAppConnected)) {
       const idsToUpdate = [user._id];
       if (tenantId && tenantId.toString() !== user._id.toString()) idsToUpdate.push(tenantId);
       await User.updateMany(
@@ -68,10 +68,11 @@ const getWABAConfig = async (user) => {
       ).catch(() => {});
     }
 
+    const isConnected = user?.wabaApprovalStatus === 'APPROVED';
     return {
       channelType: 'meta_pro',
       isFreeQr: false,
-      isConnected: true,
+      isConnected,
       phoneNumberId,
       accessToken,
       wabaId,

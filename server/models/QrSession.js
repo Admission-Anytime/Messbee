@@ -33,6 +33,10 @@ const qrSessionSchema = new mongoose.Schema({
     type: String,
     default: ''
   },
+  pairingCode: {
+    type: String,
+    default: ''
+  },
   qrExpiresAt: {
     type: Date
   },
