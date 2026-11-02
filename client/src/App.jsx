@@ -203,7 +203,9 @@ const AppLayout = memo(() => {
 
   const isFreeTier = user?.whatsappChannelType === "free_qr";
   const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  const showWhatsAppLock = !isFreeTier && !isWhatsAppConnected && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
+  const isWabaPending = user?.wabaApprovalStatus === "PENDING";
+  const isWabaRejected = user?.wabaApprovalStatus === "REJECTED";
+  const showWhatsAppLock = !isFreeTier && (!isWhatsAppConnected || isWabaPending || isWabaRejected) && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
 
   return (
     <div className="flex h-screen w-screen bg-[#faf9f7] font-['Urbanist'] overflow-hidden relative">

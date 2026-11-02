@@ -29,6 +29,44 @@ if (!fs.existsSync(QR_MEDIA_DIR)) {
 const activeSockets = new Map();
 // Prevent reconnect storms
 const reconnectTimeouts = new Map();
+// Prevent away message spam: Map<tenantId_phone, timestamp>
+const awayMessageCooldowns = new Map();
+
+/**
+ * Helper to determine if current time is outside working hours
+ */
+const checkIsAway = (awaySettings) => {
+  if (!awaySettings || !awaySettings.enabled) return false;
+  if (awaySettings.holidayMode) return true;
+
+  const workingHours = awaySettings.workingHours;
+  if (!workingHours) return false;
+
+  const tz = awaySettings.timezone || 'Asia/Kolkata';
+  let nowTz;
+  try {
+    nowTz = new Date(new Date().toLocaleString('en-US', { timeZone: tz }));
+  } catch (e) {
+    nowTz = new Date();
+  }
+
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const currentDay = days[nowTz.getDay()];
+  const dayConfig = workingHours.get ? workingHours.get(currentDay) : workingHours[currentDay];
+
+  if (!dayConfig || !dayConfig.isOpen) return true;
+
+  const currentHour = nowTz.getHours();
+  const currentMin = nowTz.getMinutes();
+  const currentTimeNum = currentHour * 60 + currentMin;
+
+  const [openH, openM] = (dayConfig.open || '09:00').split(':').map(Number);
+  const [closeH, closeM] = (dayConfig.close || '18:00').split(':').map(Number);
+  const openTimeNum = (openH || 0) * 60 + (openM || 0);
+  const closeTimeNum = (closeH || 0) * 60 + (closeM || 0);
+
+  return currentTimeNum < openTimeNum || currentTimeNum >= closeTimeNum;
+};
 
 /**
  * Emit socket update to tenant room
@@ -394,6 +432,7 @@ const startSession = async (tenantId) => {
                   phone: senderPhone,
                   status: 'ACTIVE',
                   tags: ['WhatsApp Web'],
+                  labels: ['WhatsApp Web'],
                   lastInteractionAt: now
                 });
 
@@ -532,6 +571,20 @@ const startSession = async (tenantId) => {
               }
             }
 
+            // C. Away Message when outside working hours (cooldown 12 hours per sender)
+            if (!autoReplyText && tenantSettings?.awayMessage?.enabled && tenantSettings.awayMessage?.textMessage) {
+              const isAway = checkIsAway(tenantSettings.awayMessage);
+              if (isAway) {
+                const cooldownKey = `${tenantId.toString()}_${senderPhone}`;
+                const lastSent = awayMessageCooldowns.get(cooldownKey) || 0;
+                const twelveHoursMs = 12 * 60 * 60 * 1000;
+                if (Date.now() - lastSent > twelveHoursMs) {
+                  autoReplyText = tenantSettings.awayMessage.textMessage;
+                  awayMessageCooldowns.set(cooldownKey, Date.now());
+                }
+              }
+            }
+
             if (autoReplyText) {
               // Send auto-reply with a short natural human-like delay (1.5 seconds)
               setTimeout(async () => {
@@ -624,6 +677,82 @@ const startSession = async (tenantId) => {
             console.error('[QRService] Error updating message status:', err.message);
           }
         }
+      }
+    });
+
+    // Helper to sync WhatsApp address book into Messbee Contacts CRM upon QR scan
+    const syncContactsList = async (contactsList) => {
+      if (!Array.isArray(contactsList) || contactsList.length === 0) return;
+      const Contact = require('../models/Contact');
+      let syncedCount = 0;
+
+      for (const c of contactsList) {
+        const jid = c.id || '';
+        if (!jid.endsWith('@s.whatsapp.net')) continue;
+        const phone = jid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+        if (!phone || phone.length < 8) continue;
+
+        const name = c.name || c.notify || c.verifiedName || `+${phone}`;
+        try {
+          let contact = await Contact.findOne({
+            user: tenantId,
+            $or: [
+              { whatsapp: phone },
+              { phone: phone },
+              { whatsapp: phone.slice(-10) },
+              { phone: phone.slice(-10) }
+            ]
+          });
+
+          if (contact) {
+            let updated = false;
+            if (name && name !== `+${phone}` && (!contact.name || contact.name === 'Unknown' || contact.name === `+${phone}`)) {
+              contact.name = name;
+              updated = true;
+            }
+            if (!contact.labels || !contact.labels.includes('WhatsApp Sync')) {
+              contact.labels = contact.labels || [];
+              contact.labels.push('WhatsApp Sync');
+              updated = true;
+            }
+            if (updated) await contact.save();
+          } else {
+            await Contact.create({
+              user: tenantId,
+              tenantId: tenantId,
+              name: name || `+${phone}`,
+              phone: phone,
+              whatsapp: phone,
+              status: 'ACTIVE',
+              labels: ['WhatsApp Sync']
+            });
+            syncedCount++;
+          }
+        } catch (e) {
+          console.error(`[QRService] Error syncing contact ${phone}:`, e.message);
+        }
+      }
+
+      if (syncedCount > 0) {
+        console.log(`[QRService] Synced ${syncedCount} WhatsApp contacts into CRM for tenant ${tenantIdStr}`);
+        const io = getIO();
+        if (io) {
+          io.to(`tenant_${tenantIdStr}`).to(tenantIdStr).emit('contacts_synced', {
+            syncedCount,
+            source: 'whatsapp_qr'
+          });
+        }
+      }
+    };
+
+    // Auto-sync contacts from WhatsApp on initial sync / scan
+    sock.ev.on('contacts.upsert', async (contacts) => {
+      await syncContactsList(contacts);
+    });
+
+    sock.ev.on('messaging-history.set', async ({ contacts }) => {
+      if (contacts && contacts.length) {
+        await syncContactsList(contacts);
       }
     });
 
@@ -761,6 +890,254 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
 };
 
 /**
+ * Request WhatsApp pairing code using phone number (alternative to QR scan)
+ */
+const requestPairingCode = async (tenantId, phoneNumber) => {
+  const tenantIdStr = tenantId.toString();
+  let cleanNumber = phoneNumber ? phoneNumber.toString().replace(/\D/g, '') : '';
+  if (cleanNumber.startsWith('0')) {
+    cleanNumber = cleanNumber.replace(/^0+/, '');
+  }
+  if (cleanNumber.length === 10) {
+    cleanNumber = `91${cleanNumber}`;
+  }
+  if (!cleanNumber || cleanNumber.length < 10) {
+    throw new Error('A valid phone number with country code is required (e.g. 919876543210)');
+  }
+
+  let sock = activeSockets.get(tenantIdStr);
+  if (!sock) {
+    await startSession(tenantId);
+    sock = activeSockets.get(tenantIdStr);
+  }
+
+  if (!sock) {
+    throw new Error('WhatsApp service could not be initialized');
+  }
+
+  if (sock.user) {
+    return {
+      success: true,
+      alreadyConnected: true,
+      phoneNumber: sock.user.id.split(':')[0]
+    };
+  }
+
+  // Wait a moment for socket to be ready to accept pairing code request
+  await new Promise(r => setTimeout(r, 1500));
+
+  const rawCode = await sock.requestPairingCode(cleanNumber);
+  const formattedCode = rawCode?.match(/.{1,4}/g)?.join('-') || rawCode;
+
+  await QrSession.findOneAndUpdate(
+    { tenantId },
+    {
+      status: 'CONNECTING',
+      pairingCode: formattedCode,
+      phoneNumber: cleanNumber
+    },
+    { upsert: true }
+  );
+
+  emitTenantUpdate(tenantId, 'pairing_code', {
+    status: 'PAIRING_READY',
+    pairingCode: formattedCode,
+    phoneNumber: cleanNumber
+  });
+
+  return {
+    success: true,
+    pairingCode: formattedCode,
+    phoneNumber: cleanNumber
+  };
+};
+
+/**
+ * Send safe throttled batch broadcast
+ */
+const sendBatchBroadcast = async (tenantId, { recipientPhones, messageText, media, intervalSeconds = 5 }) => {
+  const tenantIdStr = tenantId.toString();
+  const sock = activeSockets.get(tenantIdStr);
+  const sessionDoc = await QrSession.findOne({ tenantId });
+
+  const isConnected = !!(sock?.user && sessionDoc?.status === 'CONNECTED');
+  if (!isConnected) {
+    throw new Error('WhatsApp Web is not connected. Please scan QR or link phone first.');
+  }
+
+  if (!Array.isArray(recipientPhones) || recipientPhones.length === 0) {
+    throw new Error('Recipient list cannot be empty.');
+  }
+
+  if (!messageText?.trim() && !media?.url) {
+    throw new Error('Broadcast message text or media is required.');
+  }
+
+  // Safe cap at 100 per batch
+  const safeRecipients = recipientPhones.slice(0, 100);
+  const total = safeRecipients.length;
+  let sent = 0;
+  let failed = 0;
+
+  const Chat = require('../models/Chat');
+  const Message = require('../models/Message');
+  const Contact = require('../models/Contact');
+  const { getIO } = require('../config/socket');
+  const io = getIO();
+  const tenantRoom = `tenant_${tenantIdStr}`;
+
+  (async () => {
+    console.log(`[QRBroadcast] Starting safe broadcast of ${total} messages for tenant ${tenantIdStr}...`);
+    for (let i = 0; i < safeRecipients.length; i++) {
+      const rawPhone = safeRecipients[i];
+      let cleanPhone = rawPhone.toString().replace(/\D/g, '');
+      if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+
+      try {
+        const contactDoc = await Contact.findOne({
+          user: tenantId,
+          $or: [
+            { phone: cleanPhone },
+            { whatsapp: cleanPhone },
+            { phone: cleanPhone.slice(-10) },
+            { whatsapp: cleanPhone.slice(-10) }
+          ]
+        });
+
+        const contactName = contactDoc?.name && contactDoc.name !== 'Unknown' ? contactDoc.name : 'Customer';
+        let personalizedText = (messageText || '').replace(/\{\{\s*name\s*\}\}/gi, contactName);
+
+        let payload;
+        if (media && media.url) {
+          const mType = (media.type || 'image').toLowerCase();
+          if (mType.includes('image')) {
+            payload = { image: { url: media.url }, caption: personalizedText };
+          } else if (mType.includes('video')) {
+            payload = { video: { url: media.url }, caption: personalizedText };
+          } else if (mType.includes('audio')) {
+            payload = { audio: { url: media.url }, mimetype: 'audio/mp4' };
+          } else {
+            payload = { document: { url: media.url }, fileName: media.fileName || 'document.pdf', caption: personalizedText };
+          }
+        } else {
+          payload = personalizedText;
+        }
+
+        const res = await sendQrMessage(tenantId, cleanPhone, payload);
+        sent++;
+
+        const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        let chat = await Chat.findOne({
+          user: tenantId,
+          $or: [{ phone: cleanPhone }, { whatsappId: cleanPhone }]
+        });
+
+        if (!chat) {
+          chat = await Chat.create({
+            name: contactName,
+            phone: cleanPhone,
+            whatsappId: cleanPhone,
+            source: 'whatsapp',
+            status: 'active',
+            chatStatus: 'open',
+            lastMsg: personalizedText || '📎 Media',
+            lastMsgTime: timeStr,
+            lastActivity: new Date(),
+            user: tenantId
+          });
+        } else {
+          chat.lastMsg = personalizedText || '📎 Media';
+          chat.lastMsgTime = timeStr;
+          chat.lastActivity = new Date();
+          await chat.save();
+        }
+
+        const savedMsg = await Message.create({
+          chatId: chat._id,
+          tenantId,
+          contactId: contactDoc?._id,
+          sender: 'me',
+          senderType: 'HUMAN_AGENT',
+          direction: 'OUTBOUND',
+          text: personalizedText,
+          messageType: media?.url ? (media.type || 'image') : 'text',
+          mediaUrl: media?.url,
+          fileName: media?.fileName,
+          time: timeStr,
+          whatsappMessageId: res?.key?.id,
+          status: 'delivered'
+        });
+
+        if (io) {
+          io.to(tenantRoom).to(tenantIdStr).emit('qr_broadcast_progress', {
+            current: i + 1,
+            total,
+            sent,
+            failed,
+            phone: cleanPhone,
+            contactName,
+            percent: Math.round(((i + 1) / total) * 100),
+            status: 'IN_PROGRESS'
+          });
+
+          io.to(tenantRoom).to(tenantIdStr).emit('receive_message', {
+            chatId: chat._id,
+            message: savedMsg,
+            chat
+          });
+          io.to(tenantRoom).emit('chat_updated', chat);
+        }
+
+        // Anti-ban random delay between recipients + 5-message batch cooldown
+        if (i < safeRecipients.length - 1) {
+          if ((i + 1) % 5 === 0) {
+            // After every 5 messages, take an extra cooldown pause (10-15s)
+            const batchCooldown = 10000 + Math.floor(Math.random() * 5000);
+            console.log(`[QRBroadcast] Batch of 5 sent. Cooldown break for ${Math.round(batchCooldown / 1000)}s...`);
+            await new Promise(r => setTimeout(r, batchCooldown));
+          } else {
+            const jitter = Math.floor(Math.random() * 2500);
+            const delay = (intervalSeconds * 1000) + jitter;
+            await new Promise(r => setTimeout(r, delay));
+          }
+        }
+      } catch (err) {
+        failed++;
+        console.error(`[QRBroadcast] Error sending to ${cleanPhone}:`, err.message);
+        if (io) {
+          io.to(tenantRoom).to(tenantIdStr).emit('qr_broadcast_progress', {
+            current: i + 1,
+            total,
+            sent,
+            failed,
+            phone: cleanPhone,
+            percent: Math.round(((i + 1) / total) * 100),
+            error: err.message,
+            status: 'IN_PROGRESS'
+          });
+        }
+      }
+    }
+
+    if (io) {
+      io.to(tenantRoom).to(tenantIdStr).emit('qr_broadcast_completed', {
+        total,
+        sent,
+        failed,
+        status: 'COMPLETED'
+      });
+    }
+    console.log(`[QRBroadcast] Broadcast complete for tenant ${tenantIdStr}: Sent ${sent}, Failed ${failed}`);
+  })().catch(e => console.error('[QRBroadcast] Queue worker error:', e));
+
+  return {
+    success: true,
+    message: `Broadcast initiated for ${total} recipients with safe anti-ban delay.`,
+    totalRecipients: total
+  };
+};
+
+/**
  * Auto-restore active sessions on server boot
  */
 const restoreActiveSessions = async () => {
@@ -784,5 +1161,7 @@ module.exports = {
   getSessionStatus,
   disconnectSession,
   sendQrMessage,
+  requestPairingCode,
+  sendBatchBroadcast,
   restoreActiveSessions
 };
