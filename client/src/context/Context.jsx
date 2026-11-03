@@ -149,6 +149,33 @@ const Context = (props) => {
       }
     });
 
+    // ⚡ Real-time Free QR WhatsApp connection state sync
+    socket.on("qr_connected", (data) => {
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          tenantWhatsAppConnected: true,
+          whatsappPhone: data.phoneNumber
+        };
+        localStorage.setItem("user", JSON.stringify(updated));
+        return updated;
+      });
+    });
+
+    socket.on("qr_disconnected", () => {
+      setUser(prev => {
+        if (!prev) return prev;
+        const updated = {
+          ...prev,
+          tenantWhatsAppConnected: false,
+          whatsappPhone: ""
+        };
+        localStorage.setItem("user", JSON.stringify(updated));
+        return updated;
+      });
+    });
+
     return () => { socket.disconnect(); };
   }, [user?._id, user?.tenantId]);
 
@@ -286,7 +313,8 @@ const Context = (props) => {
     isFreeTier,
     isMetaPro,
     openConnectWhatsApp,
-    closeConnectWhatsApp
+    closeConnectWhatsApp,
+    socket: socketRef.current
   };
 
   const currentPlanCapitalized = (user?.subscriptionPlan || "Free").charAt(0).toUpperCase() + (user?.subscriptionPlan || "Free").slice(1);

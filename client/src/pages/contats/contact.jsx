@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import chatService from "../../services/chatService";
+import QrBroadcastModal from "../../components/Modol/QrBroadcastModal";
+import io from "socket.io-client";
 import {
   MagnifyingGlassIcon,
   AdjustmentsHorizontalIcon,
@@ -1707,6 +1709,7 @@ export default function ContactsCRM() {
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, count: 1, loading: false });
+  const [showQrBroadcastModal, setShowQrBroadcastModal] = useState(false);
   const [editingContact, setEditingContact] = useState(null);
   const [profileContact, setProfileContact] = useState(null);
   const [allLabels, setAllLabels] = useState(DEFAULT_LABELS);
@@ -1802,6 +1805,27 @@ export default function ContactsCRM() {
     searchTimeout.current = setTimeout(loadContacts, searchQuery ? 350 : 0);
     return () => clearTimeout(searchTimeout.current);
   }, [loadContacts, searchQuery]);
+
+  useEffect(() => {
+    const SOCKET_URL =
+      import.meta.env.VITE_SOCKET_URL ||
+      (import.meta.env.VITE_API_URL
+        ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, "")
+        : "");
+    const socket = io(SOCKET_URL, { withCredentials: true });
+    const tenantId = user?.tenantId || user?._id || user?.id;
+    if (tenantId) {
+      socket.emit("join", tenantId.toString());
+      socket.emit("join_tenant", tenantId.toString());
+    }
+
+    socket.on("contacts_synced", (data) => {
+      showToast("success", "WhatsApp Contacts Synced", `${data.syncedCount} contacts imported from your WhatsApp account!`);
+      loadContacts();
+    });
+
+    return () => socket.disconnect();
+  }, [user, loadContacts]);
 
   const applyFilters = f => { setAdvFilters(f); setCurrentPage(1); };
   const activeFilterCount = advFilters.statuses.length + advFilters.labels.length;
@@ -1904,7 +1928,7 @@ export default function ContactsCRM() {
 
   const handleSendCampaign = () => {
     if (user?.whatsappChannelType === "free_qr") {
-      showToast("info", "Meta Business Account Required", "Broadcasting campaigns requires a verified Meta WhatsApp Business Account (WABA). Free QR users can chat directly via Chats.");
+      setShowQrBroadcastModal(true);
       return;
     }
     navigate("/admin/campaign/create", {
@@ -2067,6 +2091,16 @@ export default function ContactsCRM() {
           </div>
         </div>
         <div className="flex gap-2.5 flex-wrap w-full lg:w-auto">
+          {user?.whatsappChannelType === "free_qr" && (
+            <button
+              onClick={() => setShowQrBroadcastModal(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[13px] font-bold transition-all shadow-md active:translate-y-px flex-1 lg:flex-none cursor-pointer"
+              title="Broadcast safe WhatsApp message"
+            >
+              <MegaphoneIcon className="w-4 h-4" />
+              <span>Broadcast ({selectedRows.length > 0 ? `${selectedRows.length} Selected` : "All"})</span>
+            </button>
+          )}
           {canImportContacts && (
             <button
               onClick={() => navigate("/admin/contacts/import")}
@@ -2293,6 +2327,13 @@ export default function ContactsCRM() {
                       ))}
                       <td className="px-4 py-3.5 text-center align-middle">
                         <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            onClick={e => { e.stopPropagation(); handleStartChat(contact); }}
+                            title="Chat on WhatsApp"
+                            className="p-1.5 rounded-md text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer"
+                          >
+                            <ChatBubbleLeftIcon className="h-4 w-4" />
+                          </button>
                           {canEditContacts && (
                             <button
                               onClick={e => { e.stopPropagation(); setEditingContact(contact); }}
@@ -2378,6 +2419,16 @@ export default function ContactsCRM() {
         loading={deleteModal.loading}
         onConfirm={confirmDelete}
         onCancel={cancelDelete}
+      />
+
+      <QrBroadcastModal
+        isOpen={showQrBroadcastModal}
+        onClose={() => setShowQrBroadcastModal(false)}
+        selectedContacts={
+          selectedRows.length > 0
+            ? contacts.filter((c) => selectedRows.includes(c._id))
+            : contacts
+        }
       />
     </div>
   );

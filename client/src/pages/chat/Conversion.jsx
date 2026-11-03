@@ -9,13 +9,15 @@ import { fetchWhatsAppTemplates, mergeTemplates, getLocalTemplates, getTemplateH
 import { getBackendFileUrl } from "../../utils/urlHelper";
 import { formatWhatsAppMarkdown } from "../../utils/markdownParser";
 import { showToast } from "../../utils/showToast";
+import { getProducts } from "../../services/CommerceApi";
 import {
    PaperClipIcon, FaceSmileIcon, EllipsisVerticalIcon,
    TrashIcon, NoSymbolIcon, UserCircleIcon,
    FolderIcon, ArchiveBoxIcon, LockClosedIcon, StarIcon, CheckCircleIcon,
    MagnifyingGlassIcon, XMarkIcon, ChatBubbleLeftRightIcon, BoltIcon,
    ClockIcon, PhotoIcon, FilmIcon, DocumentIcon, MusicalNoteIcon, ArrowUpTrayIcon, ArrowDownTrayIcon,
-   UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon
+   UserIcon, TagIcon, ArrowsRightLeftIcon, ChevronRightIcon, UserPlusIcon, UserMinusIcon, PlusCircleIcon, InformationCircleIcon,
+   ShoppingBagIcon
 } from "@heroicons/react/24/outline";
 import { Pin, ChevronLeft, Video, Phone, CheckCheck, Smile, Paperclip, Send, Image as ImageIcon } from "lucide-react";
 import { PaperAirplaneIcon, MegaphoneIcon, DocumentTextIcon, Squares2X2Icon, CheckCircleIcon as SolidCheckCircle, CheckIcon } from "@heroicons/react/24/solid";
@@ -414,6 +416,10 @@ const Conversion = ({
    const [quickReplySearch, setQuickReplySearch] = useState("");
    const [internalQuickReplies, setInternalQuickReplies] = useState(Array.isArray(quickReplies) ? quickReplies : []);
    const [attachedQuickReplyMedia, setAttachedQuickReplyMedia] = useState(null);
+   const [showProductPicker, setShowProductPicker] = useState(false);
+   const [catalogProducts, setCatalogProducts] = useState([]);
+   const [catalogSearch, setCatalogSearch] = useState("");
+   const [loadingProducts, setLoadingProducts] = useState(false);
    const [showTemplates, setShowTemplates] = useState(false);
    const [templateSearch, setTemplateSearch] = useState("");
   const [debouncedTemplateSearch, setDebouncedTemplateSearch] = useState("");
@@ -476,6 +482,7 @@ const Conversion = ({
    const emojiRef = useRef(null);
    const templateRef = useRef(null);
    const quickReplyRef = useRef(null);
+   const productPickerRef = useRef(null);
    const fileInputRef = useRef(null);
 
    // Sync isLoadingChat from prop - true while parent is fetching messages
@@ -532,10 +539,59 @@ const Conversion = ({
          if (quickReplyRef.current && !quickReplyRef.current.contains(event.target)) {
             setShowQuickReplies(false);
          }
+         if (productPickerRef.current && !productPickerRef.current.contains(event.target)) {
+            setShowProductPicker(false);
+         }
       };
       document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
    }, []);
+
+   // Load store products when Product Picker is opened
+   useEffect(() => {
+      if (showProductPicker && catalogProducts.length === 0) {
+         setLoadingProducts(true);
+         getProducts()
+            .then(res => {
+               const list = res?.data?.products || res?.products || res?.data || [];
+               setCatalogProducts(Array.isArray(list) ? list : []);
+            })
+            .catch(err => {
+               console.error("Failed to load products for chat:", err);
+            })
+            .finally(() => setLoadingProducts(false));
+      }
+   }, [showProductPicker]);
+
+   const filteredCatalogProducts = useMemo(() => {
+      if (!catalogSearch || !catalogSearch.trim()) return catalogProducts;
+      const q = catalogSearch.toLowerCase().trim();
+      return catalogProducts.filter(p =>
+         p.name?.toLowerCase().includes(q) ||
+         p.sku?.toLowerCase().includes(q) ||
+         p.category?.toLowerCase().includes(q)
+      );
+   }, [catalogProducts, catalogSearch]);
+
+   const handleSelectProduct = (product) => {
+      const productText = `🛍️ *${product.name}*\n` +
+         `💰 *Price:* ₹${Number(product.sellingPrice || 0).toLocaleString('en-IN')}` +
+         (product.currentStock !== undefined ? `\n📦 *Stock:* ${product.currentStock} ${product.unit || 'pcs'}` : '') +
+         (product.description ? `\n\n📝 ${product.description}` : '');
+      
+      setInputText(productText);
+      if (product.productImage) {
+         setAttachedQuickReplyMedia({
+            name: `${product.name}.jpg`,
+            type: 'image',
+            url: product.productImage,
+            isUploaded: true
+         });
+      }
+      setShowProductPicker(false);
+      setCatalogSearch("");
+      showToast("success", "Product Attached", "Product details loaded into message. Press send to deliver.");
+   };
 
   useEffect(() => {
      const timerId = window.setTimeout(() => {
@@ -565,13 +621,14 @@ const Conversion = ({
       const hasMedia = !!attachedQuickReplyMedia;
       if (!hasText && !hasMedia) return;
 
-      if (Number(user?.credits || 0) <= 0) {
+      const isFreeQr = user?.whatsappChannelType === "free_qr";
+      if (!isFreeQr && Number(user?.credits || 0) <= 0) {
          if (attachedQuickReplyMedia) {
             onSendMessage(inputText, attachedQuickReplyMedia);
          } else {
             onSendMessage(inputText);
          }
-         return; // Don't clear inputText when sending fails due to zero credits
+         return; // Don't clear inputText when sending fails due to zero credits on Meta Pro
       }
 
       if (attachedQuickReplyMedia) {
@@ -585,6 +642,7 @@ const Conversion = ({
       setShowEmojiPicker(false);
       setShowTemplates(false);
       setShowQuickReplies(false);
+      setShowProductPicker(false);
    };
 
    const onEmojiClick = (emojiObject) => setInputText((prev) => prev + emojiObject.emoji);
@@ -1688,11 +1746,23 @@ const selectedTemplate = useMemo(() => {
                                            </a>
                                         ) : (
                                            <div className={`flex items-center gap-3 p-3 rounded-2xl ${msg.sender === 'me' ? 'bg-white/20' : 'bg-slate-200'}`}>
-                                              {(type === 'audio' || msg.messageType === 'audio') ? <MusicalNoteIcon className="w-8 h-8 shrink-0" /> : <DocumentIcon className="w-8 h-8 shrink-0" />}
-                                              <div className="flex flex-col min-w-0 pr-4">
-                                                 <span className="text-sm font-bold truncate">{msg.fileName || 'Attachment'}</span>
-                                                 <span className="text-[10px] opacity-80">{msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File'}</span>
-                                              </div>
+                                              {(type === 'audio' || msg.messageType === 'audio') ? (
+                                                 <div className="flex flex-col gap-1 min-w-[220px]">
+                                                    <div className="flex items-center gap-1.5 text-xs font-semibold">
+                                                       <MusicalNoteIcon className="w-4 h-4 shrink-0" />
+                                                       <span>{msg.fileName || 'Voice Note'}</span>
+                                                    </div>
+                                                    <audio src={resolveMediaUrl(url)} controls className="w-full h-8 outline-none rounded" />
+                                                 </div>
+                                              ) : (
+                                                 <>
+                                                    <DocumentIcon className="w-8 h-8 shrink-0" />
+                                                    <div className="flex flex-col min-w-0 pr-4">
+                                                       <span className="text-sm font-bold truncate">{msg.fileName || 'Attachment'}</span>
+                                                       <span className="text-[10px] opacity-80">{msg.fileSize ? (msg.fileSize/1024).toFixed(1) + ' KB' : 'File'}</span>
+                                                    </div>
+                                                 </>
+                                              )}
                                            </div>
                                         )}
                                      </div>
@@ -1871,6 +1941,93 @@ const selectedTemplate = useMemo(() => {
                      <span>Click to insert</span>
                      {displayQuickReplies.length > 5 && (
                         <span className="font-semibold text-slate-500">Scroll for more ({displayQuickReplies.length}) ↓</span>
+                     )}
+                  </div>
+               </div>
+            )}
+
+            {showProductPicker && (
+               <div className="absolute bottom-28 left-2 right-2 sm:left-6 sm:right-auto sm:w-[380px] bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden animate-in fade-in slide-from-bottom-2" ref={productPickerRef}>
+                  <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-white">
+                     <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                           <ShoppingBagIcon className="w-3.5 h-3.5" />
+                        </div>
+                        <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-widest">Store Products</h4>
+                     </div>
+                     <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">{filteredCatalogProducts.length} ITEMS</span>
+                        <button type="button" onClick={() => setShowProductPicker(false)} className="text-slate-400 hover:text-slate-600 p-0.5">
+                           <XMarkIcon className="w-4 h-4" />
+                        </button>
+                     </div>
+                  </div>
+
+                  {/* Inline Search Bar */}
+                  <div className="p-2 border-b border-slate-100 bg-slate-50/60">
+                     <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-2.5 py-1.5 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 transition-all">
+                        <MagnifyingGlassIcon className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <input
+                           type="text"
+                           value={catalogSearch}
+                           onChange={(e) => setCatalogSearch(e.target.value)}
+                           placeholder="Search product by name or SKU..."
+                           className="bg-transparent border-none outline-none text-xs text-slate-700 w-full placeholder:text-slate-400"
+                           autoFocus
+                        />
+                        {catalogSearch && (
+                           <button type="button" onClick={() => setCatalogSearch("")} className="text-slate-400 hover:text-slate-600 p-0.5">
+                              <XMarkIcon className="w-3.5 h-3.5" />
+                           </button>
+                        )}
+                     </div>
+                  </div>
+
+                  {/* Products List */}
+                  <div className="max-h-[300px] overflow-y-auto p-2 space-y-1.5 custom-scrollbar">
+                     {loadingProducts ? (
+                        <div className="p-8 text-center text-xs text-slate-400 font-medium">Loading catalog products...</div>
+                     ) : filteredCatalogProducts.map((prod) => (
+                        <div
+                           key={prod._id}
+                           onClick={() => handleSelectProduct(prod)}
+                           className="flex gap-3 p-2.5 hover:bg-indigo-50/50 rounded-xl cursor-pointer transition-colors group border border-transparent hover:border-indigo-100 items-center"
+                        >
+                           <div className="w-10 h-10 rounded-xl bg-slate-100 overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
+                              {prod.productImage ? (
+                                 <img src={prod.productImage} alt="" className="w-full h-full object-cover" />
+                              ) : (
+                                 <ShoppingBagIcon className="w-5 h-5 text-slate-400" />
+                              )}
+                           </div>
+                           <div className="flex-1 min-w-0">
+                              <div className="flex justify-between items-center mb-0.5">
+                                 <h4 className="text-xs font-bold text-slate-900 truncate">{prod.name}</h4>
+                                 <span className="text-xs font-black text-emerald-600 shrink-0 ml-2">₹{Number(prod.sellingPrice || 0).toLocaleString('en-IN')}</span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                 <span className="font-mono bg-slate-100 px-1 rounded">SKU: {prod.sku}</span>
+                                 <span>•</span>
+                                 <span className={prod.currentStock > 0 ? "text-emerald-600 font-semibold" : "text-rose-500 font-semibold"}>
+                                    {prod.currentStock > 0 ? `${prod.currentStock} in stock` : "Out of stock"}
+                                 </span>
+                              </div>
+                           </div>
+                        </div>
+                     ))}
+                     {!loadingProducts && filteredCatalogProducts.length === 0 && (
+                        <div className="p-8 text-center">
+                           <p className="text-xs text-slate-400 font-medium">No products found in catalog</p>
+                           <a href="/admin/commerce/products" className="text-[11px] text-indigo-600 hover:underline mt-1 inline-block font-semibold">
+                              + Add in Commerce Products
+                           </a>
+                        </div>
+                     )}
+                  </div>
+                  <div className="px-3 py-2 bg-slate-50 text-[10px] text-slate-400 border-t border-slate-100 flex justify-between items-center">
+                     <span>Click to insert product card</span>
+                     {filteredCatalogProducts.length > 5 && (
+                        <span className="font-semibold text-slate-500">Scroll for more ({filteredCatalogProducts.length}) ↓</span>
                      )}
                   </div>
                </div>
@@ -2359,8 +2516,11 @@ const selectedTemplate = useMemo(() => {
                         >
                            <ChatBubbleLeftRightIcon className="w-5 h-5" />
                         </button>
-                        <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
+                        <button type="button" onClick={() => { setShowTemplates(false); setShowProductPicker(false); setShowQuickReplies(!showQuickReplies); }} className="text-[#22C55E] bg-green-50 rounded-full p-2 hover:bg-green-100 transition-colors flex items-center justify-center" title="Quick Replies">
                            <BoltIcon className="w-5 h-5" />
+                        </button>
+                        <button type="button" onClick={() => { setShowTemplates(false); setShowQuickReplies(false); setShowProductPicker(!showProductPicker); }} className="text-indigo-600 bg-indigo-50 rounded-full p-2 hover:bg-indigo-100 transition-colors flex items-center justify-center" title="Send Product from Catalog">
+                           <ShoppingBagIcon className="w-5 h-5" />
                         </button>
                         <button type="submit" disabled={(!inputText || !inputText.trim()) && !attachedQuickReplyMedia} className="w-10 h-10 flex items-center justify-center bg-[#22C55E] text-white rounded-full hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-md shrink-0">
                            <PaperAirplaneIcon className="w-4 h-4" />

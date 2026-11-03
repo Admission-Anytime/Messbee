@@ -1,5 +1,14 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
-import { XMarkIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
+import { 
+  XMarkIcon, 
+  CheckCircleIcon, 
+  ClockIcon, 
+  ArrowPathIcon, 
+  ExclamationTriangleIcon, 
+  ShieldCheckIcon,
+  ArrowRightOnRectangleIcon
+} from "@heroicons/react/24/outline";
+import io from "socket.io-client";
 import api from "../../context/axios";
 import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
@@ -24,6 +33,116 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState("");
   const [isFbInitialized, setIsFbInitialized] = useState(false);
+  
+  // Approval states
+  const [localStatus, setLocalStatus] = useState(user?.wabaApprovalStatus || "NONE");
+  const [rejectionReason, setRejectionReason] = useState("");
+  const [showReconfigure, setShowReconfigure] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+
+  useEffect(() => {
+    if (user?.wabaApprovalStatus) {
+      setLocalStatus(user.wabaApprovalStatus);
+    }
+  }, [user?.wabaApprovalStatus]);
+
+  // Real-time listener for Super Admin approval
+  useEffect(() => {
+    const tenantId = user?.tenantId || user?._id;
+    if (!tenantId) return;
+
+    const socketUrl =
+      import.meta.env.VITE_SOCKET_URL ||
+      (import.meta.env.VITE_API_URL
+        ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, "")
+        : window.location.origin);
+
+    const socket = io(socketUrl, { withCredentials: true });
+
+    if (user?._id) socket.emit("join", user._id.toString());
+    socket.emit("join_tenant", tenantId.toString());
+
+    socket.on("waba_approval_update", (data) => {
+      console.log("⚡ [ConnectWhatsAppModal] Received waba_approval_update:", data);
+      if (data.status === "APPROVED") {
+        setLocalStatus("APPROVED");
+        toast.success("🎉 Super Admin has approved your Meta WhatsApp Business Account!");
+        setTimeout(() => {
+          window.location.reload();
+        }, 1200);
+      } else if (data.status === "REJECTED") {
+        setLocalStatus("REJECTED");
+        setRejectionReason(data.reason || "Super Admin rejected the approval request.");
+        toast.error(`❌ Approval rejected: ${data.reason || "Please verify credentials."}`);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
+
+  // Auto-poll approval status every 4 seconds when in PENDING state (instant unlock when Super Admin updates DB!)
+  useEffect(() => {
+    if (localStatus !== 'PENDING') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await api.get('/super-admin/my-approval-status');
+        if (res.data?.success) {
+          const { wabaApprovalStatus, tenantWhatsAppConnected, latestRequest } = res.data.data;
+          if (wabaApprovalStatus === 'APPROVED' && tenantWhatsAppConnected) {
+            setLocalStatus('APPROVED');
+            toast.success("🎉 Super Admin has approved your Meta WhatsApp Business Account!");
+            clearInterval(interval);
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          } else if (wabaApprovalStatus === 'REJECTED') {
+            setLocalStatus('REJECTED');
+            if (latestRequest?.rejectionReason) {
+              setRejectionReason(latestRequest.rejectionReason);
+            }
+            clearInterval(interval);
+          }
+        }
+      } catch (e) {
+        // Silently continue polling
+      }
+    }, 4000);
+
+    return () => clearInterval(interval);
+  }, [localStatus]);
+
+  // Check Approval Status manually
+  const handleCheckStatus = async () => {
+    setIsCheckingStatus(true);
+    try {
+      const res = await api.get("/super-admin/my-approval-status");
+      if (res.data?.success) {
+        const { wabaApprovalStatus, latestRequest } = res.data.data;
+        setLocalStatus(wabaApprovalStatus || "NONE");
+        if (latestRequest?.rejectionReason) {
+          setRejectionReason(latestRequest.rejectionReason);
+        }
+
+        if (wabaApprovalStatus === "APPROVED") {
+          toast.success("🎉 Account approved by Super Admin! Reloading...");
+          setTimeout(() => {
+            window.location.reload();
+          }, 1000);
+        } else if (wabaApprovalStatus === "REJECTED") {
+          toast.error(`❌ Request rejected: ${latestRequest?.rejectionReason || "Please contact support."}`);
+        } else {
+          toast.info("⏳ Your request is currently under review by Super Admin.");
+        }
+      }
+    } catch (err) {
+      toast.error("Could not fetch approval status. Please try again.");
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
 
   // Load Facebook SDK on mount
   useEffect(() => {
@@ -167,22 +286,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
               })
                 .then((res) => {
                   if (res.data?.success) {
-                    if (res.data?.phoneRegistered) {
-                      toast.success("✅ WhatsApp connected & phone number activated!");
-                    } else {
-                      toast.success("✅ WhatsApp account connected!");
-                      // Show a follow-up warning about pending registration
-                      setTimeout(() => {
-                        toast.warning(
-                          "⚠️ Phone number registration pending. Go to Settings → WhatsApp Config → Set PIN to activate.",
-                          { autoClose: 8000 }
-                        );
-                      }, 1000);
-                    }
+                    setLocalStatus("PENDING");
+                    setShowReconfigure(false);
+                    toast.success("✅ Meta WhatsApp Account connected! Submitted to Super Admin for approval.");
                     if (!isMandatory) {
                       onClose();
-                    } else {
-                      window.location.reload(); // Reload to refresh global state and clear lock
                     }
                   } else {
                     toast.error(res.data?.message || "Failed to connect WhatsApp account");
@@ -238,11 +346,11 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
       });
 
       if (res.data?.success) {
-        toast.success("WhatsApp Business Account connected manually!");
+        setLocalStatus("PENDING");
+        setShowReconfigure(false);
+        toast.success("✅ Meta credentials submitted! Awaiting Super Admin approval.");
         if (!isMandatory) {
           onClose();
-        } else {
-          window.location.reload(); // Reload to refresh global state and clear lock
         }
       } else {
         toast.error(res.data?.message || "Failed to connect WhatsApp account");
@@ -273,10 +381,16 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
         <div className="flex-shrink-0 flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 lg:py-5 border-b border-gray-100 bg-gradient-to-r from-emerald-50/80 to-white">
           <div>
             <h2 className="text-lg sm:text-xl font-bold text-slate-900">
-              {isMandatory ? "Verify your Meta Business Account" : "Connect WhatsApp Business"}
+              {(localStatus === 'PENDING' || localStatus === 'REJECTED') && !showReconfigure
+                ? (localStatus === 'REJECTED' ? "Meta Account Approval Rejected" : "Meta Account Under Review")
+                : (isMandatory ? "Verify your Meta Business Account" : "Connect WhatsApp Business")}
             </h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-              {isMandatory ? "You must connect your Meta account to access all features." : "Choose your preferred integration method"}
+              {(localStatus === 'PENDING' || localStatus === 'REJECTED') && !showReconfigure
+                ? (localStatus === 'REJECTED' 
+                    ? "Your connection request was rejected by Super Admin. Re-connect or contact support." 
+                    : "Awaiting approval from Messbee Super Admin (admin.messbee.com)")
+                : (isMandatory ? "You must connect your Meta account to access all features." : "Choose your preferred integration method")}
             </p>
           </div>
           {!isMandatory ? (
@@ -308,8 +422,130 @@ const ConnectWhatsAppModal = ({ isOpen, onClose, isMandatory = false, user }) =>
                 Only the workspace owner or an administrator can connect the WhatsApp Business Account. Please contact your administrator to complete this setup.
               </p>
             </div>
+          ) : (localStatus === 'PENDING' || localStatus === 'REJECTED') && !showReconfigure ? (
+            /* Review Card */
+            <div className="col-span-1 md:col-span-2 flex flex-col items-center justify-center py-6 px-4 sm:px-8 text-center max-w-2xl mx-auto">
+              {/* Animated Status Icon */}
+              <div className="relative mb-5">
+                <div className={`w-20 h-20 rounded-2xl flex items-center justify-center shadow-lg ${
+                  localStatus === 'REJECTED' 
+                    ? 'bg-red-50 text-red-600 border border-red-200' 
+                    : 'bg-amber-50 text-amber-600 border border-amber-200'
+                }`}>
+                  {localStatus === 'REJECTED' ? (
+                    <ExclamationTriangleIcon className="w-10 h-10" />
+                  ) : (
+                    <ClockIcon className="w-10 h-10 animate-pulse" />
+                  )}
+                </div>
+                <span className={`absolute -bottom-2 -right-2 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider rounded-full text-white shadow-sm ${
+                  localStatus === 'REJECTED' ? 'bg-red-600' : 'bg-amber-500'
+                }`}>
+                  {localStatus === 'REJECTED' ? 'Rejected' : 'Pending Review'}
+                </span>
+              </div>
+
+              {/* Title & Description */}
+              <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+                {localStatus === 'REJECTED' ? 'Approval Request Rejected' : 'Meta Business Account Under Review'}
+              </h3>
+              <p className="mt-2 text-sm text-slate-600 leading-relaxed max-w-lg">
+                {localStatus === 'REJECTED' ? (
+                  rejectionReason || "Your Meta WhatsApp Business account connection was rejected by the Super Admin. Please reconfigure your credentials or contact support."
+                ) : (
+                  "Your Meta WhatsApp Business account has been linked successfully. To prevent platform abuse and ensure Meta compliance, an administrator at Messbee is reviewing your business details."
+                )}
+              </p>
+
+              {/* Details Box */}
+              <div className="w-full mt-6 bg-slate-50 border border-slate-200/80 rounded-2xl p-4 sm:p-5 text-left text-xs sm:text-sm space-y-3">
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                  <span className="font-semibold text-slate-500">Integration Type</span>
+                  <span className="font-bold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                    Official Meta Cloud API
+                  </span>
+                </div>
+                {user?.whatsappConfig?.wabaId && (
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                    <span className="font-semibold text-slate-500">WABA ID</span>
+                    <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {user.whatsappConfig.wabaId}
+                    </span>
+                  </div>
+                )}
+                {user?.whatsappConfig?.phoneNumberId && (
+                  <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                    <span className="font-semibold text-slate-500">Phone Number ID</span>
+                    <span className="font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-slate-200">
+                      {user.whatsappConfig.phoneNumberId}
+                    </span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between py-1 border-b border-slate-200/60">
+                  <span className="font-semibold text-slate-500">Super Admin Portal</span>
+                  <a 
+                    href="https://admin.messbee.com/" 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="font-medium text-emerald-600 hover:underline"
+                  >
+                    admin.messbee.com
+                  </a>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <span className="font-semibold text-slate-500">Approval Status</span>
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
+                    localStatus === 'REJECTED' 
+                      ? 'bg-red-100 text-red-700' 
+                      : 'bg-amber-100 text-amber-700'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${
+                      localStatus === 'REJECTED' ? 'bg-red-500' : 'bg-amber-500 animate-ping'
+                    }`}></span>
+                    {localStatus === 'REJECTED' ? 'REJECTED' : 'AWAITING APPROVAL'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Live status notice */}
+              <div className="mt-4 flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-4 py-2.5 rounded-xl">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                Real-time listener active — This screen will automatically unlock once approved!
+              </div>
+
+              {/* Action buttons */}
+              <div className="w-full mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button
+                  onClick={handleCheckStatus}
+                  disabled={isCheckingStatus}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md transition-all active:scale-95"
+                >
+                  <ArrowPathIcon className={`w-4 h-4 ${isCheckingStatus ? 'animate-spin' : ''}`} />
+                  {isCheckingStatus ? "Checking Status..." : "Check Status Now"}
+                </button>
+
+                <button
+                  onClick={() => setShowReconfigure(true)}
+                  className="w-full sm:w-auto px-5 py-2.5 text-xs sm:text-sm font-bold text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all"
+                >
+                  Reconnect / Change Account
+                </button>
+              </div>
+            </div>
           ) : (
             <>
+              {/* If user is reconfiguring, show a banner to go back */}
+              {showReconfigure && (
+                <div className="col-span-1 md:col-span-2 flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-xl mb-1 text-xs text-amber-900 font-medium">
+                  <span>Reconfiguring your Meta account connection.</span>
+                  <button 
+                    onClick={() => setShowReconfigure(false)}
+                    className="font-bold text-amber-800 underline hover:text-amber-950"
+                  >
+                    ← Return to Review Status
+                  </button>
+                </div>
+              )}
               {/* Card 1: Recommended — One Click */}
               <div className="relative border-2 border-emerald-200 rounded-xl p-4 sm:p-5 lg:p-6 bg-gradient-to-b from-emerald-50/50 to-white hover:shadow-lg transition-shadow group h-full flex flex-col">
             {/* Recommended Badge */}

@@ -262,14 +262,16 @@ exports.connectOAuthToken = async (req, res, next) => {
           accessToken: accessToken
         };
         userRecord.whatsappChannelType = 'meta_pro';
-        userRecord.tenantWhatsAppConnected = true;
+        userRecord.wabaApprovalStatus = 'PENDING';
+        userRecord.tenantWhatsAppConnected = false;
         await userRecord.save();
       }
       if (tenantId && tenantId.toString() !== req.user._id.toString()) {
         await User.findByIdAndUpdate(tenantId, {
           $set: {
             whatsappChannelType: 'meta_pro',
-            tenantWhatsAppConnected: true,
+            wabaApprovalStatus: 'PENDING',
+            tenantWhatsAppConnected: false,
             'whatsappConfig.wabaId': wabaId,
             'whatsappConfig.phoneNumberId': phoneNumberId,
             'whatsappConfig.accessToken': accessToken
@@ -354,7 +356,9 @@ exports.connectOAuthToken = async (req, res, next) => {
     
     res.status(200).json({
       success: true,
-      message: 'WhatsApp account connected successfully',
+      wabaPendingApproval: true,
+      wabaApprovalStatus: 'PENDING',
+      message: 'WhatsApp Business account connected and submitted for Super Admin approval.',
       wabaId: wabaId,
       phoneNumberId: phoneNumberId,
       metaUserId: userRes.data.id
@@ -540,18 +544,20 @@ exports.embeddedSignupCallback = async (req, res, next) => {
           phoneNumberId: phoneNumberId || userRecord.whatsappConfig?.phoneNumberId,
           accessToken: accessToken
         };
-        // Auto-approve user upon successful WhatsApp connection
+        // User can access portal, but Meta WhatsApp connection requires Super Admin review
         userRecord.isApproved = true;
         userRecord.isActive = true;
         userRecord.whatsappChannelType = 'meta_pro';
-        userRecord.tenantWhatsAppConnected = true;
+        userRecord.wabaApprovalStatus = 'PENDING';
+        userRecord.tenantWhatsAppConnected = false;
         await userRecord.save();
       }
       if (tenantId && tenantId.toString() !== req.user._id.toString()) {
         await User.findByIdAndUpdate(tenantId, {
           $set: {
             whatsappChannelType: 'meta_pro',
-            tenantWhatsAppConnected: true,
+            wabaApprovalStatus: 'PENDING',
+            tenantWhatsAppConnected: false,
             'whatsappConfig.wabaId': wabaId,
             'whatsappConfig.phoneNumberId': phoneNumberId,
             'whatsappConfig.accessToken': accessToken
@@ -775,9 +781,9 @@ exports.embeddedSignupCallback = async (req, res, next) => {
     }
     res.status(200).json({
       success: true,
-      message: phoneRegistered
-        ? 'WhatsApp account connected and phone number activated successfully!'
-        : 'WhatsApp account connected. Phone number registration pending — please set PIN in Settings.',
+      wabaPendingApproval: true,
+      wabaApprovalStatus: 'PENDING',
+      message: 'WhatsApp Business account connected successfully! Your account is now pending Super Admin approval before unlocking.',
       wabaId: wabaId,
       phoneNumberId: phoneNumberId,
       phoneRegistered,
@@ -855,14 +861,16 @@ exports.connectManual = async (req, res, next) => {
           accessToken: accessToken
         };
         userRecord.whatsappChannelType = 'meta_pro';
-        userRecord.tenantWhatsAppConnected = true;
+        userRecord.wabaApprovalStatus = 'PENDING';
+        userRecord.tenantWhatsAppConnected = false;
         await userRecord.save();
       }
       if (tenantId && tenantId.toString() !== req.user._id.toString()) {
         await User.findByIdAndUpdate(tenantId, {
           $set: {
             whatsappChannelType: 'meta_pro',
-            tenantWhatsAppConnected: true,
+            wabaApprovalStatus: 'PENDING',
+            tenantWhatsAppConnected: false,
             'whatsappConfig.wabaId': wabaId,
             'whatsappConfig.phoneNumberId': phoneNumberId,
             'whatsappConfig.accessToken': accessToken
@@ -1001,7 +1009,9 @@ exports.connectManual = async (req, res, next) => {
     
     res.status(200).json({
       success: true,
-      message: 'WhatsApp account connected manually successfully',
+      wabaPendingApproval: true,
+      wabaApprovalStatus: 'PENDING',
+      message: 'WhatsApp Business account credentials verified and submitted for Super Admin approval.',
       wabaId: wabaId,
       phoneNumberId: phoneNumberId
     });

@@ -264,6 +264,7 @@ app.use('/api/notifications', require('./routes/notificationRoutes')); // Notifi
 app.use('/api/webhook', require('./routes/webhookRoutes')); // Webhook routes (/api/webhook)
 app.use('/webhook', require('./routes/webhookRoutes')); // Root webhook fallback (/webhook)
 app.use('/api/qr-whatsapp', require('./routes/qrWhatsappRoutes')); // WhatsApp Web QR for Free Tier
+app.use('/api/super-admin', require('./routes/superAdminRoutes')); // Super Admin Approval Service
 
 // ================== INVENTORY & BILLING ROUTES ==================
 app.use('/api/categories', require('./routes/categoryRoutes'));

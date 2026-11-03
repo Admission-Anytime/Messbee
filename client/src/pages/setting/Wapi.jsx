@@ -8,7 +8,12 @@ import HealthDiagnosticModal from "../../components/Modol/HealthDiagnosticModal"
 import TestConnectionModal from "../../components/Modol/TestConnectionModal";
 import ConnectWhatsAppModal from "../../components/Modol/ConnectWhatsAppModal";
 import QrConnectModal from "../../components/Modol/QrConnectModal";
-import { getQrStatus, disconnectQrSession } from "../../services/qrWhatsappService";
+import {
+  getQrStatus,
+  disconnectQrSession,
+  getAutoResponderSettings,
+  saveAutoResponderSettings
+} from "../../services/qrWhatsappService";
 import { useWhatsAppConfig } from "../../hooks/useWhatsAppConfig";
 
 // ─── Toggle ────────────────────────────────────────────────────────────────────
@@ -151,14 +156,63 @@ export default function WhatsAppConfig() {
   const isFreeTier = user?.whatsappChannelType === "free_qr";
   const [showQrModal, setShowQrModal] = useState(false);
   const [qrStatus, setQrStatus] = useState({ status: "DISCONNECTED", phoneNumber: "", pushName: "" });
+  const [autoResponder, setAutoResponder] = useState({
+    welcomeMessage: { enabled: false, textMessage: "Welcome! How can we assist you today?" },
+    awayMessage: {
+      enabled: false,
+      timezone: "Asia/Kolkata",
+      holidayMode: false,
+      textMessage: "Thank you for reaching out! We are currently outside business hours and will respond shortly.",
+      workingHours: {
+        monday: { isOpen: true, open: "09:00", close: "18:00" },
+        tuesday: { isOpen: true, open: "09:00", close: "18:00" },
+        wednesday: { isOpen: true, open: "09:00", close: "18:00" },
+        thursday: { isOpen: true, open: "09:00", close: "18:00" },
+        friday: { isOpen: true, open: "09:00", close: "18:00" },
+        saturday: { isOpen: true, open: "09:00", close: "17:00" },
+        sunday: { isOpen: false, open: "09:00", close: "17:00" }
+      }
+    }
+  });
+  const [savingAutoResponder, setSavingAutoResponder] = useState(false);
 
   useEffect(() => {
     if (isFreeTier) {
       getQrStatus().then(res => {
         if (res.success) setQrStatus(res);
       }).catch(() => {});
+
+      getAutoResponderSettings().then(res => {
+        if (res.success && res.data) {
+          setAutoResponder(prev => ({
+            welcomeMessage: { ...prev.welcomeMessage, ...(res.data.welcomeMessage || {}) },
+            awayMessage: {
+              ...prev.awayMessage,
+              ...(res.data.awayMessage || {}),
+              workingHours: {
+                ...prev.awayMessage.workingHours,
+                ...((res.data.awayMessage && res.data.awayMessage.workingHours) || {})
+              }
+            }
+          }));
+        }
+      }).catch(err => console.error("Error fetching auto-responder:", err));
     }
   }, [isFreeTier, showQrModal]);
+
+  const handleSaveAutoResponder = async () => {
+    try {
+      setSavingAutoResponder(true);
+      const res = await saveAutoResponderSettings(autoResponder);
+      if (res.success) {
+        toast.success("Auto-responder settings saved!");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to save settings");
+    } finally {
+      setSavingAutoResponder(false);
+    }
+  };
 
   // ── Phone Registration Status ──────────────────────────────────────────────
   const [phoneStatus, setPhoneStatus] = useState('UNKNOWN'); // 'ACTIVE' | 'PENDING' | 'UNKNOWN'
@@ -335,71 +389,338 @@ export default function WhatsAppConfig() {
 
         {/* Grid Container */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Connection Status Card */}
-          <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-              <div className="flex items-center gap-3">
-                <div className={`w-3.5 h-3.5 rounded-full ${qrStatus.status === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">
-                    Connection Status: {qrStatus.status === 'CONNECTED' ? 'Active & Ready' : 'Disconnected'}
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    {qrStatus.status === 'CONNECTED'
-                      ? `Linked phone: +${qrStatus.phoneNumber} (${qrStatus.pushName || 'WhatsApp User'})`
-                      : 'Scan QR code from WhatsApp on your phone to link device'}
-                  </p>
+          {/* Main Left Column (Connection Card + Auto-Responder Card) */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Connection Status Card */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className={`w-3.5 h-3.5 rounded-full ${qrStatus.status === 'CONNECTED' ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Connection Status: {qrStatus.status === 'CONNECTED' ? 'Active & Ready' : 'Disconnected'}
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      {qrStatus.status === 'CONNECTED'
+                        ? `Linked phone: +${qrStatus.phoneNumber} (${qrStatus.pushName || 'WhatsApp User'})`
+                        : 'Scan QR code from WhatsApp on your phone to link device'}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setShowQrModal(true)}
+                  className="py-2 px-4 bg-[#22c55e] hover:bg-[#16a34a] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  <span>{qrStatus.status === 'CONNECTED' ? 'Re-scan / Change Phone' : 'Scan QR Code'}</span>
+                </button>
+              </div>
+
+              {/* Quick Stats & Action Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Device Mode</span>
+                  <p className="text-sm font-bold text-slate-800 mt-1">Multi-Device Web</p>
+                  <span className="text-[10px] text-emerald-600 font-medium">Independent Socket</span>
+                </div>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Commerce Suite</span>
+                  <p className="text-sm font-bold text-slate-800 mt-1">100% Free</p>
+                  <span className="text-[10px] text-emerald-600 font-medium">Products & Inventory Active</span>
+                </div>
+                <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
+                  <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Broadcast Engine</span>
+                  <p className="text-sm font-bold text-slate-800 mt-1">Safe Throttled</p>
+                  <span className="text-[10px] text-blue-600 font-medium">5 msgs + cooldown delay</span>
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowQrModal(true)}
-                className="py-2 px-4 bg-[#22c55e] hover:bg-[#16a34a] text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M23 4v6h-6"></path>
-                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                </svg>
-                <span>{qrStatus.status === 'CONNECTED' ? 'Re-scan / Change Phone' : 'Scan QR Code'}</span>
-              </button>
+              {qrStatus.status === 'CONNECTED' && (
+                <div className="flex items-center justify-between pt-4 border-t border-slate-100">
+                  <span className="text-xs text-slate-500">Need to disconnect this phone?</span>
+                  <button
+                    onClick={async () => {
+                      if (window.confirm("Disconnect this WhatsApp number?")) {
+                        await disconnectQrSession();
+                        setQrStatus({ status: 'DISCONNECTED', phoneNumber: '', pushName: '' });
+                        toast.info("WhatsApp disconnected.");
+                      }
+                    }}
+                    className="py-1.5 px-3 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-semibold transition-all"
+                  >
+                    Unlink Phone
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Quick Stats & Action Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Device Mode</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">Multi-Device Web</p>
-                <span className="text-[10px] text-emerald-600 font-medium">Independent Socket</span>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Commerce Suite</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">100% Free</p>
-                <span className="text-[10px] text-emerald-600 font-medium">Products & Inventory Active</span>
-              </div>
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Broadcast Engine</span>
-                <p className="text-sm font-bold text-slate-800 mt-1">Safe Throttled</p>
-                <span className="text-[10px] text-blue-600 font-medium">5 msgs + cooldown delay</span>
-              </div>
-            </div>
+            {/* Auto-Responder & Working Hours Card */}
+            <div className="bg-white rounded-2xl p-6 border border-slate-200/80 shadow-xs space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900">
+                      Auto-Responder & Working Hours
+                    </h3>
+                    <p className="text-xs text-slate-500">
+                      Automatically greet first-time customers and handle messages during off-hours
+                    </p>
+                  </div>
+                </div>
 
-            {qrStatus.status === 'CONNECTED' && (
-              <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-                <span className="text-xs text-slate-500">Need to disconnect this phone?</span>
                 <button
-                  onClick={async () => {
-                    if (window.confirm("Disconnect this WhatsApp number?")) {
-                      await disconnectQrSession();
-                      setQrStatus({ status: 'DISCONNECTED', phoneNumber: '', pushName: '' });
-                      toast.info("WhatsApp disconnected.");
-                    }
-                  }}
-                  className="py-1.5 px-3 text-red-600 hover:bg-red-50 border border-red-200 rounded-lg text-xs font-semibold transition-all"
+                  type="button"
+                  onClick={handleSaveAutoResponder}
+                  disabled={savingAutoResponder}
+                  className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
-                  Unlink Phone
+                  {savingAutoResponder ? (
+                    <>
+                      <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <span>Save Settings</span>
+                  )}
                 </button>
               </div>
-            )}
+
+              {/* 1. Welcome Message */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">👋</span>
+                      <h4 className="text-xs font-bold text-slate-800">Welcome Greeting</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Sent to new customers on their first message or after 24h of inactivity
+                    </p>
+                  </div>
+                  <Toggle
+                    enabled={autoResponder.welcomeMessage?.enabled || false}
+                    onChange={(val) =>
+                      setAutoResponder((prev) => ({
+                        ...prev,
+                        welcomeMessage: { ...prev.welcomeMessage, enabled: val }
+                      }))
+                    }
+                  />
+                </div>
+
+                {autoResponder.welcomeMessage?.enabled && (
+                  <div className="space-y-1.5 pt-2 border-t border-slate-200/60 animate-fade-in">
+                    <label className="text-[11px] font-bold text-slate-600 block">
+                      Greeting Message
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={autoResponder.welcomeMessage?.textMessage || ""}
+                      onChange={(e) =>
+                        setAutoResponder((prev) => ({
+                          ...prev,
+                          welcomeMessage: { ...prev.welcomeMessage, textMessage: e.target.value }
+                        }))
+                      }
+                      placeholder="Welcome to our business! How may we assist you today?"
+                      className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* 2. Away Message & Working Hours */}
+              <div className="p-4 rounded-xl bg-slate-50/70 border border-slate-200/70 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🌙</span>
+                      <h4 className="text-xs font-bold text-slate-800">Away Message & Business Hours</h4>
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Sent automatically when customers message outside your open business hours
+                    </p>
+                  </div>
+                  <Toggle
+                    enabled={autoResponder.awayMessage?.enabled || false}
+                    onChange={(val) =>
+                      setAutoResponder((prev) => ({
+                        ...prev,
+                        awayMessage: { ...prev.awayMessage, enabled: val }
+                      }))
+                    }
+                  />
+                </div>
+
+                {autoResponder.awayMessage?.enabled && (
+                  <div className="space-y-4 pt-2 border-t border-slate-200/60 animate-fade-in">
+                    <div>
+                      <label className="text-[11px] font-bold text-slate-600 block mb-1">
+                        Away Message Text
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={autoResponder.awayMessage?.textMessage || ""}
+                        onChange={(e) =>
+                          setAutoResponder((prev) => ({
+                            ...prev,
+                            awayMessage: { ...prev.awayMessage, textMessage: e.target.value }
+                          }))
+                        }
+                        placeholder="Thank you for reaching out! We are currently outside working hours and will get back to you soon."
+                        className="w-full p-2.5 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    {/* Holiday Mode & Timezone */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white rounded-lg border border-slate-200">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-700 font-medium">
+                        <input
+                          type="checkbox"
+                          checked={autoResponder.awayMessage?.holidayMode || false}
+                          onChange={(e) =>
+                            setAutoResponder((prev) => ({
+                              ...prev,
+                              awayMessage: { ...prev.awayMessage, holidayMode: e.target.checked }
+                            }))
+                          }
+                          className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
+                        />
+                        <span>🌴 Holiday / Vacation Mode (Always reply away)</span>
+                      </label>
+
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] text-slate-400 font-medium">Timezone:</span>
+                        <select
+                          value={autoResponder.awayMessage?.timezone || "Asia/Kolkata"}
+                          onChange={(e) =>
+                            setAutoResponder((prev) => ({
+                              ...prev,
+                              awayMessage: { ...prev.awayMessage, timezone: e.target.value }
+                            }))
+                          }
+                          className="text-xs px-2 py-1 bg-slate-50 border border-slate-300 rounded-md font-semibold text-slate-700"
+                        >
+                          <option value="Asia/Kolkata">Asia/Kolkata (IST)</option>
+                          <option value="Asia/Dubai">Asia/Dubai (GST)</option>
+                          <option value="Europe/London">Europe/London (GMT/BST)</option>
+                          <option value="America/New_York">America/New_York (EST/EDT)</option>
+                          <option value="UTC">UTC</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Weekly Schedule */}
+                    <div>
+                      <span className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">
+                        Weekly Operating Schedule
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                        {["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => {
+                          const dayConfig = autoResponder.awayMessage?.workingHours?.[day] || {
+                            isOpen: day !== "sunday",
+                            open: "09:00",
+                            close: day === "saturday" ? "17:00" : "18:00"
+                          };
+                          const capitalized = day.charAt(0).toUpperCase() + day.slice(1);
+
+                          return (
+                            <div
+                              key={day}
+                              className={`flex items-center justify-between p-2 rounded-lg border transition ${
+                                dayConfig.isOpen
+                                  ? "bg-white border-slate-200"
+                                  : "bg-slate-100/70 border-slate-200/50 text-slate-400"
+                              }`}
+                            >
+                              <label className="flex items-center gap-2 cursor-pointer font-semibold min-w-24">
+                                <input
+                                  type="checkbox"
+                                  checked={dayConfig.isOpen}
+                                  onChange={(e) => {
+                                    const nextIsOpen = e.target.checked;
+                                    setAutoResponder((prev) => ({
+                                      ...prev,
+                                      awayMessage: {
+                                        ...prev.awayMessage,
+                                        workingHours: {
+                                          ...prev.awayMessage.workingHours,
+                                          [day]: { ...dayConfig, isOpen: nextIsOpen }
+                                        }
+                                      }
+                                    }));
+                                  }}
+                                  className="w-3.5 h-3.5 rounded text-emerald-600 border-slate-300"
+                                />
+                                <span>{capitalized}</span>
+                              </label>
+
+                              {dayConfig.isOpen ? (
+                                <div className="flex items-center gap-1.5 text-[11px]">
+                                  <input
+                                    type="time"
+                                    value={dayConfig.open || "09:00"}
+                                    onChange={(e) => {
+                                      const nextVal = e.target.value;
+                                      setAutoResponder((prev) => ({
+                                        ...prev,
+                                        awayMessage: {
+                                          ...prev.awayMessage,
+                                          workingHours: {
+                                            ...prev.awayMessage.workingHours,
+                                            [day]: { ...dayConfig, open: nextVal }
+                                          }
+                                        }
+                                      }));
+                                    }}
+                                    className="px-1.5 py-0.5 border border-slate-200 rounded text-slate-700 bg-slate-50 font-mono"
+                                  />
+                                  <span className="text-slate-400">to</span>
+                                  <input
+                                    type="time"
+                                    value={dayConfig.close || "18:00"}
+                                    onChange={(e) => {
+                                      const nextVal = e.target.value;
+                                      setAutoResponder((prev) => ({
+                                        ...prev,
+                                        awayMessage: {
+                                          ...prev.awayMessage,
+                                          workingHours: {
+                                            ...prev.awayMessage.workingHours,
+                                            [day]: { ...dayConfig, close: nextVal }
+                                          }
+                                        }
+                                      }));
+                                    }}
+                                    className="px-1.5 py-0.5 border border-slate-200 rounded text-slate-700 bg-slate-50 font-mono"
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-[10px] font-semibold text-slate-400 bg-slate-200/60 px-2 py-0.5 rounded">
+                                  Closed / Day Off
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-slate-400 mt-2">
+                        * Away messages apply a 12-hour per-contact cooldown to prevent spamming active chat conversations.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* Right Column: Free Included Services & Anti-Ban Best Practices */}

@@ -23,7 +23,11 @@ exports.getProfile = async (req, res, next) => {
     });
 
     const userObj = user.toObject();
-    userObj.tenantWhatsAppConnected = !!channel;
+    if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+      userObj.tenantWhatsAppConnected = false;
+    } else {
+      userObj.tenantWhatsAppConnected = !!channel;
+    }
 
     res.status(200).json({
       success: true,
@@ -390,7 +394,11 @@ exports.uploadAvatar = async (req, res, next) => {
     });
 
     const userObj = user.toObject();
-    userObj.tenantWhatsAppConnected = !!channel;
+    if (user.whatsappChannelType === 'meta_pro' && (user.wabaApprovalStatus === 'PENDING' || user.wabaApprovalStatus === 'REJECTED')) {
+      userObj.tenantWhatsAppConnected = false;
+    } else {
+      userObj.tenantWhatsAppConnected = !!channel;
+    }
 
     res.status(200).json({
       success: true,

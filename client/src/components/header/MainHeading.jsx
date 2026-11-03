@@ -24,6 +24,7 @@ import { userContext } from "../../context/Context";
 // --- SERVICES ---
 import NotificationApi from "../../services/NotificationApi";
 import { getBackendFileUrl } from "../../utils/urlHelper";
+import { getQrStatus } from "../../services/qrWhatsappService";
 
 // --- ASSETS ---
 import logoIcon from "../../assets/MessBee Logo.png"; 
@@ -48,6 +49,26 @@ const MainHeading = ({ onMenuClick }) => {
   const notifRef = useRef(null);
 
   const { user, logoutUser, socket } = useContext(userContext);
+  
+  const [qrStatusData, setQrStatusData] = useState({
+    status: user?.tenantWhatsAppConnected ? 'CONNECTED' : 'DISCONNECTED',
+    phoneNumber: user?.whatsappPhone || user?.whatsappConfig?.phoneNumber || ''
+  });
+
+  useEffect(() => {
+    if (user?.whatsappChannelType === "free_qr") {
+      getQrStatus()
+        .then((res) => {
+          if (res && res.success) {
+            setQrStatusData({
+              status: res.status,
+              phoneNumber: res.phoneNumber || ''
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user?.whatsappChannelType, user?.tenantWhatsAppConnected, isQrModalOpen]);
   
   const userProfile = {
     name: user?.name || "User",
@@ -253,19 +274,38 @@ const MainHeading = ({ onMenuClick }) => {
       <div className="flex items-center gap-4 shrink-0">
         
         {user?.whatsappChannelType === "free_qr" && (
-          <button
-            onClick={() => setIsQrModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#22c55e]/10 hover:bg-[#22c55e]/20 text-[#16a34a] rounded-full border border-[#22c55e]/30 transition-all text-xs font-semibold shadow-xs cursor-pointer"
-            title="Scan QR to connect your personal or business WhatsApp"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7"></rect>
-              <rect x="14" y="3" width="7" height="7"></rect>
-              <rect x="14" y="14" width="7" height="7"></rect>
-              <rect x="3" y="14" width="7" height="7"></rect>
-            </svg>
-            <span>Link WhatsApp (QR)</span>
-          </button>
+          qrStatusData.status === "CONNECTED" || user?.tenantWhatsAppConnected ? (
+            <button
+              onClick={() => setIsQrModalOpen(true)}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-full border border-emerald-200 transition-all text-xs font-bold shadow-xs cursor-pointer group"
+              title="WhatsApp Linked! Click to view details or switch account"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span className="font-mono text-[11px] text-emerald-900 font-bold">
+                {qrStatusData.phoneNumber ? `+${qrStatusData.phoneNumber}` : "WA Linked"}
+              </span>
+              <span className="text-[9px] bg-emerald-200/80 text-emerald-900 px-1.5 py-0.5 rounded-full font-extrabold uppercase tracking-wider">
+                Live
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsQrModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-full border border-amber-200 transition-all text-xs font-semibold shadow-xs cursor-pointer animate-pulse"
+              title="Scan QR to connect your personal or business WhatsApp"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+              <span>Scan QR to Link</span>
+            </button>
+          )
         )}
 
         <button onClick={() => navigate('/admin/developer/api')} className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 rounded-full border border-emerald-100 hover:bg-emerald-100 transition-all cursor-pointer group">

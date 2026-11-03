@@ -143,7 +143,21 @@ const UserSchema = new mongoose.Schema({
   },
   isApproved: {
     type: Boolean,
-    default: true // Users are automatically approved now, instead blocked via WhatsApp connection
+    default: true
+  },
+  approvalStatus: {
+    type: String,
+    enum: ['PENDING', 'APPROVED', 'REJECTED'],
+    default: 'APPROVED'
+  },
+  wabaApprovalStatus: {
+    type: String,
+    enum: ['NONE', 'PENDING', 'APPROVED', 'REJECTED'],
+    default: 'NONE'
+  },
+  tenantWhatsAppConnected: {
+    type: Boolean,
+    default: false
   },
   isEmailVerified: {
     type: Boolean,
