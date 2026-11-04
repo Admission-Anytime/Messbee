@@ -195,7 +195,19 @@ exports.sendBulkMessages = async (userId, campaignId, contacts, messageTemplate)
     if (!campaign) {
       throw new Error('Campaign not found');
     }
-    
+
+    const User = require('../models/User');
+    const userDoc = await User.findById(userId).select('whatsappChannelType').lean();
+    if (userDoc?.whatsappChannelType === 'free_qr') {
+      const qrWhatsappService = require('./qrWhatsappService');
+      const recipientPhones = (contacts || []).map(c => c.phone || c.whatsapp || c).filter(Boolean);
+      return qrWhatsappService.sendBatchBroadcast(userId, {
+        recipientPhones,
+        messageText: messageTemplate || campaign?.name || 'Hello',
+        media: campaign?.headerMediaUrl ? { url: campaign.headerMediaUrl, type: campaign.headerType || 'image' } : null
+      });
+    }
+
     const tenantWhatsAppService = await getTenantWhatsAppService(userId);
     if (!tenantWhatsAppService) {
       throw new Error('WhatsApp is not connected for this account.');

@@ -926,6 +926,7 @@ const Conversion = ({
    const filteredAgents = agentsList.filter(agent => agent.name.toLowerCase().includes(agentSearch.toLowerCase()));
 
    const canSendFreeText = useMemo(() => {
+      if (user?.whatsappChannelType === 'free_qr' || data?.source === 'free_qr') return true;
       if (data?.source !== 'whatsapp') return true;
 
       const within24Hours = (dateValue) => {
@@ -945,7 +946,7 @@ const Conversion = ({
       // Fallback for older chats where lastInboundAt/canSendFreeText might be stale.
       const latestInbound = Array.isArray(data?.messages)
          ? [...data.messages]
-            .filter((message) => message?.sender === 'them')
+            .filter((message) => message?.sender === 'them' || message?.sender === 'customer' || message?.direction === 'INBOUND' || message?.direction === 'inbound')
             .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime())[0]
          : null;
 
@@ -999,9 +1000,10 @@ const Conversion = ({
       return Array.from(new Set(intents)).slice(0, 5);
    }, [data?.messages]);
 
-   const isTemplateOnlyMode = data?.source === 'whatsapp' && !canSendFreeText;
+   const isTemplateOnlyMode = user?.whatsappChannelType !== 'free_qr' && data?.source === 'whatsapp' && !canSendFreeText;
 
    const sessionExpiryMs = useMemo(() => {
+      if (user?.whatsappChannelType === 'free_qr' || data?.source === 'free_qr') return null;
       if (data?.source !== 'whatsapp') return null;
 
       const parseDate = (value) => {
@@ -1014,7 +1016,7 @@ const Conversion = ({
 
       const latestInbound = Array.isArray(data?.messages)
          ? [...data.messages]
-            .filter((message) => message?.sender === 'them')
+            .filter((message) => message?.sender === 'them' || message?.sender === 'customer' || message?.direction === 'INBOUND' || message?.direction === 'inbound')
             .sort((a, b) => new Date(b?.createdAt || 0).getTime() - new Date(a?.createdAt || 0).getTime())[0]
          : null;
 

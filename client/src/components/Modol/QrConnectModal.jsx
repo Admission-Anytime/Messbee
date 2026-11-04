@@ -112,7 +112,8 @@ const QrConnectModal = ({ isOpen, onClose }) => {
         setStatus(res.status);
         setPhoneNumber(res.phoneNumber || "");
         setPushName(res.pushName || "");
-        if (res.status === "CONNECTED") {
+        if (res.status === "CONNECTED" || res.alreadyConnected) {
+          setStatus("CONNECTED");
           setLoading(false);
           return;
         }
