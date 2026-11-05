@@ -304,7 +304,19 @@ const startSession = async (tenantId) => {
           const remoteJid = m.key.remoteJid || '';
           if (!remoteJid || remoteJid.includes('@g.us')) continue; // skip group chats
 
-          const senderPhone = remoteJid.split('@')[0].split(':')[0];
+          let senderPhone = remoteJid.split('@')[0].split(':')[0];
+          // Handle LID (Linked Device privacy format e.g. 123456789@lid)
+          if (remoteJid.includes('@lid')) {
+            const alt = m.key.remoteJidAlt || m.key.participantPn || m.participant;
+            if (alt && !alt.includes('@lid')) {
+              senderPhone = alt.split('@')[0].split(':')[0];
+            } else if (sock.signalRepository?.lidMapping?.getPNForLID) {
+              try {
+                const pn = await sock.signalRepository.lidMapping.getPNForLID(remoteJid);
+                if (pn) senderPhone = pn.split('@')[0].split(':')[0];
+              } catch (e) {}
+            }
+          }
           const pushName = m.pushName || senderPhone;
 
           // Unwrap ephemeral, viewOnce, or nested document messages
@@ -466,22 +478,40 @@ const startSession = async (tenantId) => {
             if (pp) avatarUrl = pp;
           } catch (e) {}
 
-          // 3. Find or create chat document
+          // 3. Find or create chat document with unified normalized number
+          const { normalizePhoneNumber } = require('../utils/phoneHelper');
+          const cleanPhone = normalizePhoneNumber(senderPhone);
+          const rawDigitsClean = cleanPhone.replace(/\D/g, '') || senderPhone.replace(/\D/g, '');
+          const last10Clean = rawDigitsClean.slice(-10);
+          const phoneRegexClean = last10Clean.length >= 10 ? new RegExp(last10Clean + '$') : null;
+
+          const tenantIdStr = tenantId.toString();
+          const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+          const userTenantFilter = tenantIdObj ? { $in: [tenantId, tenantIdStr, tenantIdObj] } : tenantId;
+
+          const chatSearchConditions = [
+            { phone: { $in: phoneVariants } },
+            { whatsappId: { $in: phoneVariants } },
+            { phone: cleanPhone },
+            { whatsappId: cleanPhone }
+          ];
+          if (phoneRegexClean) {
+            chatSearchConditions.push({ phone: phoneRegexClean });
+            chatSearchConditions.push({ whatsappId: phoneRegexClean });
+          }
+
           let isNewChat = false;
           let chat = await Chat.findOne({
-            user: tenantId,
-            $or: [
-              { phone: { $in: phoneVariants } },
-              { whatsappId: { $in: phoneVariants } }
-            ]
+            user: userTenantFilter,
+            $or: chatSearchConditions
           });
 
           if (!chat) {
             isNewChat = true;
             chat = await Chat.create({
-              name: pushName,
-              phone: senderPhone,
-              whatsappId: senderPhone,
+              name: pushName || cleanPhone,
+              phone: cleanPhone,
+              whatsappId: cleanPhone,
               avatar: avatarUrl,
               source: 'whatsapp',
               status: 'active',
@@ -491,9 +521,12 @@ const startSession = async (tenantId) => {
               lastMsgTime: timeStr,
               lastInboundAt: now,
               lastActivity: now,
-              user: tenantId
+              user: tenantIdObj || tenantId
             });
           } else {
+            // Unify phone numbers so incoming and outgoing match identically
+            chat.phone = cleanPhone;
+            chat.whatsappId = cleanPhone;
             chat.unread = (chat.unread || 0) + 1;
             chat.lastMsg = text;
             chat.lastMsgTime = timeStr;
@@ -505,12 +538,12 @@ const startSession = async (tenantId) => {
             await chat.save();
           }
 
-          // 4. Save Message
+          // 4. Save Message - sender 'them' ensures unified 24h & UI bubble compatibility
           const newMsg = await Message.create({
             chatId: chat._id,
             tenantId: tenantId,
             contactId: contact ? contact._id : undefined,
-            sender: 'customer',
+            sender: 'them',
             senderType: 'CUSTOMER',
             direction: 'INBOUND',
             text: text,
@@ -780,11 +813,25 @@ const getSessionStatus = async (tenantId) => {
   const sessionDoc = await QrSession.findOne({ tenantId });
   const inMemorySock = activeSockets.get(tenantIdStr);
 
+  const sessionPath = path.join(SESSIONS_DIR, 'session_' + tenantIdStr);
+  const credsPath = path.join(sessionPath, 'creds.json');
+  const hasSavedCreds = fs.existsSync(credsPath) && fs.statSync(credsPath).size > 100;
+
   const isConnected = !!(inMemorySock?.user && sessionDoc?.status === 'CONNECTED');
+  const shouldBeConnected = isConnected || (sessionDoc?.status === 'CONNECTED' && hasSavedCreds);
+
+  // If credentials exist but socket is missing from memory, restore silently
+  if ((sessionDoc?.status === 'CONNECTED' || hasSavedCreds) && (!inMemorySock || !inMemorySock.user)) {
+    if (!reconnectTimeouts.has(tenantIdStr)) {
+      startSession(tenantId).catch(err => {
+        console.warn('[QRService] Silent auto-resume failed for ' + tenantIdStr + ':', err.message);
+      });
+    }
+  }
 
   return {
     success: true,
-    status: isConnected ? 'CONNECTED' : (sessionDoc?.status || 'DISCONNECTED'),
+    status: shouldBeConnected ? 'CONNECTED' : (sessionDoc?.status || 'DISCONNECTED'),
     phoneNumber: sessionDoc?.phoneNumber || (inMemorySock?.user?.id?.split(':')[0] || ''),
     pushName: sessionDoc?.pushName || inMemorySock?.user?.name || '',
     qrCodeDataUrl: sessionDoc?.qrCodeDataUrl || '',

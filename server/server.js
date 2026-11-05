@@ -86,6 +86,15 @@ connectDB().then(async () => {
           updateObj['whatsappConfig.wabaId'] = ch.metadata.wabaId;
         }
 
+        // Always protect and guarantee connected state for verified Meta channels
+        if (ch.activeWhatsappPhoneNumberId && (ch.metaAccessToken || ch.metadata?.wabaId)) {
+          updateObj.whatsappChannelType = 'meta_pro';
+          updateObj.tenantWhatsAppConnected = true;
+          updateObj.wabaApprovalStatus = 'APPROVED';
+          updateObj.approvalStatus = 'APPROVED';
+          updateObj.isApproved = true;
+        }
+
         if (Object.keys(updateObj).length > 0) {
           await mongoose.connection.db.collection('users').updateOne(
             { _id: ch.tenantId },

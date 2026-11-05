@@ -340,6 +340,56 @@ exports.sendCampaign = async (req, res, next) => {
       });
     }
 
+    const isFreeQrTier = (req.user?.whatsappChannelType === 'free_qr');
+
+    if (isFreeQrTier) {
+      const qrWhatsappService = require('../services/qrWhatsappService');
+      const qrStatus = await qrWhatsappService.getSessionStatus(req.user.id);
+      if (qrStatus.status !== 'CONNECTED') {
+        return res.status(403).json({
+          success: false,
+          message: 'WhatsApp Web is not connected. Please scan QR in WhatsApp Settings before launching campaigns.',
+          errorCode: 'QR_NOT_CONNECTED'
+        });
+      }
+
+      campaign.status = 'active';
+      campaign.stats = { sent: 0, delivered: 0, read: 0, replied: 0, failed: 0 };
+      await campaign.save();
+
+      const recipientPhones = campaign.targetAudience.map(c => c.phone || c.whatsapp || c).filter(Boolean);
+      let mediaPayload = null;
+      if (campaign.headerMediaUrl) {
+        mediaPayload = { url: campaign.headerMediaUrl, type: campaign.headerType || 'image' };
+      }
+
+      qrWhatsappService.sendBatchBroadcast(req.user.id, {
+        recipientPhones,
+        messageText: campaign.messageTemplate || campaign.bodyText || campaign.name || 'Hello',
+        media: mediaPayload
+      }).then(async (result) => {
+        const updated = await Campaign.findById(campaign._id);
+        if (updated) {
+          updated.status = 'completed';
+          updated.stats = { sent: result.totalProcessed || recipientPhones.length, delivered: result.totalProcessed || recipientPhones.length, read: 0, replied: 0, failed: 0 };
+          await updated.save();
+        }
+      }).catch(async (err) => {
+        console.error('[CampaignController] Free QR broadcast error:', err.message);
+        const updated = await Campaign.findById(campaign._id);
+        if (updated) {
+          updated.status = 'failed';
+          await updated.save();
+        }
+      });
+
+      return res.status(200).json({
+        success: true,
+        message: 'Campaign launched successfully via WhatsApp Web Free Hub!',
+        data: campaign
+      });
+    }
+
     // 💳 Pre-flight Campaign Wallet Reservation
     const walletService = require('../services/walletService');
     const { getMessageCost } = require('../config/pricingConfig');

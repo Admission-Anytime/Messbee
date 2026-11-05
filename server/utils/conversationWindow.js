@@ -11,7 +11,12 @@ async function getLastInboundAt(chat) {
 
   const latestInbound = await Message.findOne({
     chatId: chat._id,
-    sender: 'them',
+    $or: [
+      { sender: 'them' },
+      { sender: 'customer' },
+      { direction: 'INBOUND' },
+      { direction: 'inbound' }
+    ],
     isDeleted: false
   })
     .sort({ createdAt: -1 })
@@ -21,7 +26,12 @@ async function getLastInboundAt(chat) {
   return latestInbound?.createdAt ? new Date(latestInbound.createdAt) : null;
 }
 
-async function hasActiveCustomerWindow(chat, now = new Date()) {
+async function hasActiveCustomerWindow(chat, now = new Date(), user = null) {
+  // Free QR WhatsApp has no 24-hour window restriction!
+  if (user?.whatsappChannelType === 'free_qr' || chat?.source === 'free_qr') {
+    return true;
+  }
+
   const lastInboundAt = await getLastInboundAt(chat);
 
   if (!lastInboundAt) {

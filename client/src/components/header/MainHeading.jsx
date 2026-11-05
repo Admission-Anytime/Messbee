@@ -51,7 +51,7 @@ const MainHeading = ({ onMenuClick }) => {
   const { user, logoutUser, socket } = useContext(userContext);
   
   const [qrStatusData, setQrStatusData] = useState({
-    status: user?.tenantWhatsAppConnected ? 'CONNECTED' : 'DISCONNECTED',
+    status: (user?.tenantWhatsAppConnected || user?.whatsappConfig?.phoneNumberId) ? 'CONNECTED' : 'DISCONNECTED',
     phoneNumber: user?.whatsappPhone || user?.whatsappConfig?.phoneNumber || ''
   });
 
