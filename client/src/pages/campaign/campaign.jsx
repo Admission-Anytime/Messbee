@@ -23,22 +23,34 @@ import {
   ArrowTrendingUpIcon,
   ClockIcon,
   PencilSquareIcon,
+  PlayIcon,
+  PauseIcon,
 } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import CampaignDetail from '../analytic/CampaignDetail';
 const mapStatus = (status) => {
-  switch (status) {
+  const s = String(status || '').toLowerCase();
+  switch (s) {
     case 'completed': return 'Completed';
-    case 'active': return 'Processing';
+    case 'active':
+    case 'processing':
+    case 'running': return 'Processing';
     case 'paused': return 'Paused';
     case 'scheduled': return 'Scheduled';
+    case 'failed': return 'Failed';
+    case 'cancelled': return 'Cancelled';
     default: return 'Draft';
   }
 };
 
 const mapProgress = (camp) => {
-  if (camp.status === 'completed') return 100;
-  if (camp.stats?.sent > 0) return Math.round((camp.stats.delivered / camp.stats.sent) * 100);
+  const statusLower = String(camp?.status || '').toLowerCase();
+  if (statusLower === 'completed') return 100;
+  const total = camp?.stats?.totalTargeted || (camp?.targetAudience || []).length || 0;
+  const processed = (camp?.stats?.sent || 0) + (camp?.stats?.failed || 0);
+  if (total > 0 && processed > 0) {
+    return Math.min(100, Math.round((processed / total) * 100));
+  }
   return 0;
 };
 
@@ -120,7 +132,7 @@ const CampaignDashboard = () => {
   const [duplicatedId, setDuplicatedId] = useState(null);
 
   /* dynamic filters state */
-  const CAMPAIGN_STATUS_OPTIONS = ['Completed', 'Processing', 'Draft', 'Scheduled', 'Paused'];
+  const CAMPAIGN_STATUS_OPTIONS = ['Completed', 'Processing', 'Draft', 'Scheduled', 'Paused', 'Failed', 'Cancelled'];
   const [filterStatus, setFilterStatus] = useState('All');
   const [filterTemplate, setFilterTemplate] = useState('All');
   const [templateOptions, setTemplateOptions] = useState([]);
@@ -157,6 +169,62 @@ const CampaignDashboard = () => {
 
     socketRef.current.on('connect', () => {
       socketRef.current.emit('join', userId);
+    });
+
+    socketRef.current.on('campaign_progress', (data) => {
+      const { campaignId, sent, total, percent } = data;
+      setCampaigns((prev) => 
+        prev.map((c) => {
+          if (String(c.id) === String(campaignId)) {
+            const updatedStats = {
+              ...(c.stats || {}),
+              sent,
+              delivered: sent,
+              totalTargeted: total,
+              total
+            };
+            return {
+              ...c,
+              stats: updatedStats,
+              status: 'Processing',
+              progress: percent || mapProgress({ ...c, status: 'active', stats: updatedStats })
+            };
+          }
+          return c;
+        })
+      );
+    });
+
+    socketRef.current.on('campaign_status_changed', (data) => {
+      const { campaignId, status } = data;
+      setCampaigns((prev) => 
+        prev.map((c) => {
+          if (String(c.id) === String(campaignId)) {
+            return {
+              ...c,
+              status: mapStatus(status)
+            };
+          }
+          return c;
+        })
+      );
+    });
+
+    socketRef.current.on('campaign_completed', (data) => {
+      const { campaignId, stats } = data;
+      setCampaigns((prev) => 
+        prev.map((c) => {
+          if (String(c.id) === String(campaignId)) {
+            return {
+              ...c,
+              status: 'Completed',
+              progress: 100,
+              stats: stats ? { ...(c.stats || {}), ...stats } : c.stats
+            };
+          }
+          return c;
+        })
+      );
     });
 
     socketRef.current.on('campaign_stats_updated', (data) => {
@@ -267,6 +335,12 @@ const CampaignDashboard = () => {
       const audienceIds = (camp.targetAudience || []).map(c => c._id || c);
       const res = await CampaignApi.createCampaign({
         name: `${camp.title} (Copy)`,
+        channelType: camp.channelType || 'FREE_QR',
+        delayOption: camp.delayOption || '10s',
+        delayInterval: camp.delayInterval || 10,
+        delayUnit: camp.delayUnit || 'seconds',
+        contactGroupId: camp.contactGroupId?._id || camp.contactGroupId || undefined,
+        bodyText: camp.bodyText || camp.message || '',
         messageTemplate: camp.templateName || camp.message,
         templateLanguage: camp.templateLanguage || 'en_US',
         headerMediaUrl: camp.headerMediaUrl,
@@ -285,6 +359,38 @@ const CampaignDashboard = () => {
       }
     } catch {
       toast.error('Failed to duplicate campaign');
+    }
+  };
+
+  const handlePause = async (camp) => {
+    try {
+      const res = await CampaignApi.pauseCampaign(camp.id);
+      if (res.success) {
+        toast.success(`"${camp.title}" paused`);
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === camp.id ? { ...c, status: 'Paused' } : c))
+        );
+      } else {
+        toast.error(res.message || 'Failed to pause campaign');
+      }
+    } catch {
+      toast.error('Failed to pause campaign');
+    }
+  };
+
+  const handleResume = async (camp) => {
+    try {
+      const res = await CampaignApi.resumeCampaign(camp.id);
+      if (res.success) {
+        toast.success(`"${camp.title}" resumed`);
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === camp.id ? { ...c, status: 'Processing' } : c))
+        );
+      } else {
+        toast.error(res.message || 'Failed to resume campaign');
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to resume campaign');
     }
   };
 
@@ -530,6 +636,28 @@ const CampaignDashboard = () => {
                     </td>
                     <td className="px-5 py-4 align-middle">
                       <div className="flex justify-end items-center gap-1">
+                        {camp.status === 'Processing' && (
+                          <ActionBtn
+                            icon={<PauseIcon className="w-4 h-4" />}
+                            hoverColor="hover:text-amber-500 hover:bg-amber-50"
+                            title="Pause Broadcast"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePause(camp);
+                            }}
+                          />
+                        )}
+                        {camp.status === 'Paused' && (
+                          <ActionBtn
+                            icon={<PlayIcon className="w-4 h-4" />}
+                            hoverColor="hover:text-emerald-500 hover:bg-emerald-50"
+                            title="Resume Broadcast"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleResume(camp);
+                            }}
+                          />
+                        )}
                         {String(camp.status).toLowerCase() === 'draft' && (
                           <ActionBtn
                             icon={<PencilSquareIcon className="w-4 h-4" />}
@@ -686,6 +814,8 @@ const StatusBadge = ({ status, progress }) => {
   const isDraft = status === 'Draft';
   const isScheduled = status === 'Scheduled';
   const isPaused = status === 'Paused';
+  const isFailed = status === 'Failed';
+  const isCancelled = status === 'Cancelled';
 
   const colorClass = isProcessing
     ? 'text-blue-600 bg-blue-50 border-blue-100'
@@ -695,11 +825,15 @@ const StatusBadge = ({ status, progress }) => {
         ? 'text-amber-600 bg-amber-50 border-amber-100'
         : isPaused
           ? 'text-orange-600 bg-orange-50 border-orange-100'
-          : 'text-emerald-600 bg-emerald-50 border-emerald-100';
+          : isFailed
+            ? 'text-red-600 bg-red-50 border-red-100'
+            : isCancelled
+              ? 'text-gray-500 bg-gray-100 border-gray-200'
+              : 'text-emerald-600 bg-emerald-50 border-emerald-100';
 
   return (
     <div className="flex items-center gap-2">
-      <StatusCircle percentage={progress} processing={isProcessing} />
+      <StatusCircle percentage={progress} processing={isProcessing} failed={isFailed} />
       <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${colorClass}`}>
         {status}
       </span>
@@ -717,8 +851,8 @@ const ActionBtn = ({ icon, hoverColor, title, onClick }) => (
   </button>
 );
 
-const StatusCircle = ({ percentage, processing }) => {
-  const strokeColor = processing ? '#3b82f6' : '#10b981';
+const StatusCircle = ({ percentage, processing, failed }) => {
+  const strokeColor = failed ? '#ef4444' : (processing ? '#3b82f6' : '#10b981');
   const r = 11;
   const circ = 2 * Math.PI * r;
   const offset = circ - (percentage / 100) * circ;

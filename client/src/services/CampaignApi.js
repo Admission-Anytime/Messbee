@@ -26,6 +26,31 @@ const CampaignApi = {
     return response.data;
   },
 
+  sendCampaign: async (id) => {
+    const response = await axios.post(`/campaigns/${id}/send`);
+    return response.data;
+  },
+
+  pauseCampaign: async (id) => {
+    const response = await axios.post(`/campaigns/${id}/pause`);
+    return response.data;
+  },
+
+  resumeCampaign: async (id) => {
+    const response = await axios.post(`/campaigns/${id}/resume`);
+    return response.data;
+  },
+
+  cancelCampaign: async (id) => {
+    const response = await axios.post(`/campaigns/${id}/cancel`);
+    return response.data;
+  },
+
+  getCampaignQueue: async (id) => {
+    const response = await axios.get(`/campaigns/${id}/queue`);
+    return response.data;
+  },
+
   updateCampaignStats: async (id, stats) => {
     const response = await axios.put(`/campaigns/${id}/stats`, stats);
     return response.data;

@@ -30,15 +30,52 @@ const CreateCampaign = () => {
     const [totalContacts, setTotalContacts] = useState(0);
     const [estimatedCount, setEstimatedCount] = useState(0);
     const [templates, setTemplates] = useState([]);
+    const [contactGroups, setContactGroups] = useState([]);
+    const [selectedGroup, setSelectedGroup] = useState('');
+    const [delayOption, setDelayOption] = useState('10s');
+    const [customMessage, setCustomMessage] = useState('');
+    const [customMediaUrl, setCustomMediaUrl] = useState('');
+    const [customMediaType, setCustomMediaType] = useState('image');
+    const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+
+    const handleMediaUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            setIsUploadingMedia(true);
+            const res = await axios.post('/chats/upload-file', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
+            });
+            if (res.data?.fileUrl) {
+                setCustomMediaUrl(res.data.fileUrl);
+                const mime = file.type || '';
+                if (mime.includes('video')) setCustomMediaType('video');
+                else if (mime.includes('pdf') || mime.includes('document')) setCustomMediaType('document');
+                else setCustomMediaType('image');
+                toast.success('Media attached successfully!');
+            } else {
+                toast.error('Failed to upload media');
+            }
+        } catch (err) {
+            toast.error(err?.response?.data?.error || err.message || 'Media upload failed');
+        } finally {
+            setIsUploadingMedia(false);
+        }
+    };
 
     // Initial Data Fetch
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
-                const [lbls, stats, contacts] = await Promise.all([
+                const [lbls, stats, contacts, groupsRes] = await Promise.all([
                     LabelApi.getAllLabels(),
                     StatusApi.getAllStatuses(),
-                    axios.get('/contacts?limit=1')
+                    axios.get('/contacts?limit=1'),
+                    axios.get('/contact-groups').catch(() => ({ data: { data: [] } }))
                 ]);
                 
                 if (Array.isArray(lbls)) setLabelsList(lbls.map(l => l.name));
@@ -46,6 +83,9 @@ const CreateCampaign = () => {
                 if (contacts.data?.success) {
                     setTotalContacts(contacts.data.pagination.total);
                     setEstimatedCount(contacts.data.pagination.total);
+                }
+                if (groupsRes?.data?.data && Array.isArray(groupsRes.data.data)) {
+                    setContactGroups(groupsRes.data.data);
                 }
             } catch (err) {
                 console.error("Failed to fetch campaign initial data:", err);
@@ -103,7 +143,11 @@ const CreateCampaign = () => {
                 let params = new URLSearchParams();
                 params.set('limit', '1');
                 
-                if (selectedOption === 'labels') {
+                if (selectedOption === 'group') {
+                    const grp = contactGroups.find(g => g._id === selectedGroup);
+                    setEstimatedCount(grp ? (grp.totalContacts || grp.contacts?.length || 0) : 0);
+                    return;
+                } else if (selectedOption === 'labels') {
                     if (selectedLabels.length > 0) {
                         params.set('labels', selectedLabels.join(','));
                     } else {
@@ -142,7 +186,7 @@ const CreateCampaign = () => {
             }
         };
         updateEstimatedCount();
-    }, [selectedOption, selectedLabels, selectedStatus, csvFile]);
+    }, [selectedOption, selectedLabels, selectedStatus, selectedGroup, contactGroups, csvFile]);
 
     const [selectedTemplate, setSelectedTemplate] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -209,8 +253,9 @@ const CreateCampaign = () => {
         }
     };
 
-    // Campaign cost: ₹0.95 per contact (Marketing conversation rate per pricing table)
-    const estimatedCost = estimatedCount * 0.95;
+    const isFreeQr = (user?.whatsappChannelType === 'free_qr');
+    // Campaign cost: ₹0.95 per contact for Meta Cloud, Free for WhatsApp Web Free QR
+    const estimatedCost = isFreeQr ? 0 : (estimatedCount * 0.95);
 
     const handleLaunch = async () => {
         if (!campaignName.trim()) {
@@ -230,7 +275,7 @@ const CreateCampaign = () => {
             }
         }
 
-        if (user?.credits < estimatedCost) {
+        if (!isFreeQr && user?.credits < estimatedCost) {
             setShowCreditModal(true);
             return;
         }
@@ -240,7 +285,13 @@ const CreateCampaign = () => {
 
             const campaignData = {
                 name: campaignName,
-                messageTemplate: activeTemplate?.name || selectedTemplate,
+                channelType: isFreeQr ? 'FREE_QR' : 'META_CLOUD',
+                delayOption: delayOption,
+                delayInterval: delayOption.endsWith('m') ? parseInt(delayOption) : parseInt(delayOption),
+                delayUnit: delayOption.endsWith('m') ? 'minutes' : 'seconds',
+                contactGroupId: selectedOption === 'group' ? selectedGroup : undefined,
+                messageTemplate: isFreeQr ? (customMessage.slice(0, 35) || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
+                bodyText: isFreeQr ? customMessage : (customMessage || activeTemplate?.preview || ''),
                 templateLanguage: activeTemplate?.language || 'en_US',
                 status: scheduleOption === 'now' ? 'active' : 'scheduled',
                 scheduledDate: scheduleOption === 'later' ? new Date(`${scheduledDate}T${scheduledTime}`) : null,
@@ -248,39 +299,53 @@ const CreateCampaign = () => {
                     tags: selectedOption === 'labels' ? selectedLabels : [],
                     status: selectedOption === 'status' ? selectedStatus : null,
                 },
-                headerMediaUrl: activeTemplate?.headerMediaUrl,
-                headerType: activeTemplate?.headerType
+                headerMediaUrl: isFreeQr ? (customMediaUrl || null) : activeTemplate?.headerMediaUrl,
+                headerType: isFreeQr ? customMediaType : activeTemplate?.headerType
             };
 
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
-                // Record the transaction - The backend will now automatically deduct the credits
-                await axios.post("/billing/transactions", {
-                    desc: `Campaign Launch - ${campaignName}`,
-                    amount: -estimatedCost,
-                    status: "Paid"
-                });
+                if (!isFreeQr && estimatedCost > 0) {
+                    // Record transaction only for Meta Cloud API paid campaigns
+                    await axios.post("/billing/transactions", {
+                        desc: `Campaign Launch - ${campaignName}`,
+                        amount: -estimatedCost,
+                        status: "Paid"
+                    });
 
-                // Fetch latest user data to sync credits
-                try {
-                    const userRes = await axios.get("/auth/me");
-                    if (userRes.data && userRes.data.data) {
-                        updateUser(userRes.data.data);
+                    // Fetch latest user data to sync credits
+                    try {
+                        const userRes = await axios.get("/auth/me");
+                        if (userRes.data && userRes.data.data) {
+                            updateUser(userRes.data.data);
+                        }
+                    } catch (err) {
+                        const newCredits = Math.max(0, parseFloat((user.credits - estimatedCost).toFixed(2)));
+                        if (user) updateUser({ ...user, credits: newCredits });
                     }
-                } catch (err) {
-                    const newCredits = Math.max(0, parseFloat((user.credits - estimatedCost).toFixed(2)));
-                    if (user) updateUser({ ...user, credits: newCredits });
                 }
 
-                const calculatedMinutes = Math.max(1, Math.ceil(estimatedCount / 100));
+                const calculatedMinutes = delayOption === '5m'
+                    ? estimatedCount * 5
+                    : delayOption === '10m'
+                        ? estimatedCount * 10
+                        : delayOption === '15m'
+                            ? estimatedCount * 15
+                            : Math.max(1, Math.ceil(estimatedCount / 100));
                 
+                const hours = Math.floor(calculatedMinutes / 60);
+                const mins = calculatedMinutes % 60;
+                const formattedDuration = hours > 0
+                    ? `${hours} hour${hours > 1 ? 's' : ''}${mins > 0 ? ` ${mins} min` : ''}`
+                    : `${calculatedMinutes} minute${calculatedMinutes > 1 ? 's' : ''}`;
+
                 toast.success(scheduleOption === 'now' ? 'Campaign launched successfully!' : 'Campaign scheduled successfully!');
                 navigate('/admin/campaign-success', {
                     state: {
                         campaignName,
                         contacts: estimatedCount,
                         credits: estimatedCost,
-                        duration: `${calculatedMinutes} minute${calculatedMinutes > 1 ? 's' : ''}`
+                        duration: formattedDuration
                     }
                 });
             } else {
@@ -299,15 +364,21 @@ const CreateCampaign = () => {
             setIsSavingDraft(true);
             const campaignData = {
                 name: campaignName,
-                messageTemplate: activeTemplate?.name || selectedTemplate,
+                channelType: isFreeQr ? 'FREE_QR' : 'META_CLOUD',
+                delayOption: delayOption,
+                delayInterval: delayOption.endsWith('m') ? parseInt(delayOption) : parseInt(delayOption),
+                delayUnit: delayOption.endsWith('m') ? 'minutes' : 'seconds',
+                contactGroupId: selectedOption === 'group' ? selectedGroup : undefined,
+                messageTemplate: isFreeQr ? (customMessage.slice(0, 35) || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
+                bodyText: isFreeQr ? customMessage : (customMessage || activeTemplate?.preview || ''),
                 templateLanguage: activeTemplate?.language || 'en_US',
                 status: 'draft',
                 audienceFilter: {
                     tags: selectedOption === 'labels' ? selectedLabels : [],
                     status: selectedOption === 'status' ? selectedStatus : null,
                 },
-                headerMediaUrl: activeTemplate?.headerMediaUrl,
-                headerType: activeTemplate?.headerType
+                headerMediaUrl: isFreeQr ? (customMediaUrl || null) : activeTemplate?.headerMediaUrl,
+                headerType: isFreeQr ? customMediaType : activeTemplate?.headerType
             };
             const res = await CampaignApi.createCampaign(campaignData);
             if (res.success) {
@@ -326,6 +397,10 @@ const CreateCampaign = () => {
 
     const nextStep = () => {
         if (currentStep === 1) {
+            if (selectedOption === 'group' && !selectedGroup) {
+                toast.error('Please select a contact group.');
+                return;
+            }
             if (selectedOption === 'labels' && selectedLabels.length === 0) {
                 toast.error('Please select at least one label.');
                 return;
@@ -343,8 +418,12 @@ const CreateCampaign = () => {
                 return;
             }
         } else if (currentStep === 2) {
-            if (!selectedTemplate) {
-                setShowTemplateModal(true);
+            if (isFreeQr && !customMessage.trim()) {
+                toast.error('Please write a broadcast message before proceeding.');
+                return;
+            }
+            if (!isFreeQr && !selectedTemplate && !customMessage.trim()) {
+                toast.error('Please select an approved WhatsApp template.');
                 return;
             }
         }
@@ -474,7 +553,7 @@ const CreateCampaign = () => {
                     <div className="flex items-center w-full max-w-md">
                         <Step number={1} label="Select Audience" active={currentStep >= 1} current={currentStep === 1} />
                         <div className={`flex-1 h-px mx-2 mb-6 ${currentStep >= 2 ? 'bg-emerald-500' : 'bg-gray-200'}`} />
-                        <Step number={2} label="Choose Template" active={currentStep >= 2} current={currentStep === 2} />
+                        <Step number={2} label={isFreeQr ? "Compose Message" : "Choose Template"} active={currentStep >= 2} current={currentStep === 2} />
                         <div className={`flex-1 h-px mx-2 mb-6 ${currentStep >= 3 ? 'bg-emerald-500' : 'bg-gray-200'}`} />
                         <Step number={3} label="Schedule & Review" active={currentStep >= 3} current={currentStep === 3} />
                     </div>
@@ -619,6 +698,45 @@ const CreateCampaign = () => {
                                 </div>
                             </div>
 
+                            {/* Option 2.7: Saved Contact Group */}
+                            <div
+                                onClick={() => setSelectedOption('group')}
+                                className={`p-4 rounded-xl border-2 transition-all cursor-pointer ${selectedOption === 'group' ? 'border-emerald-500 bg-white' : 'border-gray-100 bg-white'}`}
+                            >
+                                <div className="flex items-start gap-4">
+                                    <div className={`mt-1 w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedOption === 'group' ? 'border-emerald-500' : 'border-gray-300'}`}>
+                                        {selectedOption === 'group' && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full" />}
+                                    </div>
+                                    <div className="flex-1">
+                                        <div className="flex justify-between">
+                                            <h3 className="font-bold text-slate-800">Saved Contact Group</h3>
+                                            <Users className="w-5 h-5 text-gray-300" />
+                                        </div>
+                                        <p className="text-gray-500 text-sm mb-3">Choose a predefined audience segment or imported contact group.</p>
+
+                                        <select
+                                            value={selectedGroup}
+                                            onChange={(e) => {
+                                                setSelectedGroup(e.target.value);
+                                                setSelectedOption('group');
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full px-3 py-2.5 border border-gray-200 rounded-lg text-sm text-slate-700 bg-gray-50/50 focus:outline-none focus:border-emerald-500"
+                                        >
+                                            <option value="">Select a contact group...</option>
+                                            {contactGroups.map(grp => (
+                                                <option key={grp._id} value={grp._id}>
+                                                    {grp.name} ({grp.totalContacts || grp.contacts?.length || 0} contacts)
+                                                </option>
+                                            ))}
+                                        </select>
+                                        {contactGroups.length === 0 && (
+                                            <p className="text-[11px] text-gray-400 mt-1">No contact groups saved yet.</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* Option 3: Upload CSV */}
                             <div
                                 onClick={() => {
@@ -691,226 +809,285 @@ const CreateCampaign = () => {
 
                 {currentStep === 2 && (
                     <div className="flex h-[calc(100vh-200px)]">
-                        {/* LEFT SIDE: Template Selection */}
+                        {/* LEFT SIDE: Template or Direct Composer */}
                         <div className="w-1/2 px-12 overflow-y-auto border-r border-gray-100 flex flex-col">
-                            {/* Filters */}
-                            <div className="flex gap-4 mb-6">
-                                <div className="relative flex-1">
-                                    <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        placeholder="Search templates..."
-                                        value={searchQuery}
-                                        onChange={(e) => setSearchQuery(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-gray-50/50"
-                                    />
-                                </div>
-                                <button className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-gray-50">
-                                    Category: All <ChevronDown className="w-4 h-4 text-gray-400" />
-                                </button>
-                            </div>
+                            {isFreeQr ? (
+                                /* Free QR Dedicated Broadcast Composer */
+                                <div className="space-y-6 pb-12 pt-2">
+                                    <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-5">
+                                        <div className="flex items-center gap-2 mb-1.5">
+                                            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                            <h3 className="text-sm font-bold text-emerald-900 uppercase tracking-wider">
+                                                WhatsApp Web Direct Broadcast (Free Hub)
+                                            </h3>
+                                        </div>
+                                        <p className="text-xs text-emerald-700 leading-relaxed">
+                                            Koi Meta template approval ki zaroorat nahi hai. Aap seedha apna custom message, offers, aur media attach karke hazaron logon ko direct WhatsApp bhej sakte hain.
+                                        </p>
+                                    </div>
 
-                            {/* Empty State — shown when no templates exist */}
-                            {templates.filter(t =>
-                                searchQuery.trim() === '' ||
-                                t.name.toLowerCase().includes(searchQuery.toLowerCase())
-                            ).length === 0 && (
-                                <div className="flex items-center justify-center h-[calc(100%-60px)]">
-                                    <div className="border border-dashed border-gray-200 rounded-2xl px-12 py-10 flex flex-col items-center gap-4 bg-gray-50/60">
-                                        <p className="text-sm text-gray-400 font-medium">No templates found.</p>
-                                        <button
-                                            onClick={() => navigate('/admin/templates/create')}
-                                            className="flex items-center gap-2 px-5 py-2 border border-emerald-500 text-emerald-600 font-semibold text-sm rounded-lg hover:bg-emerald-50 transition-colors"
-                                        >
-                                            <span className="text-lg leading-none">+</span> Create Template
+                                    {/* Message Text Box */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                                Broadcast Message Text <span className="text-red-500">*</span>
+                                            </label>
+                                            <span className="text-[11px] text-gray-400 font-medium">
+                                                {customMessage.length} characters
+                                            </span>
+                                        </div>
+
+                                        {/* Quick Insert Variables */}
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="text-[11px] font-semibold text-slate-400">Insert Variable:</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomMessage(prev => prev + ' {{name}}')}
+                                                className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                            >
+                                                + Contact Name
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomMessage(prev => prev + ' {{company}}')}
+                                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                            >
+                                                + Company
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setCustomMessage(prev => prev + ' {{email}}')}
+                                                className="px-2.5 py-1 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                            >
+                                                + Email
+                                            </button>
+                                        </div>
+
+                                        <textarea
+                                            rows={6}
+                                            value={customMessage}
+                                            onChange={(e) => setCustomMessage(e.target.value)}
+                                            placeholder="Hello {{name}}, we are excited to share our latest special offer with you! Reply YES to know more..."
+                                            className="w-full p-3.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition leading-relaxed text-slate-800"
+                                        />
+                                        <p className="text-[11px] text-gray-400 italic">
+                                            Line breaks, emojis 😊, aur website links WhatsApp par rich format me deliver honge.
+                                        </p>
+                                    </div>
+
+                                    {/* Media Attachment (Optional) */}
+                                    <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-bold text-slate-700 uppercase tracking-wide">
+                                                Media Attachment (Optional)
+                                            </label>
+                                            {customMediaUrl && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => { setCustomMediaUrl(''); setCustomMediaType('image'); }}
+                                                    className="text-xs text-red-500 hover:underline font-semibold"
+                                                >
+                                                    Remove Media
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        {/* Media Type Selector */}
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {['image', 'video', 'document'].map((type) => (
+                                                <button
+                                                    key={type}
+                                                    type="button"
+                                                    onClick={() => setCustomMediaType(type)}
+                                                    className={`py-2 px-3 rounded-lg text-xs font-bold capitalize transition border ${
+                                                        customMediaType === type
+                                                            ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                                                            : 'bg-gray-50 text-slate-600 border-gray-200 hover:bg-gray-100'
+                                                    }`}
+                                                >
+                                                    {type === 'image' ? '📷 Image' : type === 'video' ? '🎥 Video' : '📄 PDF / Document'}
+                                                </button>
+                                            ))}
+                                        </div>
+
+                                        {/* Upload or Enter URL */}
+                                        <div className="space-y-2 pt-1">
+                                            <div className="flex items-center gap-2">
+                                                <input
+                                                    type="text"
+                                                    value={customMediaUrl}
+                                                    onChange={(e) => setCustomMediaUrl(e.target.value)}
+                                                    placeholder={`Paste ${customMediaType} URL (https://... or /uploads/...)`}
+                                                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-xs bg-gray-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                />
+                                                <label className="cursor-pointer px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg border border-gray-200 transition shrink-0">
+                                                    {isUploadingMedia ? 'Uploading...' : 'Upload File'}
+                                                    <input
+                                                        type="file"
+                                                        className="hidden"
+                                                        accept={customMediaType === 'image' ? 'image/*' : customMediaType === 'video' ? 'video/*' : '.pdf,.doc,.docx'}
+                                                        onChange={handleMediaUpload}
+                                                    />
+                                                </label>
+                                            </div>
+                                            {customMediaUrl && (
+                                                <p className="text-[11px] text-emerald-600 font-semibold truncate">
+                                                    ✓ Attached: {customMediaUrl}
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                /* Meta Cloud API Template Selector for Paid Accounts */
+                                <>
+                                    {/* Filters */}
+                                    <div className="flex gap-4 mb-6">
+                                        <div className="relative flex-1">
+                                            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                            <input
+                                                type="text"
+                                                placeholder="Search templates..."
+                                                value={searchQuery}
+                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-emerald-500 bg-gray-50/50"
+                                            />
+                                        </div>
+                                        <button className="flex items-center gap-2 px-4 py-2.5 border border-gray-200 rounded-lg text-sm font-medium text-slate-700 bg-white hover:bg-gray-50">
+                                            Category: All <ChevronDown className="w-4 h-4 text-gray-400" />
                                         </button>
                                     </div>
-                                </div>
-                            )}
 
-                            {/* Template Grid */}
-                            <div className="grid grid-cols-2 gap-4 pb-12">
-                                {templates.filter(t =>
-                                    searchQuery.trim() === '' ||
-                                    t.name.toLowerCase().includes(searchQuery.toLowerCase())
-                                ).map((template) => (
-                                    <div
-                                        key={template.id}
-                                        onClick={() => setSelectedTemplate(template.id)}
-                                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md relative group ${selectedTemplate === template.id
-                                            ? 'border-emerald-500 bg-emerald-50/10'
-                                            : 'border-gray-100 bg-white hover:border-gray-200'
-                                            }`}
-                                    >
-                                        {selectedTemplate === template.id && (
-                                            <div className="absolute top-3 right-3 text-emerald-500">
-                                                <CheckCircle className="w-5 h-5 fill-emerald-500 text-white" />
+                                    {/* Empty State */}
+                                    {templates.filter(t =>
+                                        searchQuery.trim() === '' ||
+                                        t.name.toLowerCase().includes(searchQuery.toLowerCase())
+                                    ).length === 0 && (
+                                        <div className="flex items-center justify-center h-[calc(100%-160px)]">
+                                            <div className="border border-dashed border-gray-200 rounded-2xl px-12 py-10 flex flex-col items-center gap-4 bg-gray-50/60">
+                                                <p className="text-sm text-gray-400 font-medium">No templates found.</p>
+                                                <button
+                                                    onClick={() => navigate('/admin/templates/create')}
+                                                    className="flex items-center gap-2 px-5 py-2 border border-emerald-500 text-emerald-600 font-semibold text-sm rounded-lg hover:bg-emerald-50 transition-colors"
+                                                >
+                                                    <span className="text-lg leading-none">+</span> Create Template
+                                                </button>
                                             </div>
-                                        )}
-                                        {/* Status Badge */}
-                                        <div className="flex items-center gap-1.5 mb-3">
-                                            {template.status === 'approved' ? (
-                                                <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                                                    <CheckCircle className="w-3 h-3" /> Approved
-                                                </div>
-                                            ) : (
-                                                <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
-                                                    <Clock className="w-3 h-3" /> Pending
-                                                </div>
-                                            )}
                                         </div>
+                                    )}
 
-                                        <h3 className="font-bold text-slate-800 mb-2 text-sm">{template.name}</h3>
-                                        <p className="text-gray-500 text-xs leading-relaxed mb-4 line-clamp-3">
-                                            {template.preview.split(/(\{\{.*?\}\})/).map((part, index) =>
-                                                part.startsWith('{{') ? <span key={index} className="text-emerald-600 font-medium">{part}</span> : <span key={index}>{part}</span>
-                                            )}
-                                        </p>
+                                    {/* Template Grid */}
+                                    <div className="grid grid-cols-2 gap-4 pb-12">
+                                        {templates.filter(t =>
+                                            searchQuery.trim() === '' ||
+                                            t.name.toLowerCase().includes(searchQuery.toLowerCase())
+                                        ).map((template) => (
+                                            <div
+                                                key={template.id}
+                                                onClick={() => setSelectedTemplate(template.id)}
+                                                className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover:shadow-md relative group ${selectedTemplate === template.id
+                                                    ? 'border-emerald-500 bg-emerald-50/10'
+                                                    : 'border-gray-100 bg-white hover:border-gray-200'
+                                                    }`}
+                                            >
+                                                {selectedTemplate === template.id && (
+                                                    <div className="absolute top-3 right-3 text-emerald-500">
+                                                        <CheckCircle className="w-5 h-5 fill-emerald-500 text-white" />
+                                                    </div>
+                                                )}
+                                                <div className="flex items-center gap-1.5 mb-3">
+                                                    {template.status === 'approved' ? (
+                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                                            <CheckCircle className="w-3 h-3" /> Approved
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase tracking-wide">
+                                                            <Clock className="w-3 h-3" /> Pending
+                                                        </div>
+                                                    )}
+                                                </div>
 
-                                        <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                                            <span className="text-[10px] text-gray-400 font-medium">Last used: {template.lastUsed}</span>
-                                            <span className="text-[10px] font-bold text-slate-600 bg-gray-100 px-2 py-1 rounded-md">{template.category}</span>
-                                        </div>
+                                                <h3 className="font-bold text-slate-800 mb-2 text-sm">{template.name}</h3>
+                                                <p className="text-gray-500 text-xs leading-relaxed mb-4 line-clamp-3">
+                                                    {template.preview.split(/(\{\{.*?\}\})/).map((part, index) =>
+                                                        part.startsWith('{{') ? <span key={index} className="text-emerald-600 font-medium">{part}</span> : <span key={index}>{part}</span>
+                                                    )}
+                                                </p>
+
+                                                <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+                                                    <span className="text-[10px] text-gray-400 font-medium">Last used: {template.lastUsed}</span>
+                                                    <span className="text-[10px] font-bold text-slate-600 bg-gray-100 px-2 py-1 rounded-md">{template.category}</span>
+                                                </div>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
+                                </>
+                            )}
                         </div>
 
                         {/* RIGHT SIDE: Preview */}
                         <div className="w-1/2 bg-slate-50 flex flex-col items-center justify-center p-6 relative overflow-hidden">
-
                             {/* Mobile Mockup */}
-                            <div className="relative w-[280px] h-[400px] flex-shrink-0 bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden transition-transform">
+                            <div className="relative w-[280px] h-[420px] flex-shrink-0 bg-slate-900 rounded-[3rem] border-[10px] border-slate-800 shadow-2xl overflow-hidden transition-transform">
                                 <div className="h-full w-full bg-[#f0f2f5] flex flex-col overflow-hidden">
                                     {/* App Header */}
                                     <div className="bg-[#00a884] p-4 pt-5 flex items-center gap-3 text-white">
                                         <ArrowRight className="w-5 h-5 rotate-180" />
                                         <User size={24} className="bg-white/20 rounded-full p-1" />
                                         <div className="flex-1">
-                                            <p className="text-xs font-bold">University Admission</p>
-                                            <p className="text-[9px] text-white/80">Official Account</p>
+                                            <p className="text-xs font-bold">{isFreeQr ? 'WhatsApp Broadcast' : 'Business Account'}</p>
+                                            <p className="text-[9px] text-white/80">{isFreeQr ? 'Online • Free Hub' : 'Official Account'}</p>
                                         </div>
                                     </div>
 
                                     {/* Chat Area */}
                                     <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-[#e5ddd5]">
-                                        {activeTemplate && (
-                                            <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
-                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Image' && (
-                                                    <div className="mb-2 rounded-lg overflow-hidden border border-gray-100">
-                                                        <img src={activeTemplate.headerMediaUrl} alt="Template Header" className="w-full h-auto object-cover max-h-[120px]" />
-                                                    </div>
-                                                )}
-                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Document' && (
-                                                    <div className="mb-2 bg-gray-50 p-2 rounded-lg border border-gray-100 flex items-center gap-2">
-                                                        <div className="w-8 h-8 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-[10px]">PDF</div>
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="text-[11px] font-bold text-gray-700 truncate">Document</div>
-                                                            <div className="text-[9px] text-gray-400">PDF Document</div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {activeTemplate.headerMediaUrl && activeTemplate.headerType === 'Video' && (
-                                                    <div className="mb-2 bg-black rounded-lg overflow-hidden border border-gray-100 relative h-[120px] flex items-center justify-center">
-                                                        <video src={activeTemplate.headerMediaUrl} className="w-full h-full object-cover opacity-80" />
-                                                        <div className="absolute w-8 h-8 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/50">
-                                                            <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1"></div>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                
-                                                <p className="whitespace-pre-wrap leading-relaxed mb-2">
-                                                    {(activeTemplate?.preview || '').split(/(\{\{.*?\}\})/).map((part, index) =>
-                                                        part.startsWith('{{') ? (
-                                                            <span key={index} className="text-emerald-600 font-bold bg-emerald-50 px-1 rounded mx-0.5">{part}</span>
-                                                        ) : (
-                                                            <span key={index}>{part}</span>
-                                                        )
+                                        <div className="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-xs max-w-[85%] animate-in slide-in-from-left duration-300">
+                                            {/* Media Attachment Preview */}
+                                            {(customMediaUrl || activeTemplate?.headerMediaUrl) && (
+                                                <div className="mb-2 rounded-lg overflow-hidden border border-gray-100">
+                                                    {((isFreeQr && customMediaType === 'image') || (!isFreeQr && activeTemplate?.headerType === 'Image')) && (
+                                                        <img
+                                                            src={customMediaUrl || activeTemplate?.headerMediaUrl}
+                                                            alt="Header Media"
+                                                            className="w-full h-auto object-cover max-h-[120px]"
+                                                            onError={(e) => { e.target.style.display = 'none'; }}
+                                                        />
                                                     )}
-                                                </p>
-
-                                                {/* Limited-Time Offer Urgency Banner */}
-                                                {(activeTemplate?.isLimited || activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')) && (
-                                                    <div className="mb-2 p-2 bg-gradient-to-r from-red-50 to-orange-50 rounded-lg border border-red-200 flex flex-col gap-1 shadow-2xs">
-                                                        <div className="flex items-center justify-between">
-                                                            <span className="text-[10px] font-bold text-red-600">
-                                                                {activeTemplate?.components?.find(c => String(c?.type || '').toUpperCase() === 'LIMITED_TIME_OFFER')?.limited_time_offer?.text || 'Expiring offer!'}
-                                                            </span>
-                                                            <span className="text-[8.5px] font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-2xs border border-red-100 flex items-center gap-1">
-                                                                ⏱ 23:59:59
-                                                            </span>
-                                                        </div>
-                                                        {activeTemplate?.components?.flatMap(c => c?.buttons || [])?.find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example && (
-                                                            <div className="flex items-center justify-between bg-white/90 px-1.5 py-0.5 rounded border border-dashed border-red-300">
-                                                                <span className="text-[8px] font-medium text-gray-500">Code:</span>
-                                                                <span className="text-[8.5px] font-mono font-bold text-gray-800 tracking-wider bg-gray-50 px-1 rounded">
-                                                                    {activeTemplate.components.flatMap(c => c?.buttons || []).find(b => String(b?.type || '').toUpperCase() === 'COPY_CODE')?.example}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                )}
-
-                                                {/* MPM Catalog Showcase */}
-                                                {(activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'BUTTONS' && Array.isArray(c.buttons) && c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')) || activeTemplate?.buttons?.some(b => String(b?.type || '').toUpperCase() === 'MPM')) && (
-                                                    <div className="mb-2 p-2 bg-gradient-to-br from-teal-50/90 to-emerald-50/70 rounded-xl border border-teal-200/80 shadow-2xs">
-                                                        <div className="flex items-center justify-between pb-1 mb-1 border-b border-teal-200/50">
-                                                            <div className="flex items-center gap-1">
-                                                                <span className="text-xs">🛍️</span>
-                                                                <span className="text-[9.5px] font-bold text-teal-900 uppercase">Catalog Showcase</span>
-                                                            </div>
-                                                            <span className="text-[8px] font-semibold text-teal-700 bg-teal-100 px-1.5 py-0.5 rounded-full">
-                                                                Up to 30 items
-                                                            </span>
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-1.5">
-                                                            <div className="bg-white p-1 rounded-lg border border-teal-100 flex flex-col">
-                                                                <div className="w-full h-8 bg-teal-100/50 rounded flex items-center justify-center text-teal-600 mb-1">
-                                                                    <span className="text-sm">📦</span>
-                                                                </div>
-                                                                <span className="text-[8.5px] font-bold text-gray-800 truncate">Featured Item</span>
-                                                                <span className="text-[7.5px] font-semibold text-teal-700">$29.99</span>
-                                                            </div>
-                                                            <div className="bg-white p-1 rounded-lg border border-teal-100 flex flex-col">
-                                                                <div className="w-full h-8 bg-teal-100/50 rounded flex items-center justify-center text-teal-600 mb-1">
-                                                                    <span className="text-sm">✨</span>
-                                                                </div>
-                                                                <span className="text-[8.5px] font-bold text-gray-800 truncate">Top Pick</span>
-                                                                <span className="text-[7.5px] font-semibold text-teal-700">$49.99</span>
+                                                    {((isFreeQr && customMediaType === 'document') || (!isFreeQr && activeTemplate?.headerType === 'Document')) && (
+                                                        <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex items-center gap-2">
+                                                            <div className="w-8 h-8 bg-red-100 text-red-500 rounded flex items-center justify-center font-bold text-[10px]">PDF</div>
+                                                            <div className="flex-1 min-w-0">
+                                                                <div className="text-[11px] font-bold text-gray-700 truncate">Document Attachment</div>
+                                                                <div className="text-[9px] text-gray-400">PDF Document</div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="flex justify-end">
-                                                    <span className="text-[9px] text-gray-400">12:45 PM</span>
+                                                    )}
+                                                    {((isFreeQr && customMediaType === 'video') || (!isFreeQr && activeTemplate?.headerType === 'Video')) && (
+                                                        <div className="bg-black rounded-lg overflow-hidden border border-gray-100 relative h-[120px] flex items-center justify-center">
+                                                            <video src={customMediaUrl || activeTemplate?.headerMediaUrl} className="w-full h-full object-cover opacity-80" />
+                                                            <div className="absolute w-8 h-8 bg-white/30 backdrop-blur-sm rounded-full flex items-center justify-center border border-white/50">
+                                                                <div className="w-0 h-0 border-t-[5px] border-t-transparent border-l-[8px] border-l-white border-b-[5px] border-b-transparent ml-1"></div>
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                {/* Action Buttons */}
-                                                {activeTemplate?.components?.some(c => String(c?.type || '').toUpperCase() === 'BUTTONS' && Array.isArray(c.buttons) && c.buttons.some(b => String(b?.type || '').toUpperCase() === 'MPM')) ? (
-                                                    <div className="mt-3 pt-2 border-t border-gray-100">
-                                                        <button className="w-full py-2 text-center text-[#00a884] font-bold text-[11px] border border-teal-200 rounded-lg bg-teal-50/30 flex justify-center items-center gap-1.5">
-                                                            📋 View items
-                                                        </button>
-                                                    </div>
-                                                ) : activeTemplate.buttons && activeTemplate.buttons.length > 0 && (
-                                                    <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-                                                        {activeTemplate.buttons.map(btn => (
-                                                            <button key={btn.id} className="w-full py-2 text-center text-[#00a884] font-bold text-[11px] border border-gray-100 rounded bg-gray-50/50 flex justify-center items-center gap-1.5">
-                                                                {btn.type?.includes('COPY') || btn.type?.includes('copy') ? '📋' : btn.type?.includes('Visit') ? '🌐' : btn.type?.includes('Call') ? '📞' : '↩️'} {btn.text || (btn.type?.includes('COPY') ? 'Copy code' : 'Action Button')}
-                                                            </button>
-                                                        ))}
-                                                    </div>
+                                            )}
+                                            
+                                            <p className="whitespace-pre-wrap leading-relaxed mb-2 text-slate-800">
+                                                {(customMessage || (!isFreeQr && activeTemplate?.preview) || 'Write your broadcast message to preview it here...').split(/(\{\{.*?\}\})/).map((part, index) =>
+                                                    part.startsWith('{{') ? (
+                                                        <span key={index} className="text-emerald-600 font-bold bg-emerald-50 px-1 rounded mx-0.5">{part}</span>
+                                                    ) : (
+                                                        <span key={index}>{part}</span>
+                                                    )
                                                 )}
-                                            </div>
-                                        )}
-                                    </div>
+                                            </p>
 
-                                    {/* Input Area */}
-                                    <div className="p-2 bg-[#f0f2f5] flex items-center gap-2 pb-3">
-                                        <div className="text-xl cursor-pointer">😊</div>
-                                        <div className="flex-1 bg-white rounded-3xl px-3 py-2 text-[10px] text-gray-400">Type a message</div>
-                                        <div className="w-8 h-8 rounded-full bg-[#00a884] text-white flex items-center justify-center">
-                                            🎤
+                                            <div className="flex justify-end items-center gap-1 text-[9px] text-gray-400 pt-1">
+                                                <span>12:45 PM</span>
+                                                <span className="text-blue-500 font-bold">✓✓</span>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1019,6 +1196,46 @@ const CreateCampaign = () => {
                                         }`} />
                                 </button>
                             </div>
+
+                            {/* Anti-Ban & Dispatch Delay Settings */}
+                            <div className="p-6 rounded-xl border border-gray-200 bg-white">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                        <h3 className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                            <Clock className="w-4 h-4 text-emerald-500" /> Dispatch Delay & Anti-Ban
+                                        </h3>
+                                        <p className="text-gray-500 text-xs mt-0.5">Control sending intervals between contacts to prevent account flagging.</p>
+                                    </div>
+                                    <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full">
+                                        Safe Throttling
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2.5 mt-4">
+                                    {[
+                                        { id: '5s', label: '5-7 Sec', sub: 'Fast Broadcast' },
+                                        { id: '10s', label: '10-13 Sec', sub: 'Balanced (Rec.)' },
+                                        { id: '15s', label: '15-19 Sec', sub: 'Safe Fast' },
+                                        { id: '5m', label: '5 Minutes', sub: 'Slow & Safe' },
+                                        { id: '10m', label: '10 Minutes', sub: 'Anti-Ban Max' },
+                                        { id: '15m', label: '15 Minutes', sub: 'Extreme Safety' }
+                                    ].map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            type="button"
+                                            onClick={() => setDelayOption(opt.id)}
+                                            className={`p-3 rounded-lg border text-left transition-all ${
+                                                delayOption === opt.id
+                                                    ? 'border-emerald-500 bg-emerald-50/40 text-emerald-900 ring-1 ring-emerald-500'
+                                                    : 'border-gray-200 bg-gray-50/50 hover:bg-gray-100 text-slate-700'
+                                            }`}
+                                        >
+                                            <div className="font-bold text-xs">{opt.label}</div>
+                                            <div className="text-[10px] text-gray-400 mt-0.5 truncate">{opt.sub}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
 
                         {/* Right Column */}
@@ -1035,7 +1252,7 @@ const CreateCampaign = () => {
                                     <div className="flex justify-between items-start">
                                         <span className="text-gray-500 text-sm">Template</span>
                                         <a href="#" className="font-bold text-emerald-500 text-right flex items-center gap-1 hover:text-emerald-600">
-                                            {activeTemplate?.name || selectedTemplate} <ExternalLink className="w-3 h-3" />
+                                            {activeTemplate?.name || selectedTemplate || 'Direct Message'} <ExternalLink className="w-3 h-3" />
                                         </a>
                                     </div>
                                     <div className="flex justify-between items-start">
@@ -1043,21 +1260,40 @@ const CreateCampaign = () => {
                                         <span className="font-bold text-slate-800 text-right">{estimatedCount.toLocaleString()} Contacts</span>
                                     </div>
                                     <div className="flex justify-between items-start pt-2">
+                                        <span className="text-gray-500 text-sm">Dispatch Delay</span>
+                                        <span className="font-bold text-slate-800 text-right text-xs">
+                                            {delayOption === '5m' ? '5 Minutes' : delayOption === '10m' ? '10 Minutes' : delayOption === '15m' ? '15 Minutes' : `${delayOption} (with Jitter)`}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between items-start pt-2">
                                         <span className="text-gray-500 text-sm">Estimated Cost</span>
                                         <div className="text-right">
-                                            <div className="font-bold text-slate-800">₹{estimatedCost.toFixed(2)}</div>
-                                            <div className="text-[10px] text-gray-400 italic">~{estimatedCount} Messages</div>
+                                            <div className={`font-bold ${isFreeQr ? 'text-emerald-600' : 'text-slate-800'}`}>
+                                                {isFreeQr ? '₹0.00 (Free)' : `₹${estimatedCost.toFixed(2)}`}
+                                            </div>
+                                            <div className="text-[10px] text-gray-400 italic">
+                                                {isFreeQr ? `~${estimatedCount} Messages • Free via Connected QR` : `~${estimatedCount} Messages`}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Info Box */}
-                                <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex gap-3 mb-6">
-                                    <Info className="w-5 h-5 text-blue-500 shrink-0" />
-                                    <p className="text-xs text-blue-600 leading-relaxed">
-                                        Total cost includes estimated Meta conversation fees and platform credits.
-                                    </p>
-                                </div>
+                                {isFreeQr ? (
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-lg p-3 flex gap-3 mb-6">
+                                        <CheckCircle className="w-5 h-5 text-emerald-500 shrink-0" />
+                                        <p className="text-xs text-emerald-700 leading-relaxed">
+                                            Free QR broadcast connects through your linked WhatsApp Web session. No wallet credits or Meta charges apply.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex gap-3 mb-6">
+                                        <Info className="w-5 h-5 text-blue-500 shrink-0" />
+                                        <p className="text-xs text-blue-600 leading-relaxed">
+                                            Total cost includes estimated Meta conversation fees and platform credits.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* Launch Button */}
                                 <button
