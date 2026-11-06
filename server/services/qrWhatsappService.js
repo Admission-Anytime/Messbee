@@ -691,6 +691,25 @@ const startSession = async (tenantId) => {
               { new: true }
             );
 
+            // Also update CampaignQueue and Campaign stats if this was a broadcast message
+            try {
+              const CampaignQueue = require('../models/CampaignQueue');
+              const queueDoc = await CampaignQueue.findOneAndUpdate(
+                { whatsappMessageId: key.id },
+                { deliveryStatus: newStatus, ...(newStatus === 'read' ? { readAt: new Date() } : { deliveredAt: new Date() }) },
+                { new: true }
+              );
+
+              if (queueDoc && newStatus === 'read') {
+                const Campaign = require('../models/Campaign');
+                await Campaign.findByIdAndUpdate(queueDoc.campaignId, {
+                  $inc: { 'stats.read': 1 }
+                });
+              }
+            } catch (qErr) {
+              // Non-fatal queue update error
+            }
+
             if (updatedMsg) {
               const io = getIO();
               if (io) {
@@ -920,13 +939,24 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
   // Resolve local upload URLs to buffer if needed so Baileys doesn't fail fetch
   const mediaKeys = ['image', 'video', 'audio', 'document', 'sticker'];
   for (const k of mediaKeys) {
-    if (content[k] && content[k].url && typeof content[k].url === 'string') {
+    if (content[k] && typeof content[k] === 'object' && content[k].url && typeof content[k].url === 'string') {
       const urlStr = content[k].url;
-      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+      const innerCaption = content[k].caption;
+
+      // Extract filename if it matches /uploads/ or uploads/
+      let localPath = null;
+      if (urlStr.includes('/uploads/')) {
+        const cleanPath = urlStr.split('/uploads/')[1];
+        localPath = path.join(__dirname, '../uploads', cleanPath);
+      } else if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
         const cleanPath = urlStr.replace(/^\/?(api\/)?uploads\//, '');
-        const localPath = path.join(__dirname, '../uploads', cleanPath);
-        if (fs.existsSync(localPath)) {
-          content[k] = fs.readFileSync(localPath);
+        localPath = path.join(__dirname, '../uploads', cleanPath);
+      }
+
+      if (localPath && fs.existsSync(localPath)) {
+        content[k] = fs.readFileSync(localPath);
+        if (innerCaption && !content.caption) {
+          content.caption = innerCaption;
         }
       }
     }
@@ -934,6 +964,25 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
 
   const result = await sock.sendMessage(cleanPhone, content);
   return result;
+};
+
+/**
+ * Send presence update (e.g. 'composing', 'available', 'paused')
+ */
+const sendQrPresence = async (tenantId, toPhone, presence = 'composing') => {
+  const tenantIdStr = tenantId.toString();
+  const sock = activeSockets.get(tenantIdStr);
+  if (!sock) return;
+
+  let cleanPhone = toPhone ? toPhone.toString().replace(/[^0-9]/g, '') : '';
+  if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+  if (!cleanPhone.includes('@')) cleanPhone = `${cleanPhone}@s.whatsapp.net`;
+
+  try {
+    await sock.sendPresenceUpdate(presence, cleanPhone);
+  } catch (err) {
+    // Non-fatal
+  }
 };
 
 /**
@@ -1208,6 +1257,7 @@ module.exports = {
   getSessionStatus,
   disconnectSession,
   sendQrMessage,
+  sendQrPresence,
   requestPairingCode,
   sendBatchBroadcast,
   restoreActiveSessions

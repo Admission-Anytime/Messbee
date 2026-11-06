@@ -6,15 +6,18 @@ const {
   updateCampaign,
   deleteCampaign,
   updateCampaignStats,
-  sendCampaign
+  sendCampaign,
+  pauseCampaign,
+  resumeCampaign,
+  cancelCampaign,
+  getCampaignQueue
 } = require('../controllers/campaignController');
-const { protect, requireMetaPro } = require('../middleware/auth');
+const { protect } = require('../middleware/auth');
 
 const router = express.Router();
 
-// Protect all campaign routes (Authentication + Meta WABA requirement)
+// Protect all campaign routes (Authentication requirement)
 router.use(protect);
-router.use(requireMetaPro);
 
 /**
  * @swagger
@@ -190,5 +193,9 @@ router.put('/:id/stats', updateCampaignStats);
  *         description: Campaign started sending successfully
  */
 router.post('/:id/send', sendCampaign);
+router.post('/:id/pause', pauseCampaign);
+router.post('/:id/resume', resumeCampaign);
+router.post('/:id/cancel', cancelCampaign);
+router.get('/:id/queue', getCampaignQueue);
 
 module.exports = router;
