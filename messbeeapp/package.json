@@ -1,0 +1,31 @@
+{
+  "name": "messbeeapp",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@react-navigation/bottom-tabs": "^7.21.0",
+    "@react-navigation/native": "^7.5.1",
+    "@react-navigation/stack": "^7.12.1",
+    "axios": "^1.21.0",
+    "expo": "~58.0.23",
+    "expo-font": "^58.0.11",
+    "expo-linear-gradient": "^58.0.3",
+    "expo-status-bar": "~58.0.4",
+    "react": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-gesture-handler": "^3.5.0",
+    "react-native-otp-entry": "^1.8.6",
+    "react-native-phone-number-input": "^2.1.0",
+    "react-native-reanimated": "^4.7.1",
+    "react-native-safe-area-context": "^5.11.1",
+    "react-native-screens": "^4.30.1"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "private": true
+}
