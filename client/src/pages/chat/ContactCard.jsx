@@ -636,6 +636,7 @@ const ContactCard = ({ chats, activeChatId, onChatSelect, activeTab, setActiveTa
       // Non-WhatsApp chats are included as long as their status is open/active.
       const isWhatsApp = String(c.source || "").toLowerCase() === "whatsapp";
       const hasLiveWhatsAppSession = (() => {
+        if (user?.whatsappChannelType === "free_qr" || c.source === "free_qr") return true;
         if (!isWhatsApp) return false;
         const WINDOW_MS = 24 * 60 * 60 * 1000;
         const now = Date.now();

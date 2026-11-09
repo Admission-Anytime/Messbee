@@ -21,7 +21,7 @@ const chatSchema = mongoose.Schema(
     whatsappId: { type: String, sparse: true }, // WhatsApp user ID (phone with country code)
     source: { 
       type: String, 
-      enum: ["whatsapp", "web", "api", "manual", "simulator", "system", "instagram", "facebook", "other"],
+      enum: ["whatsapp", "web", "api", "manual", "simulator", "system", "instagram", "facebook", "free_qr", "other"],
       default: "whatsapp"
     },
     email: { type: String, default: "" },
@@ -51,11 +51,13 @@ chatSchema.set('toJSON', { virtuals: true });
 chatSchema.set('toObject', { virtuals: true });
 
 chatSchema.virtual('replyWindowExpiresAt').get(function () {
+  if (this.source === 'free_qr' || this.source !== 'whatsapp') return null;
   if (!this.lastInboundAt) return null;
   return new Date(this.lastInboundAt.getTime() + 24 * 60 * 60 * 1000);
 });
 
 chatSchema.virtual('canSendFreeText').get(function () {
+  if (this.source === 'free_qr' || this.source !== 'whatsapp') return true;
   if (!this.lastInboundAt) return false;
   return Date.now() - new Date(this.lastInboundAt).getTime() < 24 * 60 * 60 * 1000;
 });

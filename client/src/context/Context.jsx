@@ -198,6 +198,13 @@ const Context = (props) => {
       if (prev?.tenantWhatsAppConnected !== undefined && merged.tenantWhatsAppConnected === undefined) {
         merged.tenantWhatsAppConnected = prev.tenantWhatsAppConnected;
       }
+      // Guarantee that if user has Meta credentials, tenantWhatsAppConnected is always true
+      if (merged.whatsappConfig?.phoneNumberId && (merged.whatsappConfig?.accessToken || merged.whatsappConfig?.wabaId)) {
+        merged.tenantWhatsAppConnected = true;
+        if (!merged.wabaApprovalStatus || merged.wabaApprovalStatus === 'NONE') {
+          merged.wabaApprovalStatus = 'APPROVED';
+        }
+      }
       localStorage.setItem("user", JSON.stringify(merged));
       return merged;
     });

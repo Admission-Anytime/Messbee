@@ -202,8 +202,9 @@ const AppLayout = memo(() => {
   const showExpiryLock = isPlanExpired && !isPlanAllowedRoute;
 
   const isFreeTier = user?.whatsappChannelType === "free_qr";
-  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected);
-  const isWabaPending = user?.wabaApprovalStatus === "PENDING";
+  const hasMetaCredentials = Boolean(user?.whatsappConfig?.phoneNumberId && (user?.whatsappConfig?.accessToken || user?.whatsappConfig?.wabaId));
+  const isWhatsAppConnected = Boolean(user?.tenantWhatsAppConnected || hasMetaCredentials);
+  const isWabaPending = user?.wabaApprovalStatus === "PENDING" && !hasMetaCredentials;
   const isWabaRejected = user?.wabaApprovalStatus === "REJECTED";
   const showWhatsAppLock = !isFreeTier && (!isWhatsAppConnected || isWabaPending || isWabaRejected) && !isChangePasswordPage && !isPricingPage && !isPlanExpired;
 

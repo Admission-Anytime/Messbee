@@ -1,6 +1,9 @@
 const Campaign = require('../models/Campaign');
 const Contact = require('../models/Contact');
 const User = require('../models/User');
+const CampaignQueue = require('../models/CampaignQueue');
+const ContactGroup = require('../models/ContactGroup');
+const freeQrCampaignService = require('../services/freeQrCampaignService');
 const { PLAN_LIMITS } = require('../utils/planLimits');
 const { sendBulkMessages } = require('../services/messageService');
 const { createAndEmitNotification } = require('../services/notificationService');
@@ -11,7 +14,7 @@ const { createAndEmitNotification } = require('../services/notificationService')
 exports.getCampaigns = async (req, res, next) => {
   try {
     const campaigns = await Campaign.find({ user: req.user.id })
-      .populate('targetAudience', 'name phone')
+      .populate('contactGroupId', 'name totalContacts')
       .populate('user', 'name email')
       .sort('-createdAt');
 
@@ -32,6 +35,7 @@ exports.getCampaign = async (req, res, next) => {
   try {
     const campaign = await Campaign.findById(req.params.id)
       .populate('targetAudience', 'name phone email')
+      .populate('contactGroupId', 'name totalContacts')
       .populate('user', 'name email');
 
     if (!campaign) {
@@ -96,8 +100,14 @@ exports.createCampaign = async (req, res, next) => {
 
     req.body.user = req.user.id;
 
-    // If audienceFilter is provided, get matching contacts
-    if (req.body.audienceFilter) {
+    // 1. If a contact group is selected, use group's contacts
+    if (req.body.contactGroupId) {
+      const group = await ContactGroup.findById(req.body.contactGroupId);
+      if (group && Array.isArray(group.contacts) && group.contacts.length > 0) {
+        req.body.targetAudience = group.contacts;
+      }
+    } else if (req.body.audienceFilter) {
+      // 2. If audienceFilter is provided, get matching contacts
       const filter = { user: req.user.id };
       
       if (req.body.audienceFilter.tags && req.body.audienceFilter.tags.length > 0) {
@@ -123,73 +133,89 @@ exports.createCampaign = async (req, res, next) => {
         };
       }
 
+      // If user selected "All Contacts" (no tags and no status filters), exclude system hidden contacts
+      if ((!req.body.audienceFilter.tags || req.body.audienceFilter.tags.length === 0) && !req.body.audienceFilter.status) {
+        filter.labels = { $nin: ['_HIDDEN_CAMPAIGN_'] };
+      }
+
       const contacts = await Contact.find(filter).select('_id');
       req.body.targetAudience = contacts.map(c => c._id);
+    }
+
+    const isFreeQrTier = (req.user?.whatsappChannelType === 'free_qr' || req.body?.channelType === 'FREE_QR');
+    if (isFreeQrTier) {
+      req.body.channelType = 'FREE_QR';
     }
 
     const campaign = await Campaign.create(req.body);
 
     // If campaign is active, trigger sending process (simulated/async)
     if (campaign.status === 'active') {
-      const contacts = await Contact.find({ _id: { $in: campaign.targetAudience } });
-
-      // 💳 Pre-flight Wallet Reservation for auto-send campaigns
-      const walletServiceCc = require('../services/walletService');
-      const { getMessageCost: getMsgCostCc } = require('../config/pricingConfig');
-      let totalAutoEstimate = 0;
-      for (const c of contacts) {
-        totalAutoEstimate += getMsgCostCc('MARKETING', c.phone || '', req.user.customPricing);
-      }
-
-      const autoReservation = await walletServiceCc.reserveCampaignCredits(
-        req.user.id,
-        campaign._id,
-        totalAutoEstimate
-      );
-
-      if (!autoReservation.success) {
-        // Pause campaign if insufficient funds
-        campaign.status = 'paused';
-        await campaign.save();
-        return res.status(402).json({
-          success: false,
-          message: autoReservation.message || 'Insufficient WCC credits. Campaign paused. Please recharge.',
-          errorCode: 'INSUFFICIENT_WCC_CREDITS',
-          data: campaign
+      if (isFreeQrTier) {
+        freeQrCampaignService.startFreeQrCampaign(req.user.id, campaign._id).catch(err => {
+          console.error('[CampaignController] Free QR campaign launch error:', err.message);
         });
+      } else {
+        const contacts = await Contact.find({ _id: { $in: campaign.targetAudience } });
+
+        // 💳 Pre-flight Wallet Reservation for auto-send campaigns
+        const walletServiceCc = require('../services/walletService');
+        const { getMessageCost: getMsgCostCc } = require('../config/pricingConfig');
+        let totalAutoEstimate = 0;
+        for (const c of contacts) {
+          totalAutoEstimate += getMsgCostCc('MARKETING', c.phone || '', req.user.customPricing);
+        }
+
+        const autoReservation = await walletServiceCc.reserveCampaignCredits(
+          req.user.id,
+          campaign._id,
+          totalAutoEstimate
+        );
+
+        if (!autoReservation.success) {
+          // Pause campaign if insufficient funds
+          campaign.status = 'paused';
+          await campaign.save();
+          return res.status(402).json({
+            success: false,
+            message: autoReservation.message || 'Insufficient WCC credits. Campaign paused. Please recharge.',
+            errorCode: 'INSUFFICIENT_WCC_CREDITS',
+            data: campaign
+          });
+        }
+        
+        // We run this in the background (no await) so the response is immediate
+        sendBulkMessages(req.user.id, campaign._id, contacts, campaign.messageTemplate)
+          .then(async (result) => {
+            const freshCampaign = await Campaign.findById(campaign._id);
+            if (!freshCampaign) return;
+
+            const hasAttempts = (result?.totalProcessed || 0) > 0;
+            const allFailed = hasAttempts && (result?.failed || 0) >= (result?.totalProcessed || 0);
+
+            freshCampaign.status = allFailed ? 'paused' : 'completed';
+            await freshCampaign.save();
+
+            // Release reservation and deduct actual sent count
+            await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
+            for (const c of contacts.slice(0, result?.totalProcessed || 0)) {
+              await walletServiceCc.deductMessageCredits({
+                tenantId: req.user.id,
+                category: 'MARKETING',
+                recipientPhone: c.phone || '',
+                campaignId: campaign._id
+              });
+            }
+          })
+          .catch(async (err) => {
+            console.error('Campaign background process failed:', err);
+            await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
+            const freshCampaign = await Campaign.findById(campaign._id);
+            if (!freshCampaign) return;
+            freshCampaign.status = 'paused';
+            await freshCampaign.save();
+          });
       }
-      
-      // We run this in the background (no await) so the response is immediate
-      sendBulkMessages(req.user.id, campaign._id, contacts, campaign.messageTemplate)
-        .then(async (result) => {
-          const freshCampaign = await Campaign.findById(campaign._id);
-          if (!freshCampaign) return;
-
-          const hasAttempts = (result?.totalProcessed || 0) > 0;
-          const allFailed = hasAttempts && (result?.failed || 0) >= (result?.totalProcessed || 0);
-
-          freshCampaign.status = allFailed ? 'paused' : 'completed';
-          await freshCampaign.save();
-
-          // Release reservation and deduct actual sent count
-          await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
-          for (const c of contacts.slice(0, result?.totalProcessed || 0)) {
-            await walletServiceCc.deductMessageCredits({
-              tenantId: req.user.id,
-              category: 'MARKETING',
-              recipientPhone: c.phone || '',
-              campaignId: campaign._id
-            });
-          }
-        })
-        .catch(async (err) => {
-          console.error('Campaign background process failed:', err);
-          await walletServiceCc.releaseCampaignReservation(req.user.id, totalAutoEstimate);
-          const freshCampaign = await Campaign.findById(campaign._id);
-          if (!freshCampaign) return;
-          freshCampaign.status = 'paused';
-          await freshCampaign.save();
-        });
     }
 
     res.status(201).json({
@@ -227,6 +253,11 @@ exports.updateCampaign = async (req, res, next) => {
       runValidators: true
     });
 
+    // If campaign status updated to active, resume queue worker if Free QR
+    if (req.body.status === 'active' && (campaign.channelType === 'FREE_QR' || req.user.whatsappChannelType === 'free_qr')) {
+      freeQrCampaignService.runQueueWorker(req.user.id, campaign._id).catch(console.error);
+    }
+
     res.status(200).json({
       success: true,
       data: campaign
@@ -257,6 +288,8 @@ exports.deleteCampaign = async (req, res, next) => {
       });
     }
 
+    // Clean up queue items associated with this campaign to prevent orphaned records
+    await CampaignQueue.deleteMany({ campaignId: req.params.id });
     await campaign.deleteOne();
 
     res.status(200).json({
@@ -326,18 +359,43 @@ exports.sendCampaign = async (req, res, next) => {
       });
     }
 
-    if (!campaign.targetAudience || campaign.targetAudience.length === 0) {
+    const hasAudience = (campaign.targetAudience && campaign.targetAudience.length > 0) ||
+      campaign.contactGroupId ||
+      (campaign.audienceFilter?.tags && campaign.audienceFilter.tags.length > 0) ||
+      campaign.audienceFilter?.status;
+
+    if (!hasAudience && campaign.channelType !== 'FREE_QR') {
       return res.status(400).json({
         success: false,
         message: 'Campaign has no target audience'
       });
     }
 
-    if (!campaign.messageTemplate || campaign.messageTemplate.trim() === '') {
+    const messageContent = campaign.bodyText || campaign.messageTemplate;
+    if (!messageContent || messageContent.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Campaign has no message template'
+        message: 'Campaign has no message template or body text'
       });
+    }
+
+    const isFreeQrTier = (req.user?.whatsappChannelType === 'free_qr' || campaign.channelType === 'FREE_QR');
+
+    if (isFreeQrTier) {
+      try {
+        const result = await freeQrCampaignService.startFreeQrCampaign(req.user.id, campaign._id);
+        return res.status(200).json({
+          success: true,
+          message: result.message || 'Campaign launched successfully via WhatsApp Web Free Hub!',
+          data: result.campaign
+        });
+      } catch (qrErr) {
+        return res.status(400).json({
+          success: false,
+          message: qrErr.message || 'Failed to start Free QR campaign',
+          errorCode: 'FREE_QR_ERROR'
+        });
+      }
     }
 
     // 💳 Pre-flight Campaign Wallet Reservation
@@ -465,6 +523,132 @@ exports.sendCampaign = async (req, res, next) => {
       success: true,
       message: `Campaign "${campaign.name}" started sending!`,
       data: campaign
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Pause campaign
+// @route   POST /api/campaigns/:id/pause
+// @access  Private
+exports.pauseCampaign = async (req, res, next) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    if (campaign.user.toString() !== req.user.id && campaign.tenantId?.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized to pause this campaign' });
+    }
+
+    if (campaign.channelType === 'FREE_QR' || req.user.whatsappChannelType === 'free_qr') {
+      const result = await freeQrCampaignService.pauseCampaign(req.user.id, campaign._id);
+      return res.status(200).json(result);
+    }
+
+    campaign.status = 'paused';
+    await campaign.save();
+    res.status(200).json({ success: true, message: 'Campaign paused successfully', data: campaign });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Resume campaign
+// @route   POST /api/campaigns/:id/resume
+// @access  Private
+exports.resumeCampaign = async (req, res, next) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    if (campaign.user.toString() !== req.user.id && campaign.tenantId?.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized to resume this campaign' });
+    }
+
+    if (campaign.channelType === 'FREE_QR' || req.user.whatsappChannelType === 'free_qr') {
+      const result = await freeQrCampaignService.resumeCampaign(req.user.id, campaign._id);
+      return res.status(200).json(result);
+    }
+
+    campaign.status = 'active';
+    await campaign.save();
+    res.status(200).json({ success: true, message: 'Campaign resumed successfully', data: campaign });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Cancel campaign
+// @route   POST /api/campaigns/:id/cancel
+// @access  Private
+exports.cancelCampaign = async (req, res, next) => {
+  try {
+    const campaign = await Campaign.findById(req.params.id);
+    if (!campaign) {
+      return res.status(404).json({ success: false, message: 'Campaign not found' });
+    }
+
+    if (campaign.user.toString() !== req.user.id && campaign.tenantId?.toString() !== req.user.id) {
+      return res.status(401).json({ success: false, message: 'Not authorized to cancel this campaign' });
+    }
+
+    if (campaign.channelType === 'FREE_QR' || req.user.whatsappChannelType === 'free_qr') {
+      const result = await freeQrCampaignService.cancelCampaign(req.user.id, campaign._id);
+      return res.status(200).json(result);
+    }
+
+    campaign.status = 'cancelled';
+    await campaign.save();
+
+    // Mark remaining pending queue items as cancelled
+    await CampaignQueue.updateMany(
+      { campaignId: req.params.id, status: 'PENDING' },
+      { $set: { status: 'CANCELLED' } }
+    );
+
+    res.status(200).json({ success: true, message: 'Campaign cancelled successfully', data: campaign });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Get campaign queue execution list & stats
+// @route   GET /api/campaigns/:id/queue
+// @access  Private
+exports.getCampaignQueue = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+    const skip = (page - 1) * limit;
+
+    const filter = { campaignId: req.params.id };
+    if (req.query.status) {
+      filter.status = req.query.status.toUpperCase();
+    }
+
+    const [total, queue, stats] = await Promise.all([
+      CampaignQueue.countDocuments(filter),
+      CampaignQueue.find(filter)
+        .sort({ scheduledFor: 1, createdAt: 1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      freeQrCampaignService.getCampaignQueueStatus(req.params.id)
+    ]);
+
+    res.status(200).json({
+      success: true,
+      stats,
+      count: queue.length,
+      total,
+      page,
+      pages: Math.ceil(total / limit) || 1,
+      data: queue
     });
   } catch (error) {
     next(error);

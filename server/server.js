@@ -86,6 +86,15 @@ connectDB().then(async () => {
           updateObj['whatsappConfig.wabaId'] = ch.metadata.wabaId;
         }
 
+        // Always protect and guarantee connected state for verified Meta channels
+        if (ch.activeWhatsappPhoneNumberId && (ch.metaAccessToken || ch.metadata?.wabaId)) {
+          updateObj.whatsappChannelType = 'meta_pro';
+          updateObj.tenantWhatsAppConnected = true;
+          updateObj.wabaApprovalStatus = 'APPROVED';
+          updateObj.approvalStatus = 'APPROVED';
+          updateObj.isApproved = true;
+        }
+
         if (Object.keys(updateObj).length > 0) {
           await mongoose.connection.db.collection('users').updateOne(
             { _id: ch.tenantId },
@@ -113,6 +122,25 @@ try {
 } catch (qrBootErr) {
   console.warn('QR sessions auto-restore warning:', qrBootErr.message);
 }
+
+// Auto-resume active Free QR campaigns on boot & start scheduled campaigns poller
+setTimeout(async () => {
+  try {
+    const { autoResumeActiveCampaigns, checkAndTriggerScheduledCampaigns } = require('./services/freeQrCampaignService');
+    if (autoResumeActiveCampaigns) {
+      await autoResumeActiveCampaigns();
+    }
+    // Poll for due scheduled campaigns every 30 seconds
+    if (checkAndTriggerScheduledCampaigns) {
+      checkAndTriggerScheduledCampaigns();
+      setInterval(() => {
+        checkAndTriggerScheduledCampaigns().catch(() => {});
+      }, 30000);
+    }
+  } catch (campBootErr) {
+    console.warn('Free QR campaigns boot/scheduled worker warning:', campBootErr.message);
+  }
+}, 10000);
 
 const app = express();
 
@@ -244,6 +272,7 @@ app.post('/user/login/:login_type', require('./controllers/authController').soci
 app.post('/api/user/login/:login_type', require('./controllers/authController').socialLogin); // Authentication routes
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/contacts', require('./routes/contactRoutes'));
+app.use('/api/contact-groups', require('./routes/contactGroupRoutes'));
 app.use('/api/campaigns', require('./routes/campaignRoutes'));
 app.use('/api/chats', require('./routes/chatRoutes'));
 app.use('/api/analytics', require('./routes/analyticsRoutes'));

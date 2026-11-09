@@ -1,9 +1,10 @@
-import React, { useState, useContext, Fragment } from "react";
+import React, { useState, useEffect, useContext, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { userContext } from "../../context/Context";
 import CampaignApi from "../../services/CampaignApi";
 import axios from "../../context/axios";
+import { io } from "socket.io-client";
 import {
   ArrowLeft,
   RefreshCw,
@@ -21,9 +22,17 @@ import {
   LayoutGrid,
   X,
   ExternalLink,
-  Edit3
+  Edit3,
+  Pause,
+  Play
 } from "lucide-react";
 import ReactApexChart from "react-apexcharts";
+
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL ||
+  (import.meta.env.VITE_API_URL
+    ? String(import.meta.env.VITE_API_URL).replace(/\/api\/?$/, "")
+    : "http://localhost:5000");
 
 const fmt = (dateStr) => {
   if (!dateStr) return "—";
@@ -113,10 +122,64 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [previewContact, setPreviewContact] = useState(null);
   const [showFailedInfoModal, setShowFailedInfoModal] = useState(false);
+  const [currentStatus, setCurrentStatus] = useState(campaign?.status || "Draft");
+  const [liveStats, setLiveStats] = useState(campaign?.stats || {});
+  const [isPausing, setIsPausing] = useState(false);
+  const [isResuming, setIsResuming] = useState(false);
+
+  const isFreeQr = campaign?.channelType === 'FREE_QR' || user?.whatsappChannelType === 'free_qr';
+
+  useEffect(() => {
+    if (campaign) {
+      setCurrentStatus(campaign.status || "Draft");
+      setLiveStats(campaign.stats || {});
+    }
+  }, [campaign]);
+
+  // Real-time socket listener for campaign progress
+  useEffect(() => {
+    if (!campaign || (!user?._id && !user?.id)) return;
+    const campId = String(campaign.id || campaign._id);
+    const socket = io(SOCKET_URL, { withCredentials: true });
+
+    socket.on('connect', () => {
+      socket.emit('join', user._id || user.id);
+    });
+
+    socket.on('campaign_progress', (data) => {
+      if (String(data.campaignId) === campId) {
+        setLiveStats(prev => ({
+          ...prev,
+          sent: data.sent,
+          delivered: data.sent,
+          totalTargeted: data.total
+        }));
+        setCurrentStatus('Processing');
+      }
+    });
+
+    socket.on('campaign_status_changed', (data) => {
+      if (String(data.campaignId) === campId) {
+        const s = String(data.status).toLowerCase();
+        setCurrentStatus(s === 'paused' ? 'Paused' : (s === 'active' ? 'Processing' : data.status));
+      }
+    });
+
+    socket.on('campaign_completed', (data) => {
+      if (String(data.campaignId) === campId) {
+        setCurrentStatus('Completed');
+        if (data.stats) setLiveStats(data.stats);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [campaign, user]);
 
   if (!campaign) return null;
 
-  const stats = campaign.stats || {};
+  const stats = liveStats || campaign.stats || {};
   const contacts = Array.isArray(campaign.targetAudience) ? campaign.targetAudience : [];
   const targetCount =
     (contacts.length > 0 ? contacts.length : null) ??
@@ -218,7 +281,13 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
       const audienceIds = (campaign.targetAudience || []).map(c => c._id || c);
       const res = await CampaignApi.createCampaign({
         name: `${campaign.title} (Copy)`,
-        messageTemplate: campaign.templateName || campaign.message,
+        channelType: campaign.channelType || (isFreeQr ? 'FREE_QR' : 'META_CLOUD'),
+        delayOption: campaign.delayOption || '10s',
+        delayInterval: campaign.delayInterval || 10,
+        delayUnit: campaign.delayUnit || 'seconds',
+        contactGroupId: campaign.contactGroupId?._id || campaign.contactGroupId || undefined,
+        bodyText: campaign.bodyText || campaign.message || '',
+        messageTemplate: campaign.templateName || campaign.message || 'Broadcast Message',
         templateLanguage: campaign.templateLanguage || 'en_US',
         headerMediaUrl: campaign.headerMediaUrl,
         headerType: campaign.headerType,
@@ -241,10 +310,50 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
     }
   };
 
+  const handlePauseCampaign = async () => {
+    setIsPausing(true);
+    try {
+      const res = await CampaignApi.pauseCampaign(campaign.id || campaign._id);
+      if (res.success) {
+        toast.success("Campaign paused successfully!");
+        setCurrentStatus("Paused");
+        if (typeof window !== "undefined" && window.onCampaignRefresh) {
+          window.onCampaignRefresh(campaign.id);
+        }
+      } else {
+        toast.error(res.message || "Failed to pause campaign");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to pause campaign");
+    } finally {
+      setIsPausing(false);
+    }
+  };
+
+  const handleResumeCampaign = async () => {
+    setIsResuming(true);
+    try {
+      const res = await CampaignApi.resumeCampaign(campaign.id || campaign._id);
+      if (res.success) {
+        toast.success("Campaign resumed successfully!");
+        setCurrentStatus("Processing");
+        if (typeof window !== "undefined" && window.onCampaignRefresh) {
+          window.onCampaignRefresh(campaign.id);
+        }
+      } else {
+        toast.error(res.message || "Failed to resume campaign");
+      }
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to resume campaign");
+    } finally {
+      setIsResuming(false);
+    }
+  };
+
   const handleResendCampaign = async () => {
-    // Campaign cost: ₹0.95 per contact (Marketing conversation rate per pricing table)
-    const estimatedCost = total * 0.95;
-    if (user?.credits < estimatedCost) {
+    // Free QR is 100% free with 0 credits deduction
+    const estimatedCost = isFreeQr ? 0 : total * 0.95;
+    if (!isFreeQr && user?.credits < estimatedCost) {
       toast.error(`Insufficient credits! You need ₹${estimatedCost.toFixed(2)} to resend this campaign.`);
       return;
     }
@@ -253,7 +362,14 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
       setIsResending(true);
       const campaignData = {
         name: `${campaign.title} (Resend)`,
-        messageTemplate: campaign.templateName,
+        channelType: campaign.channelType || (isFreeQr ? 'FREE_QR' : 'META_CLOUD'),
+        delayOption: campaign.delayOption || '10s',
+        delayInterval: campaign.delayInterval || 10,
+        delayUnit: campaign.delayUnit || 'seconds',
+        contactGroupId: campaign.contactGroupId?._id || campaign.contactGroupId || undefined,
+        targetAudience: (campaign.targetAudience || []).map(c => c._id || c),
+        bodyText: campaign.bodyText || campaign.message || '',
+        messageTemplate: campaign.templateName || campaign.message || 'Broadcast Message',
         templateLanguage: campaign.templateLanguage || 'en_US',
         status: 'active',
         scheduledDate: null,
@@ -264,21 +380,21 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
 
       const res = await CampaignApi.createCampaign(campaignData);
       if (res.success) {
-        // Record the transaction and deduct WCC credits for the resend
-        try {
-          await axios.post("/billing/transactions", {
-            desc: `Campaign Resend - ${campaign.title}`,
-            amount: -estimatedCost,
-            status: "Paid"
-          });
-          // Sync the latest credits from server
-          const userRes = await axios.get("/auth/me");
-          if (userRes.data?.data) {
-            updateUser(userRes.data.data);
+        if (!isFreeQr && estimatedCost > 0) {
+          // Record transaction only for Meta Cloud API paid campaigns
+          try {
+            await axios.post("/billing/transactions", {
+              desc: `Campaign Resend - ${campaign.title}`,
+              amount: -estimatedCost,
+              status: "Paid"
+            });
+            const userRes = await axios.get("/auth/me");
+            if (userRes.data?.data) {
+              updateUser(userRes.data.data);
+            }
+          } catch (_billingErr) {
+            if (user) updateUser({ ...user, credits: Math.max(0, parseFloat((parseFloat(user.credits || 0) - estimatedCost).toFixed(2))) });
           }
-        } catch (_billingErr) {
-          // Fallback: optimistically deduct locally if server sync fails
-          if (user) updateUser({ ...user, credits: Math.max(0, parseFloat((parseFloat(user.credits || 0) - estimatedCost).toFixed(2))) });
         }
         toast.success("Campaign resend initiated successfully!");
         if (typeof window !== "undefined" && window.onCampaignRefresh) {
@@ -305,7 +421,9 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
     Processing: "bg-blue-50 text-blue-600 border-blue-200",
     Paused:     "bg-orange-50 text-orange-600 border-orange-200",
     Draft:      "bg-slate-50 text-slate-500 border-slate-200",
-  }[campaign.status] || "bg-emerald-50 text-emerald-600 border-emerald-200";
+    Failed:     "bg-red-50 text-red-600 border-red-200",
+    Cancelled:  "bg-gray-100 text-gray-600 border-gray-300",
+  }[currentStatus] || "bg-emerald-50 text-emerald-600 border-emerald-200";
 
   const handleSync = async () => {
     setIsSyncing(true);
@@ -363,14 +481,14 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
                 Campaign: {campaign.title}
               </h2>
               <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusBadgeClass}`}>
-                Status: {campaign.status}
+                Status: {currentStatus}
               </span>
             </div>
             <p className="text-xs text-slate-400 font-medium mt-0.5">{fmt(campaign.rawCreatedAt)}</p>
           </div>
         </div>
 
-        {String(campaign.status).toLowerCase() === 'draft' && (
+        {String(currentStatus).toLowerCase() === 'draft' && (
           <button
             onClick={() => navigate('/admin/campaign/create', { state: { draftId: campaign.id || campaign._id, step: 2 } })}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold hover:bg-emerald-100 transition-colors shadow-sm"
@@ -385,6 +503,30 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3 flex-wrap">
+          {/* Pause Broadcast Button */}
+          {['Processing', 'active'].includes(currentStatus) && (
+            <button
+              onClick={handlePauseCampaign}
+              disabled={isPausing}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold hover:bg-amber-100 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Pause className={`w-4 h-4 ${isPausing ? 'animate-spin' : 'text-amber-600'}`} />
+              {isPausing ? 'Pausing...' : 'Pause Broadcast'}
+            </button>
+          )}
+
+          {/* Resume Broadcast Button */}
+          {['Paused', 'paused'].includes(currentStatus) && (
+            <button
+              onClick={handleResumeCampaign}
+              disabled={isResuming}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-colors shadow-sm disabled:opacity-50"
+            >
+              <Play className={`w-4 h-4 ${isResuming ? 'animate-spin' : 'text-emerald-600'}`} />
+              {isResuming ? 'Resuming...' : 'Resume Broadcast'}
+            </button>
+          )}
+
           <button 
             onClick={handleSync}
             disabled={isSyncing}
@@ -421,7 +563,7 @@ const CampaignDetail = ({ campaign, onBack, onDelete }) => {
           <InfoCard label="Created On" value={fmt(campaign.rawCreatedAt) || "Feb xxxxx xxxx"} />
           <InfoCard label="Message template" value={campaign.templateName || "Feb xxxxx xxxx"} />
           <InfoCard label="Target connect" value={String(total)} />
-          <InfoCard label="Estimate cost" value={total > 0 ? `₹${(total * 0.95).toFixed(2)}` : "-"} />
+          <InfoCard label="Estimate cost" value={isFreeQr ? "₹0.00 (Free Hub)" : (total > 0 ? `₹${(total * 0.95).toFixed(2)}` : "-")} />
         </div>
 
         {/* Overall Campaign Performance */}

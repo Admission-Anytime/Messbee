@@ -304,7 +304,19 @@ const startSession = async (tenantId) => {
           const remoteJid = m.key.remoteJid || '';
           if (!remoteJid || remoteJid.includes('@g.us')) continue; // skip group chats
 
-          const senderPhone = remoteJid.split('@')[0].split(':')[0];
+          let senderPhone = remoteJid.split('@')[0].split(':')[0];
+          // Handle LID (Linked Device privacy format e.g. 123456789@lid)
+          if (remoteJid.includes('@lid')) {
+            const alt = m.key.remoteJidAlt || m.key.participantPn || m.participant;
+            if (alt && !alt.includes('@lid')) {
+              senderPhone = alt.split('@')[0].split(':')[0];
+            } else if (sock.signalRepository?.lidMapping?.getPNForLID) {
+              try {
+                const pn = await sock.signalRepository.lidMapping.getPNForLID(remoteJid);
+                if (pn) senderPhone = pn.split('@')[0].split(':')[0];
+              } catch (e) {}
+            }
+          }
           const pushName = m.pushName || senderPhone;
 
           // Unwrap ephemeral, viewOnce, or nested document messages
@@ -466,22 +478,40 @@ const startSession = async (tenantId) => {
             if (pp) avatarUrl = pp;
           } catch (e) {}
 
-          // 3. Find or create chat document
+          // 3. Find or create chat document with unified normalized number
+          const { normalizePhoneNumber } = require('../utils/phoneHelper');
+          const cleanPhone = normalizePhoneNumber(senderPhone);
+          const rawDigitsClean = cleanPhone.replace(/\D/g, '') || senderPhone.replace(/\D/g, '');
+          const last10Clean = rawDigitsClean.slice(-10);
+          const phoneRegexClean = last10Clean.length >= 10 ? new RegExp(last10Clean + '$') : null;
+
+          const tenantIdStr = tenantId.toString();
+          const tenantIdObj = mongoose.Types.ObjectId.isValid(tenantIdStr) ? new mongoose.Types.ObjectId(tenantIdStr) : null;
+          const userTenantFilter = tenantIdObj ? { $in: [tenantId, tenantIdStr, tenantIdObj] } : tenantId;
+
+          const chatSearchConditions = [
+            { phone: { $in: phoneVariants } },
+            { whatsappId: { $in: phoneVariants } },
+            { phone: cleanPhone },
+            { whatsappId: cleanPhone }
+          ];
+          if (phoneRegexClean) {
+            chatSearchConditions.push({ phone: phoneRegexClean });
+            chatSearchConditions.push({ whatsappId: phoneRegexClean });
+          }
+
           let isNewChat = false;
           let chat = await Chat.findOne({
-            user: tenantId,
-            $or: [
-              { phone: { $in: phoneVariants } },
-              { whatsappId: { $in: phoneVariants } }
-            ]
+            user: userTenantFilter,
+            $or: chatSearchConditions
           });
 
           if (!chat) {
             isNewChat = true;
             chat = await Chat.create({
-              name: pushName,
-              phone: senderPhone,
-              whatsappId: senderPhone,
+              name: pushName || cleanPhone,
+              phone: cleanPhone,
+              whatsappId: cleanPhone,
               avatar: avatarUrl,
               source: 'whatsapp',
               status: 'active',
@@ -491,9 +521,12 @@ const startSession = async (tenantId) => {
               lastMsgTime: timeStr,
               lastInboundAt: now,
               lastActivity: now,
-              user: tenantId
+              user: tenantIdObj || tenantId
             });
           } else {
+            // Unify phone numbers so incoming and outgoing match identically
+            chat.phone = cleanPhone;
+            chat.whatsappId = cleanPhone;
             chat.unread = (chat.unread || 0) + 1;
             chat.lastMsg = text;
             chat.lastMsgTime = timeStr;
@@ -505,12 +538,12 @@ const startSession = async (tenantId) => {
             await chat.save();
           }
 
-          // 4. Save Message
+          // 4. Save Message - sender 'them' ensures unified 24h & UI bubble compatibility
           const newMsg = await Message.create({
             chatId: chat._id,
             tenantId: tenantId,
             contactId: contact ? contact._id : undefined,
-            sender: 'customer',
+            sender: 'them',
             senderType: 'CUSTOMER',
             direction: 'INBOUND',
             text: text,
@@ -658,6 +691,25 @@ const startSession = async (tenantId) => {
               { new: true }
             );
 
+            // Also update CampaignQueue and Campaign stats if this was a broadcast message
+            try {
+              const CampaignQueue = require('../models/CampaignQueue');
+              const queueDoc = await CampaignQueue.findOneAndUpdate(
+                { whatsappMessageId: key.id },
+                { deliveryStatus: newStatus, ...(newStatus === 'read' ? { readAt: new Date() } : { deliveredAt: new Date() }) },
+                { new: true }
+              );
+
+              if (queueDoc && newStatus === 'read') {
+                const Campaign = require('../models/Campaign');
+                await Campaign.findByIdAndUpdate(queueDoc.campaignId, {
+                  $inc: { 'stats.read': 1 }
+                });
+              }
+            } catch (qErr) {
+              // Non-fatal queue update error
+            }
+
             if (updatedMsg) {
               const io = getIO();
               if (io) {
@@ -780,11 +832,25 @@ const getSessionStatus = async (tenantId) => {
   const sessionDoc = await QrSession.findOne({ tenantId });
   const inMemorySock = activeSockets.get(tenantIdStr);
 
+  const sessionPath = path.join(SESSIONS_DIR, 'session_' + tenantIdStr);
+  const credsPath = path.join(sessionPath, 'creds.json');
+  const hasSavedCreds = fs.existsSync(credsPath) && fs.statSync(credsPath).size > 100;
+
   const isConnected = !!(inMemorySock?.user && sessionDoc?.status === 'CONNECTED');
+  const shouldBeConnected = isConnected || (sessionDoc?.status === 'CONNECTED' && hasSavedCreds);
+
+  // If credentials exist but socket is missing from memory, restore silently
+  if ((sessionDoc?.status === 'CONNECTED' || hasSavedCreds) && (!inMemorySock || !inMemorySock.user)) {
+    if (!reconnectTimeouts.has(tenantIdStr)) {
+      startSession(tenantId).catch(err => {
+        console.warn('[QRService] Silent auto-resume failed for ' + tenantIdStr + ':', err.message);
+      });
+    }
+  }
 
   return {
     success: true,
-    status: isConnected ? 'CONNECTED' : (sessionDoc?.status || 'DISCONNECTED'),
+    status: shouldBeConnected ? 'CONNECTED' : (sessionDoc?.status || 'DISCONNECTED'),
     phoneNumber: sessionDoc?.phoneNumber || (inMemorySock?.user?.id?.split(':')[0] || ''),
     pushName: sessionDoc?.pushName || inMemorySock?.user?.name || '',
     qrCodeDataUrl: sessionDoc?.qrCodeDataUrl || '',
@@ -873,13 +939,24 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
   // Resolve local upload URLs to buffer if needed so Baileys doesn't fail fetch
   const mediaKeys = ['image', 'video', 'audio', 'document', 'sticker'];
   for (const k of mediaKeys) {
-    if (content[k] && content[k].url && typeof content[k].url === 'string') {
+    if (content[k] && typeof content[k] === 'object' && content[k].url && typeof content[k].url === 'string') {
       const urlStr = content[k].url;
-      if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
+      const innerCaption = content[k].caption;
+
+      // Extract filename if it matches /uploads/ or uploads/
+      let localPath = null;
+      if (urlStr.includes('/uploads/')) {
+        const cleanPath = urlStr.split('/uploads/')[1];
+        localPath = path.join(__dirname, '../uploads', cleanPath);
+      } else if (!urlStr.startsWith('http://') && !urlStr.startsWith('https://')) {
         const cleanPath = urlStr.replace(/^\/?(api\/)?uploads\//, '');
-        const localPath = path.join(__dirname, '../uploads', cleanPath);
-        if (fs.existsSync(localPath)) {
-          content[k] = fs.readFileSync(localPath);
+        localPath = path.join(__dirname, '../uploads', cleanPath);
+      }
+
+      if (localPath && fs.existsSync(localPath)) {
+        content[k] = fs.readFileSync(localPath);
+        if (innerCaption && !content.caption) {
+          content.caption = innerCaption;
         }
       }
     }
@@ -887,6 +964,25 @@ const sendQrMessage = async (tenantId, toPhone, messagePayload) => {
 
   const result = await sock.sendMessage(cleanPhone, content);
   return result;
+};
+
+/**
+ * Send presence update (e.g. 'composing', 'available', 'paused')
+ */
+const sendQrPresence = async (tenantId, toPhone, presence = 'composing') => {
+  const tenantIdStr = tenantId.toString();
+  const sock = activeSockets.get(tenantIdStr);
+  if (!sock) return;
+
+  let cleanPhone = toPhone ? toPhone.toString().replace(/[^0-9]/g, '') : '';
+  if (cleanPhone.length === 10) cleanPhone = `91${cleanPhone}`;
+  if (!cleanPhone.includes('@')) cleanPhone = `${cleanPhone}@s.whatsapp.net`;
+
+  try {
+    await sock.sendPresenceUpdate(presence, cleanPhone);
+  } catch (err) {
+    // Non-fatal
+  }
 };
 
 /**
@@ -1161,6 +1257,7 @@ module.exports = {
   getSessionStatus,
   disconnectSession,
   sendQrMessage,
+  sendQrPresence,
   requestPairingCode,
   sendBatchBroadcast,
   restoreActiveSessions
