@@ -1080,3 +1080,4 @@ const modalStyles = StyleSheet.create({
     color: '#FFFFFF',
   },
 });
+
