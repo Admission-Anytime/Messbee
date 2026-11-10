@@ -9,6 +9,9 @@ import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
 import PhoneVerifiedSuccessScreen from '../screens/auth/PhoneVerifiedSuccessScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 import ChatDetailScreen from '../screens/main/ChatDetailScreen';
+import ContactCrmScreen from '../screens/main/ContactCrmScreen';
+import TemplateSelectionScreen from '../screens/main/TemplateSelectionScreen';
+import BotMenuScreen from '../screens/main/BotMenuScreen';
 
 const Stack = createStackNavigator();
 
@@ -36,6 +39,9 @@ export default function RootNavigator() {
         <Stack.Screen name="PhoneVerifiedSuccess" component={PhoneVerifiedSuccessScreen} />
         <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+        <Stack.Screen name="ContactCRM" component={ContactCrmScreen} />
+        <Stack.Screen name="TemplateSelection" component={TemplateSelectionScreen} />
+        <Stack.Screen name="BotMenu" component={BotMenuScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
