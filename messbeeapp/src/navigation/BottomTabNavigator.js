@@ -6,6 +6,7 @@ import { Platform } from 'react-native';
 import HomeScreen from '../screens/main/HomeScreen';
 import ChatsScreen from '../screens/main/ChatsScreen';
 import ContactsScreen from '../screens/main/ContactsScreen';
+import MoreScreen from '../screens/main/MoreScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
 import { COLORS } from '../constants/colors';
 
@@ -39,6 +40,8 @@ export default function BottomTabNavigator() {
             iconName = focused ? 'chatbubbles' : 'chatbubbles-outline';
           } else if (route.name === 'Contacts') {
             iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'More') {
+            iconName = focused ? 'apps' : 'apps-outline';
           } else if (route.name === 'You') {
             iconName = focused ? 'person-circle' : 'person-circle-outline';
           }
@@ -62,6 +65,7 @@ export default function BottomTabNavigator() {
         }}
       />
       <Tab.Screen name="Contacts" component={ContactsScreen} />
+      <Tab.Screen name="More" component={MoreScreen} />
       <Tab.Screen name="You" component={ProfileScreen} />
     </Tab.Navigator>
   );

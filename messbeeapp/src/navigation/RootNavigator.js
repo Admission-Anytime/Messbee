@@ -12,6 +12,8 @@ import ChatDetailScreen from '../screens/main/ChatDetailScreen';
 import ContactCrmScreen from '../screens/main/ContactCrmScreen';
 import TemplateSelectionScreen from '../screens/main/TemplateSelectionScreen';
 import BotMenuScreen from '../screens/main/BotMenuScreen';
+import CrmPipelineScreen from '../screens/main/CrmPipelineScreen';
+import LabelsScreen from '../screens/main/LabelsScreen';
 
 const Stack = createStackNavigator();
 
@@ -42,6 +44,8 @@ export default function RootNavigator() {
         <Stack.Screen name="ContactCRM" component={ContactCrmScreen} />
         <Stack.Screen name="TemplateSelection" component={TemplateSelectionScreen} />
         <Stack.Screen name="BotMenu" component={BotMenuScreen} />
+        <Stack.Screen name="CrmPipeline" component={CrmPipelineScreen} />
+        <Stack.Screen name="Labels" component={LabelsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
