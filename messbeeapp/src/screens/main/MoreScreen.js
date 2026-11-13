@@ -34,6 +34,15 @@ const MORE_ITEMS = [
     route: 'Labels',
   },
   {
+    id: 'templates',
+    title: 'Templates',
+    subtitle: 'WhatsApp template manager',
+    icon: 'document-text-outline',
+    iconBg: '#ECFDF5',
+    iconColor: '#059669',
+    route: 'Templates',
+  },
+  {
     id: 'custom_fields',
     title: 'Custom Fields',
     subtitle: 'Define contact attributes',
