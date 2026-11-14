@@ -94,7 +94,7 @@ const MORE_ITEMS = [
     icon: 'megaphone-outline',
     iconBg: '#FFF7ED',
     iconColor: '#EA580C',
-    route: 'TemplateSelection',
+    route: 'BroadcastCampaigns',
   },
   {
     id: 'automation',
