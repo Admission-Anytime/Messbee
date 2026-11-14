@@ -152,7 +152,7 @@ export default function HomeScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.actionCard}
-            onPress={() => navigation.navigate('Chats')}
+            onPress={() => navigation.navigate('Templates')}
             activeOpacity={0.7}
           >
             <View style={styles.actionIconBox}>
@@ -165,20 +165,28 @@ export default function HomeScreen({ navigation }) {
         {/* Business Tools Section */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Business Tools</Text>
-          <TouchableOpacity activeOpacity={0.7}>
+          <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.navigate('More')}>
             <Text style={styles.sectionLink}>Explore</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.toolsRow}>
-          <TouchableOpacity style={styles.toolItem} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.toolItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('BroadcastCampaigns')}
+          >
             <View style={styles.toolIconCircle}>
               <Ionicons name="megaphone-outline" size={22} color="#1F2937" />
             </View>
             <Text style={styles.toolLabel}>Campaigns</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.toolItem} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.toolItem}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('BotMenu')}
+          >
             <View style={styles.toolIconCircle}>
               <Ionicons name="hardware-chip-outline" size={22} color="#1F2937" />
             </View>

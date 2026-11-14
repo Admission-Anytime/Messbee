@@ -9,6 +9,13 @@ import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
 import PhoneVerifiedSuccessScreen from '../screens/auth/PhoneVerifiedSuccessScreen';
 import BottomTabNavigator from './BottomTabNavigator';
 import ChatDetailScreen from '../screens/main/ChatDetailScreen';
+import ContactCrmScreen from '../screens/main/ContactCrmScreen';
+import TemplateSelectionScreen from '../screens/main/TemplateSelectionScreen';
+import BotMenuScreen from '../screens/main/BotMenuScreen';
+import CrmPipelineScreen from '../screens/main/CrmPipelineScreen';
+import LabelsScreen from '../screens/main/LabelsScreen';
+import TemplatesScreen from '../screens/main/TemplatesScreen';
+import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
 
 const Stack = createStackNavigator();
 
@@ -36,6 +43,13 @@ export default function RootNavigator() {
         <Stack.Screen name="PhoneVerifiedSuccess" component={PhoneVerifiedSuccessScreen} />
         <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+        <Stack.Screen name="ContactCRM" component={ContactCrmScreen} />
+        <Stack.Screen name="TemplateSelection" component={TemplateSelectionScreen} />
+        <Stack.Screen name="BotMenu" component={BotMenuScreen} />
+        <Stack.Screen name="CrmPipeline" component={CrmPipelineScreen} />
+        <Stack.Screen name="Labels" component={LabelsScreen} />
+        <Stack.Screen name="Templates" component={TemplatesScreen} />
+        <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
