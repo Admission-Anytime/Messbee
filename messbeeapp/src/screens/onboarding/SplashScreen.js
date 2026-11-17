@@ -1,35 +1,64 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { View, Text, StyleSheet, Image, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
-import { GRADIENTS } from '../../constants/colors';
+
+const { width } = Dimensions.get('window');
 
 export default function SplashScreen() {
   return (
-    <LinearGradient colors={GRADIENTS.splash} style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="light" />
-      <View style={styles.logoContainer}>
-        {/* Replace with actual logo image */}
+      <View style={styles.centerBox}>
+        {/* White circle badge with official logo */}
         <View style={styles.logoCircle}>
-          <Text style={styles.logoEmoji}>🐝</Text>
+          <Image
+            source={require('../../../assets/splash_badge_clean.png')}
+            style={styles.badgeImage}
+            resizeMode="contain"
+          />
         </View>
-        <Text style={styles.logoText}>Messbee</Text>
+
+        {/* Clean brand title */}
+        <Text style={styles.brandTitle}>Messbee</Text>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  logoContainer: { alignItems: 'center' },
-  logoCircle: {
-    width: 100, height: 100, borderRadius: 50,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    justifyContent: 'center', alignItems: 'center', marginBottom: 20,
+  container: {
+    flex: 1,
+    backgroundColor: '#00B67A',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  logoEmoji: { fontSize: 50 },
-  logoText: {
-    fontSize: 36, fontWeight: '800', color: '#fff', letterSpacing: 1,
+  centerBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  logoCircle: {
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.18,
+    shadowRadius: 18,
+    elevation: 12,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  badgeImage: {
+    width: 130,
+    height: 130,
+  },
+  brandTitle: {
+    fontSize: 38,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.8,
   },
 });
-

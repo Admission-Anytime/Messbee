@@ -16,6 +16,12 @@ import CrmPipelineScreen from '../screens/main/CrmPipelineScreen';
 import LabelsScreen from '../screens/main/LabelsScreen';
 import TemplatesScreen from '../screens/main/TemplatesScreen';
 import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
+import SettingsScreen from '../screens/main/SettingsScreen';
+import BusinessProfileScreen from '../screens/main/BusinessProfileScreen';
+import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
+import ApiManagementScreen from '../screens/main/ApiManagementScreen';
+import SecuritySettingsScreen from '../screens/main/SecuritySettingsScreen';
+import NotificationsSettingsScreen from '../screens/main/NotificationsSettingsScreen';
 
 const Stack = createStackNavigator();
 
@@ -50,6 +56,12 @@ export default function RootNavigator() {
         <Stack.Screen name="Labels" component={LabelsScreen} />
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
+        <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="BusinessProfile" component={BusinessProfileScreen} />
+        <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
+        <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
+        <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
+        <Stack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

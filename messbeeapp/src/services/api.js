@@ -1,16 +1,20 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// For Android emulator use 10.0.2.2, for physical device use your computer's local Wi-Fi IP
+// Backend runs on port 5002
+// 192.168.1.12 allows physical phones connected over local Wi-Fi to connect
+// 10.0.2.2 is the Android emulator loopback alias
 export const BASE_URL =
-  Platform.OS === 'android' ? 'http://10.0.2.2:5000/api' : 'http://localhost:5000/api';
+  Platform.OS === 'android'
+    ? 'http://192.168.1.12:5002/api'
+    : 'http://localhost:5002/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 10000,
+  timeout: 15000,
 });
 
 let userToken = null;
@@ -18,6 +22,8 @@ let userToken = null;
 export const setAuthToken = (token) => {
   userToken = token;
 };
+
+export const getAuthToken = () => userToken;
 
 api.interceptors.request.use(
   (config) => {
@@ -29,15 +35,46 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Auth Endpoints
+// ==================== AUTH SERVICE (Exact same endpoints as Web) ====================
 export const authService = {
-  login: (data) => api.post('/auth/login', data),
-  sendOtp: (phone) => api.post('/auth/send-otp', { phone }),
-  verifyOtp: (phone, otp) => api.post('/auth/verify-otp', { phone, otp }),
-  getProfile: () => api.get('/user/profile'),
+  // Request OTP for login
+  requestLoginOTP: async (email) => {
+    const { data } = await api.post('/auth/login/request-otp', { email });
+    return data;
+  },
+
+  // Verify OTP for login
+  verifyLoginOTP: async (email, otp) => {
+    const { data } = await api.post('/auth/login/verify-otp', { email, otp });
+    if (data.accessToken || data.token) {
+      setAuthToken(data.accessToken || data.token);
+    }
+    return data;
+  },
+
+  // Resend OTP
+  resendOTP: async (email, purpose = 'login') => {
+    const { data } = await api.post('/auth/resend-otp', { email, purpose });
+    return data;
+  },
+
+  // Password Login
+  loginWithPassword: async (email, password) => {
+    const { data } = await api.post('/auth/login', { email, password });
+    if (data.accessToken || data.token) {
+      setAuthToken(data.accessToken || data.token);
+    }
+    return data;
+  },
+
+  // Get current user profile
+  getCurrentUser: async () => {
+    const { data } = await api.get('/auth/me');
+    return data;
+  },
 };
 
-// Chats Endpoints
+// ==================== CHAT SERVICE ====================
 export const chatService = {
   getConversations: () => api.get('/chat/conversations'),
   getMessages: (conversationId) => api.get(`/chat/messages/${conversationId}`),
@@ -45,7 +82,7 @@ export const chatService = {
   sendTemplate: (data) => api.post('/whatsapp/send-template', data),
 };
 
-// Contacts CRM Endpoints
+// ==================== CONTACTS CRM SERVICE ====================
 export const contactService = {
   getContacts: (params) => api.get('/contact', { params }),
   getContactById: (id) => api.get(`/contact/${id}`),
@@ -54,4 +91,3 @@ export const contactService = {
 };
 
 export default api;
-
