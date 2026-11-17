@@ -1,71 +1,79 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../../constants/colors';
+
+const { width } = Dimensions.get('window');
 
 export default function PhoneVerifiedSuccessScreen({ navigation }) {
   useEffect(() => {
+    // Automatically redirect to MainTabs after 2 seconds
     const timer = setTimeout(() => {
       navigation.replace('MainTabs');
-    }, 1800);
+    }, 2000);
+
     return () => clearTimeout(timer);
   }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar style="dark" />
-      <View style={styles.content}>
-        {/* Green Badge with Checkmark */}
+
+      <View style={styles.contentCenter}>
+        {/* Large Green Check Circle Badge */}
         <View style={styles.checkCircle}>
-          <Ionicons name="checkmark" size={48} color="#FFFFFF" />
+          <Ionicons name="checkmark" size={54} color="#FFFFFF" />
         </View>
 
+        {/* Heading */}
         <Text style={styles.title}>Phone Number Verified</Text>
+
+        {/* Subtitle */}
         <Text style={styles.subtitle}>
-          You will be redirected to the main page{'\n'}in few seconds
+          You will be redirected to the main page{'\n'}in a few seconds
         </Text>
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  content: {
-    alignItems: 'center',
     paddingHorizontal: 32,
+  },
+  contentCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   checkCircle: {
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: COLORS.primary,
+    backgroundColor: '#00B67A',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 28,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 6 },
+    marginBottom: 24,
+    shadowColor: '#00B67A',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.35,
-    shadowRadius: 12,
+    shadowRadius: 16,
     elevation: 8,
   },
   title: {
     fontSize: 22,
     fontWeight: '800',
     color: '#111827',
-    marginBottom: 12,
     textAlign: 'center',
+    marginBottom: 10,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
   },
 });
