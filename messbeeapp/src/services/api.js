@@ -1,12 +1,17 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Backend runs on port 5002
-// 192.168.1.12 allows physical phones connected over local Wi-Fi to connect
-// 10.0.2.2 is the Android emulator loopback alias
+// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+const detectedHost =
+  Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
+  Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
+  '192.168.1.12';
+
 export const BASE_URL =
   Platform.OS === 'android'
-    ? 'http://192.168.1.12:5002/api'
+    ? `http://${detectedHost}:5002/api`
     : 'http://localhost:5002/api';
 
 const api = axios.create({
