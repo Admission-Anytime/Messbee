@@ -481,10 +481,23 @@ const CreateTemplate = () => {
       warnings.push(`Too many emojis (${emojiMatches.length}). WhatsApp allows a maximum of 10 emojis per template.`);
     }
 
-    // 2. Consecutive spaces (more than 4 in a row)
-    const spaceMatch = text.match(/ {5,}/);
-    if (spaceMatch) {
-      warnings.push('Excessive consecutive spaces detected. WhatsApp may flag templates with large whitespace blocks.');
+    // 2. Consecutive spaces (2 or more spaces in a row — strict Meta policy)
+    const doubleSpaceRegex = /([^\s\n]{1,12})?([ \t]{2,})([^\s\n]{1,12})?/g;
+    const spaceSnippets = [];
+    let sm;
+    while ((sm = doubleSpaceRegex.exec(text)) !== null) {
+      const before = sm[1] || '...';
+      const count = sm[2].length;
+      const after = sm[3] || '...';
+      spaceSnippets.push(`"${before}[${count} spaces]${after}"`);
+      if (spaceSnippets.length >= 3) break;
+    }
+    if (spaceSnippets.length > 0) {
+      warnings.push({
+        type: 'consecutive_spaces',
+        snippets: spaceSnippets,
+        text: `Double spaces detected: ${spaceSnippets.join(', ')}. Meta WhatsApp strictly prohibits 2 or more consecutive spaces.`
+      });
     }
 
     // 3. Consecutive newlines (more than 2)
@@ -537,6 +550,17 @@ const CreateTemplate = () => {
     }
 
     setBodyWarnings(warnings);
+  };
+
+  const fixDoubleSpaces = () => {
+    if (!editorRef.current) return;
+    let html = editorRef.current.innerHTML;
+    // Replace consecutive spaces and &nbsp; with a single space
+    html = html.replace(/(&nbsp;|\s){2,}/gi, ' ');
+    html = html.replace(/[ \t]{2,}/g, ' ');
+    editorRef.current.innerHTML = html;
+    syncEditorContent();
+    toast.success('All consecutive spaces have been cleaned!');
   };
 
   const handleBodySampleChange = (variableId, value) => {
@@ -1220,6 +1244,9 @@ const CreateTemplate = () => {
         markdownBody = bodyText.replace(/<[^>]+>/g, '');
     }
     
+    // Auto-clean any consecutive spaces (tabs / double spaces) to strictly comply with Meta guidelines
+    markdownBody = markdownBody.replace(/[ \t]{2,}/g, ' ');
+
     const strippedBody = markdownBody;
     const templateVariables = extractBodyVariables(strippedBody);
 
@@ -1389,12 +1416,12 @@ const CreateTemplate = () => {
           const headerComponent = { 
             type: 'HEADER', 
             format: 'TEXT', 
-            text: (formData.headerText || formData.name || '').substring(0, 60)
+            text: (formData.headerText || formData.name || '').replace(/[ \t]{2,}/g, ' ').substring(0, 60)
           };
           
           if (headerVariables.length > 0) {
             headerComponent.example = {
-              header_text: headerVariables.map((id) => String(headerSamples[id] || '').trim())
+              header_text: headerVariables.map((id) => String(headerSamples[id] || '').replace(/[ \t]{2,}/g, ' ').trim())
             };
           }
           
@@ -1427,16 +1454,16 @@ const CreateTemplate = () => {
         });
       }
 
-      const bodyComponent = { type: 'BODY', text: strippedBody };
+      const bodyComponent = { type: 'BODY', text: strippedBody.replace(/[ \t]{2,}/g, ' ') };
       if (templateVariables.length > 0) {
         bodyComponent.example = {
-          body_text: [templateVariables.map((id) => String(bodySamples[id] || '').trim())]
+          body_text: [templateVariables.map((id) => String(bodySamples[id] || '').replace(/[ \t]{2,}/g, ' ').trim())]
         };
       }
       components.push(bodyComponent);
 
       if (templateType !== 'LIMITED_TIME_OFFER' && formData.footerText && formData.footerText.trim()) {
-        components.push({ type: 'FOOTER', text: formData.footerText.substring(0, 60) }); // Max 60 chars
+        components.push({ type: 'FOOTER', text: formData.footerText.replace(/[ \t]{2,}/g, ' ').substring(0, 60) }); // Max 60 chars
       }
 
       if (templateType === 'CATALOG') {
@@ -2570,12 +2597,34 @@ const CreateTemplate = () => {
                     {/* Real-time body validation warnings */}
                     {bodyWarnings.length > 0 && (
                       <div className="mt-2 space-y-1.5">
-                        {bodyWarnings.map((w, i) => (
-                          <div key={i} className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                            <span className="text-amber-500 text-sm mt-0.5 shrink-0">⚠️</span>
-                            <p className="text-[12px] font-medium text-amber-800 leading-snug">{w}</p>
-                          </div>
-                        ))}
+                        {bodyWarnings.map((w, i) => {
+                          const isSpaceWarning = typeof w === 'object' && w.type === 'consecutive_spaces';
+                          const msg = typeof w === 'object' ? w.text : w;
+                          return (
+                            <div
+                              key={i}
+                              className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-3 py-2 rounded-lg border ${
+                                isSpaceWarning ? 'bg-red-50 border-red-200 shadow-xs' : 'bg-amber-50 border-amber-200'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <span className={`${isSpaceWarning ? 'text-red-500' : 'text-amber-500'} text-sm mt-0.5 shrink-0`}>⚠️</span>
+                                <p className={`text-[12px] font-medium leading-snug ${isSpaceWarning ? 'text-red-800' : 'text-amber-800'}`}>
+                                  {msg}
+                                </p>
+                              </div>
+                              {isSpaceWarning && (
+                                <button
+                                  type="button"
+                                  onClick={fixDoubleSpaces}
+                                  className="shrink-0 px-2.5 py-1 text-xs font-semibold text-white bg-red-600 hover:bg-red-700 active:scale-95 rounded-md shadow-sm transition-all flex items-center gap-1 cursor-pointer self-end sm:self-auto"
+                                >
+                                  <span>Auto-Fix Spaces</span>
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     <div className="flex flex-wrap items-center justify-between mt-2 gap-3 relative">
