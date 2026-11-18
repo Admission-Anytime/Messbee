@@ -21,6 +21,8 @@ import WebhookSettingsScreen from '../screens/whatsappConfig/WebhookSettingsScre
 import SubscribedEventsScreen from '../screens/whatsappConfig/SubscribedEventsScreen';
 import PhoneNumberStatusScreen from '../screens/whatsappConfig/PhoneNumberStatusScreen';
 import WhatsAppTwoStepScreen from '../screens/whatsappConfig/WhatsAppTwoStepScreen';
+import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDisconnectedScreen';
+import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
 
 const Tab = createBottomTabNavigator();
 const YouStack = createStackNavigator();
@@ -42,6 +44,8 @@ function YouNavigator() {
       <YouStack.Screen name="SubscribedEvents" component={SubscribedEventsScreen} />
       <YouStack.Screen name="PhoneNumberStatus" component={PhoneNumberStatusScreen} />
       <YouStack.Screen name="WhatsAppTwoStep" component={WhatsAppTwoStepScreen} />
+      <YouStack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
+      <YouStack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
     </YouStack.Navigator>
   );
 }

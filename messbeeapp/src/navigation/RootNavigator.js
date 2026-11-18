@@ -29,6 +29,8 @@ import WebhookSettingsScreen from '../screens/whatsappConfig/WebhookSettingsScre
 import SubscribedEventsScreen from '../screens/whatsappConfig/SubscribedEventsScreen';
 import PhoneNumberStatusScreen from '../screens/whatsappConfig/PhoneNumberStatusScreen';
 import WhatsAppTwoStepScreen from '../screens/whatsappConfig/WhatsAppTwoStepScreen';
+import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDisconnectedScreen';
+import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
 
 const Stack = createStackNavigator();
 
@@ -76,6 +78,8 @@ export default function RootNavigator() {
         <Stack.Screen name="SubscribedEvents" component={SubscribedEventsScreen} />
         <Stack.Screen name="PhoneNumberStatus" component={PhoneNumberStatusScreen} />
         <Stack.Screen name="WhatsAppTwoStep" component={WhatsAppTwoStepScreen} />
+        <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
+        <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -17,7 +17,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { whatsappConfigService } from '../../services/api';
 
-export default function WhatsAppConfigScreen({ navigation }) {
+export default function WhatsAppConfigScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -45,20 +45,34 @@ export default function WhatsAppConfigScreen({ navigation }) {
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [understandDisconnect, setUnderstandDisconnect] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
 
+  // Sync route params when returning from Disconnect or Reconnect flow
+  useEffect(() => {
+    if (route?.params?.status) {
+      setConnectionStatus(route.params.status);
+      if (route.params.status === 'Active') {
+        const now = new Date();
+        const formatted = `Today, ${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+        setLastSync('just now');
+        setLastSyncTime(formatted);
+      }
+    }
+  }, [route?.params?.status]);
+
   const handleConfirmDisconnect = async () => {
-    setShowDisconnectModal(false);
     setDisconnecting(true);
     try {
       await whatsappConfigService.disconnect();
-      setConnectionStatus('Disconnected');
-      Alert.alert('Disconnected', 'WhatsApp integration has been disconnected.');
     } catch (err) {
-      setConnectionStatus('Disconnected');
-      Alert.alert('Disconnected', 'WhatsApp integration disconnected.');
+      console.warn('Disconnect API warning:', err.message);
     } finally {
       setDisconnecting(false);
+      setShowDisconnectModal(false);
+      setUnderstandDisconnect(false);
+      setConnectionStatus('Disconnected');
+      navigation.navigate('WhatsAppDisconnected');
     }
   };
 
@@ -119,16 +133,8 @@ export default function WhatsAppConfigScreen({ navigation }) {
   };
 
   // Reconnect
-  const handleReconnect = async () => {
-    Alert.alert('Reconnect WhatsApp API', 'Refreshing handshake with Meta Cloud API servers...', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reconnect',
-        onPress: async () => {
-          await handleRefreshConnection();
-        },
-      },
-    ]);
+  const handleReconnect = () => {
+    navigation.navigate('ReconnectWhatsApp');
   };
 
   // Save current config to DB
@@ -203,31 +209,45 @@ export default function WhatsAppConfigScreen({ navigation }) {
         contentContainerStyle={styles.scrollContent}
       >
         {/* Dark Forest Green Gradient Hero Card */}
-        <View style={styles.heroCard}>
+        <View style={[styles.heroCard, connectionStatus === 'Disconnected' && styles.heroCardDisconnected]}>
           <View style={styles.heroTopRow}>
-            <View style={styles.heroIconBox}>
-              <Ionicons name="logo-whatsapp" size={24} color="#059669" />
+            <View style={[styles.heroIconBox, connectionStatus === 'Disconnected' && styles.heroIconBoxDisconnected]}>
+              <Ionicons
+                name={connectionStatus === 'Disconnected' ? 'link-outline' : 'logo-whatsapp'}
+                size={24}
+                color={connectionStatus === 'Disconnected' ? '#EF4444' : '#059669'}
+              />
             </View>
             <View style={styles.heroTitleBox}>
               <Text style={styles.heroBadge}>MESSBEE BUSINESS API</Text>
-              <Text style={styles.heroTitle}>Connected and ready</Text>
+              <Text style={styles.heroTitle}>
+                {connectionStatus === 'Disconnected' ? 'Integration disconnected' : 'Connected and ready'}
+              </Text>
             </View>
-            <View style={styles.activePill}>
-              <View style={styles.activePillDot} />
-              <Text style={styles.activePillText}>Active</Text>
+            <View style={[styles.activePill, connectionStatus === 'Disconnected' && styles.disconnectedHeroPill]}>
+              <View style={[styles.activePillDot, connectionStatus === 'Disconnected' && styles.disconnectedHeroDot]} />
+              <Text style={[styles.activePillText, connectionStatus === 'Disconnected' && styles.disconnectedHeroText]}>
+                {connectionStatus}
+              </Text>
             </View>
           </View>
 
           <Text style={styles.heroDescription}>
-            Messages are flowing normally through your production account.
+            {connectionStatus === 'Disconnected'
+              ? 'Message processing has stopped. Reconnect your account to resume services.'
+              : 'Messages are flowing normally through your production account.'}
           </Text>
 
           <View style={styles.heroBottomRow}>
             <View style={styles.metaApiStatus}>
-              <View style={styles.metaDot} />
-              <Text style={styles.metaText}>Live Meta API</Text>
+              <View style={[styles.metaDot, connectionStatus === 'Disconnected' && { backgroundColor: '#EF4444' }]} />
+              <Text style={styles.metaText}>
+                {connectionStatus === 'Disconnected' ? 'Meta API Disconnected' : 'Live Meta API'}
+              </Text>
             </View>
-            <Text style={styles.syncText}>Last sync: {lastSync}</Text>
+            <Text style={styles.syncText}>
+              {connectionStatus === 'Disconnected' ? 'Disconnected' : `Last sync: ${lastSync}`}
+            </Text>
           </View>
         </View>
 
@@ -281,9 +301,11 @@ export default function WhatsAppConfigScreen({ navigation }) {
           <View style={styles.overviewCard}>
             <View style={styles.overviewHeader}>
               <Text style={styles.overviewTitle}>Connection overview</Text>
-              <View style={styles.statusBadgeSmall}>
-                <View style={styles.greenMiniDot} />
-                <Text style={styles.statusBadgeSmallText}>Active</Text>
+              <View style={[styles.statusBadgeSmall, connectionStatus === 'Disconnected' && styles.statusBadgeSmallDisconnected]}>
+                <View style={[styles.greenMiniDot, connectionStatus === 'Disconnected' && styles.redMiniDot]} />
+                <Text style={[styles.statusBadgeSmallText, connectionStatus === 'Disconnected' && styles.statusBadgeSmallTextDisconnected]}>
+                  {connectionStatus}
+                </Text>
               </View>
             </View>
 
@@ -549,46 +571,66 @@ export default function WhatsAppConfigScreen({ navigation }) {
         </TouchableOpacity>
       </Modal>
 
-      {/* Disconnect WhatsApp? Warning Modal (Image 3 Screen 5) */}
+      {/* Final confirmation Modal (Image 5 Screen 1) */}
       <Modal
         visible={showDisconnectModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowDisconnectModal(false)}
+        onRequestClose={() => {
+          setShowDisconnectModal(false);
+          setUnderstandDisconnect(false);
+        }}
       >
         <View style={styles.confirmBackdrop}>
-          <View style={styles.confirmDialog}>
-            <View style={styles.confirmHeader}>
-              <Text style={styles.confirmTitle}>Disconnect WhatsApp?</Text>
-              <TouchableOpacity onPress={() => setShowDisconnectModal(false)} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color="#64748B" />
-              </TouchableOpacity>
-            </View>
+          <View style={styles.finalConfirmDialog}>
+            <Text style={styles.finalConfirmTitle}>Final confirmation</Text>
 
-            <View style={styles.warningBox}>
-              <Ionicons name="warning-outline" size={20} color="#D97706" style={{ marginRight: 10, marginTop: 1 }} />
-              <Text style={styles.warningText}>
-                Disconnecting this integration will stop WhatsApp message processing. You may need to reconnect your account to resume services.
-              </Text>
-            </View>
+            <Text style={styles.finalConfirmBody}>
+              Are you sure? Account data will be retained, but all message processing will stop immediately.
+            </Text>
+
+            {/* Checkbox */}
+            <TouchableOpacity
+              style={styles.checkboxContainer}
+              onPress={() => setUnderstandDisconnect(!understandDisconnect)}
+              activeOpacity={0.8}
+            >
+              <View style={[styles.checkboxSquare, understandDisconnect && styles.checkboxSquareChecked]}>
+                {understandDisconnect && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.checkboxText}>I understand this will stop messaging</Text>
+            </TouchableOpacity>
 
             <View style={styles.confirmActions}>
               <TouchableOpacity
-                style={styles.confirmCancelBtn}
-                onPress={() => setShowDisconnectModal(false)}
+                style={styles.finalGoBackBtn}
+                onPress={() => {
+                  setShowDisconnectModal(false);
+                  setUnderstandDisconnect(false);
+                }}
               >
-                <Text style={styles.confirmCancelText}>Cancel</Text>
+                <Text style={styles.finalGoBackText}>Go Back</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.confirmDisconnectBtn}
+                style={[
+                  styles.finalDisconnectBtn,
+                  !understandDisconnect && styles.finalDisconnectBtnDisabled,
+                ]}
                 onPress={handleConfirmDisconnect}
-                disabled={disconnecting}
+                disabled={!understandDisconnect || disconnecting}
               >
                 {disconnecting ? (
-                  <ActivityIndicator size="small" color="#EF4444" />
+                  <ActivityIndicator size="small" color="#DC2626" />
                 ) : (
-                  <Text style={styles.confirmDisconnectText}>Disconnect WhatsApp</Text>
+                  <Text
+                    style={[
+                      styles.finalDisconnectText,
+                      !understandDisconnect && styles.finalDisconnectTextDisabled,
+                    ]}
+                  >
+                    Disconnect Now
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -1088,5 +1130,122 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#EF4444',
+  },
+  // Final Confirmation Modal (Screen 1)
+  finalConfirmDialog: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  finalConfirmTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+  },
+  finalConfirmBody: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 19,
+    marginBottom: 16,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingVertical: 4,
+  },
+  checkboxSquare: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: '#94A3B8',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    backgroundColor: '#FFFFFF',
+  },
+  checkboxSquareChecked: {
+    backgroundColor: '#0F172A',
+    borderColor: '#0F172A',
+  },
+  checkboxText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#334155',
+  },
+  finalGoBackBtn: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  finalGoBackText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  finalDisconnectBtn: {
+    flex: 1.2,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  finalDisconnectBtnDisabled: {
+    opacity: 0.45,
+    backgroundColor: '#F8FAFC',
+    borderColor: '#E2E8F0',
+  },
+  finalDisconnectText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#DC2626',
+  },
+  finalDisconnectTextDisabled: {
+    color: '#94A3B8',
+  },
+
+  // Disconnected state overrides
+  heroCardDisconnected: {
+    backgroundColor: '#1E293B',
+  },
+  heroIconBoxDisconnected: {
+    backgroundColor: '#FEF2F2',
+  },
+  disconnectedHeroPill: {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+  },
+  disconnectedHeroDot: {
+    backgroundColor: '#EF4444',
+  },
+  disconnectedHeroText: {
+    color: '#FCA5A5',
+  },
+  statusBadgeSmallDisconnected: {
+    backgroundColor: '#FEE2E2',
+  },
+  redMiniDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#EF4444',
+    marginRight: 4,
+  },
+  statusBadgeSmallTextDisconnected: {
+    color: '#DC2626',
   },
 });
