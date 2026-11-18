@@ -159,7 +159,7 @@ export default function SettingsScreen({ navigation }) {
     } else if (item.id === 'team_mgmt') {
       navigation.navigate('ContactCRM');
     } else if (item.id === 'whatsapp_config' || item.id === 'phone_mgmt') {
-      navigation.navigate('BotMenu');
+      navigation.navigate('WhatsAppConfig');
     } else if (item.id === 'message_settings') {
       navigation.navigate('Templates');
     } else if (item.id === 'api_mgmt' || item.id === 'integration_settings' || item.id === 'access_tokens') {

@@ -90,4 +90,34 @@ export const contactService = {
   updateContact: (id, data) => api.put(`/contact/${id}`, data),
 };
 
+// ==================== WHATSAPP CONFIG SERVICE ====================
+export const whatsappConfigService = {
+  // Fetch real WhatsApp config from database
+  getConfig: async () => {
+    try {
+      const { data } = await api.get('/settings/whatsapp_config');
+      return data?.value || data || null;
+    } catch (err) {
+      console.warn('Error fetching whatsapp_config:', err.message);
+      return null;
+    }
+  },
+
+  // Save WhatsApp config to database
+  saveConfig: async (configValue) => {
+    const { data } = await api.post('/settings', {
+      key: 'whatsapp_config',
+      value: configValue,
+      description: 'WhatsApp Cloud API Configuration',
+    });
+    return data;
+  },
+
+  // Test connection with WhatsApp API
+  testConnection: async () => {
+    const { data } = await api.get('/whatsapp/test-connection');
+    return data;
+  },
+};
+
 export default api;
