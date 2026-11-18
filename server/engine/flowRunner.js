@@ -2912,14 +2912,20 @@ export async function executeWorkflowStep(customerPhone, incomingPayload, channe
 
         // Check if intent is combined Name and Phone (either explicit validationType or question asking for both)
         const isExplicitNameAndPhone = ['name_and_phone', 'name_and_mobile', 'name_phone', 'name_mobile', 'name_number'].includes(validationType);
-        const isQuestionAskingBoth = (nodeQuestion.includes('name') || nodeQuestion.includes('naam')) &&
-                                     (nodeQuestion.includes('mobile') || nodeQuestion.includes('phone') || nodeQuestion.includes('number') || nodeQuestion.includes('no'));
+        const saveVar = String(currentNode?.data?.variableName || session.saveVariableAs || '').toLowerCase().trim();
+        const isTargetingOnlyName = ['name', 'contact.name', 'full_name', 'fullname'].includes(saveVar);
+        const isTargetingOnlyPhone = ['phone', 'contact.phone', 'mobile', 'contact.mobile'].includes(saveVar);
+
+        // Use strict regex word boundaries so that words like "know" don't falsely match "no"
+        const isQuestionAskingBoth = !isTargetingOnlyName && !isTargetingOnlyPhone &&
+                                     (/\b(?:name|naam)\b/i.test(nodeQuestion)) &&
+                                     (/\b(?:mobile|phone|number|no|num|whatsapp)\b/i.test(nodeQuestion));
         const isCombinedNamePhone = isExplicitNameAndPhone || (validationType === 'text' && isQuestionAskingBoth);
 
         // Check if intent is combined Date and Time / Appointment Slot
         const isExplicitDateTime = ['datetime', 'date_time', 'date_and_time', 'slot', 'appointment'].includes(validationType);
-        const isQuestionAskingDateTime = (nodeQuestion.includes('date') || nodeQuestion.includes('taareekh') || nodeQuestion.includes('din')) &&
-                                         (nodeQuestion.includes('time') || nodeQuestion.includes('samay') || nodeQuestion.includes('baje') || nodeQuestion.includes('slot'));
+        const isQuestionAskingDateTime = (/\b(?:date|taareekh|din)\b/i.test(nodeQuestion)) &&
+                                         (/\b(?:time|samay|baje|slot)\b/i.test(nodeQuestion));
         const isCombinedDateTime = isExplicitDateTime || (validationType === 'text' && isQuestionAskingDateTime);
 
         let isValid = true;
