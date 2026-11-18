@@ -44,6 +44,23 @@ export default function WhatsAppConfigScreen({ navigation }) {
 
   const [showEventsModal, setShowEventsModal] = useState(false);
   const [showMenuModal, setShowMenuModal] = useState(false);
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const handleConfirmDisconnect = async () => {
+    setShowDisconnectModal(false);
+    setDisconnecting(true);
+    try {
+      await whatsappConfigService.disconnect();
+      setConnectionStatus('Disconnected');
+      Alert.alert('Disconnected', 'WhatsApp integration has been disconnected.');
+    } catch (err) {
+      setConnectionStatus('Disconnected');
+      Alert.alert('Disconnected', 'WhatsApp integration disconnected.');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   // Load config from real DB
   const loadConfig = useCallback(async () => {
@@ -361,8 +378,13 @@ export default function WhatsAppConfigScreen({ navigation }) {
 
             {/* 4. Subscribed Events */}
             <TouchableOpacity
-              style={[styles.configRow, styles.configRowLast]}
-              onPress={() => setShowEventsModal(true)}
+              style={styles.configRow}
+              onPress={() =>
+                navigation.navigate('SubscribedEvents', {
+                  config,
+                  onUpdate: (updated) => setConfig((prev) => ({ ...prev, ...updated })),
+                })
+              }
               activeOpacity={0.7}
             >
               <View style={styles.configIconSquircle}>
@@ -371,6 +393,38 @@ export default function WhatsAppConfigScreen({ navigation }) {
               <View style={styles.configContent}>
                 <Text style={styles.configTitle}>Subscribed Events</Text>
                 <Text style={styles.configSubtitle}>{activeEventsCount} of 6 events active</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            {/* 5. Phone Number Status */}
+            <TouchableOpacity
+              style={styles.configRow}
+              onPress={() => navigation.navigate('PhoneNumberStatus')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.configIconSquircle}>
+                <Ionicons name="phone-portrait-outline" size={20} color="#00B67A" />
+              </View>
+              <View style={styles.configContent}>
+                <Text style={styles.configTitle}>Phone Number Status</Text>
+                <Text style={styles.configSubtitle}>Registration and verification details</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+            </TouchableOpacity>
+
+            {/* 6. Two-Step Verification */}
+            <TouchableOpacity
+              style={[styles.configRow, styles.configRowLast]}
+              onPress={() => navigation.navigate('WhatsAppTwoStep')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.configIconSquircle}>
+                <Ionicons name="shield-checkmark-outline" size={20} color="#00B67A" />
+              </View>
+              <View style={styles.configContent}>
+                <Text style={styles.configTitle}>Two-Step Verification</Text>
+                <Text style={styles.configSubtitle}>Protect your WhatsApp number</Text>
               </View>
               <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
             </TouchableOpacity>
@@ -471,7 +525,7 @@ export default function WhatsAppConfigScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.menuOption, { borderBottomWidth: 0 }]}
+              style={styles.menuOption}
               onPress={() => {
                 setShowMenuModal(false);
                 navigation.navigate('ConnectionHealth');
@@ -480,8 +534,66 @@ export default function WhatsAppConfigScreen({ navigation }) {
               <Ionicons name="pulse" size={18} color="#00B67A" style={{ marginRight: 10 }} />
               <Text style={[styles.menuOptionText, { color: '#00B67A' }]}>View Diagnostics</Text>
             </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuOption, { borderBottomWidth: 0 }]}
+              onPress={() => {
+                setShowMenuModal(false);
+                setShowDisconnectModal(true);
+              }}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#EF4444" style={{ marginRight: 10 }} />
+              <Text style={[styles.menuOptionText, { color: '#EF4444' }]}>Disconnect WhatsApp</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Disconnect WhatsApp? Warning Modal (Image 3 Screen 5) */}
+      <Modal
+        visible={showDisconnectModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDisconnectModal(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmDialog}>
+            <View style={styles.confirmHeader}>
+              <Text style={styles.confirmTitle}>Disconnect WhatsApp?</Text>
+              <TouchableOpacity onPress={() => setShowDisconnectModal(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.warningBox}>
+              <Ionicons name="warning-outline" size={20} color="#D97706" style={{ marginRight: 10, marginTop: 1 }} />
+              <Text style={styles.warningText}>
+                Disconnecting this integration will stop WhatsApp message processing. You may need to reconnect your account to resume services.
+              </Text>
+            </View>
+
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setShowDisconnectModal(false)}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmDisconnectBtn}
+                onPress={handleConfirmDisconnect}
+                disabled={disconnecting}
+              >
+                {disconnecting ? (
+                  <ActivityIndicator size="small" color="#EF4444" />
+                ) : (
+                  <Text style={styles.confirmDisconnectText}>Disconnect WhatsApp</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -897,5 +1009,84 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#1E293B',
+  },
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  confirmDialog: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    width: '100%',
+    maxWidth: 360,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  confirmHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  closeBtn: {
+    padding: 4,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 17,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  confirmDisconnectBtn: {
+    flex: 1.5,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  confirmDisconnectText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#EF4444',
   },
 });

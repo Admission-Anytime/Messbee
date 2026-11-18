@@ -123,6 +123,28 @@ export const whatsappConfigService = {
     const { data } = await api.get('/whatsapp/test-connection');
     return data;
   },
+
+  // Get phone registration status
+  getPhoneStatus: async () => {
+    try {
+      const { data } = await api.get('/whatsapp/phone-status');
+      return data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  // Set / Update 6-digit PIN
+  registerPin: async (pin) => {
+    const { data } = await api.post('/whatsapp/register', { pin });
+    return data;
+  },
+
+  // Disconnect / deregister WhatsApp
+  disconnect: async () => {
+    const { data } = await api.post('/whatsapp/deregister');
+    return data;
+  },
 };
 
 export default api;

@@ -158,13 +158,17 @@ export default function SettingsScreen({ navigation }) {
       navigation.navigate('PersonalInfo');
     } else if (item.id === 'team_mgmt') {
       navigation.navigate('ContactCRM');
-    } else if (item.id === 'whatsapp_config' || item.id === 'phone_mgmt') {
+    } else if (item.id === 'whatsapp_config') {
       navigation.navigate('WhatsAppConfig');
+    } else if (item.id === 'phone_mgmt') {
+      navigation.navigate('PhoneNumberStatus');
     } else if (item.id === 'message_settings') {
       navigation.navigate('Templates');
     } else if (item.id === 'api_mgmt' || item.id === 'integration_settings' || item.id === 'access_tokens') {
       navigation.navigate('ApiManagement');
-    } else if (item.id === 'two_step_verification' || item.id === 'login_security') {
+    } else if (item.id === 'two_step_verification') {
+      navigation.navigate('WhatsAppTwoStep');
+    } else if (item.id === 'login_security') {
       navigation.navigate('SecuritySettings');
     } else if (item.id === 'notifications') {
       navigation.navigate('NotificationsSettings');
