@@ -1,12 +1,17 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 // Backend runs on port 5002
-// 192.168.1.12 allows physical phones connected over local Wi-Fi to connect
-// 10.0.2.2 is the Android emulator loopback alias
+// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+const detectedHost =
+  Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
+  Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
+  '192.168.1.12';
+
 export const BASE_URL =
   Platform.OS === 'android'
-    ? 'http://192.168.1.12:5002/api'
+    ? `http://${detectedHost}:5002/api`
     : 'http://localhost:5002/api';
 
 const api = axios.create({
@@ -88,6 +93,58 @@ export const contactService = {
   getContactById: (id) => api.get(`/contact/${id}`),
   createContact: (data) => api.post('/contact', data),
   updateContact: (id, data) => api.put(`/contact/${id}`, data),
+};
+
+// ==================== WHATSAPP CONFIG SERVICE ====================
+export const whatsappConfigService = {
+  // Fetch real WhatsApp config from database
+  getConfig: async () => {
+    try {
+      const { data } = await api.get('/settings/whatsapp_config');
+      return data?.value || data || null;
+    } catch (err) {
+      console.warn('Error fetching whatsapp_config:', err.message);
+      return null;
+    }
+  },
+
+  // Save WhatsApp config to database
+  saveConfig: async (configValue) => {
+    const { data } = await api.post('/settings', {
+      key: 'whatsapp_config',
+      value: configValue,
+      description: 'WhatsApp Cloud API Configuration',
+    });
+    return data;
+  },
+
+  // Test connection with WhatsApp API
+  testConnection: async () => {
+    const { data } = await api.get('/whatsapp/test-connection');
+    return data;
+  },
+
+  // Get phone registration status
+  getPhoneStatus: async () => {
+    try {
+      const { data } = await api.get('/whatsapp/phone-status');
+      return data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  // Set / Update 6-digit PIN
+  registerPin: async (pin) => {
+    const { data } = await api.post('/whatsapp/register', { pin });
+    return data;
+  },
+
+  // Disconnect / deregister WhatsApp
+  disconnect: async () => {
+    const { data } = await api.post('/whatsapp/deregister');
+    return data;
+  },
 };
 
 export default api;
