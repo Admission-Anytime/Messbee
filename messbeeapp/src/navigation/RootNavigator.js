@@ -22,6 +22,13 @@ import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
 import ApiManagementScreen from '../screens/main/ApiManagementScreen';
 import SecuritySettingsScreen from '../screens/main/SecuritySettingsScreen';
 import NotificationsSettingsScreen from '../screens/main/NotificationsSettingsScreen';
+import TemplateVariablesScreen from '../screens/main/TemplateVariablesScreen';
+import ConfirmSendTemplateScreen from '../screens/main/ConfirmSendTemplateScreen';
+import TemplateSuccessScreen from '../screens/main/TemplateSuccessScreen';
+import ContactProfileScreen from '../screens/main/ContactProfileScreen';
+import EditContactProfileScreen from '../screens/main/EditContactProfileScreen';
+import ContactFullHistoryScreen from '../screens/main/ContactFullHistoryScreen';
+import ManageLabelsModal from '../screens/main/ManageLabelsModal';
 
 const Stack = createStackNavigator();
 
@@ -62,6 +69,13 @@ export default function RootNavigator() {
         <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
         <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
         <Stack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
+        <Stack.Screen name="TemplateVariables" component={TemplateVariablesScreen} />
+        <Stack.Screen name="ConfirmSendTemplate" component={ConfirmSendTemplateScreen} />
+        <Stack.Screen name="TemplateSuccess" component={TemplateSuccessScreen} />
+        <Stack.Screen name="ContactProfile" component={ContactProfileScreen} />
+        <Stack.Screen name="EditContactProfile" component={EditContactProfileScreen} />
+        <Stack.Screen name="ContactFullHistory" component={ContactFullHistoryScreen} />
+        <Stack.Screen name="ManageLabelsModal" component={ManageLabelsModal} />
       </Stack.Navigator>
     </NavigationContainer>
   );
