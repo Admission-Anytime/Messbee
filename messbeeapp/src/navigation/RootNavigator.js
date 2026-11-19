@@ -31,14 +31,15 @@ import ContactFullHistoryScreen from '../screens/main/ContactFullHistoryScreen';
 import ManageLabelsModal from '../screens/main/ManageLabelsModal';
 import UpdateLeadStatusModal from '../screens/main/UpdateLeadStatusModal';
 import ArchivedChatsScreen from '../screens/main/ArchivedChatsScreen';
-import WhatsAppConfigScreen from '../screens/main/WhatsAppConfigScreen';
-import ConnectionHealthScreen from '../screens/main/ConnectionHealthScreen';
-import ApiCredentialsScreen from '../screens/main/ApiCredentialsScreen';
-import WebhookSettingsScreen from '../screens/main/WebhookSettingsScreen';
-import SubscribedEventsScreen from '../screens/main/SubscribedEventsScreen';
-import PhoneNumberStatusScreen from '../screens/main/PhoneNumberStatusScreen';
-import WhatsAppDisconnectedScreen from '../screens/main/WhatsAppDisconnectedScreen';
-import ReconnectWhatsAppScreen from '../screens/main/ReconnectWhatsAppScreen';
+import WhatsAppConfigScreen from '../screens/whatsappConfig/WhatsAppConfigScreen';
+import ConnectionHealthScreen from '../screens/whatsappConfig/ConnectionHealthScreen';
+import ApiCredentialsScreen from '../screens/whatsappConfig/ApiCredentialsScreen';
+import WebhookSettingsScreen from '../screens/whatsappConfig/WebhookSettingsScreen';
+import SubscribedEventsScreen from '../screens/whatsappConfig/SubscribedEventsScreen';
+import PhoneNumberStatusScreen from '../screens/whatsappConfig/PhoneNumberStatusScreen';
+import WhatsAppTwoStepScreen from '../screens/whatsappConfig/WhatsAppTwoStepScreen';
+import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDisconnectedScreen';
+import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
 
 const Stack = createStackNavigator();
 
@@ -94,6 +95,7 @@ export default function RootNavigator() {
         <Stack.Screen name="WebhookSettings" component={WebhookSettingsScreen} />
         <Stack.Screen name="SubscribedEvents" component={SubscribedEventsScreen} />
         <Stack.Screen name="PhoneNumberStatus" component={PhoneNumberStatusScreen} />
+        <Stack.Screen name="WhatsAppTwoStep" component={WhatsAppTwoStepScreen} />
         <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
         <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
       </Stack.Navigator>

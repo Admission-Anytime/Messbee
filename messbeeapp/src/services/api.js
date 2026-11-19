@@ -1,25 +1,17 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
-
-// Determine backend IP dynamically from Metro host or fallback to standard Wi-Fi LAN
-const getDevHost = () => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return ip;
-    }
-  }
-  return '192.168.1.12';
-};
-
-const DEV_HOST = getDevHost();
+// Backend runs on port 5002
+// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+const detectedHost =
+  Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
+  Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
+  '192.168.1.12';
 
 export const BASE_URL =
   Platform.OS === 'android'
-    ? `http://${DEV_HOST}:5002/api`
-    : `http://localhost:5002/api`;
+    ? `http://${detectedHost}:5002/api`
+    : 'http://localhost:5002/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -313,6 +305,10 @@ export const whatsappConfigService = {
       }
     }
   },
+  registerPin: async (pin) => {
+    const { data } = await api.post('/whatsapp/register', { pin });
+    return data;
+  },
   disconnect: async () => {
     try {
       const current = await whatsappConfigService.getConfig();
@@ -324,6 +320,9 @@ export const whatsappConfigService = {
         businessAccountId: '',
       };
       await whatsappConfigService.saveConfig(updated);
+      try {
+        await api.post('/whatsapp/deregister');
+      } catch (_) {}
       return { success: true };
     } catch (err) {
       console.warn('whatsappConfigService.disconnect error:', err.message);
