@@ -267,4 +267,69 @@ export const contactService = {
   },
 };
 
+// ==================== WHATSAPP CONFIG SERVICE (Real DB / API) ====================
+export const whatsappConfigService = {
+  getConfig: async () => {
+    try {
+      const response = await api.get('/settings/whatsapp_config');
+      return response.data?.value || response.data || null;
+    } catch (err) {
+      console.warn('whatsappConfigService.getConfig error:', err.message);
+      return null;
+    }
+  },
+  saveConfig: async (configValue) => {
+    try {
+      const response = await api.post('/settings', {
+        key: 'whatsapp_config',
+        value: configValue,
+        description: 'WhatsApp Cloud API Configuration',
+      });
+      return response.data?.value || response.data;
+    } catch (err) {
+      console.warn('whatsappConfigService.saveConfig error:', err.message);
+      throw err;
+    }
+  },
+  testConnection: async () => {
+    try {
+      const response = await api.get('/whatsapp/test-connection');
+      return response.data;
+    } catch (err) {
+      console.warn('whatsappConfigService.testConnection error:', err.message);
+      return { success: false, message: err.response?.data?.message || err.message };
+    }
+  },
+  getPhoneStatus: async () => {
+    try {
+      const res = await api.get('/whatsapp/phone-status');
+      return res.data;
+    } catch (err) {
+      try {
+        const perf = await api.get('/performance/waba-config');
+        return perf.data?.data || null;
+      } catch (_) {
+        return null;
+      }
+    }
+  },
+  disconnect: async () => {
+    try {
+      const current = await whatsappConfigService.getConfig();
+      const updated = {
+        ...(current || {}),
+        connected: false,
+        accessToken: '',
+        phoneNumberId: '',
+        businessAccountId: '',
+      };
+      await whatsappConfigService.saveConfig(updated);
+      return { success: true };
+    } catch (err) {
+      console.warn('whatsappConfigService.disconnect error:', err.message);
+      throw err;
+    }
+  },
+};
+
 export default api;

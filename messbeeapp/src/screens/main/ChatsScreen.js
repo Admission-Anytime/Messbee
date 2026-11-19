@@ -33,8 +33,9 @@ const DEFAULT_CHATS = [
     status: 'Open',
     statusBg: '#DCFCE7',
     statusColor: '#166534',
-    pinned: false,
+    pinned: true,
     archived: false,
+    assignedTo: 'Assigned to You',
   },
   {
     _id: 'chat_2',
@@ -51,6 +52,7 @@ const DEFAULT_CHATS = [
     statusColor: '#166534',
     pinned: false,
     archived: false,
+    assignedTo: 'Unassigned',
   },
   {
     _id: 'chat_3',
@@ -65,8 +67,9 @@ const DEFAULT_CHATS = [
     status: 'Open',
     statusBg: '#DCFCE7',
     statusColor: '#166534',
-    pinned: false,
+    pinned: true,
     archived: false,
+    assignedTo: 'Assigned to You',
   },
   {
     _id: 'chat_4',
@@ -83,6 +86,7 @@ const DEFAULT_CHATS = [
     statusColor: '#7E22CE',
     pinned: false,
     archived: false,
+    assignedTo: 'Assigned to Aarav',
   },
 ];
 
@@ -93,6 +97,9 @@ export default function ChatsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showNewChatModal, setShowNewChatModal] = useState(false);
+  const [showQuickFilters, setShowQuickFilters] = useState(false);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
   const [suggestedContacts, setSuggestedContacts] = useState([
     { id: 'c1', name: 'Rahul', phone: '+91 98765 43210', initials: 'RA', bg: '#FFEDD5', color: '#C2410C' },
     { id: 'c2', name: 'Sarah Mitchell', phone: '+1 415 555 0142', initials: 'SM', bg: '#E0F2FE', color: '#0369A1' },
@@ -154,21 +161,35 @@ export default function ChatsScreen({ navigation }) {
   };
 
   // Filter chats by tab and search
-  const filteredChats = chats.filter((chat) => {
-    if (chat.archived) return false;
-    if (activeTab === 'Unread' && chat.unread === 0) return false;
-    if (activeTab === 'Resolved' && chat.status.toLowerCase() !== 'resolved') return false;
-    if (activeTab === 'Active' && chat.status.toLowerCase() === 'resolved') return false;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      return (
-        chat.name.toLowerCase().includes(q) ||
-        chat.phone.toLowerCase().includes(q) ||
-        chat.lastMessage.toLowerCase().includes(q)
-      );
+  const filteredChats = chats
+    .filter((chat) => {
+      if (chat.archived) return false;
+      if (activeTab === 'Unread' && chat.unread === 0) return false;
+      if (activeTab === 'Resolved' && chat.status.toLowerCase() !== 'resolved') return false;
+      if (activeTab === 'Active' && chat.status.toLowerCase() === 'resolved') return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        return (
+          chat.name.toLowerCase().includes(q) ||
+          chat.phone.toLowerCase().includes(q) ||
+          chat.lastMessage.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    })
+    .sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return 0;
+    });
+
+  const toggleSelectItem = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(selectedIds.filter((item) => item !== id));
+    } else {
+      setSelectedIds([...selectedIds, id]);
     }
-    return true;
-  });
+  };
 
   const unreadCount = chats.filter((c) => c.unread > 0).length;
 
@@ -197,84 +218,164 @@ export default function ChatsScreen({ navigation }) {
     }
   };
 
-  const renderChatItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.chatCard}
-      onPress={() => navigation.navigate('ChatDetail', { chat: item })}
-      activeOpacity={0.7}
-    >
-      {/* Avatar Squircle with WhatsApp indicator */}
-      <View style={styles.avatarWrapper}>
-        <View style={[styles.avatarSquircle, { backgroundColor: item.avatarBg }]}>
-          <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
-        </View>
-        <View style={styles.whatsappDotBadge}>
-          <Ionicons name="logo-whatsapp" size={9} color="#FFFFFF" />
-        </View>
-      </View>
-
-      {/* Center Details */}
-      <View style={styles.chatContent}>
-        <View style={styles.topRow}>
-          <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
-          <Text style={styles.chatTime}>{item.time}</Text>
-        </View>
-
-        <View style={styles.bottomRow}>
-          <Text style={styles.lastMessageText} numberOfLines={1}>
-            {item.lastMessage}
-          </Text>
-          {item.unread > 0 && (
-            <View style={styles.unreadBadge}>
-              <Text style={styles.unreadBadgeText}>{item.unread}</Text>
+  const renderChatItem = ({ item }) => {
+    const isSelected = selectedIds.includes(item._id);
+    return (
+      <TouchableOpacity
+        style={[styles.chatCard, isSelected && styles.chatCardSelected]}
+        onPress={() => {
+          if (selectionMode) {
+            toggleSelectItem(item._id);
+          } else {
+            navigation.navigate('ChatDetail', { chat: item });
+          }
+        }}
+        onLongPress={() => {
+          setSelectionMode(true);
+          toggleSelectItem(item._id);
+        }}
+        activeOpacity={0.7}
+      >
+        {/* Selection Checkbox (Image 4 Screen 9) */}
+        {selectionMode && (
+          <View style={styles.selectionCheckboxCol}>
+            <View style={[styles.selectBoxSquare, isSelected && styles.selectBoxSquareChecked]}>
+              {isSelected && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
             </View>
-          )}
-        </View>
+          </View>
+        )}
 
-        {/* Status Pill Badge */}
-        <View style={styles.statusPillRow}>
-          <View style={[styles.statusPill, { backgroundColor: item.statusBg }]}>
-            <View style={[styles.statusDot, { backgroundColor: item.statusColor }]} />
-            <Text style={[styles.statusText, { color: item.statusColor }]}>{item.status}</Text>
+        {/* Avatar Squircle with WhatsApp indicator */}
+        <View style={styles.avatarWrapper}>
+          <View style={[styles.avatarSquircle, { backgroundColor: item.avatarBg }]}>
+            <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
+          </View>
+          <View style={styles.whatsappDotBadge}>
+            <Ionicons name="logo-whatsapp" size={9} color="#FFFFFF" />
           </View>
         </View>
-      </View>
-    </TouchableOpacity>
-  );
+
+        {/* Center Details */}
+        <View style={styles.chatContent}>
+          <View style={styles.topRow}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
+              <Text style={styles.contactName} numberOfLines={1}>{item.name}</Text>
+              {item.pinned && (
+                <Ionicons name="pin" size={13} color="#D97706" style={{ marginLeft: 5 }} />
+              )}
+            </View>
+            <Text style={styles.chatTime}>{item.time}</Text>
+          </View>
+
+          <View style={styles.bottomRow}>
+            <Text style={styles.lastMessageText} numberOfLines={1}>
+              {item.lastMessage}
+            </Text>
+            {item.unread > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>{item.unread}</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Status Pill Badge & Assigned Agent Row */}
+          <View style={styles.statusPillRow}>
+            <View style={[styles.statusPill, { backgroundColor: item.statusBg }]}>
+              <View style={[styles.statusDot, { backgroundColor: item.statusColor }]} />
+              <Text style={[styles.statusText, { color: item.statusColor }]}>{item.status}</Text>
+            </View>
+            {item.assignedTo && (
+              <Text style={styles.assignedToText}>{item.assignedTo}</Text>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
 
-      {/* Header (Matching Image 1 Screen 1) */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.messbeeTag}>MESSBEE</Text>
-          <Text style={styles.headerTitle}>Chats</Text>
-        </View>
-
-        <View style={styles.headerRightActions}>
+      {/* Header (Matching Image 1 Screen 1 or Image 4 Screen 9 for Bulk Selection) */}
+      {selectionMode ? (
+        <View style={styles.selectionHeader}>
           <TouchableOpacity
+            onPress={() => {
+              setSelectionMode(false);
+              setSelectedIds([]);
+            }}
             style={styles.headerIconBtn}
-            onPress={() => setSearchQuery(searchQuery ? '' : ' ')}
-            activeOpacity={0.7}
           >
-            <Ionicons name="search-outline" size={22} color="#0F172A" />
+            <Ionicons name="close" size={24} color="#0F172A" />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.plusGreenSquircle}
-            onPress={() => setShowNewChatModal(true)}
-            activeOpacity={0.85}
+            style={styles.selectAllBtn}
+            onPress={() => {
+              if (selectedIds.length === filteredChats.length) {
+                setSelectedIds([]);
+              } else {
+                setSelectedIds(filteredChats.map((c) => c._id));
+              }
+            }}
+            activeOpacity={0.8}
           >
-            <Ionicons name="add" size={22} color="#FFFFFF" />
+            <View style={[styles.selectBoxSquare, selectedIds.length === filteredChats.length && styles.selectBoxSquareChecked]}>
+              {selectedIds.length === filteredChats.length && <Ionicons name="checkmark" size={13} color="#FFFFFF" />}
+            </View>
+            <Text style={styles.selectAllText}>Select all ({selectedIds.length})</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.headerIconBtn} activeOpacity={0.7}>
-            <Ionicons name="ellipsis-vertical" size={20} color="#0F172A" />
+          <TouchableOpacity
+            style={styles.bulkActionsBtn}
+            onPress={() => {
+              Alert.alert('Bulk actions', `Perform action on ${selectedIds.length} selected conversations`, [
+                { text: 'Mark as Read', onPress: () => { setSelectionMode(false); setSelectedIds([]); } },
+                { text: 'Archive Selected', onPress: () => { setSelectionMode(false); setSelectedIds([]); } },
+                { text: 'Cancel', style: 'cancel' },
+              ]);
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.bulkActionsText}>Bulk actions</Text>
+            <Ionicons name="chevron-down" size={13} color="#64748B" style={{ marginLeft: 4 }} />
           </TouchableOpacity>
         </View>
-      </View>
+      ) : (
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.messbeeTag}>MESSBEE</Text>
+            <Text style={styles.headerTitle}>Chats</Text>
+          </View>
+
+          <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={() => setSearchQuery(searchQuery ? '' : ' ')}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="search-outline" size={22} color="#0F172A" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.plusGreenSquircle}
+              onPress={() => setShowNewChatModal(true)}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="add" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.headerIconBtn}
+              onPress={() => setShowQuickFilters(true)}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* Search Bar */}
       <View style={styles.searchContainer}>
@@ -334,7 +435,11 @@ export default function ChatsScreen({ navigation }) {
         ListHeaderComponent={
           <>
             {/* Archived Chats Card */}
-            <TouchableOpacity style={styles.archivedCard} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.archivedCard}
+              onPress={() => navigation.navigate('ArchivedChats')}
+              activeOpacity={0.7}
+            >
               <View style={styles.archiveIconBox}>
                 <Ionicons name="archive-outline" size={18} color="#00B67A" />
               </View>
@@ -418,6 +523,122 @@ export default function ChatsScreen({ navigation }) {
                 <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
               </TouchableOpacity>
             ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* ================= SCREEN 11: QUICK FILTERS MODAL ================= */}
+      <Modal
+        visible={showQuickFilters}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowQuickFilters(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowQuickFilters(false)}
+        >
+          <View style={styles.sheetDialog} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+
+            <View style={styles.sheetHeader}>
+              <View>
+                <Text style={styles.sheetTag}>FILTERS</Text>
+                <Text style={styles.sheetTitle}>Quick Filters</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowQuickFilters(false)} style={styles.sheetCloseBtn}>
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={styles.filterOptionRow}
+              onPress={() => {
+                setActiveTab('Unread');
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#DCFCE7' }]}>
+                <Ionicons name="chatbubble-ellipses-outline" size={18} color="#00875A" />
+              </View>
+              <Text style={styles.filterOptText}>Unread chats</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.filterOptionRow}
+              onPress={() => {
+                setActiveTab('Active');
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#E0F2FE' }]}>
+                <Ionicons name="time-outline" size={18} color="#0284C7" />
+              </View>
+              <Text style={styles.filterOptText}>Open session chats</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.filterOptionRow}
+              onPress={() => {
+                setActiveTab('Mine');
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#F1F5F9' }]}>
+                <Ionicons name="volume-mute-outline" size={18} color="#64748B" />
+              </View>
+              <Text style={styles.filterOptText}>Muted chats</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.filterOptionRow}
+              onPress={() => {
+                setSearchQuery('Unassigned');
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#FEF3C7' }]}>
+                <Ionicons name="person-outline" size={18} color="#D97706" />
+              </View>
+              <Text style={styles.filterOptText}>Unassigned chats</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.filterOptionRow}
+              onPress={() => {
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#EEF2FF' }]}>
+                <Ionicons name="options-outline" size={18} color="#6366F1" />
+              </View>
+              <Text style={styles.filterOptText}>Advanced filters</Text>
+            </TouchableOpacity>
+
+            <View style={styles.filterDivider} />
+
+            <TouchableOpacity
+              style={[styles.filterOptionRow, { paddingVertical: 12 }]}
+              onPress={() => {
+                setActiveTab('All');
+                setSearchQuery('');
+                setShowQuickFilters(false);
+              }}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.filterOptIcon, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="refresh-outline" size={18} color="#EF4444" />
+              </View>
+              <Text style={[styles.filterOptText, { color: '#EF4444', fontWeight: '700' }]}>
+                Clear Filters
+              </Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -803,5 +1024,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748B',
     marginTop: 1,
+  },
+  filterOptionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 11,
+  },
+  filterOptIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  filterOptText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#0F172A',
+  },
+  filterDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
+    marginVertical: 6,
   },
 });

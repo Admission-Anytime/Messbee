@@ -72,8 +72,11 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [inputText, setInputText] = useState('');
   const [currentStatus, setCurrentStatus] = useState(chat.status || 'Open');
   const [showActionsSheet, setShowActionsSheet] = useState(false);
-  const [showStatusSheet, setShowStatusSheet] = useState(false);
-  const [isPinned, setIsPinned] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [isArchived, setIsArchived] = useState(chat.archived || false);
+  const [isPinned, setIsPinned] = useState(chat.pinned || false);
 
   const flatListRef = useRef(null);
 
@@ -98,6 +101,13 @@ export default function ChatDetailScreen({ route, navigation }) {
     };
     fetchChatMessages();
   }, [chat._id]);
+
+  // Handle status update from UpdateLeadStatusModal
+  useEffect(() => {
+    if (route.params?.newStatus) {
+      setCurrentStatus(route.params.newStatus);
+    }
+  }, [route.params?.newStatus]);
 
   // Handle new template sent from Template wizard flow
   useEffect(() => {
@@ -149,22 +159,10 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
-  // Change chat status
-  const handleChangeStatus = async (newStatus) => {
-    setCurrentStatus(newStatus);
-    setShowStatusSheet(false);
-    try {
-      if (chat._id) {
-        await chatService.updateStatus(chat._id, newStatus.toLowerCase());
-      }
-    } catch (err) {
-      console.warn('Status update API note:', err.message);
-    }
-  };
-
   // Toggle pin
   const handleTogglePin = async () => {
-    setIsPinned(!isPinned);
+    const nextPin = !isPinned;
+    setIsPinned(nextPin);
     setShowActionsSheet(false);
     try {
       if (chat._id) {
@@ -175,40 +173,31 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
-  // Clear chat
-  const handleClearHistory = () => {
-    setShowActionsSheet(false);
-    Alert.alert('Clear Chat History', 'Are you sure you want to delete all messages in this conversation?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Clear',
-        style: 'destructive',
-        onPress: async () => {
-          setMessages([]);
-          try {
-            if (chat._id) await chatService.clearHistory(chat._id);
-          } catch (err) {}
-        },
-      },
-    ]);
+  // Confirm Clear chat history
+  const handleConfirmClearHistory = async () => {
+    setShowClearModal(false);
+    setMessages([]);
+    try {
+      if (chat._id) await chatService.clearHistory(chat._id);
+    } catch (err) {}
   };
 
-  // Delete chat
-  const handleDeleteChat = () => {
-    setShowActionsSheet(false);
-    Alert.alert('Delete Contact', 'Are you sure you want to permanently delete this contact and chat?', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            if (chat._id) await chatService.deleteChat(chat._id);
-          } catch (err) {}
-          navigation.goBack();
-        },
-      },
-    ]);
+  // Confirm Delete contact
+  const handleConfirmDeleteContact = async () => {
+    setShowDeleteModal(false);
+    try {
+      if (chat._id) await chatService.deleteChat(chat._id);
+    } catch (err) {}
+    navigation.goBack();
+  };
+
+  // Confirm Restore archived chat
+  const handleConfirmRestoreChat = async () => {
+    setShowRestoreModal(false);
+    setIsArchived(false);
+    try {
+      if (chat._id) await chatService.toggleArchive(chat._id);
+    } catch (err) {}
   };
 
   const renderMessageItem = ({ item }) => {
@@ -308,7 +297,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             <View style={styles.avatarGreenDot} />
           </View>
           <View style={styles.headerTitleBox}>
-            <Text style={styles.headerContactName} numberOfLines={1}>{chat.name || '919350157447'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Text style={styles.headerContactName} numberOfLines={1}>{chat.name || '919350157447'}</Text>
+              {isPinned && <Ionicons name="pin" size={13} color="#D97706" style={{ marginLeft: 5 }} />}
+            </View>
             <View style={styles.headerSubtitleRow}>
               <View style={styles.directDot} />
               <Text style={styles.headerSubtitleText}>Direct • WhatsApp</Text>
@@ -319,7 +311,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         {/* Status Dropdown Pill */}
         <TouchableOpacity
           style={styles.statusPillBtn}
-          onPress={() => setShowStatusSheet(true)}
+          onPress={() => navigation.navigate('UpdateLeadStatus', { contact: { ...chat, status: currentStatus } })}
           activeOpacity={0.8}
         >
           <View style={styles.statusPillDot} />
@@ -351,6 +343,28 @@ export default function ChatDetailScreen({ route, navigation }) {
           showsVerticalScrollIndicator={false}
           ListHeaderComponent={
             <>
+              {/* If Chat is Archived, Show Top Banner (Image 1 Screen 3) */}
+              {isArchived && (
+                <View style={styles.archivedTopBanner}>
+                  <View style={styles.archivedBannerLeft}>
+                    <View style={styles.archivedIconCircle}>
+                      <Ionicons name="archive-outline" size={16} color="#00875A" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.archivedBannerTitle}>This chat is archived</Text>
+                      <Text style={styles.archivedBannerDesc}>Restore this chat to return it to your active conversations.</Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.restoreChatBtn}
+                    onPress={() => setShowRestoreModal(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.restoreChatBtnText}>Restore Chat</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {/* WhatsApp Security Notice Banner */}
               <View style={styles.securityBanner}>
                 <Ionicons name="lock-closed" size={12} color="#64748B" style={{ marginRight: 6 }} />
@@ -358,10 +372,22 @@ export default function ChatDetailScreen({ route, navigation }) {
               </View>
 
               {/* Date Header */}
-              <View style={styles.dateHeader}>
-                <Text style={styles.dateHeaderText}>Today</Text>
-              </View>
+              {messages.length > 0 && (
+                <View style={styles.dateHeader}>
+                  <Text style={styles.dateHeaderText}>Today</Text>
+                </View>
+              )}
             </>
+          }
+          ListEmptyComponent={
+            /* Cleared Chat Empty State (Image 2 Screen 7) */
+            <View style={styles.clearedEmptyBox}>
+              <View style={styles.clearedIconSquircle}>
+                <Ionicons name="chatbubble-outline" size={26} color="#00875A" />
+              </View>
+              <Text style={styles.clearedHeading}>No messages yet</Text>
+              <Text style={styles.clearedSubtext}>Your conversation history has been cleared.</Text>
+            </View>
           }
         />
 
@@ -478,7 +504,7 @@ export default function ChatDetailScreen({ route, navigation }) {
               style={styles.actionItemRow}
               onPress={() => {
                 setShowActionsSheet(false);
-                setShowStatusSheet(true);
+                navigation.navigate('UpdateLeadStatus', { contact: { ...chat, status: currentStatus } });
               }}
               activeOpacity={0.7}
             >
@@ -526,7 +552,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             {/* Action 7: Clear Chat History */}
             <TouchableOpacity
               style={styles.actionItemRow}
-              onPress={handleClearHistory}
+              onPress={() => {
+                setShowActionsSheet(false);
+                setShowClearModal(true);
+              }}
               activeOpacity={0.7}
             >
               <Ionicons name="trash-outline" size={20} color="#00875A" style={styles.actionIcon} />
@@ -536,7 +565,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             {/* Action 8: Delete Contact */}
             <TouchableOpacity
               style={styles.actionItemRow}
-              onPress={handleDeleteChat}
+              onPress={() => {
+                setShowActionsSheet(false);
+                setShowDeleteModal(true);
+              }}
               activeOpacity={0.7}
             >
               <Ionicons name="person-remove-outline" size={20} color="#00875A" style={styles.actionIcon} />
@@ -590,6 +622,176 @@ export default function ChatDetailScreen({ route, navigation }) {
             ))}
           </View>
         </TouchableOpacity>
+      </Modal>
+      {/* ================= RESTORE CHAT MODAL (Image 1 Screen 4) ================= */}
+      <Modal
+        visible={showRestoreModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowRestoreModal(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCardDialog}>
+            <View style={styles.restoreIconCircle}>
+              <Ionicons name="refresh" size={24} color="#00875A" />
+            </View>
+
+            <Text style={styles.confirmDialogTitle}>Restore Chat?</Text>
+            <Text style={styles.confirmDialogBody}>
+              This conversation will return to your active Chats list with its messages and history intact.
+            </Text>
+
+            {/* Selected Conversation Preview Card */}
+            <View style={styles.contactPreviewCard}>
+              <View style={[styles.previewAvatarSquircle, { backgroundColor: chat.avatarBg || '#F3E8FF' }]}>
+                <Text style={[styles.previewAvatarText, { color: chat.avatarColor || '#6B21A8' }]}>
+                  {chat.avatarText || 'U'}
+                </Text>
+                <View style={styles.previewDot} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.previewContactName}>{chat.name || 'Unknown'}</Text>
+                <View style={styles.previewStatusRow}>
+                  <View style={styles.previewStatusDot} />
+                  <Text style={styles.previewStatusText}>{chat.status || 'Open'}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setShowRestoreModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmRestoreBtn}
+                onPress={handleConfirmRestoreChat}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmRestoreText}>Restore Chat</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= CLEAR CHAT HISTORY MODAL (Image 2 Screen 6) ================= */}
+      <Modal
+        visible={showClearModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowClearModal(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCardDialog}>
+            <View style={styles.dangerIconCircle}>
+              <Ionicons name="warning-outline" size={26} color="#EF4444" />
+            </View>
+
+            <Text style={styles.confirmDialogTitle}>Clear Chat History</Text>
+            <Text style={styles.confirmDialogBody}>
+              Are you sure you want to clear this chat history? This action will remove all messages from your view and cannot be undone.
+            </Text>
+
+            {/* Selected Conversation Card */}
+            <View style={styles.contactPreviewCard}>
+              <View style={[styles.previewAvatarSquircle, { backgroundColor: '#DCFCE7' }]}>
+                <Text style={[styles.previewAvatarText, { color: '#065F46' }]}>
+                  {chat.name?.slice(0, 2) || '91'}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.previewSubLabel}>Selected conversation</Text>
+                <Text style={styles.previewContactName}>{chat.name || '919350157447'}</Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setShowClearModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmDangerBtn}
+                onPress={handleConfirmClearHistory}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmDangerText}>Clear History</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.failureLink} activeOpacity={0.7}>
+              <Text style={styles.failureLinkText}>Preview failure state</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= DELETE CONTACT MODAL (Image 2 Screen 8) ================= */}
+      <Modal
+        visible={showDeleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDeleteModal(false)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmCardDialog}>
+            <View style={styles.dangerIconCircle}>
+              <Ionicons name="warning-outline" size={26} color="#EF4444" />
+            </View>
+
+            <Text style={styles.confirmDialogTitle}>Delete Contact</Text>
+            <Text style={styles.confirmDialogBody}>
+              Are you sure you want to delete this contact and all its messages? This action is permanent and cannot be reversed.
+            </Text>
+
+            {/* Selected Contact Card */}
+            <View style={styles.contactPreviewCard}>
+              <View style={[styles.previewAvatarSquircle, { backgroundColor: '#DCFCE7' }]}>
+                <Text style={[styles.previewAvatarText, { color: '#065F46' }]}>
+                  {chat.name?.slice(0, 2) || '91'}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.previewSubLabel}>Selected contact</Text>
+                <Text style={styles.previewContactName}>{chat.name || '919350157447'}</Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.confirmBtnRow}>
+              <TouchableOpacity
+                style={styles.confirmCancelBtn}
+                onPress={() => setShowDeleteModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.confirmCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.confirmDangerBtn}
+                onPress={handleConfirmDeleteContact}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.confirmDangerText}>Delete Contact</Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.failureLink} activeOpacity={0.7}>
+              <Text style={styles.failureLinkText}>Preview failure state</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -1062,5 +1264,245 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#0F172A',
+  },
+
+  // Archived Top Banner (Screen 3)
+  archivedTopBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+  },
+  archivedBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginRight: 10,
+  },
+  archivedIconCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  archivedBannerTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  archivedBannerDesc: {
+    fontSize: 11,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  restoreChatBtn: {
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#00875A',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+  },
+  restoreChatBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#00875A',
+  },
+
+  // Cleared Empty State (Screen 7)
+  clearedEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  clearedIconSquircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  clearedHeading: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 6,
+  },
+  clearedSubtext: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+  },
+
+  // Confirmation Modals (Screens 4, 6, 8)
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  confirmCardDialog: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 22,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  restoreIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  dangerIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  confirmDialogTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  confirmDialogBody: {
+    fontSize: 13,
+    color: '#64748B',
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 16,
+    paddingHorizontal: 8,
+  },
+  contactPreviewCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 20,
+  },
+  previewAvatarSquircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+    position: 'relative',
+  },
+  previewAvatarText: {
+    fontSize: 13.5,
+    fontWeight: '800',
+  },
+  previewDot: {
+    position: 'absolute',
+    bottom: -1,
+    right: -1,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#00B67A',
+  },
+  previewSubLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  previewContactName: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  previewStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  previewStatusDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#00875A',
+    marginRight: 4,
+  },
+  previewStatusText: {
+    fontSize: 10.5,
+    fontWeight: '700',
+    color: '#00875A',
+  },
+  confirmBtnRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: 10,
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmCancelText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  confirmRestoreBtn: {
+    flex: 1.2,
+    backgroundColor: '#00875A',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmRestoreText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  confirmDangerBtn: {
+    flex: 1.2,
+    backgroundColor: '#EF4444',
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  confirmDangerText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  failureLink: {
+    marginTop: 14,
+  },
+  failureLinkText: {
+    fontSize: 11.5,
+    color: '#94A3B8',
+    textDecorationLine: 'underline',
   },
 });

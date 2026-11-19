@@ -29,6 +29,16 @@ import ContactProfileScreen from '../screens/main/ContactProfileScreen';
 import EditContactProfileScreen from '../screens/main/EditContactProfileScreen';
 import ContactFullHistoryScreen from '../screens/main/ContactFullHistoryScreen';
 import ManageLabelsModal from '../screens/main/ManageLabelsModal';
+import UpdateLeadStatusModal from '../screens/main/UpdateLeadStatusModal';
+import ArchivedChatsScreen from '../screens/main/ArchivedChatsScreen';
+import WhatsAppConfigScreen from '../screens/main/WhatsAppConfigScreen';
+import ConnectionHealthScreen from '../screens/main/ConnectionHealthScreen';
+import ApiCredentialsScreen from '../screens/main/ApiCredentialsScreen';
+import WebhookSettingsScreen from '../screens/main/WebhookSettingsScreen';
+import SubscribedEventsScreen from '../screens/main/SubscribedEventsScreen';
+import PhoneNumberStatusScreen from '../screens/main/PhoneNumberStatusScreen';
+import WhatsAppDisconnectedScreen from '../screens/main/WhatsAppDisconnectedScreen';
+import ReconnectWhatsAppScreen from '../screens/main/ReconnectWhatsAppScreen';
 
 const Stack = createStackNavigator();
 
@@ -76,6 +86,16 @@ export default function RootNavigator() {
         <Stack.Screen name="EditContactProfile" component={EditContactProfileScreen} />
         <Stack.Screen name="ContactFullHistory" component={ContactFullHistoryScreen} />
         <Stack.Screen name="ManageLabelsModal" component={ManageLabelsModal} />
+        <Stack.Screen name="UpdateLeadStatus" component={UpdateLeadStatusModal} />
+        <Stack.Screen name="ArchivedChats" component={ArchivedChatsScreen} />
+        <Stack.Screen name="WhatsAppConfig" component={WhatsAppConfigScreen} />
+        <Stack.Screen name="ConnectionHealth" component={ConnectionHealthScreen} />
+        <Stack.Screen name="ApiCredentials" component={ApiCredentialsScreen} />
+        <Stack.Screen name="WebhookSettings" component={WebhookSettingsScreen} />
+        <Stack.Screen name="SubscribedEvents" component={SubscribedEventsScreen} />
+        <Stack.Screen name="PhoneNumberStatus" component={PhoneNumberStatusScreen} />
+        <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
+        <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
