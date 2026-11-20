@@ -343,19 +343,29 @@ export default function CampaignAnalyticsScreen({ navigation }) {
             })}
           </ScrollView>
 
-          {/* Template Category Dropdown Selector */}
+          {/* Template Category Dropdown Selector (Exact match to Design System coloe spec) */}
           <View style={styles.categoryDropdownWrapper}>
             <Text style={styles.dropdownLabel}>Template</Text>
             <TouchableOpacity
-              style={styles.dropdownButton}
+              style={[
+                styles.dropdownButton,
+                selectedCategory !== 'All Templates' && styles.dropdownButtonActive,
+              ]}
               onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
               activeOpacity={0.8}
             >
-              <Text style={styles.dropdownSelectedText}>{selectedCategory}</Text>
+              <Text
+                style={[
+                  styles.dropdownSelectedText,
+                  selectedCategory !== 'All Templates' && styles.dropdownSelectedTextActive,
+                ]}
+              >
+                {selectedCategory}
+              </Text>
               <Ionicons
                 name={showCategoryDropdown ? 'chevron-up' : 'chevron-down'}
-                size={16}
-                color="#64748B"
+                size={18}
+                color={selectedCategory !== 'All Templates' ? '#00875A' : '#334155'}
               />
             </TouchableOpacity>
 
@@ -375,6 +385,7 @@ export default function CampaignAnalyticsScreen({ navigation }) {
                         setSelectedCategory(cat);
                         setShowCategoryDropdown(false);
                       }}
+                      activeOpacity={0.7}
                     >
                       <Text
                         style={[
@@ -384,8 +395,10 @@ export default function CampaignAnalyticsScreen({ navigation }) {
                       >
                         {cat}
                       </Text>
-                      {isCatSelected && (
-                        <Ionicons name="checkmark" size={16} color="#00B67A" />
+                      {isCatSelected ? (
+                        <Ionicons name="checkmark-circle" size={18} color="#00875A" />
+                      ) : (
+                        <Ionicons name="chevron-down" size={16} color="#CBD5E1" />
                       )}
                     </TouchableOpacity>
                   );
@@ -900,63 +913,79 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  // Category Dropdown
+  // Category Dropdown (Exact 1:1 match to coloe design spec)
   categoryDropdownWrapper: {
-    marginTop: 4,
+    marginTop: 8,
   },
   dropdownLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748B',
-    marginBottom: 4,
-    fontWeight: '500',
+    marginBottom: 6,
+    fontWeight: '600',
   },
   dropdownButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#F8FAFC',
-    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    height: 48,
+    shadowColor: '#000',
+    shadowOpacity: 0.02,
+    shadowOffset: { width: 0, height: 1 },
+    shadowRadius: 3,
+    elevation: 1,
+  },
+  dropdownButtonActive: {
+    backgroundColor: '#E6FAF2',
+    borderColor: '#A7F3D0',
   },
   dropdownSelectedText: {
-    fontSize: 13,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1E293B',
+  },
+  dropdownSelectedTextActive: {
+    color: '#065F46',
     fontWeight: '600',
-    color: '#0F172A',
   },
   dropdownMenu: {
-    marginTop: 6,
+    marginTop: 8,
     backgroundColor: '#FFFFFF',
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: '#E2E8F0',
-    borderRadius: 10,
+    borderRadius: 18,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 10,
+    elevation: 4,
+    paddingVertical: 6,
   },
   dropdownMenuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    paddingHorizontal: 16,
+    height: 44,
+    marginHorizontal: 6,
+    marginVertical: 2,
+    borderRadius: 14,
   },
   dropdownMenuItemActive: {
-    backgroundColor: '#EDF9F2',
+    backgroundColor: '#E6FAF2',
   },
   dropdownMenuText: {
-    fontSize: 13,
+    fontSize: 14,
     color: '#334155',
+    fontWeight: '500',
   },
   dropdownMenuTextActive: {
-    color: '#00B67A',
+    color: '#00875A',
     fontWeight: '700',
   },
 
