@@ -14,6 +14,10 @@ import TemplateSelectionScreen from '../screens/main/TemplateSelectionScreen';
 import BotMenuScreen from '../screens/main/BotMenuScreen';
 import CrmPipelineScreen from '../screens/main/CrmPipelineScreen';
 import LabelsScreen from '../screens/main/LabelsScreen';
+import LabelDetailsScreen from '../screens/main/LabelDetailsScreen';
+import EditLabelScreen from '../screens/main/EditLabelScreen';
+import AddLabelScreen from '../screens/main/AddLabelScreen';
+import AddContactScreen from '../screens/main/AddContactScreen';
 import TemplatesScreen from '../screens/main/TemplatesScreen';
 import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
@@ -50,10 +54,14 @@ export default function RootNavigator() {
         <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
         <Stack.Screen name="ContactCRM" component={ContactCrmScreen} />
+        <Stack.Screen name="AddContact" component={AddContactScreen} />
         <Stack.Screen name="TemplateSelection" component={TemplateSelectionScreen} />
         <Stack.Screen name="BotMenu" component={BotMenuScreen} />
         <Stack.Screen name="CrmPipeline" component={CrmPipelineScreen} />
         <Stack.Screen name="Labels" component={LabelsScreen} />
+        <Stack.Screen name="LabelDetails" component={LabelDetailsScreen} />
+        <Stack.Screen name="EditLabel" component={EditLabelScreen} />
+        <Stack.Screen name="AddLabel" component={AddLabelScreen} />
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />

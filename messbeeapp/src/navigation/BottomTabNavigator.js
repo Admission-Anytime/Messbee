@@ -1,44 +1,23 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
 
 import HomeScreen from '../screens/main/HomeScreen';
 import ChatsScreen from '../screens/main/ChatsScreen';
 import ContactsScreen from '../screens/main/ContactsScreen';
-import ProfileScreen from '../screens/main/ProfileScreen';
-import SettingsScreen from '../screens/main/SettingsScreen';
-import BusinessProfileScreen from '../screens/main/BusinessProfileScreen';
-import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
-import ApiManagementScreen from '../screens/main/ApiManagementScreen';
-import SecuritySettingsScreen from '../screens/main/SecuritySettingsScreen';
-import NotificationsSettingsScreen from '../screens/main/NotificationsSettingsScreen';
+import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
+import MoreScreen from '../screens/main/MoreScreen';
 
 const Tab = createBottomTabNavigator();
-const YouStack = createStackNavigator();
-
-function YouNavigator() {
-  return (
-    <YouStack.Navigator screenOptions={{ headerShown: false }}>
-      <YouStack.Screen name="YouMain" component={ProfileScreen} />
-      <YouStack.Screen name="Settings" component={SettingsScreen} />
-      <YouStack.Screen name="BusinessProfile" component={BusinessProfileScreen} />
-      <YouStack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
-      <YouStack.Screen name="ApiManagement" component={ApiManagementScreen} />
-      <YouStack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
-      <YouStack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
-    </YouStack.Navigator>
-  );
-}
 
 export default function BottomTabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#00B67A',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: '#00875A',
+        tabBarInactiveTintColor: '#94A3B8',
         tabBarStyle: {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
@@ -65,11 +44,13 @@ export default function BottomTabNavigator() {
             iconName = focused ? 'chatbubble' : 'chatbubble-outline';
           } else if (route.name === 'Contacts') {
             iconName = focused ? 'people' : 'people-outline';
-          } else if (route.name === 'You') {
-            iconName = focused ? 'person' : 'person-outline';
+          } else if (route.name === 'Campaigns') {
+            iconName = focused ? 'megaphone' : 'megaphone-outline';
+          } else if (route.name === 'More') {
+            iconName = focused ? 'grid' : 'grid-outline';
           }
 
-          return <Ionicons name={iconName} size={22} color={color} />;
+          return <Ionicons name={iconName} size={21} color={color} />;
         },
       })}
     >
@@ -87,7 +68,7 @@ export default function BottomTabNavigator() {
           tabBarLabel: 'Chats',
           tabBarBadge: 3,
           tabBarBadgeStyle: {
-            backgroundColor: '#00B67A',
+            backgroundColor: '#00875A',
             color: '#FFFFFF',
             fontSize: 10,
             fontWeight: '700',
@@ -106,10 +87,17 @@ export default function BottomTabNavigator() {
         }}
       />
       <Tab.Screen
-        name="You"
-        component={YouNavigator}
+        name="Campaigns"
+        component={BroadcastCampaignsScreen}
         options={{
-          tabBarLabel: 'You',
+          tabBarLabel: 'Campaigns',
+        }}
+      />
+      <Tab.Screen
+        name="More"
+        component={MoreScreen}
+        options={{
+          tabBarLabel: 'More',
         }}
       />
     </Tab.Navigator>
