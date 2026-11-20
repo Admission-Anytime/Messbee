@@ -1,0 +1,105 @@
+
+name: Messbee Production CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: messbee-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Frontend and Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy to Ubuntu VPS
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SERVER_KNOWN_HOSTS: ${{ secrets.SERVER_KNOWN_HOSTS }}
+
+        run: |
+          set -e
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          printf '%s\n' "$SERVER_KNOWN_HOSTS" >> ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/deploy_key \
+            -p "$SERVER_PORT" \
+            -o StrictHostKeyChecking=yes \
+            "$SERVER_USER@$SERVER_HOST" 'bash -s' <<'REMOTE'
+
+          set -e
+
+          REPO="/var/www/html/messbee-deploy/Messbee"
+          FRONTEND="/var/www/html/tools.messbee.com"
+          BACKEND="/var/www/html/webservices.messbee.com/server"
+
+          echo "Starting Messbee deployment..."
+
+          # Update deployment repository
+          cd "$REPO"
+
+          git fetch origin main
+          git reset --hard origin/main
+
+          # Build React frontend
+          echo "Building React frontend..."
+
+          cd "$REPO/client"
+
+          npm ci
+          npm run build
+
+          # Deploy frontend files
+          echo "Deploying frontend..."
+
+          rsync -av --delete \
+            --exclude='dist.zip' \
+            "$REPO/client/dist/" "$FRONTEND/"
+
+          # Update backend source files
+          echo "Deploying backend..."
+
+          rsync -av \
+            --exclude='.env' \
+            --exclude='node_modules/' \
+            --exclude='.git/' \
+            --exclude='uploads/' \
+            --exclude='logs/' \
+            --exclude='sessions/' \
+            --exclude='auth_info_baileys/' \
+            "$REPO/server/" "$BACKEND/"
+
+          # Install production dependencies
+          echo "Installing backend dependencies..."
+
+          cd "$BACKEND"
+
+          npm install --omit=dev --no-audit --no-fund
+
+          # Restart existing PM2 process
+          echo "Restarting backend..."
+
+          pm2 restart services-api --update-env
+
+          pm2 save
+
+          echo "Messbee deployment completed successfully!"
+
+          REMOTE
