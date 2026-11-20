@@ -8,7 +8,9 @@
     "@react-navigation/native": "^7.5.1",
     "@react-navigation/stack": "^7.12.1",
     "axios": "^1.21.0",
-    "expo": "~58.0.25",
+    "expo": "~58.0.26",
+    "expo-clipboard": "~58.0.4",
+    "expo-constants": "~58.0.16",
     "expo-font": "~58.0.12",
     "expo-linear-gradient": "~58.0.4",
     "expo-status-bar": "~58.0.5",
@@ -20,9 +22,15 @@
   },
   "scripts": {
     "start": "expo start",
+    "tunnel": "expo start --tunnel",
+    "tunnel:clear": "expo start --tunnel -c",
+    "start:clear": "expo start -c",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
   },
-  "private": true
+  "private": true,
+  "devDependencies": {
+    "@expo/ngrok": "^4.1.3"
+  }
 }

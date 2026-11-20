@@ -2509,6 +2509,41 @@ exports.getTemplates = async (req, res, next) => {
   }
 };
 
+// Helper to sanitize template components to comply with Meta whitespace guidelines (no 2+ consecutive spaces)
+const sanitizeTemplateComponentsForMeta = (components) => {
+  if (!Array.isArray(components)) return components;
+  return components.map(comp => {
+    if (!comp || typeof comp !== 'object') return comp;
+    const clean = { ...comp };
+    if (typeof clean.text === 'string') {
+      clean.text = clean.text.replace(/[ \t]{2,}/g, ' ');
+    }
+    if (clean.example?.body_text && Array.isArray(clean.example.body_text)) {
+      clean.example = {
+        ...clean.example,
+        body_text: clean.example.body_text.map(row => 
+          Array.isArray(row) ? row.map(s => typeof s === 'string' ? s.replace(/[ \t]{2,}/g, ' ') : s) : row
+        )
+      };
+    }
+    if (clean.example?.header_text && Array.isArray(clean.example.header_text)) {
+      clean.example = {
+        ...clean.example,
+        header_text: clean.example.header_text.map(s => typeof s === 'string' ? s.replace(/[ \t]{2,}/g, ' ') : s)
+      };
+    }
+    if (Array.isArray(clean.buttons)) {
+      clean.buttons = clean.buttons.map(b => {
+        if (!b || typeof b !== 'object') return b;
+        const bClean = { ...b };
+        if (typeof bClean.text === 'string') bClean.text = bClean.text.replace(/[ \t]{2,}/g, ' ');
+        return bClean;
+      });
+    }
+    return clean;
+  });
+};
+
 // @desc    Create a new WhatsApp template
 // @route   POST /api/whatsapp/templates
 // @access  Private
@@ -2574,11 +2609,12 @@ exports.createTemplate = async (req, res, next) => {
     }
 
     let metaTemplateName = name;
+    const sanitizedComponents = sanitizeTemplateComponentsForMeta(components || []);
     let result = await tenantWhatsAppService.createTemplate({
       name: metaTemplateName,
       category: category || 'MARKETING',
       language: language || 'en_US',
-      components: components || []
+      components: sanitizedComponents
     });
 
     // If Meta rejected because the template name already exists in this WABA (created by another user/account):
@@ -2903,6 +2939,9 @@ exports.updateTemplate = async (req, res, next) => {
 
     const { templateId } = req.params;
     const updateData = req.body;
+    if (updateData.components) {
+      updateData.components = sanitizeTemplateComponentsForMeta(updateData.components);
+    }
 
     const result = await tenantWhatsAppService.updateTemplate(templateId, updateData);
 

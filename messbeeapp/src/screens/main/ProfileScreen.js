@@ -104,7 +104,7 @@ export default function ProfileScreen({ navigation }) {
           {/* WhatsApp Business */}
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={() => navigation.navigate('BotMenu')}
+            onPress={() => navigation.navigate('WhatsAppConfig')}
             activeOpacity={0.7}
           >
             <View style={[styles.menuIconBox, { backgroundColor: '#E8F5E9' }]}>
