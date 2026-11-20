@@ -2,24 +2,17 @@ import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
 
-// Determine backend IP dynamically from Metro host or fallback to standard Wi-Fi LAN
-const getDevHost = () => {
-  const hostUri = Constants.expoConfig?.hostUri;
-  if (hostUri) {
-    const ip = hostUri.split(':')[0];
-    if (ip && ip !== 'localhost' && ip !== '127.0.0.1') {
-      return ip;
-    }
-  }
-  return '192.168.1.12';
-};
-
-const DEV_HOST = getDevHost();
+// Backend runs on port 5002
+// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+const detectedHost =
+  Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
+  Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
+  '192.168.1.12';
 
 export const BASE_URL =
   Platform.OS === 'android'
-    ? `http://${DEV_HOST}:5002/api`
-    : `http://localhost:5002/api`;
+    ? `http://${detectedHost}:5002/api`
+    : 'http://localhost:5002/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -81,7 +74,6 @@ export const authService = {
 export const contactService = {
   getContacts: async (params = {}) => {
     try {
-      // Backend routes: GET /contacts or /contact
       const response = await api.get('/contacts', { params });
       const payload = response.data;
       if (payload && Array.isArray(payload.contacts)) return payload.contacts;
@@ -89,7 +81,6 @@ export const contactService = {
       if (Array.isArray(payload)) return payload;
       return [];
     } catch (err) {
-      // Fallback endpoint
       try {
         const fallback = await api.get('/contact', { params });
         const p = fallback.data;
@@ -207,28 +198,112 @@ export const pipelineService = {
   },
 };
 
-// ==================== CHAT SERVICE ====================
+// ==================== CHAT SERVICE (Real DB / API) ====================
 export const chatService = {
   getChats: async (page = 1, limit = 50) => {
     try {
       const response = await api.get(`/chats?page=${page}&limit=${limit}`);
       const payload = response.data;
-      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.data)) {
+        return payload.data;
+      }
       return Array.isArray(payload) ? payload : [];
     } catch (err) {
+      console.warn('chatService.getChats error:', err.message);
       return [];
     }
   },
+
   getMessages: async (chatId) => {
     try {
       const response = await api.get(`/chats/messages/${chatId}`);
       return response.data?.data || response.data?.messages || response.data || [];
     } catch (err) {
+      console.warn('chatService.getMessages error:', err.message);
       return [];
     }
   },
-  sendMessage: (data) => api.post('/chats/message', data),
-  sendTemplate: (data) => api.post('/chats/send-template', data),
+
+  sendMessage: async ({ chatId, text, sender = 'me', time }) => {
+    const msgTime = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const response = await api.post('/chats/message', {
+      chatId,
+      text,
+      sender,
+      time: msgTime,
+    });
+    return response.data?.data || response.data;
+  },
+
+  sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {
+    const response = await api.post('/chats/send-template', {
+      chatId,
+      templateName,
+      languageCode,
+      components,
+    });
+    return response.data?.data || response.data;
+  },
+
+  getActivityLogs: async (chatId) => {
+    try {
+      const response = await api.get(`/chats/activity/${chatId}`);
+      return response.data?.data || response.data || [];
+    } catch (err) {
+      console.warn('chatService.getActivityLogs error:', err.message);
+      return [];
+    }
+  },
+
+  updateStatus: async (chatId, chatStatus) => {
+    const response = await api.put(`/chats/${chatId}/status`, { chatStatus });
+    return response.data;
+  },
+
+  updateLabels: async (chatId, labels) => {
+    const response = await api.put(`/chats/${chatId}/labels`, { labels });
+    return response.data;
+  },
+
+  updateProfile: async (chatId, profileData) => {
+    const response = await api.put(`/chats/${chatId}/profile`, profileData);
+    return response.data;
+  },
+
+  togglePin: async (chatId) => {
+    const response = await api.put(`/chats/${chatId}/pin`);
+    return response.data;
+  },
+
+  toggleArchive: async (chatId) => {
+    const response = await api.put(`/chats/${chatId}/archive`);
+    return response.data;
+  },
+
+  clearHistory: async (chatId) => {
+    const response = await api.delete(`/chats/${chatId}/messages`);
+    return response.data;
+  },
+
+  deleteChat: async (chatId) => {
+    const response = await api.delete(`/chats/${chatId}`);
+    return response.data;
+  },
+
+  assignAgent: async (chatId, teamMember) => {
+    const response = await api.put(`/chats/${chatId}/assign`, { teamMember });
+    return response.data;
+  },
+
+  createChat: async ({ name, phone, source = 'whatsapp' }) => {
+    const response = await api.post('/chats', {
+      name,
+      phone,
+      whatsappId: phone,
+      source,
+    });
+    return response.data?.data || response.data;
+  },
 };
 
 // ==================== TEMPLATE SERVICE ====================
@@ -410,6 +485,78 @@ export const statusService = {
   deleteStatus: async (id) => {
     const response = await api.delete(`/statuses/${id}`);
     return response.data;
+  },
+};
+
+// ==================== WHATSAPP CONFIG SERVICE (Real DB / API) ====================
+export const whatsappConfigService = {
+  getConfig: async () => {
+    try {
+      const response = await api.get('/settings/whatsapp_config');
+      return response.data?.value || response.data || null;
+    } catch (err) {
+      console.warn('whatsappConfigService.getConfig error:', err.message);
+      return null;
+    }
+  },
+  saveConfig: async (configValue) => {
+    try {
+      const response = await api.post('/settings', {
+        key: 'whatsapp_config',
+        value: configValue,
+        description: 'WhatsApp Cloud API Configuration',
+      });
+      return response.data?.value || response.data;
+    } catch (err) {
+      console.warn('whatsappConfigService.saveConfig error:', err.message);
+      throw err;
+    }
+  },
+  testConnection: async () => {
+    try {
+      const response = await api.get('/whatsapp/test-connection');
+      return response.data;
+    } catch (err) {
+      console.warn('whatsappConfigService.testConnection error:', err.message);
+      return { success: false, message: err.response?.data?.message || err.message };
+    }
+  },
+  getPhoneStatus: async () => {
+    try {
+      const res = await api.get('/whatsapp/phone-status');
+      return res.data;
+    } catch (err) {
+      try {
+        const perf = await api.get('/performance/waba-config');
+        return perf.data?.data || null;
+      } catch (_) {
+        return null;
+      }
+    }
+  },
+  registerPin: async (pin) => {
+    const { data } = await api.post('/whatsapp/register', { pin });
+    return data;
+  },
+  disconnect: async () => {
+    try {
+      const current = await whatsappConfigService.getConfig();
+      const updated = {
+        ...(current || {}),
+        connected: false,
+        accessToken: '',
+        phoneNumberId: '',
+        businessAccountId: '',
+      };
+      await whatsappConfigService.saveConfig(updated);
+      try {
+        await api.post('/whatsapp/deregister');
+      } catch (_) {}
+      return { success: true };
+    } catch (err) {
+      console.warn('whatsappConfigService.disconnect error:', err.message);
+      throw err;
+    }
   },
 };
 
