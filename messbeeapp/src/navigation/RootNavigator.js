@@ -26,6 +26,13 @@ import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
 import ApiManagementScreen from '../screens/main/ApiManagementScreen';
 import SecuritySettingsScreen from '../screens/main/SecuritySettingsScreen';
 import NotificationsSettingsScreen from '../screens/main/NotificationsSettingsScreen';
+import CustomFieldsScreen from '../screens/main/CustomFieldsScreen';
+import CreateCustomFieldScreen from '../screens/main/CreateCustomFieldScreen';
+import EditCustomFieldScreen from '../screens/main/EditCustomFieldScreen';
+import QuickRepliesScreen from '../screens/main/QuickRepliesScreen';
+import AddQuickReplyScreen from '../screens/main/AddQuickReplyScreen';
+import EditQuickReplyScreen from '../screens/main/EditQuickReplyScreen';
+import StatusScreen from '../screens/main/StatusScreen';
 
 const Stack = createStackNavigator();
 
@@ -62,6 +69,13 @@ export default function RootNavigator() {
         <Stack.Screen name="LabelDetails" component={LabelDetailsScreen} />
         <Stack.Screen name="EditLabel" component={EditLabelScreen} />
         <Stack.Screen name="AddLabel" component={AddLabelScreen} />
+        <Stack.Screen name="CustomFields" component={CustomFieldsScreen} />
+        <Stack.Screen name="CreateCustomField" component={CreateCustomFieldScreen} />
+        <Stack.Screen name="EditCustomField" component={EditCustomFieldScreen} />
+        <Stack.Screen name="QuickReplies" component={QuickRepliesScreen} />
+        <Stack.Screen name="AddQuickReply" component={AddQuickReplyScreen} />
+        <Stack.Screen name="EditQuickReply" component={EditQuickReplyScreen} />
+        <Stack.Screen name="StatusScreen" component={StatusScreen} />
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />

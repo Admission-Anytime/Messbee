@@ -231,4 +231,112 @@ export const chatService = {
   sendTemplate: (data) => api.post('/chats/send-template', data),
 };
 
+// ==================== CUSTOM FIELDS SERVICE ====================
+export const customFieldService = {
+  getCustomFields: async (params = {}) => {
+    try {
+      const response = await api.get('/custom-fields', { params });
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('customFieldService.getCustomFields error:', err.message);
+      return [];
+    }
+  },
+
+  getCustomField: async (id) => {
+    const response = await api.get(`/custom-fields/${id}`);
+    return response.data?.data || response.data;
+  },
+
+  createCustomField: async (data) => {
+    const response = await api.post('/custom-fields', data);
+    return response.data?.data || response.data;
+  },
+
+  updateCustomField: async (id, data) => {
+    const response = await api.put(`/custom-fields/${id}`, data);
+    return response.data?.data || response.data;
+  },
+
+  toggleCustomField: async (id) => {
+    const response = await api.patch(`/custom-fields/${id}/toggle`);
+    return response.data?.data || response.data;
+  },
+
+  deleteCustomField: async (id) => {
+    const response = await api.delete(`/custom-fields/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== QUICK REPLIES SERVICE ====================
+export const quickReplyService = {
+  getQuickReplies: async () => {
+    try {
+      const response = await api.get('/quick-replies');
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('quickReplyService.getQuickReplies error:', err.message);
+      return [];
+    }
+  },
+
+  createQuickReply: async (data) => {
+    const response = await api.post('/quick-replies', data);
+    return response.data?.data || response.data;
+  },
+
+  updateQuickReply: async (id, data) => {
+    const response = await api.put(`/quick-replies/${id}`, data);
+    return response.data?.data || response.data;
+  },
+
+  deleteQuickReply: async (id) => {
+    const response = await api.delete(`/quick-replies/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== LIFECYCLE STATUS SERVICE ====================
+export const statusService = {
+  getStatuses: async () => {
+    try {
+      const response = await api.get('/statuses');
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('statusService.getStatuses error:', err.message);
+      return [];
+    }
+  },
+
+  getStatusById: async (id) => {
+    const response = await api.get(`/statuses/${id}`);
+    return response.data?.data || response.data;
+  },
+
+  createStatus: async (data) => {
+    const response = await api.post('/statuses', data);
+    return response.data?.data || response.data;
+  },
+
+  updateStatus: async (id, data) => {
+    const response = await api.put(`/statuses/${id}`, data);
+    return response.data?.data || response.data;
+  },
+
+  deleteStatus: async (id) => {
+    const response = await api.delete(`/statuses/${id}`);
+    return response.data;
+  },
+};
+
 export default api;
