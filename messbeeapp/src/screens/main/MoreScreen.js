@@ -60,7 +60,7 @@ const MORE_TILES = [
     title: 'Analytics',
     subtitle: 'Manage analytics',
     icon: 'bar-chart-outline',
-    action: () => Alert.alert('Analytics', 'Analytics dashboard is active.'),
+    route: 'AnalyticsOverview',
   },
   {
     id: 'commerce',

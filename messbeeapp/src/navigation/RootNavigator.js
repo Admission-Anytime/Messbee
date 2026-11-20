@@ -33,6 +33,11 @@ import QuickRepliesScreen from '../screens/main/QuickRepliesScreen';
 import AddQuickReplyScreen from '../screens/main/AddQuickReplyScreen';
 import EditQuickReplyScreen from '../screens/main/EditQuickReplyScreen';
 import StatusScreen from '../screens/main/StatusScreen';
+import AnalyticsOverviewScreen from '../screens/analytics/AnalyticsOverviewScreen';
+import ConversationalAnalyticsScreen from '../screens/analytics/ConversationalAnalyticsScreen';
+import MessageAnalyticsScreen from '../screens/analytics/MessageAnalyticsScreen';
+import TemplateAnalyticsScreen from '../screens/analytics/TemplateAnalyticsScreen';
+import CampaignAnalyticsScreen from '../screens/analytics/CampaignAnalyticsScreen';
 
 const Stack = createStackNavigator();
 
@@ -84,6 +89,11 @@ export default function RootNavigator() {
         <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
         <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
         <Stack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
+        <Stack.Screen name="AnalyticsOverview" component={AnalyticsOverviewScreen} />
+        <Stack.Screen name="ConversationalAnalytics" component={ConversationalAnalyticsScreen} />
+        <Stack.Screen name="MessageAnalytics" component={MessageAnalyticsScreen} />
+        <Stack.Screen name="TemplateAnalytics" component={TemplateAnalyticsScreen} />
+        <Stack.Screen name="CampaignAnalytics" component={CampaignAnalyticsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

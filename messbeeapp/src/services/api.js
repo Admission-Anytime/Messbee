@@ -413,4 +413,57 @@ export const statusService = {
   },
 };
 
+// ==================== ANALYTICS SERVICE (Real DB / API) ====================
+export const analyticsService = {
+  getDashboardAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/dashboard', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getDashboardAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getMessageAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/messages', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getMessageAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getConversationAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/conversations', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getConversationAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getTemplateAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/templates', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getTemplateAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getCampaignAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/campaigns', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getCampaignAnalytics error:', err.message);
+      return null;
+    }
+  },
+};
+
 export default api;
