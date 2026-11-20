@@ -231,6 +231,80 @@ export const chatService = {
   sendTemplate: (data) => api.post('/chats/send-template', data),
 };
 
+// ==================== TEMPLATE SERVICE ====================
+export const templateService = {
+  getTemplates: async () => {
+    try {
+      const response = await api.get('/whatsapp/templates');
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.templates)) return payload.templates;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('templateService.getTemplates error:', err.message);
+      return [];
+    }
+  },
+};
+
+// ==================== CAMPAIGN SERVICE (Real DB / API) ====================
+export const campaignService = {
+  getCampaigns: async (params = {}) => {
+    try {
+      const response = await api.get('/campaigns', { params });
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.campaigns)) return payload.campaigns;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('campaignService.getCampaigns error:', err.message);
+      return [];
+    }
+  },
+
+  getCampaignById: async (id) => {
+    const response = await api.get(`/campaigns/${id}`);
+    return response.data?.data || response.data?.campaign || response.data;
+  },
+
+  createCampaign: async (campaignData) => {
+    const response = await api.post('/campaigns', campaignData);
+    return response.data?.data || response.data?.campaign || response.data;
+  },
+
+  updateCampaign: async (id, campaignData) => {
+    const response = await api.put(`/campaigns/${id}`, campaignData);
+    return response.data?.data || response.data;
+  },
+
+  sendCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/send`);
+    return response.data;
+  },
+
+  pauseCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/pause`);
+    return response.data;
+  },
+
+  resumeCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/resume`);
+    return response.data;
+  },
+
+  cancelCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/cancel`);
+    return response.data;
+  },
+
+  deleteCampaign: async (id) => {
+    const response = await api.delete(`/campaigns/${id}`);
+    return response.data;
+  },
+};
+
 // ==================== CUSTOM FIELDS SERVICE ====================
 export const customFieldService = {
   getCustomFields: async (params = {}) => {
