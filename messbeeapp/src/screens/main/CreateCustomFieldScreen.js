@@ -1,0 +1,458 @@
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Switch,
+  ActivityIndicator,
+  Alert,
+  Platform,
+  Modal,
+} from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Ionicons } from '@expo/vector-icons';
+import { customFieldService } from '../../services/api';
+
+const FIELD_TYPES = ['Text', 'Number', 'Date'];
+
+export default function CreateCustomFieldScreen({ navigation }) {
+  const [name, setName] = useState('');
+  const [type, setType] = useState('Text');
+  const [technicalKey, setTechnicalKey] = useState('');
+  const [keyEditedManually, setKeyEditedManually] = useState(false);
+  const [description, setDescription] = useState('');
+  const [minLength, setMinLength] = useState('0');
+  const [maxLength, setMaxLength] = useState('255');
+  const [isActive, setIsActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [showTypePicker, setShowTypePicker] = useState(false);
+
+  const handleNameChange = (val) => {
+    setName(val);
+    if (!keyEditedManually) {
+      // Auto-generate key from name: lowercase, replace spaces & non-alphanumeric with underscores
+      const generated = val
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_]/g, '_')
+        .replace(/_+/g, '_');
+      setTechnicalKey(generated);
+    }
+  };
+
+  const handleKeyChange = (val) => {
+    setKeyEditedManually(true);
+    setTechnicalKey(val.toLowerCase().replace(/[^a-z0-9_]/g, ''));
+  };
+
+  const handleCreate = async () => {
+    if (!name.trim()) {
+      Alert.alert('Required Field', 'Please enter a field name.');
+      return;
+    }
+
+    const finalKey = (technicalKey || name).trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    if (!finalKey) {
+      Alert.alert('Required Field', 'Please provide a valid technical key.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await customFieldService.createCustomField({
+        name: name.trim(),
+        type,
+        key: finalKey,
+        description: description.trim(),
+        minLength: parseInt(minLength, 10) || 0,
+        maxLength: parseInt(maxLength, 10) || 255,
+        isActive,
+      });
+
+      Alert.alert('Success', 'Custom field created successfully.', [
+        {
+          text: 'OK',
+          onPress: () => navigation.goBack(),
+        },
+      ]);
+    } catch (err) {
+      Alert.alert(
+        'Error',
+        err.response?.data?.message || err.message || 'Failed to create custom field.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="dark" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backButton}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#1E293B" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Create Custom Field</Text>
+        <View style={{ width: 28 }} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Section: Field details */}
+        <Text style={styles.sectionTitle}>Field details</Text>
+
+        {/* Field Name */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Field Name *</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Enter field name"
+            placeholderTextColor="#94A3B8"
+            value={name}
+            onChangeText={handleNameChange}
+          />
+        </View>
+
+        {/* Field Type Dropdown */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Field Type</Text>
+          <TouchableOpacity
+            style={styles.dropdownSelector}
+            onPress={() => setShowTypePicker(true)}
+          >
+            <Text style={styles.dropdownValueText}>{type}</Text>
+            <Ionicons name="chevron-down" size={18} color="#64748B" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Technical Key */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Technical Key</Text>
+          <TextInput
+            style={styles.textInput}
+            placeholder="Auto-generated key"
+            placeholderTextColor="#94A3B8"
+            value={technicalKey}
+            onChangeText={handleKeyChange}
+            autoCapitalize="none"
+          />
+          <Text style={styles.helperText}>
+            Generated automatically from the field name. Technical keys remain stable to preserve contact data.
+          </Text>
+        </View>
+
+        {/* Description */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.inputLabel}>Description</Text>
+          <TextInput
+            style={[styles.textInput, styles.multilineInput]}
+            placeholder="Briefly explain the purpose of this field"
+            placeholderTextColor="#94A3B8"
+            value={description}
+            onChangeText={setDescription}
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
+          />
+        </View>
+
+        {/* Section: Field Configuration */}
+        <Text style={styles.sectionTitle}>Field Configuration</Text>
+        <View style={styles.configRow}>
+          <View style={[styles.inputGroup, { flex: 1, marginRight: 10 }]}>
+            <Text style={styles.inputLabel}>Minimum length</Text>
+            <TextInput
+              style={styles.textInput}
+              value={minLength}
+              onChangeText={setMinLength}
+              keyboardType="number-pad"
+            />
+          </View>
+          <View style={[styles.inputGroup, { flex: 1, marginLeft: 10 }]}>
+            <Text style={styles.inputLabel}>Maximum length</Text>
+            <TextInput
+              style={styles.textInput}
+              value={maxLength}
+              onChangeText={setMaxLength}
+              keyboardType="number-pad"
+            />
+          </View>
+        </View>
+
+        {/* Active field Toggle */}
+        <View style={styles.toggleRow}>
+          <View style={{ flex: 1, marginRight: 12 }}>
+            <Text style={styles.toggleLabel}>Active field</Text>
+            <Text style={styles.toggleSubtitle}>Available for contact data entry</Text>
+          </View>
+          <Switch
+            value={isActive}
+            onValueChange={setIsActive}
+            trackColor={{ false: '#CBD5E1', true: '#00B67A' }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+
+        {/* Action Buttons */}
+        <View style={styles.actionButtonsRow}>
+          <TouchableOpacity
+            style={styles.cancelButton}
+            onPress={() => navigation.goBack()}
+            disabled={saving}
+          >
+            <Text style={styles.cancelButtonText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.createButton}
+            onPress={handleCreate}
+            disabled={saving}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.createButtonText}>Create Field</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
+
+      {/* Field Type Picker Modal */}
+      <Modal
+        visible={showTypePicker}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowTypePicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowTypePicker(false)}
+        >
+          <View style={styles.pickerBox}>
+            <Text style={styles.pickerTitle}>Select Field Type</Text>
+            {FIELD_TYPES.map((t) => (
+              <TouchableOpacity
+                key={t}
+                style={[
+                  styles.pickerItem,
+                  type === t && styles.pickerItemActive,
+                ]}
+                onPress={() => {
+                  setType(t);
+                  setShowTypePicker(false);
+                }}
+              >
+                <Text
+                  style={[
+                    styles.pickerItemText,
+                    type === t && styles.pickerItemTextActive,
+                  ]}
+                >
+                  {t}
+                </Text>
+                {type === t && (
+                  <Ionicons name="checkmark-circle" size={20} color="#00B67A" />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    paddingTop: Platform.OS === 'android' ? 28 : 0,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
+  sectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  inputGroup: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#334155',
+    marginBottom: 6,
+  },
+  textInput: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#1E293B',
+    backgroundColor: '#FFFFFF',
+  },
+  multilineInput: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  helperText: {
+    fontSize: 11,
+    color: '#94A3B8',
+    marginTop: 5,
+    lineHeight: 16,
+  },
+  dropdownSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+  },
+  dropdownValueText: {
+    fontSize: 14,
+    color: '#1E293B',
+    fontWeight: '500',
+  },
+  configRow: {
+    flexDirection: 'row',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 12,
+  },
+  toggleLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1E293B',
+    marginBottom: 2,
+  },
+  toggleSubtitle: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  actionButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 24,
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+  },
+  cancelButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  createButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    backgroundColor: '#00B67A',
+    shadowColor: '#00B67A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  createButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  pickerBox: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 320,
+  },
+  pickerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1E293B',
+    marginBottom: 12,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  pickerItemActive: {
+    backgroundColor: '#EDF9F2',
+    borderRadius: 8,
+  },
+  pickerItemText: {
+    fontSize: 15,
+    color: '#334155',
+  },
+  pickerItemTextActive: {
+    fontWeight: '700',
+    color: '#00B67A',
+  },
+});
