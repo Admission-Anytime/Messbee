@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+
 // Backend runs on port 5002
 // Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
 const detectedHost =
@@ -69,9 +70,146 @@ export const authService = {
   },
 };
 
+// ==================== CONTACTS CRM SERVICE (Real DB / API) ====================
+export const contactService = {
+  getContacts: async (params = {}) => {
+    try {
+      const response = await api.get('/contacts', { params });
+      const payload = response.data;
+      if (payload && Array.isArray(payload.contacts)) return payload.contacts;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      try {
+        const fallback = await api.get('/contact', { params });
+        const p = fallback.data;
+        if (p && Array.isArray(p.contacts)) return p.contacts;
+        if (p && Array.isArray(p.data)) return p.data;
+        if (Array.isArray(p)) return p;
+      } catch (_) {}
+      console.warn('contactService.getContacts error:', err.message);
+      return [];
+    }
+  },
+
+  getContactById: async (id) => {
+    try {
+      const response = await api.get(`/contacts/${id}`);
+      return response.data?.data || response.data?.contact || response.data;
+    } catch (err) {
+      const fb = await api.get(`/contact/${id}`);
+      return fb.data?.data || fb.data?.contact || fb.data;
+    }
+  },
+
+  createContact: async (contactData) => {
+    try {
+      const response = await api.post('/contacts', contactData);
+      return response.data?.data || response.data?.contact || response.data;
+    } catch (err) {
+      const fb = await api.post('/contact', contactData);
+      return fb.data?.data || fb.data?.contact || fb.data;
+    }
+  },
+
+  updateContact: async (id, contactData) => {
+    try {
+      const response = await api.put(`/contacts/${id}`, contactData);
+      return response.data?.data || response.data?.contact || response.data;
+    } catch (err) {
+      const fb = await api.put(`/contact/${id}`, contactData);
+      return fb.data?.data || fb.data?.contact || fb.data;
+    }
+  },
+
+  deleteContact: async (id) => {
+    try {
+      const response = await api.delete(`/contacts/${id}`);
+      return response.data;
+    } catch (err) {
+      const fb = await api.delete(`/contact/${id}`);
+      return fb.data;
+    }
+  },
+
+  bulkDelete: async (ids) => {
+    const response = await api.delete('/contacts/bulk-delete', { data: { ids } });
+    return response.data;
+  },
+
+  bulkUpdateStatus: async (ids, status) => {
+    const response = await api.put('/contacts/bulk-status', { ids, status });
+    return response.data;
+  },
+
+  importContacts: async (formData) => {
+    const response = await api.post('/contacts/import', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+};
+
+// ==================== LABELS SERVICE (Real DB / API) ====================
+export const labelService = {
+  getLabels: async () => {
+    try {
+      const response = await api.get('/labels');
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.labels)) return payload.labels;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('labelService.getLabels error:', err.message);
+      return [];
+    }
+  },
+
+  createLabel: async (labelData) => {
+    const response = await api.post('/labels', labelData);
+    return response.data?.data || response.data;
+  },
+
+  updateLabel: async (id, labelData) => {
+    const response = await api.put(`/labels/${id}`, labelData);
+    return response.data?.data || response.data;
+  },
+
+  deleteLabel: async (id) => {
+    const response = await api.delete(`/labels/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== CRM PIPELINE SERVICE (Real DB / API) ====================
+export const pipelineService = {
+  getLeads: async (stage = null) => {
+    try {
+      const params = stage ? { stage } : {};
+      const contacts = await contactService.getContacts(params);
+      return contacts;
+    } catch (err) {
+      console.warn('pipelineService.getLeads error:', err.message);
+      return [];
+    }
+  },
+
+  updateLeadStage: async (id, newStage) => {
+    try {
+      return await contactService.updateContact(id, { stage: newStage });
+    } catch (err) {
+      console.warn('pipelineService.updateLeadStage error:', err.message);
+      throw err;
+    }
+  },
+};
+
 // ==================== CHAT SERVICE (Real DB / API) ====================
 export const chatService = {
-  // Fetch all chats with pagination & filter
   getChats: async (page = 1, limit = 50) => {
     try {
       const response = await api.get(`/chats?page=${page}&limit=${limit}`);
@@ -86,18 +224,16 @@ export const chatService = {
     }
   },
 
-  // Get messages for a chat
   getMessages: async (chatId) => {
     try {
       const response = await api.get(`/chats/messages/${chatId}`);
-      return response.data?.data || response.data || [];
+      return response.data?.data || response.data?.messages || response.data || [];
     } catch (err) {
       console.warn('chatService.getMessages error:', err.message);
       return [];
     }
   },
 
-  // Send text message
   sendMessage: async ({ chatId, text, sender = 'me', time }) => {
     const msgTime = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     const response = await api.post('/chats/message', {
@@ -109,7 +245,6 @@ export const chatService = {
     return response.data?.data || response.data;
   },
 
-  // Send WhatsApp approved template
   sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {
     const response = await api.post('/chats/send-template', {
       chatId,
@@ -120,7 +255,6 @@ export const chatService = {
     return response.data?.data || response.data;
   },
 
-  // Get contact activity history / audit logs
   getActivityLogs: async (chatId) => {
     try {
       const response = await api.get(`/chats/activity/${chatId}`);
@@ -131,55 +265,46 @@ export const chatService = {
     }
   },
 
-  // Update status (e.g. Open, Resolved, Pending)
   updateStatus: async (chatId, chatStatus) => {
     const response = await api.put(`/chats/${chatId}/status`, { chatStatus });
     return response.data;
   },
 
-  // Update labels for chat
   updateLabels: async (chatId, labels) => {
     const response = await api.put(`/chats/${chatId}/labels`, { labels });
     return response.data;
   },
 
-  // Update contact profile info
   updateProfile: async (chatId, profileData) => {
     const response = await api.put(`/chats/${chatId}/profile`, profileData);
     return response.data;
   },
 
-  // Toggle pinned chat
   togglePin: async (chatId) => {
     const response = await api.put(`/chats/${chatId}/pin`);
     return response.data;
   },
 
-  // Toggle archive
   toggleArchive: async (chatId) => {
     const response = await api.put(`/chats/${chatId}/archive`);
     return response.data;
   },
 
-  // Clear messages in chat
   clearHistory: async (chatId) => {
     const response = await api.delete(`/chats/${chatId}/messages`);
     return response.data;
   },
 
-  // Delete chat
   deleteChat: async (chatId) => {
     const response = await api.delete(`/chats/${chatId}`);
     return response.data;
   },
 
-  // Assign agent
   assignAgent: async (chatId, teamMember) => {
     const response = await api.put(`/chats/${chatId}/assign`, { teamMember });
     return response.data;
   },
 
-  // Create chat / contact
   createChat: async ({ name, phone, source = 'whatsapp' }) => {
     const response = await api.post('/chats', {
       name,
@@ -196,66 +321,196 @@ export const templateService = {
   getTemplates: async () => {
     try {
       const response = await api.get('/whatsapp/templates');
-      return response.data?.data || response.data || [];
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.templates)) return payload.templates;
+      if (Array.isArray(payload)) return payload;
+      return [];
     } catch (err) {
       console.warn('templateService.getTemplates error:', err.message);
       return [];
     }
   },
+  getTemplateById: async (templateId) => {
+    const response = await api.get(`/whatsapp/templates/${templateId}`);
+    return response.data?.data || response.data;
+  },
+  createTemplate: async (data) => {
+    const response = await api.post('/whatsapp/templates', data);
+    return response.data?.data || response.data;
+  },
+  updateTemplate: async (templateId, data) => {
+    const response = await api.put(`/whatsapp/templates/${templateId}`, data);
+    return response.data?.data || response.data;
+  },
+  deleteTemplate: async (templateId) => {
+    const response = await api.delete(`/whatsapp/templates/${templateId}`);
+    return response.data;
+  },
 };
 
-// ==================== LABELS SERVICE ====================
-export const labelService = {
-  getLabels: async () => {
+// ==================== CAMPAIGN SERVICE (Real DB / API) ====================
+export const campaignService = {
+  getCampaigns: async (params = {}) => {
     try {
-      const response = await api.get('/labels');
-      return response.data?.data || response.data || [];
+      const response = await api.get('/campaigns', { params });
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (payload && Array.isArray(payload.campaigns)) return payload.campaigns;
+      if (Array.isArray(payload)) return payload;
+      return [];
     } catch (err) {
-      console.warn('labelService.getLabels error:', err.message);
+      console.warn('campaignService.getCampaigns error:', err.message);
       return [];
     }
   },
-  createLabel: async (data) => {
-    const response = await api.post('/labels', data);
+
+  getCampaignById: async (id) => {
+    const response = await api.get(`/campaigns/${id}`);
+    return response.data?.data || response.data?.campaign || response.data;
+  },
+
+  createCampaign: async (campaignData) => {
+    const response = await api.post('/campaigns', campaignData);
+    return response.data?.data || response.data?.campaign || response.data;
+  },
+
+  updateCampaign: async (id, campaignData) => {
+    const response = await api.put(`/campaigns/${id}`, campaignData);
     return response.data?.data || response.data;
+  },
+
+  sendCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/send`);
+    return response.data;
+  },
+
+  pauseCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/pause`);
+    return response.data;
+  },
+
+  resumeCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/resume`);
+    return response.data;
+  },
+
+  cancelCampaign: async (id) => {
+    const response = await api.post(`/campaigns/${id}/cancel`);
+    return response.data;
+  },
+
+  deleteCampaign: async (id) => {
+    const response = await api.delete(`/campaigns/${id}`);
+    return response.data;
   },
 };
 
-// ==================== STATUSES SERVICE ====================
+// ==================== CUSTOM FIELDS SERVICE ====================
+export const customFieldService = {
+  getCustomFields: async (params = {}) => {
+    try {
+      const response = await api.get('/custom-fields', { params });
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('customFieldService.getCustomFields error:', err.message);
+      return [];
+    }
+  },
+
+  getCustomField: async (id) => {
+    const response = await api.get(`/custom-fields/${id}`);
+    return response.data?.data || response.data;
+  },
+
+  createCustomField: async (data) => {
+    const response = await api.post('/custom-fields', data);
+    return response.data?.data || response.data;
+  },
+
+  updateCustomField: async (id, data) => {
+    const response = await api.put(`/custom-fields/${id}`, data);
+    return response.data?.data || response.data;
+  },
+
+  toggleCustomField: async (id) => {
+    const response = await api.patch(`/custom-fields/${id}/toggle`);
+    return response.data?.data || response.data;
+  },
+
+  deleteCustomField: async (id) => {
+    const response = await api.delete(`/custom-fields/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== QUICK REPLIES SERVICE ====================
+export const quickReplyService = {
+  getQuickReplies: async () => {
+    try {
+      const response = await api.get('/quick-replies');
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
+    } catch (err) {
+      console.warn('quickReplyService.getQuickReplies error:', err.message);
+      return [];
+    }
+  },
+
+  createQuickReply: async (data) => {
+    const response = await api.post('/quick-replies', data);
+    return response.data?.data || response.data;
+  },
+
+  updateQuickReply: async (id, data) => {
+    const response = await api.put(`/quick-replies/${id}`, data);
+    return response.data?.data || response.data;
+  },
+
+  deleteQuickReply: async (id) => {
+    const response = await api.delete(`/quick-replies/${id}`);
+    return response.data;
+  },
+};
+
+// ==================== LIFECYCLE STATUS SERVICE ====================
 export const statusService = {
   getStatuses: async () => {
     try {
       const response = await api.get('/statuses');
-      return response.data?.data || response.data || [];
+      const payload = response.data;
+      if (payload && Array.isArray(payload.data)) return payload.data;
+      if (Array.isArray(payload)) return payload;
+      return [];
     } catch (err) {
       console.warn('statusService.getStatuses error:', err.message);
       return [];
     }
   },
-};
 
-// ==================== CONTACTS CRM SERVICE ====================
-export const contactService = {
-  getContacts: async (params) => {
-    try {
-      const response = await api.get('/contact', { params });
-      return response.data?.contacts || response.data?.data || response.data || [];
-    } catch (err) {
-      console.warn('contactService.getContacts error:', err.message);
-      return [];
-    }
-  },
-  getContactById: async (id) => {
-    const response = await api.get(`/contact/${id}`);
+  getStatusById: async (id) => {
+    const response = await api.get(`/statuses/${id}`);
     return response.data?.data || response.data;
   },
-  createContact: async (data) => {
-    const response = await api.post('/contact', data);
+
+  createStatus: async (data) => {
+    const response = await api.post('/statuses', data);
     return response.data?.data || response.data;
   },
-  updateContact: async (id, data) => {
-    const response = await api.put(`/contact/${id}`, data);
+
+  updateStatus: async (id, data) => {
+    const response = await api.put(`/statuses/${id}`, data);
     return response.data?.data || response.data;
+  },
+
+  deleteStatus: async (id) => {
+    const response = await api.delete(`/statuses/${id}`);
+    return response.data;
   },
 };
 
@@ -327,6 +582,59 @@ export const whatsappConfigService = {
     } catch (err) {
       console.warn('whatsappConfigService.disconnect error:', err.message);
       throw err;
+    }
+  },
+};
+
+// ==================== ANALYTICS SERVICE (Real DB / API) ====================
+export const analyticsService = {
+  getDashboardAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/dashboard', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getDashboardAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getMessageAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/messages', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getMessageAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getConversationAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/conversations', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getConversationAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getTemplateAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/templates', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getTemplateAnalytics error:', err.message);
+      return null;
+    }
+  },
+
+  getCampaignAnalytics: async (params = {}) => {
+    try {
+      const response = await api.get('/analytics/campaigns', { params });
+      return response.data?.data || response.data;
+    } catch (err) {
+      console.warn('analyticsService.getCampaignAnalytics error:', err.message);
+      return null;
     }
   },
 };
