@@ -58,34 +58,9 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
     );
   };
 
-  const totalConversations = convData?.totals?.totalConversations || 517;
-  const totalCharges = convData?.totals?.totalCharges || 338.0;
-
-  // Fallback realistic daily breakdown if DB is empty
-  const dailyData = convData?.dailyBreakdown || [
-    {
-      date: 'Nov 18, 2024',
-      totalConversations: 110,
-      totalCharges: 72.0,
-      categories: [
-        { name: 'Marketing', count: 56, charge: 36.4, color: '#00B67A' },
-        { name: 'Utility', count: 24, charge: 14.2, color: '#3B82F6' },
-        { name: 'Authentication', count: 12, charge: 10.2, color: '#EF4444' },
-        { name: 'Service', count: 18, charge: 10.0, color: '#8B5CF6' },
-      ],
-    },
-    {
-      date: 'Nov 17, 2024',
-      totalConversations: 84,
-      totalCharges: 64.0,
-      categories: [
-        { name: 'Marketing', count: 42, charge: 32.0, color: '#00B67A' },
-        { name: 'Utility', count: 22, charge: 18.0, color: '#3B82F6' },
-        { name: 'Authentication', count: 8, charge: 6.0, color: '#EF4444' },
-        { name: 'Service', count: 12, charge: 8.0, color: '#8B5CF6' },
-      ],
-    },
-  ];
+  const totalConversations = convData?.totals?.totalConversations || 0;
+  const totalCharges = convData?.totals?.totalCharges || 0.0;
+  const dailyData = convData?.dailyBreakdown || [];
 
   const userInitials = (
     userProfile?.name?.substring(0, 2) ||

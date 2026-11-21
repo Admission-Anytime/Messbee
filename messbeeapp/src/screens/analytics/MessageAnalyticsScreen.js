@@ -54,21 +54,12 @@ export default function MessageAnalyticsScreen({ navigation }) {
     loadData();
   };
 
-  const totalSent = msgData?.totals?.sent || 188;
-  const totalDelivered = msgData?.totals?.delivered || 186;
+  const totalSent = msgData?.totals?.sent || 0;
+  const totalDelivered = msgData?.totals?.delivered || 0;
   const successRate =
-    totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '98.9';
+    totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
 
-  // Fallback table rows matching screenshot if DB has few records
-  const tableRows = msgData?.chartData || [
-    { date: 'Oct 19', sent: 2, delivered: 2 },
-    { date: 'Oct 22', sent: 10, delivered: 10 },
-    { date: 'Oct 23', sent: 18, delivered: 17 },
-    { date: 'Oct 25', sent: 1, delivered: 1 },
-    { date: 'Nov 16', sent: 4, delivered: 4 },
-    { date: 'Nov 18', sent: 60, delivered: 58 },
-    { date: 'Nov 17', sent: 45, delivered: 42 },
-  ];
+  const tableRows = msgData?.chartData || [];
 
   const userInitials = (
     userProfile?.name?.substring(0, 2) ||
@@ -213,29 +204,36 @@ export default function MessageAnalyticsScreen({ navigation }) {
           </View>
 
           {/* Table Rows */}
-          {tableRows.map((row, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={styles.tableRow}
-              onPress={() => {
-                setSelectedDateItem(row);
-                setShowDetailsModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.dateCol}>
-                <View style={styles.dotIndicator} />
-                <Text style={styles.rowDateText}>{row.date}</Text>
-              </View>
+          {tableRows.length === 0 ? (
+            <View style={{ padding: 28, alignItems: 'center' }}>
+              <Ionicons name="mail-outline" size={32} color="#94A3B8" />
+              <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>No messages recorded for this period</Text>
+            </View>
+          ) : (
+            tableRows.map((row, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.tableRow}
+                onPress={() => {
+                  setSelectedDateItem(row);
+                  setShowDetailsModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.dateCol}>
+                  <View style={styles.dotIndicator} />
+                  <Text style={styles.rowDateText}>{row.date}</Text>
+                </View>
 
-              <Text style={styles.rowSentText}>{row.sent}</Text>
+                <Text style={styles.rowSentText}>{row.sent}</Text>
 
-              <View style={styles.deliveredCol}>
-                <Text style={styles.rowDeliveredText}>{row.delivered}</Text>
-                <Ionicons name="chevron-forward" size={14} color="#CBD5E1" style={{ marginLeft: 6 }} />
-              </View>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.deliveredCol}>
+                  <Text style={styles.rowDeliveredText}>{row.delivered}</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#CBD5E1" style={{ marginLeft: 6 }} />
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 

@@ -25,38 +25,9 @@ const STAGES = [
   { id: 'Inactive', label: 'Inactive', color: '#64748B', bg: '#F1F5F9', barBg: '#F1F5F9', barText: '#334155' },
 ];
 
-const DEFAULT_LEADS = [
-  {
-    _id: 'lead_1',
-    name: 'Sumit yadav',
-    phone: '+917697215393',
-    subtitle: 'Contact Lead',
-    stage: 'Active',
-    subTag: 'Cold lead',
-    initials: 'SY',
-  },
-  {
-    _id: 'lead_2',
-    name: 'Priya Verma',
-    phone: '+919810452881',
-    subtitle: 'Contact Lead',
-    stage: 'Warm',
-    subTag: 'New lead',
-    initials: 'PV',
-  },
-  {
-    _id: 'lead_3',
-    name: 'Amit Kumar',
-    phone: '+919211072422',
-    subtitle: 'Customer Lead',
-    stage: 'Inactive',
-    subTag: 'Customer',
-    initials: 'AK',
-  },
-];
-
 export default function CrmPipelineScreen({ navigation }) {
-  const [leads, setLeads] = useState(DEFAULT_LEADS);
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeStage, setActiveStage] = useState('Active');
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -69,7 +40,7 @@ export default function CrmPipelineScreen({ navigation }) {
   const loadLeads = useCallback(async () => {
     try {
       const data = await contactService.getContacts();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const mapped = data.map((item, idx) => {
           const rawName = item.name || item.firstName || `Lead ${idx + 1}`;
           const initials = rawName
@@ -98,15 +69,25 @@ export default function CrmPipelineScreen({ navigation }) {
           };
         });
         setLeads(mapped);
+      } else {
+        setLeads([]);
       }
     } catch (err) {
       console.warn('loadLeads error:', err);
+      setLeads([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     loadLeads();
-  }, [loadLeads]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadLeads();
+    });
+    return unsubscribe;
+  }, [navigation, loadLeads]);
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -133,6 +133,16 @@ export const contactService = {
     }
   },
 
+  bulkDelete: async (ids) => {
+    const response = await api.delete('/contacts/bulk-delete', { data: { ids } });
+    return response.data;
+  },
+
+  bulkUpdateStatus: async (ids, status) => {
+    const response = await api.put('/contacts/bulk-status', { ids, status });
+    return response.data;
+  },
+
   importContacts: async (formData) => {
     const response = await api.post('/contacts/import', formData, {
       headers: {
@@ -320,6 +330,22 @@ export const templateService = {
       console.warn('templateService.getTemplates error:', err.message);
       return [];
     }
+  },
+  getTemplateById: async (templateId) => {
+    const response = await api.get(`/whatsapp/templates/${templateId}`);
+    return response.data?.data || response.data;
+  },
+  createTemplate: async (data) => {
+    const response = await api.post('/whatsapp/templates', data);
+    return response.data?.data || response.data;
+  },
+  updateTemplate: async (templateId, data) => {
+    const response = await api.put(`/whatsapp/templates/${templateId}`, data);
+    return response.data?.data || response.data;
+  },
+  deleteTemplate: async (templateId) => {
+    const response = await api.delete(`/whatsapp/templates/${templateId}`);
+    return response.data;
   },
 };
 

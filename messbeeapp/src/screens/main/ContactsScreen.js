@@ -20,61 +20,9 @@ import { contactService, labelService } from '../../services/api';
 
 const FILTER_TABS = ['All Contacts', 'Active', 'Inactive', 'Blocked'];
 
-// Initial contacts matching Image 1 Screen 1 if DB is empty
-const DEFAULT_CONTACTS = [
-  {
-    _id: 'c_1',
-    name: 'Amit Kumar',
-    phone: '+919211072422',
-    email: 'amit.kumar@example.com',
-    status: 'Inactive',
-    statusDot: '#94A3B8',
-    statusBg: '#F1F5F9',
-    statusColor: '#64748B',
-    tag: 'Customer',
-    tagDot: '#0284C7',
-    tagBg: '#E0F2FE',
-    tagColor: '#0369A1',
-    initials: 'AK',
-    avatarBg: '#F59E0B',
-  },
-  {
-    _id: 'c_2',
-    name: 'Priya Verma',
-    phone: '+919810452881',
-    email: 'priya@example.com',
-    status: 'Active',
-    statusDot: '#10B981',
-    statusBg: '#DCFCE7',
-    statusColor: '#166534',
-    tag: 'New lead',
-    tagDot: '#0284C7',
-    tagBg: '#E0F2FE',
-    tagColor: '#0369A1',
-    initials: 'PV',
-    avatarBg: '#F59E0B',
-  },
-  {
-    _id: 'c_3',
-    name: 'Sumit yadav',
-    phone: '+917697215393',
-    email: 'sy@test.com',
-    status: 'Active',
-    statusDot: '#10B981',
-    statusBg: '#DCFCE7',
-    statusColor: '#166534',
-    tag: 'Cold lead',
-    tagDot: '#0284C7',
-    tagBg: '#E0F2FE',
-    tagColor: '#0369A1',
-    initials: 'SY',
-    avatarBg: '#F59E0B',
-  },
-];
-
 export default function ContactsScreen({ navigation }) {
-  const [contacts, setContacts] = useState(DEFAULT_CONTACTS);
-  const [loading, setLoading] = useState(false);
+  const [contacts, setContacts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('All Contacts');
@@ -98,7 +46,7 @@ export default function ContactsScreen({ navigation }) {
   const loadContacts = useCallback(async () => {
     try {
       const data = await contactService.getContacts();
-      if (Array.isArray(data) && data.length > 0) {
+      if (Array.isArray(data)) {
         const mapped = data.map((item, idx) => {
           const rawName = item.name || item.firstName || `Contact ${idx + 1}`;
           const initials = rawName
@@ -154,15 +102,25 @@ export default function ContactsScreen({ navigation }) {
           };
         });
         setContacts(mapped);
+      } else {
+        setContacts([]);
       }
     } catch (err) {
       console.warn('loadContacts error:', err);
+      setContacts([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     loadContacts();
-  }, [loadContacts]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadContacts();
+    });
+    return unsubscribe;
+  }, [navigation, loadContacts]);
 
   const onRefresh = async () => {
     setRefreshing(true);

@@ -54,16 +54,16 @@ export default function AnalyticsOverviewScreen({ navigation }) {
       (s) => (s._id || '').toLowerCase() === 'delivered'
     )?.count ||
     dashboardData?.campaigns?.totalDelivered ||
-    94700;
+    0;
 
-  const totalSent = dashboardData?.messages?.total || 1284;
+  const totalSent = dashboardData?.messages?.total || 0;
   const todayDelivered =
     dashboardData?.messages?.byStatus?.find(
       (s) => (s._id || '').toLowerCase() === 'delivered'
-    )?.count || 1241;
+    )?.count || 0;
 
   const successRate =
-    totalSent > 0 ? ((todayDelivered / totalSent) * 100).toFixed(1) : '96.6';
+    totalSent > 0 ? ((todayDelivered / totalSent) * 100).toFixed(1) : '0.0';
 
   const userInitials = (
     userProfile?.name?.substring(0, 2) ||
