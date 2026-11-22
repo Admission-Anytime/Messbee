@@ -54,73 +54,11 @@ export default function TemplateAnalyticsScreen({ navigation }) {
     loadData();
   };
 
-  const totalSent = tmplData?.summary?.totalSent || 25;
-  const deliveryRate = tmplData?.summary?.deliveryRate || '92.0';
-  const readRate = tmplData?.summary?.readRate || '40.0';
+  const totalSent = tmplData?.summary?.totalSent || 0;
+  const deliveryRate = tmplData?.summary?.deliveryRate || '0.0';
+  const readRate = tmplData?.summary?.readRate || '0.0';
 
-  // Fallback templates list matching screenshot
-  const templateList = tmplData?.engagement || [
-    {
-      name: 'software_design_update',
-      language: 'English',
-      category: 'Marketing',
-      sent: 8,
-      delivered: 8,
-      read: 4,
-      failed: 0,
-      charges: 6.4,
-      body: 'Hello, your latest design review is ready. Tap below to view the details.',
-      buttonLabel: 'View update',
-    },
-    {
-      name: 'authcert_update',
-      language: 'English',
-      category: 'Authentication',
-      sent: 6,
-      delivered: 6,
-      read: 3,
-      failed: 0,
-      charges: 1.8,
-      body: 'Your verification code is 4930. Valid for 10 minutes.',
-      buttonLabel: 'Copy code',
-    },
-    {
-      name: 'software_offer',
-      language: 'English',
-      category: 'Marketing',
-      sent: 5,
-      delivered: 5,
-      read: 2,
-      failed: 0,
-      charges: 4.0,
-      body: 'Get 50% discount on your subscription renewal this week only!',
-      buttonLabel: 'Claim discount',
-    },
-    {
-      name: 'software_notification',
-      language: 'English',
-      category: 'Utility',
-      sent: 4,
-      delivered: 4,
-      read: 1,
-      failed: 0,
-      charges: 3.2,
-      body: 'Scheduled maintenance is planned for midnight. Read more inside.',
-      buttonLabel: 'Read details',
-    },
-    {
-      name: 'aayush_institute',
-      language: 'English',
-      category: 'Utility',
-      sent: 2,
-      delivered: 2,
-      read: 0,
-      failed: 0,
-      charges: 1.6,
-      body: 'Admissions are open for upcoming batches. Contact counseling today.',
-      buttonLabel: 'Contact',
-    },
-  ];
+  const templateList = tmplData?.engagement || [];
 
   const userInitials = (
     userProfile?.name?.substring(0, 2) ||
@@ -260,32 +198,39 @@ export default function TemplateAnalyticsScreen({ navigation }) {
           </View>
 
           {/* Template Rows */}
-          {templateList.map((tmpl, idx) => (
-            <TouchableOpacity
-              key={idx}
-              style={styles.tableRow}
-              onPress={() => {
-                setSelectedTemplate(tmpl);
-                setShowPerfModal(true);
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.tmplNameCol}>
-                <View style={styles.dotIndicator} />
-                <View>
-                  <Text style={styles.tmplNameText}>{tmpl.name}</Text>
-                  <Text style={styles.tmplLangText}>{tmpl.language}</Text>
+          {templateList.length === 0 ? (
+            <View style={{ padding: 28, alignItems: 'center' }}>
+              <Ionicons name="document-text-outline" size={32} color="#94A3B8" />
+              <Text style={{ marginTop: 8, color: '#64748B', fontSize: 13 }}>No template metrics found for this period</Text>
+            </View>
+          ) : (
+            templateList.map((tmpl, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={styles.tableRow}
+                onPress={() => {
+                  setSelectedTemplate(tmpl);
+                  setShowPerfModal(true);
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.tmplNameCol}>
+                  <View style={styles.dotIndicator} />
+                  <View>
+                    <Text style={styles.tmplNameText}>{tmpl.name}</Text>
+                    <Text style={styles.tmplLangText}>{tmpl.language}</Text>
+                  </View>
                 </View>
-              </View>
 
-              <Text style={styles.rowSentText}>{tmpl.sent}</Text>
+                <Text style={styles.rowSentText}>{tmpl.sent}</Text>
 
-              <View style={styles.readCol}>
-                <Text style={styles.rowReadText}>{tmpl.read}</Text>
-                <Ionicons name="chevron-forward" size={14} color="#CBD5E1" style={{ marginLeft: 6 }} />
-              </View>
-            </TouchableOpacity>
-          ))}
+                <View style={styles.readCol}>
+                  <Text style={styles.rowReadText}>{tmpl.read}</Text>
+                  <Ionicons name="chevron-forward" size={14} color="#CBD5E1" style={{ marginLeft: 6 }} />
+                </View>
+              </TouchableOpacity>
+            ))
+          )}
         </View>
       </ScrollView>
 

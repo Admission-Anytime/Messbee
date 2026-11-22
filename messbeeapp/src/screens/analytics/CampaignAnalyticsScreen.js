@@ -38,90 +38,6 @@ export default function CampaignAnalyticsScreen({ navigation }) {
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [showPerfModal, setShowPerfModal] = useState(false);
 
-  // Default fallback data matching screenshot exactly
-  const defaultCampaigns = [
-    {
-      id: 'CMP-1049',
-      name: 'Diwali Customer Offer',
-      status: 'Completed',
-      category: 'Marketing',
-      recipients: 1248,
-      sentOn: 'Nov 18',
-      createdDate: 'Nov 18',
-      creator: 'Aarav Mehta',
-      stats: {
-        recipients: 1248,
-        sent: 1248,
-        delivered: 1204,
-        read: 986,
-        failed: 44,
-        totalCharges: 842,
-        deliveryRate: '96.5',
-        readRate: '81.9',
-      },
-    },
-    {
-      id: 'CMP-1048',
-      name: 'Order status update',
-      status: 'Processing',
-      category: 'Utility',
-      recipients: 842,
-      sentOn: 'Nov 18',
-      createdDate: 'Nov 18',
-      creator: 'Vikas',
-      stats: {
-        recipients: 842,
-        sent: 842,
-        delivered: 810,
-        read: 650,
-        failed: 32,
-        totalCharges: 505,
-        deliveryRate: '96.2',
-        readRate: '77.2',
-      },
-    },
-    {
-      id: 'CMP-1045',
-      name: 'November welcome',
-      status: 'Scheduled',
-      category: 'Marketing',
-      recipients: 500,
-      sentOn: 'Nov 21',
-      createdDate: 'Nov 20',
-      creator: 'Aarav Mehta',
-      stats: {
-        recipients: 500,
-        sent: 0,
-        delivered: 0,
-        read: 0,
-        failed: 0,
-        totalCharges: 0,
-        deliveryRate: '0.0',
-        readRate: '0.0',
-      },
-    },
-    {
-      id: 'CMP-1040',
-      name: 'OTP verification',
-      status: 'Draft',
-      category: 'Authentication',
-      recipients: 0,
-      sentOn: '—',
-      createdDate: 'Nov 15',
-      creator: 'Rahul',
-      stats: {
-        recipients: 0,
-        sent: 0,
-        delivered: 0,
-        read: 0,
-        failed: 0,
-        totalCharges: 0,
-        deliveryRate: '0.0',
-        readRate: '0.0',
-      },
-    },
-  ];
-
   const loadData = useCallback(async () => {
     try {
       const [analyticsRes, campaignsRes, user] = await Promise.all([
@@ -144,12 +60,11 @@ export default function CampaignAnalyticsScreen({ navigation }) {
           const recipients = c.totalAudience || c.recipientsCount || sent || 0;
           const deliveryRate = sent > 0 ? ((delivered / sent) * 100).toFixed(1) : '0.0';
           const readRate = sent > 0 ? ((read / sent) * 100).toFixed(1) : '0.0';
-          // Estimated WhatsApp conversation charges: Marketing ~0.68, Utility ~0.35, Auth ~0.15
           const category = c.templateCategory || c.category || (index % 2 === 0 ? 'Marketing' : 'Utility');
           const ratePerMsg = category === 'Utility' ? 0.35 : category === 'Authentication' ? 0.15 : 0.68;
           const totalCharges = Math.round(delivered * ratePerMsg);
 
-          const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Nov 18';
+          const dateStr = c.createdAt ? new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : 'Recent';
 
           return {
             id: c.campaignCode || `CMP-${1049 - index}`,
@@ -159,7 +74,7 @@ export default function CampaignAnalyticsScreen({ navigation }) {
             recipients,
             sentOn: dateStr,
             createdDate: dateStr,
-            creator: c.createdBy?.name || c.creatorName || (user?.name || 'Aarav Mehta'),
+            creator: c.createdBy?.name || c.creatorName || (user?.name || 'Admin'),
             stats: {
               recipients,
               sent,
@@ -174,11 +89,11 @@ export default function CampaignAnalyticsScreen({ navigation }) {
         });
         setCampaignsList(mapped);
       } else {
-        setCampaignsList(defaultCampaigns);
+        setCampaignsList([]);
       }
     } catch (err) {
       console.warn('Error loading campaign analytics:', err.message);
-      setCampaignsList(defaultCampaigns);
+      setCampaignsList([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
