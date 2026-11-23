@@ -1,436 +1,312 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   SafeAreaView,
   FlatList,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   Modal,
   Platform,
+  ActivityIndicator,
+  RefreshControl,
   Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { labelService } from '../../services/api';
 
-const COLOR_SWATCHES = [
-  { id: 'c_emerald', color: '#059669', bg: '#ECFDF5', name: 'Emerald' },
-  { id: 'c_orange', color: '#EA580C', bg: '#FFF7ED', name: 'Orange' },
-  { id: 'c_purple', color: '#7C3AED', bg: '#F5F3FF', name: 'Purple' },
-  { id: 'c_blue', color: '#2563EB', bg: '#EFF6FF', name: 'Blue' },
-  { id: 'c_teal', color: '#0F766E', bg: '#F0FDFA', name: 'Teal' },
-  { id: 'c_amber', color: '#D97706', bg: '#FFFBEB', name: 'Amber' },
-  { id: 'c_rose', color: '#DB2777', bg: '#FDF2F8', name: 'Rose' },
-  { id: 'c_slate', color: '#475569', bg: '#F1F5F9', name: 'Slate' },
-];
-
-const INITIAL_LABELS = [
+const DEFAULT_LABELS = [
   {
-    id: 'lbl_1',
-    name: 'Hot Lead',
-    description: 'High-intent prospects requesting pricing or live demo',
-    color: '#EA580C',
-    bg: '#FFF7ED',
-    contactsCount: 18,
-    createdAt: 'Nov 02, 2026',
-  },
-  {
-    id: 'lbl_2',
-    name: 'VIP',
-    description: 'Priority enterprise & key recurring accounts',
-    color: '#7C3AED',
-    bg: '#F5F3FF',
-    contactsCount: 12,
-    createdAt: 'Oct 29, 2026',
-  },
-  {
-    id: 'lbl_3',
-    name: 'Verified',
-    description: 'Contacts with confirmed WhatsApp opt-in & KYC',
-    color: '#059669',
-    bg: '#ECFDF5',
-    contactsCount: 42,
-    createdAt: 'Oct 21, 2026',
-  },
-  {
-    id: 'lbl_4',
-    name: 'Follow Up',
-    description: 'Pending callback or proposal follow-up scheduled',
-    color: '#2563EB',
-    bg: '#EFF6FF',
-    contactsCount: 24,
-    createdAt: 'Oct 18, 2026',
-  },
-  {
-    id: 'lbl_5',
-    name: 'Enterprise',
-    description: 'Multi-seat B2B teams & custom API customers',
-    color: '#0F766E',
-    bg: '#F0FDFA',
-    contactsCount: 9,
-    createdAt: 'Oct 14, 2026',
-  },
-  {
-    id: 'lbl_6',
-    name: 'New Inquiry',
-    description: 'Fresh inbound chats needing qualification',
-    color: '#D97706',
-    bg: '#FFFBEB',
-    contactsCount: 31,
-    createdAt: 'Oct 10, 2026',
+    _id: 'lbl_1',
+    name: 'Sumit yadav',
+    description: 'ux designer',
+    color: '#F59E0B',
+    creator: 'Admission Anytime',
+    contactsCount: 0,
   },
 ];
 
 export default function LabelsScreen({ navigation }) {
-  const [labels, setLabels] = useState(INITIAL_LABELS);
+  const [labels, setLabels] = useState(DEFAULT_LABELS);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterOption, setFilterOption] = useState('All labels');
 
-  // Add / Edit Modal State
-  const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({
-    name: '',
-    description: '',
-    color: COLOR_SWATCHES[0].color,
-    bg: COLOR_SWATCHES[0].bg,
-  });
+  // Load from real DB API
+  const loadLabels = useCallback(async () => {
+    try {
+      const data = await labelService.getLabels();
+      if (Array.isArray(data) && data.length > 0) {
+        const mapped = data.map((item, idx) => ({
+          _id: item._id || item.id || `lbl_${idx}`,
+          name: item.name || `Label ${idx + 1}`,
+          description: item.desc || item.description || '',
+          color: item.color || '#F59E0B',
+          creator: item.creator || 'Admission Anytime',
+          contactsCount: item.contactsCount || 0,
+        }));
+        setLabels(mapped);
+      }
+    } catch (err) {
+      console.warn('loadLabels error:', err);
+    }
+  }, []);
 
-  // Action sheet
-  const [selectedLabel, setSelectedLabel] = useState(null);
-  const [showActionSheet, setShowActionSheet] = useState(false);
+  useEffect(() => {
+    loadLabels();
+  }, [loadLabels]);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadLabels();
+    setRefreshing(false);
+  };
 
   const filteredLabels = useMemo(() => {
-    if (!searchQuery.trim()) return labels;
-    const q = searchQuery.trim().toLowerCase();
-    return labels.filter(
-      (l) =>
-        l.name.toLowerCase().includes(q) ||
-        (l.description || '').toLowerCase().includes(q)
-    );
-  }, [labels, searchQuery]);
+    return labels.filter((lbl) => {
+      if (filterOption === 'With Description' && !lbl.description) return false;
+      if (filterOption === 'No Description' && lbl.description) return false;
 
-  const totalAssigned = useMemo(
-    () => labels.reduce((sum, l) => sum + (l.contactsCount || 0), 0),
-    [labels]
-  );
-
-  const openAddModal = () => {
-    setEditingId(null);
-    setForm({
-      name: '',
-      description: '',
-      color: COLOR_SWATCHES[0].color,
-      bg: COLOR_SWATCHES[0].bg,
+      if (searchQuery.trim().length > 0) {
+        const q = searchQuery.toLowerCase();
+        return lbl.name.toLowerCase().includes(q) || (lbl.description && lbl.description.toLowerCase().includes(q));
+      }
+      return true;
     });
-    setShowModal(true);
-  };
+  }, [labels, searchQuery, filterOption]);
 
-  const openEditModal = (lbl) => {
-    setEditingId(lbl.id);
-    setForm({
-      name: lbl.name,
-      description: lbl.description || '',
-      color: lbl.color,
-      bg: lbl.bg,
-    });
-    setShowModal(true);
-  };
-
-  const handleSaveLabel = () => {
-    const cleanName = form.name.trim();
-    if (!cleanName) {
-      Alert.alert('Validation Error', 'Please enter a label name.');
-      return;
-    }
-
-    const duplicate = labels.some(
-      (l) => l.name.toLowerCase() === cleanName.toLowerCase() && l.id !== editingId
-    );
-    if (duplicate) {
-      Alert.alert('Duplicate Label', 'A label with this name already exists.');
-      return;
-    }
-
-    if (editingId) {
-      setLabels((prev) =>
-        prev.map((l) =>
-          l.id === editingId
-            ? {
-                ...l,
-                name: cleanName,
-                description: form.description.trim(),
-                color: form.color,
-                bg: form.bg,
-              }
-            : l
-        )
-      );
-    } else {
-      const created = {
-        id: `lbl_${Date.now()}`,
-        name: cleanName,
-        description: form.description.trim(),
-        color: form.color,
-        bg: form.bg,
-        contactsCount: 0,
-        createdAt: 'Just now',
-      };
-      setLabels((prev) => [created, ...prev]);
-    }
-    setShowModal(false);
-  };
-
-  const handleDeleteLabel = (lbl) => {
-    Alert.alert('Delete Label', `Delete "${lbl.name}" label from workspace?`, [
+  const handleDeleteLabel = async (lbl) => {
+    Alert.alert('Delete Label', `Are you sure you want to delete "${lbl.name}"?`, [
       { text: 'Cancel', style: 'cancel' },
       {
         text: 'Delete',
         style: 'destructive',
-        onPress: () => {
-          setLabels((prev) => prev.filter((item) => item.id !== lbl.id));
-          setShowActionSheet(false);
+        onPress: async () => {
+          try {
+            await labelService.deleteLabel(lbl._id);
+          } catch (_) {}
+          setLabels(labels.filter((item) => item._id !== lbl._id));
         },
       },
     ]);
   };
 
-  const renderLabelCard = ({ item }) => (
-    <TouchableOpacity
-      style={styles.labelCard}
-      activeOpacity={0.85}
-      onPress={() => openEditModal(item)}
-    >
-      <View style={styles.cardTop}>
-        <View style={[styles.tagIconCircle, { backgroundColor: item.bg }]}>
-          <Ionicons name="pricetag" size={18} color={item.color} />
+  const renderLabelItem = ({ item }) => {
+    return (
+      <View style={styles.labelCard}>
+        {/* Left Tag Icon in squircle */}
+        <View style={[styles.tagSquare, { backgroundColor: item.color + '20' }]}>
+          <Ionicons name="pricetag" size={20} color={item.color} />
         </View>
 
-        <View style={{ flex: 1 }}>
-          <View style={styles.cardTitleRow}>
-            <View style={[styles.previewPill, { backgroundColor: item.bg }]}>
-              <View style={[styles.dot, { backgroundColor: item.color }]} />
-              <Text style={[styles.previewPillText, { color: item.color }]}>{item.name}</Text>
-            </View>
-            <View style={styles.countBadge}>
-              <Text style={styles.countBadgeText}>
-                {item.contactsCount} {item.contactsCount === 1 ? 'contact' : 'contacts'}
-              </Text>
-            </View>
+        {/* Content Col */}
+        <View style={styles.labelContentCol}>
+          <Text style={styles.labelName}>{item.name}</Text>
+          {item.description ? (
+            <Text style={styles.labelDescription}>{item.description}</Text>
+          ) : null}
+
+          {/* Color Badge */}
+          <View style={styles.colorPill}>
+            <View style={[styles.colorDot, { backgroundColor: item.color }]} />
+            <Text style={styles.colorText}>{item.color}</Text>
           </View>
 
-          {!!item.description && (
-            <Text style={styles.labelDesc} numberOfLines={2}>
-              {item.description}
-            </Text>
-          )}
-          <Text style={styles.createdMeta}>Created {item.createdAt}</Text>
+          {/* Creator */}
+          <View style={styles.creatorRow}>
+            <View style={styles.creatorAvatarSmall}>
+              <Text style={styles.creatorAvatarText}>AA</Text>
+            </View>
+            <Text style={styles.creatorText}>Created by {item.creator}</Text>
+          </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.moreBtn}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          onPress={() => {
-            setSelectedLabel(item);
-            setShowActionSheet(true);
-          }}
-        >
-          <Ionicons name="ellipsis-horizontal" size={18} color="#6B7280" />
-        </TouchableOpacity>
+        {/* Right Actions: Edit, Delete, More */}
+        <View style={styles.rightActionsCol}>
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={() => navigation.navigate('EditLabel', { label: item })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="create-outline" size={17} color="#64748B" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={() => handleDeleteLabel(item)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="trash-outline" size={17} color="#EF4444" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionIconBtn}
+            onPress={() => navigation.navigate('LabelDetails', { label: item })}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="ellipsis-horizontal" size={17} color="#94A3B8" />
+          </TouchableOpacity>
+        </View>
       </View>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
 
-      {/* Top Header */}
+      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-            <Ionicons name="chevron-back" size={22} color="#111827" />
-          </TouchableOpacity>
-          <View>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Ionicons name="chevron-back" size={24} color="#0F172A" />
+        </TouchableOpacity>
+
+        <View style={styles.headerTitleBox}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <Text style={styles.headerTitle}>Labels</Text>
-            <Text style={styles.headerSub}>Segment contacts & automate campaigns</Text>
+            <View style={styles.counterBadge}>
+              <Text style={styles.counterText}>{labels.length}</Text>
+            </View>
           </View>
+          <Text style={styles.headerSubtitle}>Manage and organise contact labels from one place.</Text>
         </View>
 
-        <TouchableOpacity style={styles.addHeaderBtn} activeOpacity={0.85} onPress={openAddModal}>
-          <Ionicons name="add" size={17} color="#FFFFFF" />
-          <Text style={styles.addHeaderBtnText}>Add Label</Text>
+        <TouchableOpacity style={styles.addLabelTopBtn} onPress={() => navigation.navigate('AddLabel')}>
+          <Ionicons name="add" size={16} color="#FFFFFF" style={{ marginRight: 2 }} />
+          <Text style={styles.addLabelTopBtnText}>Add Label</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Search + Stats Bar */}
-      <View style={styles.topControls}>
-        <View style={styles.searchBox}>
-          <Ionicons name="search" size={18} color="#9CA3AF" />
-          <TextInput
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholder="Search labels..."
-            placeholderTextColor="#9CA3AF"
-            style={styles.searchInput}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
-              <Ionicons name="close-circle" size={17} color="#9CA3AF" />
-            </TouchableOpacity>
-          )}
-        </View>
-
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>
-            {filteredLabels.length} Labels • {totalAssigned} Tagged Contacts
-          </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('MainTabs', { screen: 'Contacts' })}>
-            <Text style={styles.contactsLink}>Go to Contacts →</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Labels List */}
       <FlatList
         data={filteredLabels}
-        keyExtractor={(item) => item.id}
-        renderItem={renderLabelCard}
+        keyExtractor={(item) => item._id}
+        renderItem={renderLabelItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00875A']} />}
+        ListHeaderComponent={
+          <>
+            {/* Total Labels Summary Card (Image 3 Screen 1) */}
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryTagIconBox}>
+                <Ionicons name="pricetag" size={22} color="#00875A" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.summaryLabel}>Total Labels</Text>
+                <Text style={styles.summaryCount}>{labels.length}</Text>
+                <Text style={styles.summarySubtitle}>Organise contacts with custom labels.</Text>
+              </View>
+            </View>
+
+            {/* Search Bar with filter icon */}
+            <View style={styles.searchRow}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search-outline" size={17} color="#94A3B8" style={{ marginRight: 8 }} />
+                <TextInput
+                  placeholder="Search labels..."
+                  placeholderTextColor="#94A3B8"
+                  style={styles.searchInput}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.filterIconBtn}
+                onPress={() => setShowFilterModal(true)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="options-outline" size={20} color="#0F172A" />
+              </TouchableOpacity>
+            </View>
+
+            {/* List Section Header */}
+            <View style={styles.listSectionHeader}>
+              <Text style={styles.sectionTitle}>
+                {filteredLabels.length} label • All Labels
+              </Text>
+              <View style={styles.recentlyCreatedRow}>
+                <Ionicons name="swap-vertical" size={14} color="#64748B" style={{ marginRight: 4 }} />
+                <Text style={styles.recentlyCreatedText}>Recently Created</Text>
+              </View>
+            </View>
+          </>
+        }
         ListEmptyComponent={
-          <View style={styles.emptyBox}>
-            <Ionicons name="pricetags-outline" size={34} color="#9CA3AF" />
+          <View style={styles.emptyContainer}>
+            <Ionicons name="pricetag-outline" size={44} color="#CBD5E1" />
             <Text style={styles.emptyTitle}>No labels found</Text>
-            <Text style={styles.emptySub}>Create color-coded labels to categorize leads and contacts.</Text>
+            <Text style={styles.emptySubtitle}>Tap "+ Add Label" to create your first label.</Text>
           </View>
         }
       />
 
-      {/* ==================== ADD / EDIT LABEL MODAL ==================== */}
-      <Modal visible={showModal} animationType="slide" onRequestClose={() => setShowModal(false)}>
-        <SafeAreaView style={styles.modalScreen}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setShowModal(false)} style={styles.backBtn}>
-              <Ionicons name="chevron-back" size={22} color="#111827" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>{editingId ? 'Edit Label' : 'Add Label'}</Text>
-            <TouchableOpacity style={styles.savePill} onPress={handleSaveLabel}>
-              <Text style={styles.savePillText}>Save Label</Text>
-            </TouchableOpacity>
-          </View>
-
-          <ScrollView contentContainerStyle={styles.modalBody} showsVerticalScrollIndicator={false}>
-            <Text style={styles.sectionHeading}>Label Details</Text>
-
-            <View style={styles.formCard}>
-              <Text style={styles.inputLabel}>
-                Label Name <Text style={{ color: '#EF4444' }}>*</Text>
-              </Text>
-              <TextInput
-                value={form.name}
-                onChangeText={(val) => setForm((p) => ({ ...p, name: val }))}
-                placeholder="e.g. Premium Prospect"
-                placeholderTextColor="#9CA3AF"
-                style={styles.textInput}
-              />
-
-              <Text style={styles.inputLabel}>Description</Text>
-              <TextInput
-                value={form.description}
-                onChangeText={(val) => setForm((p) => ({ ...p, description: val }))}
-                placeholder="Describe when team members should apply this label"
-                placeholderTextColor="#9CA3AF"
-                multiline
-                style={[styles.textInput, styles.textArea]}
-              />
-
-              <Text style={styles.inputLabel}>Select Color</Text>
-              <View style={styles.swatchGrid}>
-                {COLOR_SWATCHES.map((sw) => {
-                  const selected = form.color === sw.color;
-                  return (
-                    <TouchableOpacity
-                      key={sw.id}
-                      style={[
-                        styles.swatchItem,
-                        selected && { borderColor: sw.color, backgroundColor: sw.bg },
-                      ]}
-                      onPress={() => setForm((p) => ({ ...p, color: sw.color, bg: sw.bg }))}
-                    >
-                      <View style={[styles.swatchDot, { backgroundColor: sw.color }]}>
-                        {selected && <Ionicons name="checkmark" size={12} color="#FFFFFF" />}
-                      </View>
-                      <Text style={styles.swatchName}>{sw.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              <Text style={styles.inputLabel}>Live Preview</Text>
-              <View style={styles.previewBox}>
-                <View style={[styles.previewPillLg, { backgroundColor: form.bg }]}>
-                  <View style={[styles.dotLg, { backgroundColor: form.color }]} />
-                  <Text style={[styles.previewPillLgText, { color: form.color }]}>
-                    {form.name.trim() || 'Label Preview'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </Modal>
-
-      {/* ==================== LABEL ACTIONS SHEET ==================== */}
+      {/* ================= FILTER LABELS MODAL (Image 3 Screen 6) ================= */}
       <Modal
-        visible={showActionSheet && !!selectedLabel}
+        visible={showFilterModal}
         transparent
-        animationType="fade"
-        onRequestClose={() => setShowActionSheet(false)}
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
       >
         <TouchableOpacity
-          style={styles.sheetBackdrop}
+          style={styles.modalBackdrop}
           activeOpacity={1}
-          onPress={() => setShowActionSheet(false)}
+          onPress={() => setShowFilterModal(false)}
         >
-          <View style={styles.sheetBox}>
+          <View style={styles.sheetDialog} onStartShouldSetResponder={() => true}>
+            <View style={styles.sheetHandle} />
+
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>{selectedLabel?.name}</Text>
-              <TouchableOpacity onPress={() => setShowActionSheet(false)}>
-                <Ionicons name="close" size={20} color="#374151" />
+              <Text style={styles.sheetTitle}>Filter Contacts</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => {
-                setShowActionSheet(false);
-                openEditModal(selectedLabel);
-              }}
-            >
-              <Ionicons name="create-outline" size={20} color="#374151" />
-              <Text style={styles.actionText}>Edit Label</Text>
-            </TouchableOpacity>
+            <View style={styles.filterOptionsContainer}>
+              {['All labels', 'With Description', 'No Description'].map((opt) => {
+                const isSelected = filterOption === opt;
+                return (
+                  <TouchableOpacity
+                    key={opt}
+                    style={[styles.filterSelectRow, isSelected && styles.filterSelectRowActive]}
+                    onPress={() => setFilterOption(opt)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.filterSelectText, isSelected && styles.filterSelectTextActive]}>
+                      {opt}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-            <TouchableOpacity
-              style={styles.actionRow}
-              onPress={() => {
-                setShowActionSheet(false);
-                navigation.navigate('MainTabs', { screen: 'Contacts' });
-              }}
-            >
-              <Ionicons name="people-outline" size={20} color="#059669" />
-              <Text style={styles.actionText}>View Tagged Contacts</Text>
-            </TouchableOpacity>
+            <View style={styles.filterActionsRow}>
+              <TouchableOpacity
+                style={styles.resetBtn}
+                onPress={() => {
+                  setFilterOption('All labels');
+                  setShowFilterModal(false);
+                }}
+              >
+                <Text style={styles.resetBtnText}>Reset</Text>
+              </TouchableOpacity>
 
-            <TouchableOpacity
-              style={[styles.actionRow, { borderBottomWidth: 0 }]}
-              onPress={() => handleDeleteLabel(selectedLabel)}
-            >
-              <Ionicons name="trash-outline" size={20} color="#DC2626" />
-              <Text style={[styles.actionText, { color: '#DC2626' }]}>Delete Label</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.applyBtn}
+                onPress={() => setShowFilterModal(false)}
+              >
+                <Text style={styles.applyBtnText}>Apply Filters</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -439,345 +315,353 @@ export default function LabelsScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    paddingTop: Platform.OS === 'android' ? 32 : 0,
+    backgroundColor: '#F8FAFC',
+    paddingTop: Platform.OS === 'android' ? 36 : 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 12,
+    paddingTop: 8,
+    paddingBottom: 10,
     backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
   },
-  headerLeft: {
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleBox: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  counterBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginLeft: 6,
+  },
+  counterText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#166534',
+  },
+  headerSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  addLabelTopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00875A',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  addLabelTopBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+
+  listContent: {
+    padding: 16,
+    paddingBottom: 32,
+    gap: 12,
+  },
+
+  // Summary Card
+  summaryCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0FDF4',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+  },
+  summaryTagIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  summaryLabel: {
+    fontSize: 11.5,
+    color: '#15803D',
+    fontWeight: '600',
+  },
+  summaryCount: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#166534',
+    marginVertical: 1,
+  },
+  summarySubtitle: {
+    fontSize: 12,
+    color: '#15803D',
+  },
+
+  // Search
+  searchRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    flex: 1,
-  },
-  backBtn: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: '#F3F4F6',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  headerSub: {
-    fontSize: 11.5,
-    color: '#6B7280',
-  },
-  addHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 9,
-    backgroundColor: '#059669',
-  },
-  addHeaderBtnText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  topControls: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    marginBottom: 14,
   },
   searchBox: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
     paddingHorizontal: 12,
-    height: 40,
-    gap: 8,
+    height: 42,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   searchInput: {
     flex: 1,
-    fontSize: 13.5,
-    color: '#111827',
+    fontSize: 13,
+    color: '#0F172A',
   },
-  summaryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 12,
-  },
-  summaryText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#6B7280',
-  },
-  contactsLink: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#059669',
-  },
-  listContent: {
-    padding: 16,
-    paddingBottom: 30,
-  },
-  labelCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  cardTop: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  tagIconCircle: {
-    width: 40,
-    height: 40,
+  filterIconBtn: {
+    width: 42,
+    height: 42,
     borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardTitleRow: {
+
+  // List Section Header
+  listSectionHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 8,
+    alignItems: 'center',
+    marginBottom: 10,
   },
-  previewPill: {
+  sectionTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  recentlyCreatedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
   },
-  dot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
-  previewPillText: {
-    fontSize: 12.5,
-    fontWeight: '800',
-  },
-  countBadge: {
-    backgroundColor: '#F3F4F6',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#4B5563',
-  },
-  labelDesc: {
-    fontSize: 12.5,
-    color: '#4B5563',
-    marginTop: 7,
-    lineHeight: 17,
-  },
-  createdMeta: {
-    fontSize: 11,
-    color: '#9CA3AF',
-    marginTop: 5,
-  },
-  moreBtn: {
-    padding: 4,
-  },
-  emptyBox: {
-    alignItems: 'center',
-    paddingVertical: 56,
-  },
-  emptyTitle: {
-    fontSize: 15.5,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 10,
-  },
-  emptySub: {
-    fontSize: 12.5,
-    color: '#9CA3AF',
-    marginTop: 4,
-    textAlign: 'center',
-    paddingHorizontal: 24,
-  },
-  modalScreen: {
-    flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  modalTitle: {
-    fontSize: 17,
-    fontWeight: '800',
-    color: '#111827',
-  },
-  savePill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 8,
-    backgroundColor: '#059669',
-  },
-  savePillText: {
-    fontSize: 12.5,
-    fontWeight: '700',
-    color: '#FFFFFF',
-  },
-  modalBody: {
-    padding: 18,
-    paddingBottom: 40,
-  },
-  sectionHeading: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#111827',
-    marginBottom: 8,
-  },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  inputLabel: {
+  recentlyCreatedText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#374151',
-    marginTop: 10,
-    marginBottom: 6,
+    color: '#64748B',
   },
-  textInput: {
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    height: 42,
-    fontSize: 13.5,
-    color: '#111827',
-  },
-  textArea: {
-    height: 82,
-    paddingTop: 10,
-    textAlignVertical: 'top',
-  },
-  swatchGrid: {
+
+  // Label Card (Image 3 Screen 1)
+  labelCard: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
-  swatchItem: {
+  tagSquare: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  labelContentCol: {
+    flex: 1,
+  },
+  labelName: {
+    fontSize: 14.5,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  labelDescription: {
+    fontSize: 12,
+    color: '#64748B',
+    marginTop: 2,
+  },
+  colorPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    borderRadius: 10,
+    backgroundColor: '#F8FAFC',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    marginTop: 6,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    backgroundColor: '#FFFFFF',
-    minWidth: '22%',
+    borderColor: '#F1F5F9',
   },
-  swatchDot: {
+  colorDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 5,
+  },
+  colorText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  creatorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  creatorAvatarSmall: {
     width: 18,
     height: 18,
     borderRadius: 9,
+    backgroundColor: '#DCFCE7',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
-  swatchName: {
-    fontSize: 11.5,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  previewBox: {
-    padding: 14,
-    borderRadius: 10,
-    backgroundColor: '#F9FAFB',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    alignItems: 'flex-start',
-  },
-  previewPillLg: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 14,
-  },
-  dotLg: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  previewPillLgText: {
-    fontSize: 13.5,
+  creatorAvatarText: {
+    fontSize: 9,
     fontWeight: '800',
+    color: '#166534',
   },
-  sheetBackdrop: {
+  creatorText: {
+    fontSize: 11,
+    color: '#64748B',
+  },
+  rightActionsCol: {
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  actionIconBtn: {
+    padding: 4,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 40,
+  },
+  emptyTitle: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    color: '#64748B',
+    marginTop: 10,
+  },
+  emptySubtitle: {
+    fontSize: 12,
+    color: '#94A3B8',
+    marginTop: 4,
+  },
+
+  // Modal
+  modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(17, 24, 39, 0.45)',
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
     justifyContent: 'flex-end',
   },
-  sheetBox: {
+  sheetDialog: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 22,
-    borderTopRightRadius: 22,
-    paddingHorizontal: 18,
-    paddingTop: 16,
-    paddingBottom: Platform.OS === 'ios' ? 30 : 20,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 32,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 14,
   },
   sheetHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sheetTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '800',
-    color: '#111827',
+    color: '#0F172A',
   },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+  filterOptionsContainer: {
+    gap: 10,
+    marginBottom: 20,
   },
-  actionText: {
-    fontSize: 14.5,
+  filterSelectRow: {
+    backgroundColor: '#F8FAFC',
+    borderRadius: 12,
+    paddingVertical: 13,
+    paddingHorizontal: 16,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterSelectRowActive: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#00875A',
+  },
+  filterSelectText: {
+    fontSize: 13.5,
     fontWeight: '600',
-    color: '#1F2937',
+    color: '#475569',
+  },
+  filterSelectTextActive: {
+    color: '#00875A',
+    fontWeight: '700',
+  },
+  filterActionsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  resetBtn: {
+    flex: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    backgroundColor: '#FFFFFF',
+  },
+  resetBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  applyBtn: {
+    flex: 1.5,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#00875A',
+  },
+  applyBtnText: {
+    fontSize: 13.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
-
