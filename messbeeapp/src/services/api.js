@@ -42,6 +42,23 @@ api.interceptors.request.use(
 
 // ==================== AUTH SERVICE ====================
 export const authService = {
+  requestSignupOTP: async (name, email, password, phone, additionalData = {}) => {
+    const { data } = await api.post('/auth/signup/request-otp', {
+      name,
+      email,
+      password,
+      phone,
+      ...additionalData,
+    });
+    return data;
+  },
+  verifySignupOTP: async (email, otp) => {
+    const { data } = await api.post('/auth/signup/verify-otp', { email, otp });
+    if (data.accessToken || data.token) {
+      setAuthToken(data.accessToken || data.token);
+    }
+    return data;
+  },
   requestLoginOTP: async (email) => {
     const { data } = await api.post('/auth/login/request-otp', { email });
     return data;
@@ -66,6 +83,26 @@ export const authService = {
   },
   getCurrentUser: async () => {
     const { data } = await api.get('/auth/me');
+    return data?.user || data;
+  },
+  getUserProfile: async () => {
+    const { data } = await api.get('/users/profile');
+    return data?.data || data;
+  },
+  updateUserProfile: async (profileData) => {
+    const { data } = await api.put('/users/profile', profileData);
+    return data?.data || data;
+  },
+  forgotPassword: async (email) => {
+    const { data } = await api.post('/auth/forgot-password', { email });
+    return data;
+  },
+  resetPassword: async (email, otp, newPassword) => {
+    const { data } = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return data;
+  },
+  updatePassword: async (currentPassword, newPassword) => {
+    const { data } = await api.put('/auth/update-password', { currentPassword, newPassword });
     return data;
   },
 };
@@ -586,6 +623,64 @@ export const whatsappConfigService = {
   },
 };
 
+// ==================== FREE QR WHATSAPP SERVICE ====================
+export const qrWhatsappService = {
+  getStatus: async () => {
+    try {
+      const response = await api.get('/qr-whatsapp/status');
+      return response.data;
+    } catch (err) {
+      console.warn('qrWhatsappService.getStatus error:', err.message);
+      return { status: 'DISCONNECTED', connected: false };
+    }
+  },
+  generateQr: async () => {
+    const { data } = await api.post('/qr-whatsapp/generate-qr');
+    return data;
+  },
+  disconnect: async () => {
+    const { data } = await api.post('/qr-whatsapp/disconnect');
+    return data;
+  },
+  getPairingCode: async (phoneNumber) => {
+    const { data } = await api.post('/qr-whatsapp/pairing-code', { phoneNumber });
+    return data;
+  },
+  sendBroadcast: async (broadcastData) => {
+    const { data } = await api.post('/qr-whatsapp/broadcast', broadcastData);
+    return data;
+  },
+};
+
+// ==================== AUTOMATIONS / BOT SERVICE ====================
+export const automationService = {
+  getAutomations: async () => {
+    try {
+      const response = await api.get('/automations');
+      return response.data?.data || response.data || [];
+    } catch (err) {
+      console.warn('automationService.getAutomations error:', err.message);
+      return [];
+    }
+  },
+  getAutomationById: async (id) => {
+    const response = await api.get(`/automations/${id}`);
+    return response.data?.data || response.data;
+  },
+  createAutomation: async (automationData) => {
+    const response = await api.post('/automations', automationData);
+    return response.data?.data || response.data;
+  },
+  updateAutomation: async (id, data) => {
+    const response = await api.put(`/automations/${id}`, data);
+    return response.data?.data || response.data;
+  },
+  deleteAutomation: async (id) => {
+    const response = await api.delete(`/automations/${id}`);
+    return response.data?.data || response.data;
+  },
+};
+
 // ==================== ANALYTICS SERVICE (Real DB / API) ====================
 export const analyticsService = {
   getDashboardAnalytics: async (params = {}) => {
@@ -635,6 +730,71 @@ export const analyticsService = {
     } catch (err) {
       console.warn('analyticsService.getCampaignAnalytics error:', err.message);
       return null;
+    }
+  },
+};
+
+// ==================== DEVELOPER API SERVICE ====================
+export const devApiService = {
+  getApiKeys: async () => {
+    try {
+      const { data } = await api.get('/developer/keys');
+      return data?.data || data?.keys || data || [];
+    } catch (err) {
+      console.warn('devApiService.getApiKeys error:', err.message);
+      return [];
+    }
+  },
+  createApiKey: async (payload = { name: 'Mobile App Key' }) => {
+    const { data } = await api.post('/developer/keys', payload);
+    return data?.data || data?.apiKey || data;
+  },
+  deleteApiKey: async (id) => {
+    const { data } = await api.delete(`/developer/keys/${id}`);
+    return data;
+  },
+  getWebhookConfig: async () => {
+    try {
+      const { data } = await api.get('/developer/webhook');
+      return data?.data || data?.webhook || data;
+    } catch (err) {
+      console.warn('devApiService.getWebhookConfig error:', err.message);
+      return null;
+    }
+  },
+  saveWebhookConfig: async (payload) => {
+    const { data } = await api.post('/developer/webhook', payload);
+    return data?.data || data;
+  },
+};
+
+// ==================== COMMERCE SERVICE ====================
+export const commerceService = {
+  getProducts: async () => {
+    try {
+      const { data } = await api.get('/commerce/products');
+      return data?.data || data?.products || data || [];
+    } catch (err) {
+      console.warn('commerceService.getProducts error:', err.message);
+      return [];
+    }
+  },
+  getPayments: async () => {
+    try {
+      const { data } = await api.get('/commerce/payments');
+      return data?.data || data?.payments || data || [];
+    } catch (err) {
+      console.warn('commerceService.getPayments error:', err.message);
+      return [];
+    }
+  },
+  getCategories: async () => {
+    try {
+      const { data } = await api.get('/commerce/categories');
+      return data?.data || data?.categories || data || [];
+    } catch (err) {
+      console.warn('commerceService.getCategories error:', err.message);
+      return [];
     }
   },
 };

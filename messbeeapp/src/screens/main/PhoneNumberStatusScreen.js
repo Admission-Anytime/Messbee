@@ -18,37 +18,63 @@ import { whatsappConfigService } from '../../services/api';
 export default function PhoneNumberStatusScreen({ route, navigation }) {
   const initialConfig = route.params?.config || {};
 
-  const [phoneNumber, setPhoneNumber] = useState('+1 (415) 555-0198');
-  const [phoneId, setPhoneId] = useState(initialConfig.phoneNumberId || '107654321098765');
-  const [businessName, setBusinessName] = useState('MessBee Business');
-  const [metaAccountId, setMetaAccountId] = useState(initialConfig.businessAccountId || '102938475610293');
+  const [phoneNumber, setPhoneNumber] = useState(initialConfig.phoneNumber || initialConfig.display_phone_number || 'Loading...');
+  const [phoneId, setPhoneId] = useState(initialConfig.phoneNumberId || 'Loading...');
+  const [businessName, setBusinessName] = useState(initialConfig.businessName || 'MessBee WABA');
+  const [metaAccountId, setMetaAccountId] = useState(initialConfig.businessAccountId || 'Loading...');
   const [qualityRating, setQualityRating] = useState('High');
-  const [messagingLimit, setMessagingLimit] = useState('100K customers / 24h');
+  const [messagingLimit, setMessagingLimit] = useState('Standard Tier');
+  const [loading, setLoading] = useState(true);
 
   const [refreshing, setRefreshing] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
-    // Try to load phone status dynamically
-    whatsappConfigService.getPhoneStatus().then((data) => {
-      if (data) {
-        if (data.display_phone_number) setPhoneNumber(data.display_phone_number);
-        if (data.verified_name) setBusinessName(data.verified_name);
-        if (data.quality_rating) {
-          const map = { GREEN: 'High', YELLOW: 'Medium', RED: 'Low' };
-          setQualityRating(map[data.quality_rating] || data.quality_rating);
+    let isMounted = true;
+    const fetchStatusAndConfig = async () => {
+      try {
+        setLoading(true);
+        const [configData, statusData] = await Promise.all([
+          whatsappConfigService.getConfig().catch(() => null),
+          whatsappConfigService.getPhoneStatus().catch(() => null),
+        ]);
+
+        if (isMounted) {
+          if (configData) {
+            if (configData.phoneNumberId) setPhoneId(configData.phoneNumberId);
+            if (configData.businessAccountId) setMetaAccountId(configData.businessAccountId);
+            if (configData.phoneNumber) setPhoneNumber(configData.phoneNumber);
+          }
+
+          if (statusData) {
+            if (statusData.display_phone_number) setPhoneNumber(statusData.display_phone_number);
+            if (statusData.verified_name) setBusinessName(statusData.verified_name);
+            if (statusData.quality_rating) {
+              const map = { GREEN: 'High', YELLOW: 'Medium', RED: 'Low' };
+              setQualityRating(map[statusData.quality_rating] || statusData.quality_rating);
+            }
+            if (statusData.messaging_limit_tier) {
+              const limitMap = {
+                TIER_1K: '1K customers / 24h',
+                TIER_10K: '10K customers / 24h',
+                TIER_100K: '100K customers / 24h',
+                TIER_UNLIMITED: 'Unlimited customers',
+              };
+              setMessagingLimit(limitMap[statusData.messaging_limit_tier] || statusData.messaging_limit_tier);
+            }
+          }
         }
-        if (data.messaging_limit_tier) {
-          const limitMap = {
-            TIER_1K: '1K customers / 24h',
-            TIER_10K: '10K customers / 24h',
-            TIER_100K: '100K customers / 24h',
-            TIER_UNLIMITED: 'Unlimited customers',
-          };
-          setMessagingLimit(limitMap[data.messaging_limit_tier] || data.messaging_limit_tier);
-        }
+      } catch (err) {
+        console.warn('PhoneNumberStatus fetch error:', err.message);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-    });
+    };
+
+    fetchStatusAndConfig();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleRefresh = async () => {
