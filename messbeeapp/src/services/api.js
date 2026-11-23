@@ -42,6 +42,23 @@ api.interceptors.request.use(
 
 // ==================== AUTH SERVICE ====================
 export const authService = {
+  requestSignupOTP: async (name, email, password, phone, additionalData = {}) => {
+    const { data } = await api.post('/auth/signup/request-otp', {
+      name,
+      email,
+      password,
+      phone,
+      ...additionalData,
+    });
+    return data;
+  },
+  verifySignupOTP: async (email, otp) => {
+    const { data } = await api.post('/auth/signup/verify-otp', { email, otp });
+    if (data.accessToken || data.token) {
+      setAuthToken(data.accessToken || data.token);
+    }
+    return data;
+  },
   requestLoginOTP: async (email) => {
     const { data } = await api.post('/auth/login/request-otp', { email });
     return data;
@@ -66,7 +83,15 @@ export const authService = {
   },
   getCurrentUser: async () => {
     const { data } = await api.get('/auth/me');
-    return data;
+    return data?.user || data;
+  },
+  getUserProfile: async () => {
+    const { data } = await api.get('/users/profile');
+    return data?.data || data;
+  },
+  updateUserProfile: async (profileData) => {
+    const { data } = await api.put('/users/profile', profileData);
+    return data?.data || data;
   },
 };
 

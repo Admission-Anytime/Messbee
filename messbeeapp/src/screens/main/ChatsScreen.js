@@ -134,34 +134,22 @@ export default function ChatsScreen({ navigation }) {
 
   const unreadCount = chats.filter((c) => c.unread > 0).length;
 
-  const handleStartChatWithContact = async (contact) => {
+  const handleStartChatWithContact = (contact) => {
     setShowNewChatModal(false);
-    const cleanPhone = (contact.phone || '').replace(/[^0-9]/g, '');
-    const existing = chats.find((c) => (c.phone || '').replace(/[^0-9]/g, '').includes(cleanPhone));
+    const existing = chats.find((c) => c.phone.includes(contact.phone.replace(/[^0-9]/g, '')));
     if (existing) {
       navigation.navigate('ChatDetail', { chat: existing });
-      return;
-    }
-
-    try {
-      const created = await chatService.createChat({
-        name: contact.name || contact.phone,
-        phone: contact.phone,
-        whatsappId: cleanPhone,
-      });
-      loadChats();
-      navigation.navigate('ChatDetail', { chat: created || contact });
-    } catch (err) {
+    } else {
       const newChat = {
         _id: `chat_${Date.now()}`,
-        name: contact.name || contact.phone,
+        name: contact.name,
         phone: contact.phone,
         lastMessage: 'Tap to start conversation',
         time: 'Just now',
         unread: 0,
-        avatarText: contact.initials || (contact.name ? contact.name.slice(0, 2).toUpperCase() : 'WA'),
-        avatarBg: contact.bg || '#DCFCE7',
-        avatarColor: contact.color || '#166534',
+        avatarText: contact.initials,
+        avatarBg: contact.bg,
+        avatarColor: contact.color,
         status: 'Open',
         statusBg: '#DCFCE7',
         statusColor: '#166534',
@@ -459,34 +447,23 @@ export default function ChatsScreen({ navigation }) {
 
             <Text style={styles.suggestedHeading}>SUGGESTED CONTACTS</Text>
 
-            {suggestedContacts.length === 0 ? (
-              <Text style={{ color: '#94A3B8', fontSize: 13, marginVertical: 14, textAlign: 'center' }}>
-                No contacts found. Add a contact first.
-              </Text>
-            ) : (
-              suggestedContacts.slice(0, 10).map((contact, idx) => {
-                const cName = contact.name || contact.phone || `Contact ${idx + 1}`;
-                const cInitials = contact.initials || cName.slice(0, 2).toUpperCase();
-                const cId = contact._id || contact.id || `c_${idx}`;
-                return (
-                  <TouchableOpacity
-                    key={cId}
-                    style={styles.contactRow}
-                    onPress={() => handleStartChatWithContact({ ...contact, name: cName, initials: cInitials, id: cId })}
-                    activeOpacity={0.7}
-                  >
-                    <View style={[styles.contactAvatar, { backgroundColor: contact.bg || '#DCFCE7' }]}>
-                      <Text style={[styles.contactInitials, { color: contact.color || '#166534' }]}>{cInitials}</Text>
-                    </View>
-                    <View style={styles.contactInfo}>
-                      <Text style={styles.contactNameText}>{cName}</Text>
-                      <Text style={styles.contactPhoneText}>{contact.phone || 'No phone'}</Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-                  </TouchableOpacity>
-                );
-              })
-            )}
+            {suggestedContacts.map((contact) => (
+              <TouchableOpacity
+                key={contact.id}
+                style={styles.contactRow}
+                onPress={() => handleStartChatWithContact(contact)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.contactAvatar, { backgroundColor: contact.bg }]}>
+                  <Text style={[styles.contactInitials, { color: contact.color }]}>{contact.initials}</Text>
+                </View>
+                <View style={styles.contactInfo}>
+                  <Text style={styles.contactNameText}>{contact.name}</Text>
+                  <Text style={styles.contactPhoneText}>{contact.phone}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+              </TouchableOpacity>
+            ))}
           </View>
         </TouchableOpacity>
       </Modal>
