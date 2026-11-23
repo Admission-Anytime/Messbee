@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,52 +20,43 @@ export default function ContactFullHistoryScreen({ route, navigation }) {
   const { contact } = route.params || {};
 
   const [activeFilter, setActiveFilter] = useState('All Activity');
-  const [activities, setActivities] = useState([
-    {
-      id: 'a1',
-      title: 'Outgoing Message',
-      time: '04:50 PM',
-      snippet: 'Please tell us the course and campus you are planning for. We will share the fee details and available scholarships.',
-      status: 'Sent',
-    },
-    {
-      id: 'a2',
-      title: 'Outgoing Message',
-      time: '04:48 PM',
-      snippet: 'You can check the course fees directly through this link: https://www.subharti.kide.com/a25-fee-structure. If you have any questions about the fees...',
-      status: 'Sent',
-    },
-    {
-      id: 'a3',
-      title: 'Outgoing Message',
-      time: '03:58 PM',
-      snippet: 'Certainly. Please share the course you are interested in, your highest qualification, and preferred campus. Our admissions team can guide you on...',
-      status: 'Sent',
-    },
-  ]);
+  const [activities, setActivities] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   // Fetch real activity logs from backend API if available
   useEffect(() => {
+    let isMounted = true;
     const fetchLogs = async () => {
-      if (contact?._id) {
+      const contactId = contact?._id || contact?.id;
+      if (contactId) {
         try {
-          const logs = await chatService.getActivityLogs(contact._id);
-          if (Array.isArray(logs) && logs.length > 0) {
+          setLoading(true);
+          const logs = await chatService.getActivityLogs(contactId);
+          if (isMounted && Array.isArray(logs)) {
             setActivities(
               logs.map((l, i) => ({
                 id: l._id || `log_${i}`,
                 title: l.action || 'Activity Update',
-                time: l.createdAt ? new Date(l.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '04:50 PM',
-                snippet: l.description || l.details || 'Message event processed',
-                status: 'Sent',
+                time: l.createdAt ? new Date(l.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Recently',
+                snippet: l.description || l.details || l.message || 'Message event processed',
+                status: l.status || 'Completed',
               }))
             );
           }
-        } catch (err) {}
+        } catch (err) {
+          console.warn('getActivityLogs error:', err.message);
+        } finally {
+          if (isMounted) setLoading(false);
+        }
+      } else {
+        setLoading(false);
       }
     };
     fetchLogs();
-  }, [contact?._id]);
+    return () => {
+      isMounted = false;
+    };
+  }, [contact?._id, contact?.id]);
 
   const handleExportLog = () => {
     Alert.alert('Export Log', 'Activity audit log exported successfully.');
@@ -163,38 +155,53 @@ export default function ContactFullHistoryScreen({ route, navigation }) {
         <Text style={styles.todayHeader}>TODAY</Text>
 
         {/* Timeline Items */}
-        {activities.map((item) => (
-          <View key={item.id} style={styles.timelineItemRow}>
-            <View style={styles.timelineIconCol}>
-              <View style={styles.whatsappIconCircle}>
-                <Ionicons name="logo-whatsapp" size={14} color="#00875A" />
-              </View>
-              <View style={styles.timelineLine} />
-            </View>
-
-            <View style={styles.activityCard}>
-              <View style={styles.cardTopRow}>
-                <View style={styles.cardTitleRow}>
-                  <Ionicons name="document-text-outline" size={13} color="#64748B" style={{ marginRight: 6 }} />
-                  <Text style={styles.activityTitle}>{item.title}</Text>
-                </View>
-                <Text style={styles.activityTime}>{item.time}</Text>
-              </View>
-
-              <Text style={styles.activitySnippet}>{item.snippet}</Text>
-
-              <View style={styles.cardBottomRow}>
-                <View style={styles.sentStatusRow}>
-                  <View style={styles.sentDot} />
-                  <Text style={styles.sentText}>{item.status}</Text>
-                </View>
-                <TouchableOpacity>
-                  <Text style={styles.viewDetailsLink}>View details &gt;</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        {loading ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#00875A" />
+            <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading activity logs...</Text>
           </View>
-        ))}
+        ) : activities.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: 'center', paddingHorizontal: 30 }}>
+            <Ionicons name="time-outline" size={40} color="#CBD5E1" />
+            <Text style={{ marginTop: 12, fontSize: 15, fontWeight: '600', color: '#0F172A' }}>No activity logs yet</Text>
+            <Text style={{ marginTop: 4, fontSize: 13, color: '#64748B', textAlign: 'center' }}>
+              Events, message interactions, and status updates for this contact will appear here.
+            </Text>
+          </View>
+        ) : (
+          activities.map((item) => (
+            <View key={item.id} style={styles.timelineItemRow}>
+              <View style={styles.timelineIconCol}>
+                <View style={styles.whatsappIconCircle}>
+                  <Ionicons name="logo-whatsapp" size={14} color="#00875A" />
+                </View>
+                <View style={styles.timelineLine} />
+              </View>
+
+              <View style={styles.activityCard}>
+                <View style={styles.cardTopRow}>
+                  <View style={styles.cardTitleRow}>
+                    <Ionicons name="document-text-outline" size={13} color="#64748B" style={{ marginRight: 6 }} />
+                    <Text style={styles.activityTitle}>{item.title}</Text>
+                  </View>
+                  <Text style={styles.activityTime}>{item.time}</Text>
+                </View>
+
+                <Text style={styles.activitySnippet}>{item.snippet}</Text>
+
+                <View style={styles.cardBottomRow}>
+                  <View style={styles.sentStatusRow}>
+                    <View style={styles.sentDot} />
+                    <Text style={styles.sentText}>{item.status}</Text>
+                  </View>
+                  <TouchableOpacity>
+                    <Text style={styles.viewDetailsLink}>View details &gt;</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          ))
+        )}
       </ScrollView>
 
       {/* Floating Export Log Button */}

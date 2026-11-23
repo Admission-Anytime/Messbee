@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,74 +9,109 @@ import {
   Switch,
   Platform,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
-
-export const BOT_FLOW_STEPS = [
-  {
-    id: 'step_1',
-    title: '1. Welcome Greeting & Language Choice',
-    type: 'GREETING',
-    active: true,
-    description: 'Triggered when a new user messages for the first time.',
-    options: ['English', 'Hindi (हिंदी)', 'Arabic (العربية)'],
-    badge: 'ENTRY POINT',
-  },
-  {
-    id: 'step_2',
-    title: '2. Main Business Menu (List Message)',
-    type: 'MENU_LIST',
-    active: true,
-    description: 'Interactive button list with core service offerings.',
-    options: [
-      '✈️ Flight Booking Inquiries',
-      '💼 Corporate Travel & OTB Services',
-      '💳 Wallet & Payment Verification',
-      '📞 Speak with Live Agent',
-    ],
-    badge: 'CORE LIST',
-  },
-  {
-    id: 'step_3',
-    title: '3. Lead Capture & Details Form',
-    type: 'FORM',
-    active: true,
-    description: 'Automated collection of traveler name, email, and passport.',
-    options: ['Name prompt', 'Mobile verify', 'Document upload'],
-    badge: 'DATA CAPTURE',
-  },
-  {
-    id: 'step_4',
-    title: '4. Human Agent Handoff Rule',
-    type: 'HANDOFF',
-    active: true,
-    description: 'Auto-routes to assigned agent queue if user selects "Speak with Agent".',
-    options: ['Notify agent via push', 'Set chat status to Open', 'Send waiting queue time'],
-    badge: 'ROUTING',
-  },
-  {
-    id: 'step_5',
-    title: '5. Out of Hours Auto-Reply',
-    type: 'SCHEDULED',
-    active: false,
-    description: 'Responds between 8:00 PM and 9:00 AM with business hours info.',
-    options: ['Share support email', 'Book morning callback'],
-    badge: 'SCHEDULE',
-  },
-];
+import { automationService, quickReplyService, qrWhatsappService } from '../../services/api';
 
 export default function BotMenuScreen({ route, navigation }) {
   const { onTriggerMenu } = route.params || {};
 
-  const [flowSteps, setFlowSteps] = useState(BOT_FLOW_STEPS);
+  const [flowSteps, setFlowSteps] = useState([]);
+  const [quickReplies, setQuickReplies] = useState([]);
   const [botEnabled, setBotEnabled] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const toggleStep = (id) => {
-    setFlowSteps(
-      flowSteps.map((s) => (s.id === id ? { ...s, active: !s.active } : s))
+  const loadBotData = useCallback(async () => {
+    try {
+      const [automations, qrList, autoResponder] = await Promise.all([
+        automationService.getAutomations().catch(() => []),
+        quickReplyService.getQuickReplies().catch(() => []),
+        qrWhatsappService.getAutoResponderSettings().catch(() => null),
+      ]);
+
+      if (autoResponder && autoResponder.botEnabled !== undefined) {
+        setBotEnabled(Boolean(autoResponder.botEnabled));
+      }
+
+      if (Array.isArray(automations) && automations.length > 0) {
+        const mapped = automations.map((a, idx) => {
+          const triggers = Array.isArray(a.triggers) ? a.triggers.map((t) => t.value || t.type).filter(Boolean) : [];
+          return {
+            id: a._id || `auto_${idx}`,
+            title: a.name || `Automation Flow #${idx + 1}`,
+            type: a.type || 'FLOW',
+            active: a.status === 'ACTIVE' || a.active !== false,
+            description: a.description || `Triggered by keywords: ${triggers.slice(0, 3).join(', ') || 'Direct message'}`,
+            options: triggers.length > 0 ? triggers.slice(0, 4) : ['Trigger on message', 'Auto-reply sent'],
+            badge: a.status === 'ACTIVE' ? 'ACTIVE' : 'DRAFT',
+            raw: a,
+          };
+        });
+        setFlowSteps(mapped);
+      } else {
+        setFlowSteps([]);
+      }
+
+      if (Array.isArray(qrList)) {
+        setQuickReplies(qrList);
+      }
+    } catch (err) {
+      console.warn('loadBotData error:', err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadBotData();
+  }, [loadBotData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadBotData();
+  };
+
+  const toggleStep = async (id) => {
+    const target = flowSteps.find((s) => s.id === id);
+    if (!target) return;
+    const nextActive = !target.active;
+
+    setFlowSteps((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? {
+              ...s,
+              active: nextActive,
+              badge: nextActive ? 'ACTIVE' : 'PAUSED',
+            }
+          : s
+      )
     );
+
+    try {
+      if (!id.startsWith('auto_')) {
+        await automationService.updateAutomation(id, {
+          status: nextActive ? 'ACTIVE' : 'PAUSED',
+        });
+      }
+    } catch (err) {
+      console.warn('Update automation error:', err.message);
+    }
+  };
+
+  const handleToggleMasterBot = async (val) => {
+    setBotEnabled(val);
+    try {
+      await qrWhatsappService.saveAutoResponderSettings({ botEnabled: val });
+    } catch (err) {
+      console.warn('Save bot setting note:', err.message);
+    }
   };
 
   const handleSendMenuToChat = (step) => {
@@ -111,7 +146,11 @@ export default function BotMenuScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+      >
         {/* Master Bot Switch Card */}
         <View style={styles.masterCard}>
           <View style={styles.masterIconWrap}>
@@ -125,7 +164,7 @@ export default function BotMenuScreen({ route, navigation }) {
           </View>
           <Switch
             value={botEnabled}
-            onValueChange={setBotEnabled}
+            onValueChange={handleToggleMasterBot}
             trackColor={{ false: '#D1D5DB', true: COLORS.primary }}
             thumbColor="#FFFFFF"
           />
@@ -137,8 +176,29 @@ export default function BotMenuScreen({ route, navigation }) {
           <Text style={styles.sectionCount}>{flowSteps.length} Steps</Text>
         </View>
 
+        {/* Loading Spinner */}
+        {loading && (
+          <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color={COLORS.primary} />
+            <Text style={{ marginTop: 8, fontSize: 13, color: '#6B7280' }}>Loading bot workflows...</Text>
+          </View>
+        )}
+
+        {/* Empty State */}
+        {!loading && flowSteps.length === 0 && (
+          <View style={styles.stepCard}>
+            <View style={{ alignItems: 'center', paddingVertical: 20 }}>
+              <Ionicons name="git-network-outline" size={38} color="#9CA3AF" />
+              <Text style={[styles.stepTitle, { textAlign: 'center', marginTop: 10 }]}>No Bot Flows Configured</Text>
+              <Text style={[styles.stepDesc, { textAlign: 'center', marginTop: 4, paddingHorizontal: 12 }]}>
+                Automated conversation funnels and interactive list menus will appear here once configured.
+              </Text>
+            </View>
+          </View>
+        )}
+
         {/* Flow Steps List */}
-        {flowSteps.map((step) => {
+        {!loading && flowSteps.map((step) => {
           return (
             <View key={step.id} style={[styles.stepCard, !step.active && styles.stepCardDisabled]}>
               {/* Step Header */}
@@ -185,18 +245,22 @@ export default function BotMenuScreen({ route, navigation }) {
         <View style={styles.faqSection}>
           <Text style={styles.sectionTitle}>QUICK REPLY KEYWORD SHORTCUTS</Text>
           <View style={styles.faqCard}>
-            <View style={styles.faqRow}>
-              <Text style={styles.commandText}>/pricing</Text>
-              <Text style={styles.commandDesc}>Sends complete pricing tiers & OTB rates</Text>
-            </View>
-            <View style={styles.faqRow}>
-              <Text style={styles.commandText}>/help</Text>
-              <Text style={styles.commandDesc}>Displays customer support emergency hotline</Text>
-            </View>
-            <View style={styles.faqRow}>
-              <Text style={styles.commandText}>/handoff</Text>
-              <Text style={styles.commandDesc}>Transfers active session to human agent</Text>
-            </View>
+            {quickReplies.length > 0 ? (
+              quickReplies.slice(0, 6).map((qr, idx) => (
+                <View key={qr._id || idx} style={styles.faqRow}>
+                  <Text style={styles.commandText}>/{qr.shortcut || qr.title || `reply${idx + 1}`}</Text>
+                  <Text style={styles.commandDesc} numberOfLines={1}>
+                    {qr.message || qr.body || qr.title || 'Quick response text'}
+                  </Text>
+                </View>
+              ))
+            ) : (
+              <View style={{ paddingVertical: 8 }}>
+                <Text style={[styles.commandDesc, { textAlign: 'center' }]}>
+                  No quick reply shortcuts set. Manage quick replies from Settings.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>

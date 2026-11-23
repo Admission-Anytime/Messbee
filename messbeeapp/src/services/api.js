@@ -615,6 +615,35 @@ export const qrWhatsappService = {
   },
 };
 
+// ==================== AUTOMATIONS / BOT SERVICE ====================
+export const automationService = {
+  getAutomations: async () => {
+    try {
+      const response = await api.get('/automations');
+      return response.data?.data || response.data || [];
+    } catch (err) {
+      console.warn('automationService.getAutomations error:', err.message);
+      return [];
+    }
+  },
+  getAutomationById: async (id) => {
+    const response = await api.get(`/automations/${id}`);
+    return response.data?.data || response.data;
+  },
+  createAutomation: async (automationData) => {
+    const response = await api.post('/automations', automationData);
+    return response.data?.data || response.data;
+  },
+  updateAutomation: async (id, data) => {
+    const response = await api.put(`/automations/${id}`, data);
+    return response.data?.data || response.data;
+  },
+  deleteAutomation: async (id) => {
+    const response = await api.delete(`/automations/${id}`);
+    return response.data?.data || response.data;
+  },
+};
+
 // ==================== ANALYTICS SERVICE (Real DB / API) ====================
 export const analyticsService = {
   getDashboardAnalytics: async (params = {}) => {

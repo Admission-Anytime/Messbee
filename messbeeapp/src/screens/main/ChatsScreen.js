@@ -18,81 +18,9 @@ import { chatService, contactService } from '../../services/api';
 
 const TABS = ['All', 'Mine', 'Unread', 'Active', 'Resolved'];
 
-// Reference default conversations (matching Image 1 Screen 1)
-const DEFAULT_CHATS = [
-  {
-    _id: 'chat_1',
-    name: '919350157447',
-    phone: '+91 9350157447',
-    lastMessage: 'Could you clarify that?',
-    time: '10:42 AM',
-    unread: 2,
-    avatarText: '91',
-    avatarBg: '#D1FAE5',
-    avatarColor: '#065F46',
-    status: 'Open',
-    statusBg: '#DCFCE7',
-    statusColor: '#166534',
-    pinned: true,
-    archived: false,
-    assignedTo: 'Assigned to You',
-  },
-  {
-    _id: 'chat_2',
-    name: 'Unknown',
-    phone: '+91 98765 00000',
-    lastMessage: 'Unsupported message type',
-    time: 'Yesterday',
-    unread: 1,
-    avatarText: 'U',
-    avatarBg: '#F3E8FF',
-    avatarColor: '#6B21A8',
-    status: 'Open',
-    statusBg: '#DCFCE7',
-    statusColor: '#166534',
-    pinned: false,
-    archived: false,
-    assignedTo: 'Unassigned',
-  },
-  {
-    _id: 'chat_3',
-    name: 'Rahul',
-    phone: '+91 98765 43210',
-    lastMessage: 'Hello Rahul, thank you for contacting Admission Anytime...',
-    time: 'Mon',
-    unread: 0,
-    avatarText: 'RA',
-    avatarBg: '#E0F2FE',
-    avatarColor: '#0369A1',
-    status: 'Open',
-    statusBg: '#DCFCE7',
-    statusColor: '#166534',
-    pinned: true,
-    archived: false,
-    assignedTo: 'Assigned to You',
-  },
-  {
-    _id: 'chat_4',
-    name: 'Sarah Mitchell',
-    phone: '+1 415 555 0142',
-    lastMessage: 'Perfect, thank you for your help!',
-    time: 'Sun',
-    unread: 0,
-    avatarText: 'SM',
-    avatarBg: '#FFEDD5',
-    avatarColor: '#C2410C',
-    status: 'Resolved',
-    statusBg: '#F3E8FF',
-    statusColor: '#7E22CE',
-    pinned: false,
-    archived: false,
-    assignedTo: 'Assigned to Aarav',
-  },
-];
-
 export default function ChatsScreen({ navigation }) {
-  const [chats, setChats] = useState(DEFAULT_CHATS);
-  const [loading, setLoading] = useState(false);
+  const [chats, setChats] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,19 +28,22 @@ export default function ChatsScreen({ navigation }) {
   const [showQuickFilters, setShowQuickFilters] = useState(false);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [suggestedContacts, setSuggestedContacts] = useState([
-    { id: 'c1', name: 'Rahul', phone: '+91 98765 43210', initials: 'RA', bg: '#FFEDD5', color: '#C2410C' },
-    { id: 'c2', name: 'Sarah Mitchell', phone: '+1 415 555 0142', initials: 'SM', bg: '#E0F2FE', color: '#0369A1' },
-    { id: 'c3', name: '919350157447', phone: '+91 9350157447', initials: '91', bg: '#D1FAE5', color: '#065F46' },
-  ]);
+  const [suggestedContacts, setSuggestedContacts] = useState([]);
 
-  // Load chats from real backend API
+  // Load chats & suggested contacts from real backend API
   const loadChats = useCallback(async () => {
     try {
-      const data = await chatService.getChats();
-      if (Array.isArray(data) && data.length > 0) {
-        // Map backend chat document to UI model
-        const mapped = data.map((item, idx) => {
+      const [chatsData, contactsData] = await Promise.all([
+        chatService.getChats().catch(() => []),
+        contactService.getContacts().catch(() => []),
+      ]);
+
+      if (Array.isArray(contactsData)) {
+        setSuggestedContacts(contactsData);
+      }
+
+      if (Array.isArray(chatsData)) {
+        const mapped = chatsData.map((item, idx) => {
           const rawName = item.name || item.whatsappId || item.phone || `Contact ${idx + 1}`;
           const isPhone = /^[0-9+]+$/.test(rawName.trim());
           const initials = isPhone ? rawName.slice(0, 2) : rawName.slice(0, 2).toUpperCase();
@@ -127,13 +58,13 @@ export default function ChatsScreen({ navigation }) {
           const isResolved = status.toLowerCase() === 'resolved';
 
           return {
-            _id: item._id || `chat_${idx}`,
+            _id: item._id || item.id || `chat_${idx}`,
             name: rawName,
             phone: item.phone || item.whatsappId || rawName,
-            lastMessage: item.lastMsg || item.lastMessage || 'No messages yet',
-            time: item.lastMsgTime || item.updatedAt ? new Date(item.updatedAt || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:42 AM',
-            unread: item.unread || 0,
-            avatarText: initials,
+            lastMessage: item.lastMsg || item.lastMessage?.text || item.lastMessage || 'No messages yet',
+            time: item.lastMsgTime || (item.updatedAt ? new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+            unread: item.unread || item.unreadCount || 0,
+            avatarText: initials || 'WA',
             avatarBg: colorPair.bg,
             avatarColor: colorPair.color,
             status: status.charAt(0).toUpperCase() + status.slice(1),
@@ -144,15 +75,25 @@ export default function ChatsScreen({ navigation }) {
           };
         });
         setChats(mapped);
+      } else {
+        setChats([]);
       }
     } catch (err) {
-      console.log('Using default chats, API offline:', err.message);
+      console.warn('loadChats error:', err.message);
+      setChats([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     loadChats();
-  }, [loadChats]);
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadChats();
+    });
+    return unsubscribe;
+  }, [navigation, loadChats]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -193,22 +134,34 @@ export default function ChatsScreen({ navigation }) {
 
   const unreadCount = chats.filter((c) => c.unread > 0).length;
 
-  const handleStartChatWithContact = (contact) => {
+  const handleStartChatWithContact = async (contact) => {
     setShowNewChatModal(false);
-    const existing = chats.find((c) => c.phone.includes(contact.phone.replace(/[^0-9]/g, '')));
+    const cleanPhone = (contact.phone || '').replace(/[^0-9]/g, '');
+    const existing = chats.find((c) => (c.phone || '').replace(/[^0-9]/g, '').includes(cleanPhone));
     if (existing) {
       navigation.navigate('ChatDetail', { chat: existing });
-    } else {
+      return;
+    }
+
+    try {
+      const created = await chatService.createChat({
+        name: contact.name || contact.phone,
+        phone: contact.phone,
+        whatsappId: cleanPhone,
+      });
+      loadChats();
+      navigation.navigate('ChatDetail', { chat: created || contact });
+    } catch (err) {
       const newChat = {
         _id: `chat_${Date.now()}`,
-        name: contact.name,
+        name: contact.name || contact.phone,
         phone: contact.phone,
         lastMessage: 'Tap to start conversation',
         time: 'Just now',
         unread: 0,
-        avatarText: contact.initials,
-        avatarBg: contact.bg,
-        avatarColor: contact.color,
+        avatarText: contact.initials || (contact.name ? contact.name.slice(0, 2).toUpperCase() : 'WA'),
+        avatarBg: contact.bg || '#DCFCE7',
+        avatarColor: contact.color || '#166534',
         status: 'Open',
         statusBg: '#DCFCE7',
         statusColor: '#166534',
@@ -506,23 +459,34 @@ export default function ChatsScreen({ navigation }) {
 
             <Text style={styles.suggestedHeading}>SUGGESTED CONTACTS</Text>
 
-            {suggestedContacts.map((contact) => (
-              <TouchableOpacity
-                key={contact.id}
-                style={styles.contactRow}
-                onPress={() => handleStartChatWithContact(contact)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.contactAvatar, { backgroundColor: contact.bg }]}>
-                  <Text style={[styles.contactInitials, { color: contact.color }]}>{contact.initials}</Text>
-                </View>
-                <View style={styles.contactInfo}>
-                  <Text style={styles.contactNameText}>{contact.name}</Text>
-                  <Text style={styles.contactPhoneText}>{contact.phone}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
-              </TouchableOpacity>
-            ))}
+            {suggestedContacts.length === 0 ? (
+              <Text style={{ color: '#94A3B8', fontSize: 13, marginVertical: 14, textAlign: 'center' }}>
+                No contacts found. Add a contact first.
+              </Text>
+            ) : (
+              suggestedContacts.slice(0, 10).map((contact, idx) => {
+                const cName = contact.name || contact.phone || `Contact ${idx + 1}`;
+                const cInitials = contact.initials || cName.slice(0, 2).toUpperCase();
+                const cId = contact._id || contact.id || `c_${idx}`;
+                return (
+                  <TouchableOpacity
+                    key={cId}
+                    style={styles.contactRow}
+                    onPress={() => handleStartChatWithContact({ ...contact, name: cName, initials: cInitials, id: cId })}
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.contactAvatar, { backgroundColor: contact.bg || '#DCFCE7' }]}>
+                      <Text style={[styles.contactInitials, { color: contact.color || '#166534' }]}>{cInitials}</Text>
+                    </View>
+                    <View style={styles.contactInfo}>
+                      <Text style={styles.contactNameText}>{cName}</Text>
+                      <Text style={styles.contactPhoneText}>{contact.phone || 'No phone'}</Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </View>
         </TouchableOpacity>
       </Modal>
