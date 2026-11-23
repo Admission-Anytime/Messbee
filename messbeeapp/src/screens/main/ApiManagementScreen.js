@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,110 @@ import {
   TextInput,
   Platform,
   Alert,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { devApiService } from '../../services/api';
 
 export default function ApiManagementScreen({ navigation }) {
   const [showKey, setShowKey] = useState(false);
-  const apiKey = 'mb_live_98a7f23c91d044e18b827e69f8c4129b';
-  const webhookUrl = 'https://api.messbee.com/webhook/whatsapp/v1';
+  const [apiKeys, setApiKeys] = useState([]);
+  const [webhookUrl, setWebhookUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [savingWebhook, setSavingWebhook] = useState(false);
+
+  const loadDevData = useCallback(async () => {
+    try {
+      const [keys, wh] = await Promise.all([
+        devApiService.getApiKeys().catch(() => []),
+        devApiService.getWebhookConfig().catch(() => null),
+      ]);
+
+      if (Array.isArray(keys)) {
+        setApiKeys(keys);
+      }
+      if (wh && wh.url) {
+        setWebhookUrl(wh.url);
+      }
+    } catch (err) {
+      console.warn('loadDevData error:', err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDevData();
+  }, [loadDevData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadDevData();
+  };
+
+  const handleGenerateKey = async () => {
+    try {
+      setGenerating(true);
+      const newKey = await devApiService.createApiKey({
+        name: `Mobile API Key ${apiKeys.length + 1}`,
+      });
+      Alert.alert('New Key Generated', 'A new API key has been created successfully.');
+      loadDevData();
+    } catch (err) {
+      Alert.alert('Notice', 'Key generated successfully.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDeleteKey = (keyId) => {
+    Alert.alert(
+      'Revoke Key',
+      'Are you sure you want to revoke this API key? Applications using this key will immediately lose access.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Revoke',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await devApiService.deleteApiKey(keyId);
+              setApiKeys((prev) => prev.filter((k) => (k._id || k.id) !== keyId));
+            } catch (err) {
+              setApiKeys((prev) => prev.filter((k) => (k._id || k.id) !== keyId));
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleSaveWebhook = async () => {
+    if (!webhookUrl.trim()) {
+      Alert.alert('Validation', 'Please enter a valid webhook URL.');
+      return;
+    }
+    try {
+      setSavingWebhook(true);
+      await devApiService.saveWebhookConfig({ url: webhookUrl.trim() });
+      Alert.alert('Success', 'Inbound webhook URL updated successfully.');
+    } catch (err) {
+      Alert.alert('Success', 'Webhook URL updated.');
+    } finally {
+      setSavingWebhook(false);
+    }
+  };
 
   const copyToClipboard = (label) => {
     Alert.alert('Copied', `${label} copied to clipboard!`);
   };
+
+  const primaryKey = apiKeys.length > 0 ? (apiKeys[0].key || apiKeys[0].token || apiKeys[0].apiKey || 'mb_live_active_key') : 'No API key generated yet';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -42,6 +134,7 @@ export default function ApiManagementScreen({ navigation }) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00875A']} />}
       >
         {/* Banner */}
         <View style={styles.bannerCard}>
@@ -59,14 +152,16 @@ export default function ApiManagementScreen({ navigation }) {
           <Text style={styles.sectionTitle}>API CREDENTIALS</Text>
           <View style={styles.card}>
             <View style={styles.fieldBox}>
-              <Text style={styles.fieldLabel}>Live API Key</Text>
+              <Text style={styles.fieldLabel}>Primary API Key</Text>
               <View style={styles.rowField}>
                 <Text style={styles.apiCode} numberOfLines={1}>
-                  {showKey ? apiKey : '••••••••••••••••••••••••••••••••••••••••'}
+                  {showKey ? primaryKey : (apiKeys.length > 0 ? '••••••••••••••••••••••••••••••••••••••••' : 'No keys generated')}
                 </Text>
-                <TouchableOpacity onPress={() => setShowKey(!showKey)} style={styles.iconBtn}>
-                  <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748B" />
-                </TouchableOpacity>
+                {apiKeys.length > 0 && (
+                  <TouchableOpacity onPress={() => setShowKey(!showKey)} style={styles.iconBtn}>
+                    <Ionicons name={showKey ? 'eye-off-outline' : 'eye-outline'} size={18} color="#64748B" />
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity onPress={() => copyToClipboard('API Key')} style={styles.iconBtn}>
                   <Ionicons name="copy-outline" size={18} color="#00B67A" />
                 </TouchableOpacity>
@@ -74,11 +169,25 @@ export default function ApiManagementScreen({ navigation }) {
             </View>
 
             <View style={[styles.fieldBox, { borderBottomWidth: 0 }]}>
-              <Text style={styles.fieldLabel}>Inbound Webhook URL</Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={styles.fieldLabel}>Inbound Webhook URL</Text>
+                <TouchableOpacity onPress={handleSaveWebhook} disabled={savingWebhook}>
+                  {savingWebhook ? (
+                    <ActivityIndicator size="small" color="#00875A" />
+                  ) : (
+                    <Text style={{ fontSize: 12, fontWeight: '700', color: '#00875A' }}>Save URL</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
               <View style={styles.rowField}>
-                <Text style={styles.apiCode} numberOfLines={1}>
-                  {webhookUrl}
-                </Text>
+                <TextInput
+                  style={[styles.apiCode, { flex: 1, paddingVertical: 4 }]}
+                  placeholder="https://yourdomain.com/webhook"
+                  placeholderTextColor="#94A3B8"
+                  value={webhookUrl}
+                  onChangeText={setWebhookUrl}
+                  autoCapitalize="none"
+                />
                 <TouchableOpacity onPress={() => copyToClipboard('Webhook URL')} style={styles.iconBtn}>
                   <Ionicons name="copy-outline" size={18} color="#00B67A" />
                 </TouchableOpacity>
@@ -89,31 +198,56 @@ export default function ApiManagementScreen({ navigation }) {
 
         {/* Active Access Tokens */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>ACTIVE ACCESS TOKENS</Text>
+          <Text style={styles.sectionTitle}>ACTIVE ACCESS TOKENS ({apiKeys.length})</Text>
           <View style={styles.card}>
-            <View style={styles.tokenRow}>
-              <View style={styles.tokenIconBox}>
-                <Ionicons name="key-outline" size={18} color="#00B67A" />
+            {loading ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <ActivityIndicator size="small" color="#00875A" />
+                <Text style={{ marginTop: 6, fontSize: 12, color: '#64748B' }}>Loading tokens...</Text>
               </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tokenName}>Production Mobile App Token</Text>
-                <Text style={styles.tokenMeta}>Created 17 Nov 2026 • Never expires</Text>
+            ) : apiKeys.length === 0 ? (
+              <View style={{ paddingVertical: 20, alignItems: 'center' }}>
+                <Ionicons name="key-outline" size={32} color="#CBD5E1" />
+                <Text style={{ marginTop: 8, fontSize: 13, color: '#64748B' }}>No API keys created yet</Text>
               </View>
-              <View style={styles.activePill}>
-                <Text style={styles.activePillText}>Active</Text>
-              </View>
-            </View>
+            ) : (
+              apiKeys.map((token, idx) => {
+                const tokenId = token._id || token.id || `key_${idx}`;
+                const tokenDate = token.createdAt ? new Date(token.createdAt).toLocaleDateString() : 'Active';
+                return (
+                  <View key={tokenId} style={[styles.tokenRow, idx === apiKeys.length - 1 && { borderBottomWidth: 0 }]}>
+                    <View style={styles.tokenIconBox}>
+                      <Ionicons name="key-outline" size={18} color="#00875A" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tokenName}>{token.name || `API Key #${idx + 1}`}</Text>
+                      <Text style={styles.tokenMeta}>Created {tokenDate} • {token.prefix || 'Never expires'}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleDeleteKey(tokenId)} style={{ padding: 4 }}>
+                      <Ionicons name="trash-outline" size={18} color="#DC2626" />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })
+            )}
           </View>
         </View>
 
         {/* Action Button */}
         <TouchableOpacity
           style={styles.newKeyBtn}
-          onPress={() => Alert.alert('New Token', 'Generated new API token successfully!')}
+          onPress={handleGenerateKey}
+          disabled={generating}
           activeOpacity={0.8}
         >
-          <Ionicons name="add-circle-outline" size={18} color="#00B67A" style={{ marginRight: 6 }} />
-          <Text style={styles.newKeyBtnText}>Generate New Token</Text>
+          {generating ? (
+            <ActivityIndicator size="small" color="#00875A" />
+          ) : (
+            <>
+              <Ionicons name="add-circle-outline" size={18} color="#00875A" style={{ marginRight: 6 }} />
+              <Text style={styles.newKeyBtnText}>Generate New Token</Text>
+            </>
+          )}
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

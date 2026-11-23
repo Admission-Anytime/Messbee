@@ -93,6 +93,18 @@ export const authService = {
     const { data } = await api.put('/users/profile', profileData);
     return data?.data || data;
   },
+  forgotPassword: async (email) => {
+    const { data } = await api.post('/auth/forgot-password', { email });
+    return data;
+  },
+  resetPassword: async (email, otp, newPassword) => {
+    const { data } = await api.post('/auth/reset-password', { email, otp, newPassword });
+    return data;
+  },
+  updatePassword: async (currentPassword, newPassword) => {
+    const { data } = await api.put('/auth/update-password', { currentPassword, newPassword });
+    return data;
+  },
 };
 
 // ==================== CONTACTS CRM SERVICE (Real DB / API) ====================
@@ -718,6 +730,71 @@ export const analyticsService = {
     } catch (err) {
       console.warn('analyticsService.getCampaignAnalytics error:', err.message);
       return null;
+    }
+  },
+};
+
+// ==================== DEVELOPER API SERVICE ====================
+export const devApiService = {
+  getApiKeys: async () => {
+    try {
+      const { data } = await api.get('/developer/keys');
+      return data?.data || data?.keys || data || [];
+    } catch (err) {
+      console.warn('devApiService.getApiKeys error:', err.message);
+      return [];
+    }
+  },
+  createApiKey: async (payload = { name: 'Mobile App Key' }) => {
+    const { data } = await api.post('/developer/keys', payload);
+    return data?.data || data?.apiKey || data;
+  },
+  deleteApiKey: async (id) => {
+    const { data } = await api.delete(`/developer/keys/${id}`);
+    return data;
+  },
+  getWebhookConfig: async () => {
+    try {
+      const { data } = await api.get('/developer/webhook');
+      return data?.data || data?.webhook || data;
+    } catch (err) {
+      console.warn('devApiService.getWebhookConfig error:', err.message);
+      return null;
+    }
+  },
+  saveWebhookConfig: async (payload) => {
+    const { data } = await api.post('/developer/webhook', payload);
+    return data?.data || data;
+  },
+};
+
+// ==================== COMMERCE SERVICE ====================
+export const commerceService = {
+  getProducts: async () => {
+    try {
+      const { data } = await api.get('/commerce/products');
+      return data?.data || data?.products || data || [];
+    } catch (err) {
+      console.warn('commerceService.getProducts error:', err.message);
+      return [];
+    }
+  },
+  getPayments: async () => {
+    try {
+      const { data } = await api.get('/commerce/payments');
+      return data?.data || data?.payments || data || [];
+    } catch (err) {
+      console.warn('commerceService.getPayments error:', err.message);
+      return [];
+    }
+  },
+  getCategories: async () => {
+    try {
+      const { data } = await api.get('/commerce/categories');
+      return data?.data || data?.categories || data || [];
+    } catch (err) {
+      console.warn('commerceService.getCategories error:', err.message);
+      return [];
     }
   },
 };

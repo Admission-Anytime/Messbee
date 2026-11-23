@@ -74,7 +74,7 @@ const MORE_TILES = [
     title: 'Automation',
     subtitle: 'Manage automation',
     icon: 'git-network-outline',
-    action: () => Alert.alert('Automation', 'Auto-responder rules active.'),
+    route: 'BotMenu',
   },
   {
     id: 'dev_api',
