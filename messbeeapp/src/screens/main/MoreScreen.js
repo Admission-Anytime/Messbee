@@ -88,7 +88,7 @@ const MORE_TILES = [
     title: 'Inventory Management',
     subtitle: 'Manage inventory management',
     icon: 'cube-outline',
-    action: () => Alert.alert('Inventory', 'Inventory management active.'),
+    route: 'Inventory',
   },
   {
     id: 'settings',

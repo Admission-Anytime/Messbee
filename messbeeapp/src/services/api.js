@@ -868,4 +868,49 @@ export const notificationService = {
   },
 };
 
+// ==================== INVENTORY SERVICE (Real DB / API) ====================
+export const inventoryService = {
+  getInventoryLogs: async (page = 1, limit = 20, type = null, productId = null) => {
+    try {
+      let url = `/inventory/logs?page=${page}&limit=${limit}`;
+      if (type) url += `&type=${type}`;
+      if (productId) url += `&productId=${productId}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getInventoryLogs error:', err.message);
+      return [];
+    }
+  },
+
+  getLowStockAlerts: async () => {
+    try {
+      const { data } = await api.get('/inventory/low-stock');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getLowStockAlerts error:', err.message);
+      return [];
+    }
+  },
+
+  getOutOfStock: async () => {
+    try {
+      const { data } = await api.get('/inventory/out-of-stock');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getOutOfStock error:', err.message);
+      return [];
+    }
+  },
+
+  adjustStock: async (productId, newStockLevel, notes = '') => {
+    const { data } = await api.post('/inventory/adjust', {
+      productId,
+      newStockLevel: Number(newStockLevel),
+      notes: notes.trim() || 'Manual stock adjustment from mobile',
+    });
+    return data;
+  },
+};
+
 export default api;
