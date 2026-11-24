@@ -35,6 +35,12 @@ const SECTIONS = [
         subtitle: 'Manage members and permissions',
         icon: 'people-outline',
       },
+      {
+        id: 'billing_invoices',
+        title: 'Billing & Invoices',
+        subtitle: 'Manage credits, invoices and plans',
+        icon: 'receipt-outline',
+      },
     ],
   },
   {
@@ -158,6 +164,8 @@ export default function SettingsScreen({ navigation }) {
       navigation.navigate('PersonalInfo');
     } else if (item.id === 'team_mgmt') {
       navigation.navigate('ContactCRM');
+    } else if (item.id === 'billing_invoices') {
+      navigation.navigate('BillingInvoices');
     } else if (item.id === 'whatsapp_config') {
       navigation.navigate('WhatsAppConfig');
     } else if (item.id === 'phone_mgmt') {

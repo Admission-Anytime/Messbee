@@ -797,6 +797,236 @@ export const commerceService = {
       return [];
     }
   },
+  createProduct: async (productData) => {
+    const { data } = await api.post('/commerce/products', productData);
+    return data?.data || data;
+  },
+  updateProduct: async (id, productData) => {
+    const { data } = await api.put(`/commerce/products/${id}`, productData);
+    return data?.data || data;
+  },
+  deleteProduct: async (id) => {
+    const { data } = await api.delete(`/commerce/products/${id}`);
+    return data;
+  },
+};
+
+// ==================== NOTIFICATION SERVICE (Real DB / API) ====================
+export const notificationService = {
+  getNotifications: async (page = 1, limit = 20, isRead = null) => {
+    try {
+      let url = `/notifications?page=${page}&limit=${limit}`;
+      if (isRead !== null) {
+        url += `&isRead=${isRead}`;
+      }
+      const { data } = await api.get(url);
+      return data?.data || data?.notifications || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('notificationService.getNotifications error:', err.message);
+      return [];
+    }
+  },
+
+  getUnreadCount: async () => {
+    try {
+      const { data } = await api.get('/notifications/unread-count');
+      return data?.data?.unreadCount !== undefined ? data.data.unreadCount : (data?.unreadCount || 0);
+    } catch (err) {
+      console.warn('notificationService.getUnreadCount error:', err.message);
+      return 0;
+    }
+  },
+
+  markAsRead: async (notificationId) => {
+    try {
+      const { data } = await api.put(`/notifications/${notificationId}/read`);
+      return data;
+    } catch (err) {
+      console.warn('notificationService.markAsRead error:', err.message);
+      return null;
+    }
+  },
+
+  markAllAsRead: async () => {
+    try {
+      const { data } = await api.put('/notifications/mark-all-read');
+      return data;
+    } catch (err) {
+      console.warn('notificationService.markAllAsRead error:', err.message);
+      return null;
+    }
+  },
+
+  deleteNotification: async (notificationId) => {
+    try {
+      const { data } = await api.delete(`/notifications/${notificationId}`);
+      return data;
+    } catch (err) {
+      console.warn('notificationService.deleteNotification error:', err.message);
+      return null;
+    }
+  },
+};
+
+// ==================== INVENTORY SERVICE (Real DB / API) ====================
+export const inventoryService = {
+  getInventoryLogs: async (page = 1, limit = 20, type = null, productId = null) => {
+    try {
+      let url = `/inventory/logs?page=${page}&limit=${limit}`;
+      if (type) url += `&type=${type}`;
+      if (productId) url += `&productId=${productId}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getInventoryLogs error:', err.message);
+      return [];
+    }
+  },
+
+  getLowStockAlerts: async () => {
+    try {
+      const { data } = await api.get('/inventory/low-stock');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getLowStockAlerts error:', err.message);
+      return [];
+    }
+  },
+
+  getOutOfStock: async () => {
+    try {
+      const { data } = await api.get('/inventory/out-of-stock');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('inventoryService.getOutOfStock error:', err.message);
+      return [];
+    }
+  },
+
+  adjustStock: async (productId, newStockLevel, notes = '') => {
+    const { data } = await api.post('/inventory/adjust', {
+      productId,
+      newStockLevel: Number(newStockLevel),
+      notes: notes.trim() || 'Manual stock adjustment from mobile',
+    });
+    return data;
+  },
+};
+
+// ==================== BILLING SERVICE (Real DB / API) ====================
+export const billingService = {
+  getTransactions: async () => {
+    try {
+      const { data } = await api.get('/billing/transactions');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('billingService.getTransactions error:', err.message);
+      return [];
+    }
+  },
+
+  createTransaction: async (txnData) => {
+    const { data } = await api.post('/billing/transactions', txnData);
+    return data?.data || data;
+  },
+
+  createRazorpayOrder: async (orderData) => {
+    const { data } = await api.post('/billing/razorpay/create-order', orderData);
+    return data?.data || data;
+  },
+};
+
+// ==================== SALES & INVOICES SERVICE (Real DB / API) ====================
+export const salesService = {
+  getSales: async (search = '', page = 1, limit = 20) => {
+    try {
+      let url = `/sales?page=${page}&limit=${limit}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('salesService.getSales error:', err.message);
+      return [];
+    }
+  },
+
+  getSale: async (id) => {
+    try {
+      const { data } = await api.get(`/sales/${id}`);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('salesService.getSale error:', err.message);
+      return null;
+    }
+  },
+
+  createSale: async (saleData) => {
+    const { data } = await api.post('/sales', saleData);
+    return data?.data || data;
+  },
+};
+
+// ==================== CUSTOMER SERVICE (Real DB / API) ====================
+export const customerService = {
+  getCustomers: async (search = '', page = 1, limit = 50) => {
+    try {
+      let url = `/customers?page=${page}&limit=${limit}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('customerService.getCustomers error:', err.message);
+      return [];
+    }
+  },
+
+  createCustomer: async (customerData) => {
+    const { data } = await api.post('/customers', customerData);
+    return data?.data || data;
+  },
+};
+
+// ==================== CONTACT GROUP SERVICE (Real DB / API) ====================
+export const contactGroupService = {
+  getContactGroups: async () => {
+    try {
+      const { data } = await api.get('/contact-groups');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('contactGroupService.getContactGroups error:', err.message);
+      return [];
+    }
+  },
+
+  getContactGroup: async (id, page = 1, limit = 50) => {
+    try {
+      const { data } = await api.get(`/contact-groups/${id}?page=${page}&limit=${limit}`);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('contactGroupService.getContactGroup error:', err.message);
+      return null;
+    }
+  },
+
+  createContactGroup: async (groupData) => {
+    const { data } = await api.post('/contact-groups', groupData);
+    return data?.data || data;
+  },
+
+  updateContactGroup: async (id, groupData) => {
+    const { data } = await api.put(`/contact-groups/${id}`, groupData);
+    return data?.data || data;
+  },
+
+  deleteContactGroup: async (id) => {
+    const { data } = await api.delete(`/contact-groups/${id}`);
+    return data;
+  },
+
+  addContactsToGroup: async (id, contactIds) => {
+    const { data } = await api.post(`/contact-groups/${id}/contacts`, { contactIds });
+    return data?.data || data;
+  },
 };
 
 export default api;

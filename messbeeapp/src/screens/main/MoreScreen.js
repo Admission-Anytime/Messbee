@@ -67,7 +67,7 @@ const MORE_TILES = [
     title: 'Commerce',
     subtitle: 'Manage commerce',
     icon: 'cart-outline',
-    action: () => Alert.alert('Commerce', 'Commerce catalog and orders.'),
+    route: 'CommerceCatalog',
   },
   {
     id: 'automation',
@@ -88,7 +88,21 @@ const MORE_TILES = [
     title: 'Inventory Management',
     subtitle: 'Manage inventory management',
     icon: 'cube-outline',
-    action: () => Alert.alert('Inventory', 'Inventory management active.'),
+    route: 'Inventory',
+  },
+  {
+    id: 'billing_invoices',
+    title: 'Billing & Invoices',
+    subtitle: 'Manage invoices and billing',
+    icon: 'receipt-outline',
+    route: 'BillingInvoices',
+  },
+  {
+    id: 'contact_groups',
+    title: 'Audience Groups',
+    subtitle: 'Manage contact groups & segments',
+    icon: 'people-circle-outline',
+    route: 'ContactGroups',
   },
   {
     id: 'settings',

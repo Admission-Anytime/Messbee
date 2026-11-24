@@ -19,6 +19,7 @@ import {
   contactService,
   chatService,
   campaignService,
+  notificationService,
 } from '../../services/api';
 
 const { width } = Dimensions.get('window');
@@ -47,14 +48,16 @@ export default function HomeScreen({ navigation }) {
   const [contacts, setContacts] = useState([]);
   const [chats, setChats] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   const loadData = useCallback(async () => {
     try {
-      const [userData, contactsData, chatsData, campaignsData] = await Promise.all([
+      const [userData, contactsData, chatsData, campaignsData, unreadCountData] = await Promise.all([
         authService.getCurrentUser().catch(() => null),
         contactService.getContacts().catch(() => []),
         chatService.getChats().catch(() => []),
         campaignService.getCampaigns().catch(() => []),
+        notificationService.getUnreadCount().catch(() => 0),
       ]);
 
       if (userData) {
@@ -63,6 +66,7 @@ export default function HomeScreen({ navigation }) {
       setContacts(Array.isArray(contactsData) ? contactsData : []);
       setChats(Array.isArray(chatsData) ? chatsData : []);
       setCampaigns(Array.isArray(campaignsData) ? campaignsData : []);
+      setUnreadNotifications(typeof unreadCountData === 'number' ? unreadCountData : 0);
     } catch (err) {
       console.warn('HomeScreen loadData error:', err.message);
     } finally {
@@ -131,6 +135,21 @@ export default function HomeScreen({ navigation }) {
           >
             <Ionicons name="search" size={15} color="#6B7280" />
             <Text style={styles.searchText}>Search</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.notifBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#374151" />
+            {unreadNotifications > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -266,12 +285,12 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.toolCol}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('CustomFields')}
+            onPress={() => navigation.navigate('CommerceCatalog')}
           >
             <View style={styles.toolSquircle}>
-              <Ionicons name="cube-outline" size={20} color="#00B67A" />
+              <Ionicons name="cart-outline" size={20} color="#00B67A" />
             </View>
-            <Text style={styles.toolTitle}>Fields</Text>
+            <Text style={styles.toolTitle}>Commerce</Text>
           </TouchableOpacity>
         </View>
 
@@ -539,6 +558,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
+  },
+  notifBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   profileCircle: {
     width: 36,
