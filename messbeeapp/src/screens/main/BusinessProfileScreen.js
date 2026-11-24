@@ -13,25 +13,36 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import api from '../../services/api';
+import { authService } from '../../services/api';
+
+const STANDARD_CATEGORIES = [
+  'Technology & Software',
+  'E-commerce & Retail',
+  'Healthcare',
+  'Education',
+  'Finance & Banking',
+  'Real Estate',
+  'Travel & Hospitality',
+  'Other',
+];
 
 export default function BusinessProfileScreen({ navigation }) {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [formData, setFormData] = useState({
-    businessName: 'MessBee Technologies',
-    website: 'https://messbee.com',
+    businessName: '',
+    website: '',
     businessCategory: 'Technology & Software',
-    businessDescription: 'All-in-one WhatsApp CRM & Marketing platform for growing businesses.',
-    address: 'Suite 402, Cyber Tower',
-    city: 'New Delhi',
-    state: 'Delhi',
-    zipcode: '110001',
+    businessDescription: '',
+    address: '',
+    city: '',
+    state: '',
+    zipcode: '',
     country: 'India',
-    taxId: '07AAAAA0000A1Z5',
-    email: 'admin@messbee.com',
-    phone: '+91 8181756688',
+    taxId: '',
+    email: '',
+    phone: '',
   });
 
   useEffect(() => {
@@ -41,27 +52,25 @@ export default function BusinessProfileScreen({ navigation }) {
   const fetchProfile = async () => {
     try {
       setLoading(true);
-      const res = await api.get('/users/profile');
-      if (res.data?.success && res.data?.data) {
-        const u = res.data.data;
-        setFormData((prev) => ({
-          ...prev,
-          businessName: u.businessName || u.name || prev.businessName,
-          website: u.website || prev.website,
-          businessCategory: u.businessCategory || prev.businessCategory,
-          businessDescription: u.businessDescription || prev.businessDescription,
-          address: u.address || prev.address,
-          city: u.city || prev.city,
-          state: u.state || prev.state,
-          zipcode: u.zipcode || prev.zipcode,
-          country: u.country || prev.country,
-          taxId: u.gst || u.taxId || prev.taxId,
-          email: u.email || prev.email,
-          phone: u.phone || prev.phone,
-        }));
+      const u = await authService.getUserProfile();
+      if (u) {
+        setFormData({
+          businessName: u.businessName || u.name || '',
+          website: u.website || '',
+          businessCategory: u.businessCategory || 'Technology & Software',
+          businessDescription: u.businessDescription || '',
+          address: u.address || '',
+          city: u.city || '',
+          state: u.state || '',
+          zipcode: u.zipcode || '',
+          country: u.country || 'India',
+          taxId: u.gst || u.billingTaxId || u.taxId || '',
+          email: u.emailId || u.email || '',
+          phone: u.mobileNumber || u.phone || '',
+        });
       }
     } catch (err) {
-      // Local fallback stays intact
+      console.warn('fetchProfile error:', err.message);
     } finally {
       setLoading(false);
     }
@@ -70,10 +79,10 @@ export default function BusinessProfileScreen({ navigation }) {
   const handleSave = async () => {
     try {
       setSaving(true);
-      await api.put('/users/profile', formData);
+      await authService.updateUserProfile(formData);
       Alert.alert('Success', 'Business profile updated successfully!');
     } catch (err) {
-      Alert.alert('Success', 'Business details saved locally!');
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to update business profile.');
     } finally {
       setSaving(false);
     }
@@ -111,6 +120,13 @@ export default function BusinessProfileScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {loading && (
+          <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#00875A" />
+            <Text style={{ marginTop: 6, fontSize: 13, color: '#64748B' }}>Loading business profile...</Text>
+          </View>
+        )}
+
         {/* Profile Card Header */}
         <View style={styles.topCard}>
           <View style={styles.brandBadge}>
@@ -155,6 +171,30 @@ export default function BusinessProfileScreen({ navigation }) {
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Business Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexDirection: 'row', marginVertical: 6 }}>
+                {STANDARD_CATEGORIES.map((cat) => {
+                  const isSelected = formData.businessCategory === cat;
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        borderRadius: 14,
+                        backgroundColor: isSelected ? '#DCFCE7' : '#F1F5F9',
+                        borderWidth: 1,
+                        borderColor: isSelected ? '#16A34A' : '#E2E8F0',
+                        marginRight: 8,
+                      }}
+                      onPress={() => setFormData({ ...formData, businessCategory: cat })}
+                    >
+                      <Text style={{ fontSize: 12, fontWeight: isSelected ? '700' : '500', color: isSelected ? '#166534' : '#64748B' }}>
+                        {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               <TextInput
                 style={styles.input}
                 value={formData.businessCategory}

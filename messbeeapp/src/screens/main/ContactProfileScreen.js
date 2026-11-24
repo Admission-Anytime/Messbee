@@ -7,28 +7,56 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { contactService, chatService } from '../../services/api';
 
 export default function ContactProfileScreen({ route, navigation }) {
-  const { contact = { name: '919350157447', phone: '+91 9350157447', status: 'Open', avatarText: '91' } } =
+  const { contact = { name: 'Contact', phone: '', status: 'OPEN', avatarText: 'WA' } } =
     route.params || {};
 
+  const [loading, setLoading] = useState(false);
   const [profile, setProfile] = useState({
-    name: contact.name || '919350157447',
-    phone: contact.phone || '+91 9350157447',
+    _id: contact._id || contact.id,
+    name: contact.name || 'Contact',
+    phone: contact.phone || '',
     email: contact.email || '',
     status: contact.status || 'OPEN',
-    lastSeen: 'yesterday 03:37 pm',
+    lastSeen: 'recently',
     labels: contact.labels || [],
-    customFields: {
-      INSTITUTE: 'Admission Anytime',
-      GSTN: 'Not added',
-      CITY: 'New Delhi',
-    },
+    customFields: contact.customFields || {},
   });
+
+  // Fetch updated contact details and custom fields from backend
+  useEffect(() => {
+    const fetchContactDetails = async () => {
+      const contactId = contact._id || contact.id;
+      if (contactId) {
+        try {
+          setLoading(true);
+          const liveContact = await contactService.getContactById(contactId);
+          if (liveContact) {
+            setProfile((prev) => ({
+              ...prev,
+              name: liveContact.name || prev.name,
+              phone: liveContact.phone || prev.phone,
+              email: liveContact.email || prev.email,
+              status: liveContact.status || prev.status,
+              labels: liveContact.labels || prev.labels,
+              customFields: liveContact.customFields || liveContact.fields || prev.customFields,
+            }));
+          }
+        } catch (err) {
+          console.warn('getContactById error:', err.message);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    fetchContactDetails();
+  }, [contact._id, contact.id]);
 
   // Sync if returned from Edit Profile or Manage Labels
   useEffect(() => {
@@ -110,28 +138,26 @@ export default function ContactProfileScreen({ route, navigation }) {
         <View style={styles.card}>
           <View style={styles.cardHeaderRow}>
             <Text style={styles.cardHeaderTitle}>CUSTOM FIELDS</Text>
-            <TouchableOpacity>
-              <Text style={styles.editFieldsLink}>Edit Fields</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('CustomFields')}>
+              <Text style={styles.editFieldsLink}>Manage Fields</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.fieldsGrid}>
-            <View style={styles.fieldCol}>
-              <Text style={styles.fieldLabel}>INSTITUTE</Text>
-              <Text style={styles.fieldValue}>{profile.customFields.INSTITUTE}</Text>
+          {profile.customFields && Object.keys(profile.customFields).length > 0 ? (
+            <View style={styles.fieldsGrid}>
+              {Object.entries(profile.customFields).map(([key, val], idx) => (
+                <View key={idx} style={[styles.fieldCol, { marginBottom: 12 }]}>
+                  <Text style={styles.fieldLabel}>{String(key).toUpperCase()}</Text>
+                  <Text style={styles.fieldValue}>{String(val || 'Not set')}</Text>
+                </View>
+              ))}
             </View>
-            <View style={styles.fieldCol}>
-              <Text style={styles.fieldLabel}>GSTN</Text>
-              <Text style={styles.fieldValue}>{profile.customFields.GSTN}</Text>
+          ) : (
+            <View style={styles.emptyLabelsRow}>
+              <Ionicons name="clipboard-outline" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+              <Text style={styles.emptyLabelsText}>No custom fields set</Text>
             </View>
-          </View>
-
-          <View style={[styles.fieldsGrid, { marginTop: 12 }]}>
-            <View style={styles.fieldCol}>
-              <Text style={styles.fieldLabel}>CITY</Text>
-              <Text style={styles.fieldValue}>{profile.customFields.CITY}</Text>
-            </View>
-          </View>
+          )}
         </View>
       </ScrollView>
 

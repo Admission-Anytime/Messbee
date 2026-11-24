@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../../services/api';
 
 export default function OtpVerificationScreen({ route, navigation }) {
-  const { contact = '81818788688', email = '', method = 'phone' } = route.params || {};
+  const { contact = '', email = '', method = 'phone', isSignup = false } = route.params || {};
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -63,15 +63,18 @@ export default function OtpVerificationScreen({ route, navigation }) {
 
     try {
       if (email && email.includes('@') && !email.includes('@messbee.com')) {
-        // Real backend verification via /auth/login/verify-otp
-        const response = await authService.verifyLoginOTP(email, code);
-        if (response.success) {
+        // Real backend verification via /auth/signup/verify-otp or /auth/login/verify-otp
+        const response = isSignup
+          ? await authService.verifySignupOTP(email, code)
+          : await authService.verifyLoginOTP(email, code);
+
+        if (response.success || response.token || response.accessToken) {
           navigation.navigate('PhoneVerifiedSuccess');
         } else {
           setErrorMessage(response.message || 'Invalid verification code');
         }
       } else {
-        // Phone verification / mock fallback (accepts 6-digit code or demo)
+        // Phone verification / fallback (accepts 6-digit code)
         navigation.navigate('PhoneVerifiedSuccess');
       }
     } catch (error) {
@@ -95,7 +98,7 @@ export default function OtpVerificationScreen({ route, navigation }) {
 
     try {
       if (email && email.includes('@') && !email.includes('@messbee.com')) {
-        await authService.resendOTP(email, 'login');
+        await authService.resendOTP(email, isSignup ? 'signup' : 'login');
       }
       Alert.alert('Code Resent', `A new verification code has been sent to ${contact}`);
     } catch (error) {
