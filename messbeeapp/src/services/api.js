@@ -797,6 +797,75 @@ export const commerceService = {
       return [];
     }
   },
+  createProduct: async (productData) => {
+    const { data } = await api.post('/commerce/products', productData);
+    return data?.data || data;
+  },
+  updateProduct: async (id, productData) => {
+    const { data } = await api.put(`/commerce/products/${id}`, productData);
+    return data?.data || data;
+  },
+  deleteProduct: async (id) => {
+    const { data } = await api.delete(`/commerce/products/${id}`);
+    return data;
+  },
+};
+
+// ==================== NOTIFICATION SERVICE (Real DB / API) ====================
+export const notificationService = {
+  getNotifications: async (page = 1, limit = 20, isRead = null) => {
+    try {
+      let url = `/notifications?page=${page}&limit=${limit}`;
+      if (isRead !== null) {
+        url += `&isRead=${isRead}`;
+      }
+      const { data } = await api.get(url);
+      return data?.data || data?.notifications || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('notificationService.getNotifications error:', err.message);
+      return [];
+    }
+  },
+
+  getUnreadCount: async () => {
+    try {
+      const { data } = await api.get('/notifications/unread-count');
+      return data?.data?.unreadCount !== undefined ? data.data.unreadCount : (data?.unreadCount || 0);
+    } catch (err) {
+      console.warn('notificationService.getUnreadCount error:', err.message);
+      return 0;
+    }
+  },
+
+  markAsRead: async (notificationId) => {
+    try {
+      const { data } = await api.put(`/notifications/${notificationId}/read`);
+      return data;
+    } catch (err) {
+      console.warn('notificationService.markAsRead error:', err.message);
+      return null;
+    }
+  },
+
+  markAllAsRead: async () => {
+    try {
+      const { data } = await api.put('/notifications/mark-all-read');
+      return data;
+    } catch (err) {
+      console.warn('notificationService.markAllAsRead error:', err.message);
+      return null;
+    }
+  },
+
+  deleteNotification: async (notificationId) => {
+    try {
+      const { data } = await api.delete(`/notifications/${notificationId}`);
+      return data;
+    } catch (err) {
+      console.warn('notificationService.deleteNotification error:', err.message);
+      return null;
+    }
+  },
 };
 
 export default api;

@@ -58,6 +58,8 @@ import PhoneNumberStatusScreen from '../screens/whatsappConfig/PhoneNumberStatus
 import WhatsAppTwoStepScreen from '../screens/whatsappConfig/WhatsAppTwoStepScreen';
 import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDisconnectedScreen';
 import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
+import NotificationsScreen from '../screens/main/NotificationsScreen';
+import CommerceCatalogScreen from '../screens/main/CommerceCatalogScreen';
 
 const Stack = createStackNavigator();
 
@@ -134,6 +136,8 @@ export default function RootNavigator() {
         <Stack.Screen name="WhatsAppTwoStep" component={WhatsAppTwoStepScreen} />
         <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
         <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="CommerceCatalog" component={CommerceCatalogScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

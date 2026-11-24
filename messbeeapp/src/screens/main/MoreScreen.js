@@ -67,7 +67,7 @@ const MORE_TILES = [
     title: 'Commerce',
     subtitle: 'Manage commerce',
     icon: 'cart-outline',
-    action: () => Alert.alert('Commerce', 'Commerce catalog and orders.'),
+    route: 'CommerceCatalog',
   },
   {
     id: 'automation',
