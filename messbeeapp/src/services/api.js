@@ -986,4 +986,47 @@ export const customerService = {
   },
 };
 
+// ==================== CONTACT GROUP SERVICE (Real DB / API) ====================
+export const contactGroupService = {
+  getContactGroups: async () => {
+    try {
+      const { data } = await api.get('/contact-groups');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('contactGroupService.getContactGroups error:', err.message);
+      return [];
+    }
+  },
+
+  getContactGroup: async (id, page = 1, limit = 50) => {
+    try {
+      const { data } = await api.get(`/contact-groups/${id}?page=${page}&limit=${limit}`);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('contactGroupService.getContactGroup error:', err.message);
+      return null;
+    }
+  },
+
+  createContactGroup: async (groupData) => {
+    const { data } = await api.post('/contact-groups', groupData);
+    return data?.data || data;
+  },
+
+  updateContactGroup: async (id, groupData) => {
+    const { data } = await api.put(`/contact-groups/${id}`, groupData);
+    return data?.data || data;
+  },
+
+  deleteContactGroup: async (id) => {
+    const { data } = await api.delete(`/contact-groups/${id}`);
+    return data;
+  },
+
+  addContactsToGroup: async (id, contactIds) => {
+    const { data } = await api.post(`/contact-groups/${id}/contacts`, { contactIds });
+    return data?.data || data;
+  },
+};
+
 export default api;

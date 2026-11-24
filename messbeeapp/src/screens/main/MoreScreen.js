@@ -98,6 +98,13 @@ const MORE_TILES = [
     route: 'BillingInvoices',
   },
   {
+    id: 'contact_groups',
+    title: 'Audience Groups',
+    subtitle: 'Manage contact groups & segments',
+    icon: 'people-circle-outline',
+    route: 'ContactGroups',
+  },
+  {
     id: 'settings',
     title: 'Account and Settings',
     subtitle: 'Manage account and settings',
