@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,101 +9,115 @@ import {
   Platform,
   Image,
   Dimensions,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  authService,
+  contactService,
+  chatService,
+  campaignService,
+  notificationService,
+} from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
-const PEOPLE = [
-  {
-    id: '1',
-    name: 'Kunal',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    color: '#3B82F6',
-  },
-  {
-    id: '2',
-    name: 'Vinay',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    color: '#10B981',
-  },
-  {
-    id: '3',
-    name: 'Vaani',
-    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-    color: '#EC4899',
-  },
-  {
-    id: '4',
-    name: 'Ranjit',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-    color: '#F59E0B',
-  },
-  {
-    id: '5',
-    name: 'Puja',
-    avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150',
-    color: '#8B5CF6',
-  },
-  {
-    id: '6',
-    name: 'Rohit',
-    avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=150',
-    color: '#06B6D4',
-  },
-  {
-    id: '7',
-    name: 'Niha',
-    avatar: 'https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=150',
-    color: '#F43F5E',
-  },
+const AVATAR_PALETTE = [
+  { bg: '#FED7AA', text: '#C2410C' },
+  { bg: '#BFDBFE', text: '#1D4ED8' },
+  { bg: '#E9D5FF', text: '#7E22CE' },
+  { bg: '#BBF7D0', text: '#15803D' },
+  { bg: '#FECDD3', text: '#BE123C' },
+  { bg: '#FEF08A', text: '#A16207' },
 ];
 
-const RECENT_CHATS = [
-  {
-    id: '1',
-    name: 'Rahul Sharma',
-    initials: 'RS',
-    avatarBg: '#FED7AA',
-    avatarText: '#C2410C',
-    lastMessage: 'Can you share the product details?',
-    time: '10:42',
-    unread: 2,
-    online: true,
-  },
-  {
-    id: '2',
-    name: 'Priya Verma',
-    initials: 'PV',
-    avatarBg: '#BFDBFE',
-    avatarText: '#1D4ED8',
-    lastMessage: 'Thank you for your help!',
-    time: '9:15',
-    unread: 0,
-    online: false,
-  },
-  {
-    id: '3',
-    name: 'Amit Kumar',
-    initials: 'AK',
-    avatarBg: '#E9D5FF',
-    avatarText: '#7E22CE',
-    lastMessage: 'Please send me the pricing.',
-    time: 'Yesterday',
-    unread: 1,
-    online: false,
-  },
-];
+const getInitials = (name = '') => {
+  const parts = String(name).trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'MB';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+};
 
 export default function HomeScreen({ navigation }) {
   const [activeFilter, setActiveFilter] = useState('unread');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [contacts, setContacts] = useState([]);
+  const [chats, setChats] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+
+  const loadData = useCallback(async () => {
+    try {
+      const [userData, contactsData, chatsData, campaignsData, unreadCountData] = await Promise.all([
+        authService.getCurrentUser().catch(() => null),
+        contactService.getContacts().catch(() => []),
+        chatService.getChats().catch(() => []),
+        campaignService.getCampaigns().catch(() => []),
+        notificationService.getUnreadCount().catch(() => 0),
+      ]);
+
+      if (userData) {
+        setCurrentUser(userData?.data || userData?.user || userData);
+      }
+      setContacts(Array.isArray(contactsData) ? contactsData : []);
+      setChats(Array.isArray(chatsData) ? chatsData : []);
+      setCampaigns(Array.isArray(campaignsData) ? campaignsData : []);
+      setUnreadNotifications(typeof unreadCountData === 'number' ? unreadCountData : 0);
+    } catch (err) {
+      console.warn('HomeScreen loadData error:', err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+    const unsubscribe = navigation.addListener('focus', () => {
+      loadData();
+    });
+    return unsubscribe;
+  }, [navigation, loadData]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  // Filter chats based on activeFilter
+  const filteredChats = useMemo(() => {
+    if (activeFilter === 'unread') {
+      const unreadList = chats.filter((c) => (c.unreadCount || c.unread || 0) > 0);
+      return unreadList.length > 0 ? unreadList : chats;
+    }
+    if (activeFilter === 'followups') {
+      return chats.filter((c) =>
+        (c.labels || []).some((l) =>
+          typeof l === 'string'
+            ? l.toLowerCase().includes('follow')
+            : (l.name || '').toLowerCase().includes('follow')
+        )
+      );
+    }
+    if (activeFilter === 'campaigns') {
+      return chats.filter((c) => c.source === 'campaign' || c.campaignId);
+    }
+    return chats;
+  }, [chats, activeFilter]);
+
+  const userInitials = useMemo(() => {
+    return getInitials(currentUser?.name || currentUser?.fullName || 'Admin User');
+  }, [currentUser]);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* Top Header Bar (Logo on Left, Search & Profile on Right) */}
+      {/* Top Header Bar */}
       <View style={styles.header}>
         <View style={styles.logoRow}>
           <Image
@@ -124,11 +138,26 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={styles.notifBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="notifications-outline" size={20} color="#374151" />
+            {unreadNotifications > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.profileCircle}
             onPress={() => navigation.navigate('You')}
             activeOpacity={0.8}
           >
-            <Ionicons name="person-outline" size={18} color="#374151" />
+            <Text style={styles.profileInitialsText}>{userInitials}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -136,6 +165,9 @@ export default function HomeScreen({ navigation }) {
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#00B67A']} />
+        }
       >
         {/* Top Hero Banner */}
         <View style={styles.bannerContainer}>
@@ -175,7 +207,7 @@ export default function HomeScreen({ navigation }) {
           {/* Quick Replies */}
           <TouchableOpacity
             style={styles.quickActionItem}
-            onPress={() => navigation.navigate('Chats')}
+            onPress={() => navigation.navigate('QuickReplies')}
             activeOpacity={0.7}
           >
             <View style={styles.quickActionTile}>
@@ -228,25 +260,37 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.toolTitle}>Automation</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.toolCol} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.toolCol}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('AnalyticsOverview')}
+          >
             <View style={styles.toolSquircle}>
               <Ionicons name="bar-chart-outline" size={20} color="#00B67A" />
             </View>
             <Text style={styles.toolTitle}>Analytics</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.toolCol} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.toolCol}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('CrmPipeline')}
+          >
+            <View style={styles.toolSquircle}>
+              <Ionicons name="git-network-outline" size={20} color="#00B67A" />
+            </View>
+            <Text style={styles.toolTitle}>Pipeline</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.toolCol}
+            activeOpacity={0.7}
+            onPress={() => navigation.navigate('CommerceCatalog')}
+          >
             <View style={styles.toolSquircle}>
               <Ionicons name="cart-outline" size={20} color="#00B67A" />
             </View>
             <Text style={styles.toolTitle}>Commerce</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.toolCol} activeOpacity={0.7}>
-            <View style={styles.toolSquircle}>
-              <Ionicons name="cube-outline" size={20} color="#00B67A" />
-            </View>
-            <Text style={styles.toolTitle}>Inventory</Text>
           </TouchableOpacity>
         </View>
 
@@ -317,7 +361,7 @@ export default function HomeScreen({ navigation }) {
           </TouchableOpacity>
         </ScrollView>
 
-        {/* AI Copilot Resource Banner (Dark Forest Green Card) */}
+        {/* AI Copilot Resource Banner */}
         <View style={styles.copilotCard}>
           <View style={styles.copilotLeft}>
             <Text style={styles.copilotTag}>MESSBEE</Text>
@@ -327,7 +371,11 @@ export default function HomeScreen({ navigation }) {
             </Text>
           </View>
 
-          <TouchableOpacity style={styles.askButton} activeOpacity={0.85}>
+          <TouchableOpacity
+            style={styles.askButton}
+            activeOpacity={0.85}
+            onPress={() => navigation.navigate('BotMenu')}
+          >
             <Text style={styles.askButtonText}>Ask  ›</Text>
           </TouchableOpacity>
         </View>
@@ -336,64 +384,130 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>People</Text>
           <TouchableOpacity activeOpacity={0.7} onPress={() => navigation.navigate('Contacts')}>
-            <Text style={styles.exploreLink}>See all</Text>
+            <Text style={styles.exploreLink}>See all ({contacts.length})</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.peopleRow}
-        >
-          {PEOPLE.map((person) => (
-            <TouchableOpacity key={person.id} style={styles.personCol} activeOpacity={0.7}>
-              <Image source={{ uri: person.avatar }} style={styles.personAvatarImg} />
-              <Text style={styles.personName}>{person.name}</Text>
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color="#00B67A" />
+          </View>
+        ) : contacts.length === 0 ? (
+          <View style={styles.emptyPeopleBox}>
+            <Ionicons name="people-outline" size={28} color="#9CA3AF" />
+            <Text style={styles.emptyText}>No contacts yet</Text>
+            <TouchableOpacity
+              style={styles.emptyAddBtn}
+              onPress={() => navigation.navigate('AddContact')}
+            >
+              <Text style={styles.emptyAddBtnText}>+ Add Contact</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.peopleRow}
+          >
+            {contacts.slice(0, 15).map((person, index) => {
+              const pal = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
+              const initials = getInitials(person.name || person.phone || 'Contact');
+              return (
+                <TouchableOpacity
+                  key={person._id || person.id || `person_${index}`}
+                  style={styles.personCol}
+                  activeOpacity={0.7}
+                  onPress={() => navigation.navigate('Contacts')}
+                >
+                  <View style={[styles.personAvatarCircle, { backgroundColor: pal.bg }]}>
+                    <Text style={[styles.personAvatarInitials, { color: pal.text }]}>
+                      {initials}
+                    </Text>
+                  </View>
+                  <Text style={styles.personName} numberOfLines={1}>
+                    {(person.name || person.phone || '').split(' ')[0]}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        )}
 
         {/* Recent Chats Section */}
         <View style={styles.sectionHeaderRow}>
           <Text style={styles.sectionTitle}>Recent Chats</Text>
           <TouchableOpacity onPress={() => navigation.navigate('Chats')} activeOpacity={0.7}>
-            <Text style={styles.exploreLink}>View all</Text>
+            <Text style={styles.exploreLink}>View all ({chats.length})</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.chatsList}>
-          {RECENT_CHATS.map((chat) => (
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="small" color="#00B67A" />
+          </View>
+        ) : filteredChats.length === 0 ? (
+          <View style={styles.emptyChatsBox}>
+            <Ionicons name="chatbubbles-outline" size={32} color="#9CA3AF" />
+            <Text style={styles.emptyText}>No active conversations</Text>
             <TouchableOpacity
-              key={chat.id}
-              style={styles.chatCardRow}
-              onPress={() => navigation.navigate('ChatDetail', { chat })}
-              activeOpacity={0.7}
+              style={styles.emptyAddBtn}
+              onPress={() => navigation.navigate('Chats')}
             >
-              <View style={[styles.chatAvatarCircle, { backgroundColor: chat.avatarBg }]}>
-                <Text style={[styles.chatAvatarInitials, { color: chat.avatarText }]}>
-                  {chat.initials}
-                </Text>
-              </View>
-
-              <View style={styles.chatDetailsCol}>
-                <View style={styles.chatTopLine}>
-                  <Text style={styles.chatContactName}>{chat.name}</Text>
-                  <Text style={styles.chatTimeText}>{chat.time}</Text>
-                </View>
-                <View style={styles.chatBottomLine}>
-                  <Text style={styles.chatPreviewText} numberOfLines={1}>
-                    {chat.lastMessage}
-                  </Text>
-                  {chat.unread > 0 && (
-                    <View style={styles.unreadCountBadge}>
-                      <Text style={styles.unreadCountText}>{chat.unread}</Text>
-                    </View>
-                  )}
-                </View>
-              </View>
+              <Text style={styles.emptyAddBtnText}>Start a chat</Text>
             </TouchableOpacity>
-          ))}
-        </View>
+          </View>
+        ) : (
+          <View style={styles.chatsList}>
+            {filteredChats.slice(0, 8).map((chat, index) => {
+              const pal = AVATAR_PALETTE[index % AVATAR_PALETTE.length];
+              const name = chat.name || chat.phone || chat.contactName || 'WhatsApp Contact';
+              const initials = getInitials(name);
+              const unread = chat.unreadCount || chat.unread || 0;
+              const lastMsg =
+                chat.lastMessage?.text ||
+                chat.lastMessage ||
+                chat.snippet ||
+                'Tap to open conversation';
+              const time =
+                chat.lastMessageTime ||
+                (chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '');
+
+              return (
+                <TouchableOpacity
+                  key={chat._id || chat.id || `chat_${index}`}
+                  style={styles.chatCardRow}
+                  onPress={() => navigation.navigate('ChatDetail', { chat })}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.chatAvatarCircle, { backgroundColor: pal.bg }]}>
+                    <Text style={[styles.chatAvatarInitials, { color: pal.text }]}>
+                      {initials}
+                    </Text>
+                  </View>
+
+                  <View style={styles.chatDetailsCol}>
+                    <View style={styles.chatTopLine}>
+                      <Text style={styles.chatContactName} numberOfLines={1}>
+                        {name}
+                      </Text>
+                      {!!time && <Text style={styles.chatTimeText}>{time}</Text>}
+                    </View>
+                    <View style={styles.chatBottomLine}>
+                      <Text style={styles.chatPreviewText} numberOfLines={1}>
+                        {lastMsg}
+                      </Text>
+                      {unread > 0 && (
+                        <View style={styles.unreadCountBadge}>
+                          <Text style={styles.unreadCountText}>{unread}</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
 
         {/* Footer Caught Up Note */}
         <Text style={styles.caughtUpText}>You're all caught up</Text>
@@ -445,73 +559,94 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     fontWeight: '500',
   },
-  profileCircle: {
+  notifBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  notifBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    backgroundColor: '#EF4444',
+    borderRadius: 9,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+  },
+  notifBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  profileCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E2FBE8',
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#A7F3D0',
+  },
+  profileInitialsText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#059669',
   },
   scrollContent: {
-    paddingBottom: 32,
+    paddingBottom: 40,
   },
-
-  /* Hero Banner */
   bannerContainer: {
-    marginHorizontal: 16,
-    marginTop: 10,
-    marginBottom: 14,
-    alignItems: 'center',
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 3,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   bannerImage: {
-    width: width - 32,
-    height: (width - 32) * (416 / 863),
-    borderRadius: 20,
+    width: '100%',
+    height: 140,
+    borderRadius: 14,
   },
-
-  /* 4 Quick Actions */
   quickActionsGrid: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    marginBottom: 20,
+    justifyContent: 'space-around',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
   },
   quickActionItem: {
     alignItems: 'center',
-    width: (width - 36 - 36) / 4,
+    gap: 6,
   },
   quickActionTile: {
-    width: 64,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: '#E6F4EA',
-    justifyContent: 'center',
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#F0FDF4',
     alignItems: 'center',
-    marginBottom: 6,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#DCFCE7',
   },
   quickActionLabel: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1F2937',
-    textAlign: 'center',
+    color: '#374151',
   },
-
-  /* Business Tools */
   sectionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 18,
-    marginBottom: 12,
+    paddingTop: 16,
+    paddingBottom: 10,
   },
   sectionTitle: {
     fontSize: 16,
@@ -525,157 +660,151 @@ const styles = StyleSheet.create({
   },
   businessToolsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: 18,
-    marginBottom: 16,
+    justifyContent: 'space-around',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
   },
   toolCol: {
     alignItems: 'center',
-    width: (width - 36 - 32) / 5,
+    gap: 6,
   },
   toolSquircle: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
+    backgroundColor: '#F8FAFC',
     alignItems: 'center',
-    marginBottom: 6,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   toolTitle: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '600',
-    color: '#374151',
-    textAlign: 'center',
+    color: '#4B5563',
   },
-
-  /* Filter Pills */
   filterPillsRow: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     gap: 8,
-    marginBottom: 18,
+    paddingVertical: 10,
   },
   filterPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 18,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: '#E2E8F0',
+    gap: 6,
   },
   filterPillActive: {
-    backgroundColor: '#E8F5E9',
-    borderColor: '#00B67A',
+    backgroundColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
   },
   filterPillText: {
     fontSize: 12,
-    color: '#4B5563',
-    fontWeight: '500',
+    fontWeight: '600',
+    color: '#6B7280',
   },
   filterPillTextActive: {
-    color: '#00B67A',
-    fontWeight: '700',
+    color: '#059669',
   },
-
-  /* AI Copilot Card */
   copilotCard: {
-    marginHorizontal: 18,
+    marginHorizontal: 16,
+    marginVertical: 10,
     backgroundColor: '#064E3B',
-    borderRadius: 18,
-    padding: 16,
+    borderRadius: 16,
+    padding: 18,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 8,
-    elevation: 4,
+    alignItems: 'center',
   },
   copilotLeft: {
     flex: 1,
-    paddingRight: 12,
+    paddingRight: 10,
   },
   copilotTag: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#34D399',
-    letterSpacing: 1,
-    marginBottom: 3,
+    color: '#6EE7B7',
+    letterSpacing: 0.8,
+    marginBottom: 4,
   },
   copilotHeading: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginBottom: 3,
+    marginBottom: 4,
   },
   copilotDesc: {
-    fontSize: 11,
-    color: '#A7F3D0',
-    lineHeight: 15,
+    fontSize: 12,
+    color: '#D1FAE5',
+    lineHeight: 16,
   },
   askButton: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#10B981',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    borderRadius: 16,
+    borderRadius: 20,
   },
   askButtonText: {
-    color: '#064E3B',
+    color: '#FFFFFF',
     fontSize: 12,
     fontWeight: '700',
   },
-
-  /* People Carousel */
   peopleRow: {
-    paddingHorizontal: 18,
+    paddingHorizontal: 16,
     gap: 14,
-    marginBottom: 22,
+    paddingBottom: 6,
   },
   personCol: {
     alignItems: 'center',
+    gap: 4,
+    width: 60,
   },
-  personAvatarImg: {
+  personAvatarCircle: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    marginBottom: 6,
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  personAvatarInitials: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   personName: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '500',
     color: '#374151',
+    textAlign: 'center',
   },
-
-  /* Recent Chats */
   chatsList: {
-    paddingHorizontal: 18,
-    marginBottom: 16,
+    paddingHorizontal: 16,
+    gap: 10,
   },
   chatCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F8FAFC',
+    paddingHorizontal: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+    gap: 12,
   },
   chatAvatarCircle: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    justifyContent: 'center',
   },
   chatAvatarInitials: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
   },
   chatDetailsCol: {
@@ -689,7 +818,7 @@ const styles = StyleSheet.create({
   },
   chatContactName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#111827',
   },
   chatTimeText: {
@@ -702,30 +831,59 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   chatPreviewText: {
-    flex: 1,
     fontSize: 12,
     color: '#6B7280',
-    paddingRight: 8,
+    flex: 1,
   },
   unreadCountBadge: {
     backgroundColor: '#00B67A',
-    borderRadius: 9,
+    borderRadius: 10,
     minWidth: 18,
     height: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
     paddingHorizontal: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: 6,
   },
   unreadCountText: {
-    color: '#FFFFFF',
     fontSize: 10,
     fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  loadingBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyPeopleBox: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    gap: 6,
+  },
+  emptyChatsBox: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+  },
+  emptyAddBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#ECFDF5',
+    borderRadius: 14,
+  },
+  emptyAddBtnText: {
+    fontSize: 12,
+    color: '#059669',
+    fontWeight: '600',
   },
   caughtUpText: {
     textAlign: 'center',
-    fontSize: 11,
+    fontSize: 12,
     color: '#9CA3AF',
-    marginTop: 8,
-    marginBottom: 10,
+    marginTop: 20,
   },
 });

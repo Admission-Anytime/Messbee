@@ -12,62 +12,19 @@ import {
   Alert,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService } from '../../services/api';
-
-const QUICK_REPLIES = [
-  'I see. Tell me more.',
-  'Could you clarify that?',
-  "I'll look into this right away.",
-];
+import { chatService, quickReplyService } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
-  const { chat = { _id: 'chat_1', name: '919350157447', phone: '+91 9350157447', status: 'Open', avatarText: '91' } } =
+  const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
     route.params || {};
 
-  const [messages, setMessages] = useState([
-    {
-      id: 'm1',
-      type: 'text',
-      text: "Hi, I'd like to know more about the admission process.",
-      time: '10:18 AM',
-      sender: 'customer',
-    },
-    {
-      id: 'm2',
-      type: 'text',
-      text: "Of course! I'd be happy to help. Which program are you interested in?",
-      time: '10:20 AM',
-      sender: 'me',
-      status: 'delivered',
-    },
-    {
-      id: 'm3',
-      type: 'template',
-      bannerText: 'Build your future.',
-      templateTag: 'ADMISSION_WELCOME_V1',
-      text: 'Hello! Thank you for contacting Admission Anytime. Our admissions team will guide you through every step.',
-      time: '10:40 AM',
-      sender: 'me',
-      status: 'delivered',
-    },
-    {
-      id: 'm4',
-      type: 'text',
-      text: 'Could you clarify that?',
-      time: '10:41 AM',
-      sender: 'customer',
-    },
-    {
-      id: 'm5',
-      type: 'error',
-      title: 'Message not delivered',
-      subtitle: 'Template outside the 24-hour window. Send an approved template to restart the conversation.',
-      sender: 'system',
-    },
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [quickReplies, setQuickReplies] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const [inputText, setInputText] = useState('');
   const [currentStatus, setCurrentStatus] = useState(chat.status || 'Open');
@@ -80,26 +37,47 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const flatListRef = useRef(null);
 
-  // Load real messages if available
+  // Load real messages & quick replies from backend
   useEffect(() => {
-    const fetchChatMessages = async () => {
-      if (chat._id) {
-        const liveMsgs = await chatService.getMessages(chat._id);
-        if (Array.isArray(liveMsgs) && liveMsgs.length > 0) {
-          const mapped = liveMsgs.map((m, idx) => ({
-            id: m._id || `m_${idx}`,
-            type: m.template ? 'template' : 'text',
-            text: m.text || m.body || '',
-            time: m.time || '10:42 AM',
-            sender: m.sender === 'me' || m.sender === 'user' ? 'me' : 'customer',
-            status: m.status || 'delivered',
-            templateTag: m.templateName,
-          }));
-          setMessages(mapped);
+    let isMounted = true;
+    const fetchChatData = async () => {
+      setLoading(true);
+      try {
+        const [liveMsgs, liveQuickReplies] = await Promise.all([
+          chat._id ? chatService.getMessages(chat._id).catch(() => []) : Promise.resolve([]),
+          quickReplyService.getQuickReplies().catch(() => []),
+        ]);
+
+        if (isMounted) {
+          if (Array.isArray(liveMsgs)) {
+            const mapped = liveMsgs.map((m, idx) => ({
+              id: m._id || m.id || `m_${idx}`,
+              type: m.template ? 'template' : (m.status === 'failed' ? 'error' : 'text'),
+              text: m.text || m.body || m.message || '',
+              time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:42 AM'),
+              sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
+              status: m.status || 'delivered',
+              templateTag: m.templateName || m.template?.name,
+            }));
+            setMessages(mapped);
+          }
+
+          if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
+            setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
+          } else {
+            setQuickReplies(['I see. Tell me more.', 'Could you clarify that?', "I'll look into this right away."]);
+          }
         }
+      } catch (err) {
+        console.warn('Chat data loading note:', err.message);
+      } finally {
+        if (isMounted) setLoading(false);
       }
     };
-    fetchChatMessages();
+    fetchChatData();
+    return () => {
+      isMounted = false;
+    };
   }, [chat._id]);
 
   // Handle status update from UpdateLeadStatusModal
@@ -380,36 +358,45 @@ export default function ChatDetailScreen({ route, navigation }) {
             </>
           }
           ListEmptyComponent={
-            /* Cleared Chat Empty State (Image 2 Screen 7) */
-            <View style={styles.clearedEmptyBox}>
-              <View style={styles.clearedIconSquircle}>
-                <Ionicons name="chatbubble-outline" size={26} color="#00875A" />
+            loading ? (
+              <View style={[styles.clearedEmptyBox, { paddingVertical: 40 }]}>
+                <ActivityIndicator size="large" color="#00875A" />
+                <Text style={[styles.clearedSubtext, { marginTop: 12 }]}>Loading messages...</Text>
               </View>
-              <Text style={styles.clearedHeading}>No messages yet</Text>
-              <Text style={styles.clearedSubtext}>Your conversation history has been cleared.</Text>
-            </View>
+            ) : (
+              /* Cleared Chat Empty State (Image 2 Screen 7) */
+              <View style={styles.clearedEmptyBox}>
+                <View style={styles.clearedIconSquircle}>
+                  <Ionicons name="chatbubble-outline" size={26} color="#00875A" />
+                </View>
+                <Text style={styles.clearedHeading}>No messages yet</Text>
+                <Text style={styles.clearedSubtext}>Start the conversation by typing a message below.</Text>
+              </View>
+            )
           }
         />
 
         {/* Quick Reply Suggestion Pills */}
-        <View style={styles.quickRepliesContainer}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={QUICK_REPLIES}
-            keyExtractor={(item) => item}
-            renderItem={({ item }) => (
-              <TouchableOpacity
-                style={styles.quickReplyPill}
-                onPress={() => setInputText(item)}
-                activeOpacity={0.75}
-              >
-                <Text style={styles.quickReplyText}>{item}</Text>
-              </TouchableOpacity>
-            )}
-            contentContainerStyle={styles.quickRepliesList}
-          />
-        </View>
+        {quickReplies.length > 0 && (
+          <View style={styles.quickRepliesContainer}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={quickReplies}
+              keyExtractor={(item, index) => `${item}_${index}`}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.quickReplyPill}
+                  onPress={() => setInputText(item)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={styles.quickReplyText}>{item}</Text>
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={styles.quickRepliesList}
+            />
+          </View>
+        )}
 
         {/* Bottom Input Composer */}
         <View style={styles.composerBar}>

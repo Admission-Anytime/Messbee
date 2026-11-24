@@ -5,6 +5,8 @@ import { createStackNavigator } from '@react-navigation/stack';
 import SplashScreen from '../screens/onboarding/SplashScreen';
 import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
 import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
 import PhoneVerifiedSuccessScreen from '../screens/auth/PhoneVerifiedSuccessScreen';
 import BottomTabNavigator from './BottomTabNavigator';
@@ -14,6 +16,10 @@ import TemplateSelectionScreen from '../screens/main/TemplateSelectionScreen';
 import BotMenuScreen from '../screens/main/BotMenuScreen';
 import CrmPipelineScreen from '../screens/main/CrmPipelineScreen';
 import LabelsScreen from '../screens/main/LabelsScreen';
+import LabelDetailsScreen from '../screens/main/LabelDetailsScreen';
+import EditLabelScreen from '../screens/main/EditLabelScreen';
+import AddLabelScreen from '../screens/main/AddLabelScreen';
+import AddContactScreen from '../screens/main/AddContactScreen';
 import TemplatesScreen from '../screens/main/TemplatesScreen';
 import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
@@ -22,6 +28,18 @@ import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
 import ApiManagementScreen from '../screens/main/ApiManagementScreen';
 import SecuritySettingsScreen from '../screens/main/SecuritySettingsScreen';
 import NotificationsSettingsScreen from '../screens/main/NotificationsSettingsScreen';
+import CustomFieldsScreen from '../screens/main/CustomFieldsScreen';
+import CreateCustomFieldScreen from '../screens/main/CreateCustomFieldScreen';
+import EditCustomFieldScreen from '../screens/main/EditCustomFieldScreen';
+import QuickRepliesScreen from '../screens/main/QuickRepliesScreen';
+import AddQuickReplyScreen from '../screens/main/AddQuickReplyScreen';
+import EditQuickReplyScreen from '../screens/main/EditQuickReplyScreen';
+import StatusScreen from '../screens/main/StatusScreen';
+import AnalyticsOverviewScreen from '../screens/analytics/AnalyticsOverviewScreen';
+import ConversationalAnalyticsScreen from '../screens/analytics/ConversationalAnalyticsScreen';
+import MessageAnalyticsScreen from '../screens/analytics/MessageAnalyticsScreen';
+import TemplateAnalyticsScreen from '../screens/analytics/TemplateAnalyticsScreen';
+import CampaignAnalyticsScreen from '../screens/analytics/CampaignAnalyticsScreen';
 import TemplateVariablesScreen from '../screens/main/TemplateVariablesScreen';
 import ConfirmSendTemplateScreen from '../screens/main/ConfirmSendTemplateScreen';
 import TemplateSuccessScreen from '../screens/main/TemplateSuccessScreen';
@@ -40,6 +58,11 @@ import PhoneNumberStatusScreen from '../screens/whatsappConfig/PhoneNumberStatus
 import WhatsAppTwoStepScreen from '../screens/whatsappConfig/WhatsAppTwoStepScreen';
 import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDisconnectedScreen';
 import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
+import NotificationsScreen from '../screens/main/NotificationsScreen';
+import CommerceCatalogScreen from '../screens/main/CommerceCatalogScreen';
+import InventoryScreen from '../screens/main/InventoryScreen';
+import BillingInvoicesScreen from '../screens/main/BillingInvoicesScreen';
+import ContactGroupsScreen from '../screens/main/ContactGroupsScreen';
 
 const Stack = createStackNavigator();
 
@@ -63,15 +86,28 @@ export default function RootNavigator() {
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
         <Stack.Screen name="PhoneVerifiedSuccess" component={PhoneVerifiedSuccessScreen} />
         <Stack.Screen name="MainTabs" component={BottomTabNavigator} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
         <Stack.Screen name="ContactCRM" component={ContactCrmScreen} />
+        <Stack.Screen name="AddContact" component={AddContactScreen} />
         <Stack.Screen name="TemplateSelection" component={TemplateSelectionScreen} />
         <Stack.Screen name="BotMenu" component={BotMenuScreen} />
         <Stack.Screen name="CrmPipeline" component={CrmPipelineScreen} />
         <Stack.Screen name="Labels" component={LabelsScreen} />
+        <Stack.Screen name="LabelDetails" component={LabelDetailsScreen} />
+        <Stack.Screen name="EditLabel" component={EditLabelScreen} />
+        <Stack.Screen name="AddLabel" component={AddLabelScreen} />
+        <Stack.Screen name="CustomFields" component={CustomFieldsScreen} />
+        <Stack.Screen name="CreateCustomField" component={CreateCustomFieldScreen} />
+        <Stack.Screen name="EditCustomField" component={EditCustomFieldScreen} />
+        <Stack.Screen name="QuickReplies" component={QuickRepliesScreen} />
+        <Stack.Screen name="AddQuickReply" component={AddQuickReplyScreen} />
+        <Stack.Screen name="EditQuickReply" component={EditQuickReplyScreen} />
+        <Stack.Screen name="StatusScreen" component={StatusScreen} />
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
@@ -80,6 +116,11 @@ export default function RootNavigator() {
         <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
         <Stack.Screen name="SecuritySettings" component={SecuritySettingsScreen} />
         <Stack.Screen name="NotificationsSettings" component={NotificationsSettingsScreen} />
+        <Stack.Screen name="AnalyticsOverview" component={AnalyticsOverviewScreen} />
+        <Stack.Screen name="ConversationalAnalytics" component={ConversationalAnalyticsScreen} />
+        <Stack.Screen name="MessageAnalytics" component={MessageAnalyticsScreen} />
+        <Stack.Screen name="TemplateAnalytics" component={TemplateAnalyticsScreen} />
+        <Stack.Screen name="CampaignAnalytics" component={CampaignAnalyticsScreen} />
         <Stack.Screen name="TemplateVariables" component={TemplateVariablesScreen} />
         <Stack.Screen name="ConfirmSendTemplate" component={ConfirmSendTemplateScreen} />
         <Stack.Screen name="TemplateSuccess" component={TemplateSuccessScreen} />
@@ -98,6 +139,11 @@ export default function RootNavigator() {
         <Stack.Screen name="WhatsAppTwoStep" component={WhatsAppTwoStepScreen} />
         <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
         <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
+        <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="CommerceCatalog" component={CommerceCatalogScreen} />
+        <Stack.Screen name="Inventory" component={InventoryScreen} />
+        <Stack.Screen name="BillingInvoices" component={BillingInvoicesScreen} />
+        <Stack.Screen name="ContactGroups" component={ContactGroupsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

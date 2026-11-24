@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,19 +9,70 @@ import {
   TextInput,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { authService } from '../../services/api';
 
 export default function PersonalInfoScreen({ navigation }) {
-  const [name, setName] = useState('Arshlan Khan');
-  const [email, setEmail] = useState('admin@messbee.com');
-  const [phone, setPhone] = useState('+91 8181756688');
-  const [role, setRole] = useState('Administrator / Owner');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [role, setRole] = useState('Workspace Member');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    Alert.alert('Saved', 'Personal information updated successfully!');
+  useEffect(() => {
+    loadUserData();
+  }, []);
+
+  const loadUserData = async () => {
+    try {
+      setLoading(true);
+      const [user, profile] = await Promise.all([
+        authService.getCurrentUser().catch(() => null),
+        authService.getUserProfile().catch(() => null),
+      ]);
+
+      const activeUser = user || profile;
+      if (activeUser) {
+        setName(activeUser.name || activeUser.fullName || '');
+        setEmail(activeUser.email || activeUser.emailId || '');
+        setPhone(activeUser.phone || activeUser.mobileNumber || '');
+        setRole(activeUser.role || (activeUser.isAdmin ? 'Administrator / Owner' : 'Team Member'));
+      }
+    } catch (err) {
+      console.warn('loadUserData error:', err.message);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      await authService.updateUserProfile({
+        name,
+        email,
+        phone,
+      });
+      Alert.alert('Success', 'Personal information updated successfully!');
+    } catch (err) {
+      Alert.alert('Error', err?.response?.data?.message || 'Failed to update personal information.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const initials = name
+    ? name
+        .split(' ')
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((n) => n[0].toUpperCase())
+        .join('')
+    : 'MB';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -37,8 +88,12 @@ export default function PersonalInfoScreen({ navigation }) {
           <Ionicons name="chevron-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Personal Information</Text>
-        <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave}>
-          <Text style={styles.saveHeaderText}>Save</Text>
+        <TouchableOpacity style={styles.saveHeaderBtn} onPress={handleSave} disabled={saving}>
+          {saving ? (
+            <ActivityIndicator size="small" color="#00B67A" />
+          ) : (
+            <Text style={styles.saveHeaderText}>Save</Text>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -46,10 +101,17 @@ export default function PersonalInfoScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
+        {loading && (
+          <View style={{ paddingVertical: 12, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#00875A" />
+            <Text style={{ marginTop: 6, fontSize: 13, color: '#64748B' }}>Loading user details...</Text>
+          </View>
+        )}
+
         {/* User Avatar Big */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>AK</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <TouchableOpacity style={styles.changePhotoBtn} activeOpacity={0.8}>
             <Ionicons name="camera-outline" size={16} color="#00B67A" />

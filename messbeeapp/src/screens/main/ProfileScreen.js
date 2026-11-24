@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,8 +11,40 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { authService } from '../../services/api';
 
 export default function ProfileScreen({ navigation }) {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const [u, p] = await Promise.all([
+          authService.getCurrentUser().catch(() => null),
+          authService.getUserProfile().catch(() => null),
+        ]);
+        setUser(p || u);
+      } catch (err) {
+        console.warn('Profile fetch error:', err.message);
+      }
+    };
+    fetchUser();
+    const unsub = navigation.addListener('focus', fetchUser);
+    return unsub;
+  }, [navigation]);
+
+  const displayName = user?.name || user?.businessName || 'Workspace Member';
+  const subtitle = user?.email && user?.phone
+    ? `${user.phone} • ${user.email}`
+    : (user?.email || user?.phone || 'admin@messbee.com');
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || 'MB';
+  const plan = user?.plan ? `${user.plan.toUpperCase()} PLAN` : 'PRO PLAN';
+
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of your MessBee account?', [
       { text: 'Cancel', style: 'cancel' },
@@ -47,13 +79,13 @@ export default function ProfileScreen({ navigation }) {
         {/* User Business Card */}
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>AK</Text>
+            <Text style={styles.avatarText}>{initials}</Text>
           </View>
           <View style={styles.userInfoCol}>
-            <Text style={styles.userName}>Arshlan Khan</Text>
-            <Text style={styles.userSubtitle}>+91 8181756688 • admin@messbee.com</Text>
+            <Text style={styles.userName}>{displayName}</Text>
+            <Text style={styles.userSubtitle}>{subtitle}</Text>
             <View style={styles.planBadge}>
-              <Text style={styles.planBadgeText}>PRO PLAN</Text>
+              <Text style={styles.planBadgeText}>{plan}</Text>
             </View>
           </View>
         </View>

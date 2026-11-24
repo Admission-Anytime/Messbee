@@ -22,7 +22,7 @@ const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('phone'); // 'email' | 'phone'
-  const [phoneNumber, setPhoneNumber] = useState('81818788688');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
   const [loading, setLoading] = useState(false);
@@ -229,6 +229,13 @@ export default function LoginScreen({ navigation }) {
             </View>
           )}
 
+          {/* Forgot Password Link */}
+          <View style={{ alignItems: 'flex-end', marginTop: 10, marginBottom: 4 }}>
+            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#00875A' }}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Error Message if any */}
           {errorMessage ? (
             <Text style={styles.errorText}>{errorMessage}</Text>
@@ -252,7 +259,7 @@ export default function LoginScreen({ navigation }) {
         {/* Bottom Footer: Don't have account? Create Account */}
         <View style={styles.footerRow}>
           <Text style={styles.footerText}>Don't have account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('MainTabs')}>
+          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
             <Text style={styles.createAccountText}>Create Account</Text>
           </TouchableOpacity>
         </View>
