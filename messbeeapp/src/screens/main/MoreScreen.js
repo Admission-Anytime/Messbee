@@ -91,6 +91,13 @@ const MORE_TILES = [
     route: 'Inventory',
   },
   {
+    id: 'billing_invoices',
+    title: 'Billing & Invoices',
+    subtitle: 'Manage invoices and billing',
+    icon: 'receipt-outline',
+    route: 'BillingInvoices',
+  },
+  {
     id: 'settings',
     title: 'Account and Settings',
     subtitle: 'Manage account and settings',

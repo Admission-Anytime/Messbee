@@ -913,4 +913,77 @@ export const inventoryService = {
   },
 };
 
+// ==================== BILLING SERVICE (Real DB / API) ====================
+export const billingService = {
+  getTransactions: async () => {
+    try {
+      const { data } = await api.get('/billing/transactions');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('billingService.getTransactions error:', err.message);
+      return [];
+    }
+  },
+
+  createTransaction: async (txnData) => {
+    const { data } = await api.post('/billing/transactions', txnData);
+    return data?.data || data;
+  },
+
+  createRazorpayOrder: async (orderData) => {
+    const { data } = await api.post('/billing/razorpay/create-order', orderData);
+    return data?.data || data;
+  },
+};
+
+// ==================== SALES & INVOICES SERVICE (Real DB / API) ====================
+export const salesService = {
+  getSales: async (search = '', page = 1, limit = 20) => {
+    try {
+      let url = `/sales?page=${page}&limit=${limit}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('salesService.getSales error:', err.message);
+      return [];
+    }
+  },
+
+  getSale: async (id) => {
+    try {
+      const { data } = await api.get(`/sales/${id}`);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('salesService.getSale error:', err.message);
+      return null;
+    }
+  },
+
+  createSale: async (saleData) => {
+    const { data } = await api.post('/sales', saleData);
+    return data?.data || data;
+  },
+};
+
+// ==================== CUSTOMER SERVICE (Real DB / API) ====================
+export const customerService = {
+  getCustomers: async (search = '', page = 1, limit = 50) => {
+    try {
+      let url = `/customers?page=${page}&limit=${limit}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('customerService.getCustomers error:', err.message);
+      return [];
+    }
+  },
+
+  createCustomer: async (customerData) => {
+    const { data } = await api.post('/customers', customerData);
+    return data?.data || data;
+  },
+};
+
 export default api;
