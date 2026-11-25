@@ -118,56 +118,29 @@ export const contactService = {
       if (Array.isArray(payload)) return payload;
       return [];
     } catch (err) {
-      try {
-        const fallback = await api.get('/contact', { params });
-        const p = fallback.data;
-        if (p && Array.isArray(p.contacts)) return p.contacts;
-        if (p && Array.isArray(p.data)) return p.data;
-        if (Array.isArray(p)) return p;
-      } catch (_) {}
       console.warn('contactService.getContacts error:', err.message);
       return [];
     }
   },
 
   getContactById: async (id) => {
-    try {
-      const response = await api.get(`/contacts/${id}`);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.get(`/contact/${id}`);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.get(`/contacts/${id}`);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   createContact: async (contactData) => {
-    try {
-      const response = await api.post('/contacts', contactData);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.post('/contact', contactData);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.post('/contacts', contactData);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   updateContact: async (id, contactData) => {
-    try {
-      const response = await api.put(`/contacts/${id}`, contactData);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.put(`/contact/${id}`, contactData);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.put(`/contacts/${id}`, contactData);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   deleteContact: async (id) => {
-    try {
-      const response = await api.delete(`/contacts/${id}`);
-      return response.data;
-    } catch (err) {
-      const fb = await api.delete(`/contact/${id}`);
-      return fb.data;
-    }
+    const response = await api.delete(`/contacts/${id}`);
+    return response.data;
   },
 
   bulkDelete: async (ids) => {
