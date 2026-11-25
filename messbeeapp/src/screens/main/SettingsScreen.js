@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import { authService } from '../../services/api';
 
 const SECTIONS = [
   {
@@ -152,7 +153,10 @@ export default function SettingsScreen({ navigation }) {
       {
         text: 'Log Out',
         style: 'destructive',
-        onPress: () => navigation.replace('Login'),
+        onPress: async () => {
+          await authService.logout();
+          navigation.replace('Login');
+        },
       },
     ]);
   };

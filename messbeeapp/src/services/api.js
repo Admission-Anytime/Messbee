@@ -1,6 +1,9 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const AUTH_TOKEN_KEY = 'messbee_auth_token';
 
 // Backend runs on port 5002
 // Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
@@ -24,14 +27,48 @@ const api = axios.create({
 
 let userToken = null;
 
-export const setAuthToken = (token) => {
-  userToken = token;
+export const setAuthToken = async (token) => {
+  userToken = token || null;
+  try {
+    if (token) {
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+  } catch (e) {
+    console.warn('AsyncStorage setAuthToken error:', e.message);
+  }
+};
+
+export const loadAuthToken = async () => {
+  if (userToken) return userToken;
+  try {
+    const stored = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
+    if (stored) {
+      userToken = stored;
+    }
+    return stored || null;
+  } catch (e) {
+    console.warn('AsyncStorage loadAuthToken error:', e.message);
+    return null;
+  }
 };
 
 export const getAuthToken = () => userToken;
 
+const extractToken = (data) =>
+  data?.accessToken ||
+  data?.token ||
+  data?.tokens?.accessToken ||
+  data?.data?.accessToken ||
+  data?.data?.tokens?.accessToken ||
+  null;
+
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (!userToken) {
+      await loadAuthToken();
+    }
     if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
     }
@@ -54,8 +91,9 @@ export const authService = {
   },
   verifySignupOTP: async (email, otp) => {
     const { data } = await api.post('/auth/signup/verify-otp', { email, otp });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    if (token) {
+      await setAuthToken(token);
     }
     return data;
   },
@@ -65,8 +103,9 @@ export const authService = {
   },
   verifyLoginOTP: async (email, otp) => {
     const { data } = await api.post('/auth/login/verify-otp', { email, otp });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    if (token) {
+      await setAuthToken(token);
     }
     return data;
   },
@@ -76,10 +115,14 @@ export const authService = {
   },
   loginWithPassword: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    if (token) {
+      await setAuthToken(token);
     }
     return data;
+  },
+  logout: async () => {
+    await setAuthToken(null);
   },
   getCurrentUser: async () => {
     const { data } = await api.get('/auth/me');
