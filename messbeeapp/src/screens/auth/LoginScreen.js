@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { authService } from '../../services/api';
+import { authService, getServerEnvironment, setServerEnvironment } from '../../services/api';
 import { isValidEmail } from '../../utils/validation';
 
 const { width, height } = Dimensions.get('window');
@@ -28,6 +28,14 @@ export default function LoginScreen({ navigation }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [serverEnv, setServerEnv] = useState(getServerEnvironment());
+
+  const toggleServerEnv = async () => {
+    const next = serverEnv === 'live' ? 'local' : 'live';
+    await setServerEnvironment(next);
+    setServerEnv(next);
+    setErrorMessage('');
+  };
 
   const handleLogin = async () => {
     setErrorMessage('');
@@ -243,6 +251,29 @@ export default function LoginScreen({ navigation }) {
                 {activeTab === 'password' ? 'Login' : 'Send OTP'}
               </Text>
             )}
+          </TouchableOpacity>
+
+          {/* Server Environment Switcher */}
+          <TouchableOpacity
+            onPress={toggleServerEnv}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginTop: 14,
+              paddingVertical: 6,
+              gap: 6,
+            }}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={serverEnv === 'live' ? 'globe-outline' : 'laptop-outline'}
+              size={14}
+              color="#64748B"
+            />
+            <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+              Server: {serverEnv === 'live' ? 'Live (webservices.messbee.com)' : 'Local Dev (:5002)'} • Tap to switch
+            </Text>
           </TouchableOpacity>
         </View>
 

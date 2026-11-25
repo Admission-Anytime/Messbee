@@ -5,18 +5,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTH_TOKEN_KEY = 'messbee_auth_token';
 const REFRESH_TOKEN_KEY = 'messbee_refresh_token';
+const SERVER_ENV_KEY = 'messbee_server_env';
 
-// Backend runs on port 5002
-// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+// Backend runs on port 5002 locally, or https://webservices.messbee.com/api in production
 const detectedHost =
   Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
   Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
   '192.168.1.12';
 
-export const BASE_URL =
+export const LIVE_BASE_URL = 'https://webservices.messbee.com/api';
+export const LOCAL_BASE_URL =
   Platform.OS === 'android'
     ? `http://${detectedHost}:5002/api`
     : 'http://localhost:5002/api';
+
+// Default to Live Production Server so production web accounts (like aips.aayush1@gmail.com) work out of the box
+export let BASE_URL = LIVE_BASE_URL;
+let currentEnv = 'live';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -25,6 +30,19 @@ const api = axios.create({
   },
   timeout: 15000,
 });
+
+export const setServerEnvironment = async (env) => {
+  const nextEnv = env === 'local' ? 'local' : 'live';
+  currentEnv = nextEnv;
+  BASE_URL = nextEnv === 'local' ? LOCAL_BASE_URL : LIVE_BASE_URL;
+  api.defaults.baseURL = BASE_URL;
+  try {
+    await AsyncStorage.setItem(SERVER_ENV_KEY, nextEnv);
+  } catch (e) {}
+  return nextEnv;
+};
+
+export const getServerEnvironment = () => currentEnv;
 
 let userToken = null;
 let userRefreshToken = null;
@@ -53,6 +71,14 @@ export const setAuthToken = async (token, refreshToken = undefined) => {
 };
 
 export const loadAuthToken = async () => {
+  try {
+    const savedEnv = await AsyncStorage.getItem(SERVER_ENV_KEY);
+    if (savedEnv === 'local' || savedEnv === 'live') {
+      currentEnv = savedEnv;
+      BASE_URL = savedEnv === 'local' ? LOCAL_BASE_URL : LIVE_BASE_URL;
+      api.defaults.baseURL = BASE_URL;
+    }
+  } catch (e) {}
   if (userToken) return userToken;
   try {
     const [stored, storedRefresh] = await Promise.all([
