@@ -159,7 +159,7 @@ export default function HomeScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.profileCircle}
-            onPress={() => navigation.navigate('You')}
+            onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.8}
           >
             <Text style={styles.profileInitialsText}>{userInitials}</Text>
