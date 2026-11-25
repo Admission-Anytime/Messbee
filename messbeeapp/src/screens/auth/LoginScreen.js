@@ -17,91 +17,72 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../../services/api';
+import { isValidEmail } from '../../utils/validation';
 
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState('phone'); // 'email' | 'phone'
-  const [phoneNumber, setPhoneNumber] = useState('');
+  const [activeTab, setActiveTab] = useState('password'); // 'password' | 'otp'
   const [email, setEmail] = useState('');
-  const [countryCode, setCountryCode] = useState('+91');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSendOtp = async () => {
+  const handleLogin = async () => {
     setErrorMessage('');
-    const contactValue = activeTab === 'phone' ? phoneNumber.trim() : email.trim();
+    const cleanEmail = email.trim().toLowerCase();
 
-    if (!contactValue) {
-      setErrorMessage(
-        activeTab === 'phone'
-          ? 'Please enter your phone number'
-          : 'Please enter your email address'
-      );
+    if (!cleanEmail) {
+      setErrorMessage('Please enter your email address');
+      return;
+    }
+    if (!isValidEmail(cleanEmail)) {
+      setErrorMessage('Please enter a valid email address');
       return;
     }
 
-    if (activeTab === 'email') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(contactValue)) {
-        setErrorMessage('Please enter a valid email address');
+    if (activeTab === 'password') {
+      if (!password) {
+        setErrorMessage('Please enter your password');
         return;
       }
+
+      setLoading(true);
+      try {
+        const response = await authService.loginWithPassword(cleanEmail, password);
+        if (response?.success || response?.accessToken || response?.token || response?.tokens?.accessToken) {
+          navigation.replace('MainTabs');
+        } else {
+          setErrorMessage(response?.message || 'Invalid credentials. Please try again.');
+        }
+      } catch (error) {
+        console.log('Login error:', error?.response?.data || error.message);
+        const apiMsg = error?.response?.data?.message;
+        setErrorMessage(apiMsg || error.message || 'Login failed. Please check your connection and try again.');
+      } finally {
+        setLoading(false);
+      }
+      return;
     }
 
+    // Email OTP flow (1:1 with web backend /api/auth/login/request-otp)
     setLoading(true);
-
     try {
-      // In web backend, login OTP uses email
-      // If user provided email, we call the real backend /auth/login/request-otp endpoint
-      if (activeTab === 'email') {
-        const response = await authService.requestLoginOTP(contactValue);
-        if (response.success) {
-          navigation.navigate('OtpVerification', {
-            contact: contactValue,
-            email: contactValue,
-            method: 'email',
-          });
-        } else {
-          setErrorMessage(response.message || 'Failed to send OTP. Please try again.');
-        }
-      } else {
-        // If phone number is selected (matching the mockup exactly)
-        // If the backend expects email or has phone, we attempt sending OTP
+      const response = await authService.requestLoginOTP(cleanEmail);
+      if (response?.success) {
         navigation.navigate('OtpVerification', {
-          contact: `${countryCode} ${contactValue}`,
-          phone: contactValue,
-          email: `${contactValue}@messbee.com`,
-          method: 'phone',
+          contact: cleanEmail,
+          email: cleanEmail,
+          method: 'email',
         });
+      } else {
+        setErrorMessage(response?.message || 'Failed to send OTP. Please try again.');
       }
     } catch (error) {
       console.log('Login OTP request error:', error?.response?.data || error.message);
       const apiMsg = error?.response?.data?.message;
-
-      if (apiMsg) {
-        setErrorMessage(apiMsg);
-      } else if (error.message.includes('Network Error')) {
-        // If backend server is unreachable over network, allow smooth demo flow to OTP screen
-        Alert.alert(
-          'Connecting to Backend',
-          'Could not reach local server at port 5002. Continuing with demo verification.',
-          [
-            {
-              text: 'OK',
-              onPress: () => {
-                navigation.navigate('OtpVerification', {
-                  contact: activeTab === 'phone' ? `${countryCode} ${contactValue}` : contactValue,
-                  email: activeTab === 'email' ? contactValue : `${contactValue}@messbee.com`,
-                  method: activeTab,
-                });
-              },
-            },
-          ]
-        );
-      } else {
-        setErrorMessage(error.message || 'Failed to send OTP.');
-      }
+      setErrorMessage(apiMsg || error.message || 'Failed to send OTP. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -145,15 +126,15 @@ export default function LoginScreen({ navigation }) {
         <View style={styles.cardContainer}>
           <Text style={styles.cardTitle}>Login to Your Account</Text>
 
-          {/* Segmented Tab Selector: Email vs Phone Number */}
+          {/* Segmented Tab Selector: Password vs Email OTP */}
           <View style={styles.tabSelector}>
             <TouchableOpacity
               style={[
                 styles.tabBtn,
-                activeTab === 'email' ? styles.tabBtnActive : styles.tabBtnInactive,
+                activeTab === 'password' ? styles.tabBtnActive : styles.tabBtnInactive,
               ]}
               onPress={() => {
-                setActiveTab('email');
+                setActiveTab('password');
                 setErrorMessage('');
               }}
               activeOpacity={0.8}
@@ -161,20 +142,20 @@ export default function LoginScreen({ navigation }) {
               <Text
                 style={[
                   styles.tabBtnText,
-                  activeTab === 'email' ? styles.tabBtnTextActive : styles.tabBtnTextInactive,
+                  activeTab === 'password' ? styles.tabBtnTextActive : styles.tabBtnTextInactive,
                 ]}
               >
-                Email
+                Password
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[
                 styles.tabBtn,
-                activeTab === 'phone' ? styles.tabBtnActive : styles.tabBtnInactive,
+                activeTab === 'otp' ? styles.tabBtnActive : styles.tabBtnInactive,
               ]}
               onPress={() => {
-                setActiveTab('phone');
+                setActiveTab('otp');
                 setErrorMessage('');
               }}
               activeOpacity={0.8}
@@ -182,50 +163,57 @@ export default function LoginScreen({ navigation }) {
               <Text
                 style={[
                   styles.tabBtnText,
-                  activeTab === 'phone' ? styles.tabBtnTextActive : styles.tabBtnTextInactive,
+                  activeTab === 'otp' ? styles.tabBtnTextActive : styles.tabBtnTextInactive,
                 ]}
               >
-                Phone Number
+                Email OTP
               </Text>
             </TouchableOpacity>
           </View>
 
-          {/* Input Field Box */}
-          {activeTab === 'phone' ? (
-            <View style={styles.inputBox}>
-              <View style={styles.countryCodeBox}>
-                <Text style={styles.countryCodeText}>{countryCode}</Text>
-                <Ionicons name="caret-down" size={12} color="#4B5563" style={{ marginLeft: 4 }} />
-              </View>
-              <View style={styles.verticalDivider} />
+          {/* Email Input */}
+          <View style={styles.inputBox}>
+            <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={{ marginRight: 10 }} />
+            <TextInput
+              style={styles.textInput}
+              placeholder="Enter your email"
+              placeholderTextColor="#9CA3AF"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setErrorMessage('');
+              }}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+          </View>
+
+          {/* Password Input (shown in Password mode) */}
+          {activeTab === 'password' && (
+            <View style={[styles.inputBox, { marginTop: 12 }]}>
+              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={{ marginRight: 10 }} />
               <TextInput
                 style={styles.textInput}
-                placeholder="81818788688"
+                placeholder="Enter your password"
                 placeholderTextColor="#9CA3AF"
-                value={phoneNumber}
+                value={password}
                 onChangeText={(text) => {
-                  setPhoneNumber(text);
+                  setPassword(text);
                   setErrorMessage('');
                 }}
-                keyboardType="phone-pad"
+                secureTextEntry={!showPassword}
                 autoCapitalize="none"
               />
-            </View>
-          ) : (
-            <View style={styles.inputBox}>
-              <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={{ marginRight: 10 }} />
-              <TextInput
-                style={styles.textInput}
-                placeholder="Enter your email"
-                placeholderTextColor="#9CA3AF"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setErrorMessage('');
-                }}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={18}
+                  color="#9CA3AF"
+                />
+              </TouchableOpacity>
             </View>
           )}
 
@@ -241,17 +229,19 @@ export default function LoginScreen({ navigation }) {
             <Text style={styles.errorText}>{errorMessage}</Text>
           ) : null}
 
-          {/* Send OTP Action Button */}
+          {/* Login / Send OTP Action Button */}
           <TouchableOpacity
             style={styles.sendOtpBtn}
-            onPress={handleSendOtp}
+            onPress={handleLogin}
             disabled={loading}
             activeOpacity={0.88}
           >
             {loading ? (
               <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.sendOtpBtnText}>Send OTP</Text>
+              <Text style={styles.sendOtpBtnText}>
+                {activeTab === 'password' ? 'Login' : 'Send OTP'}
+              </Text>
             )}
           </TouchableOpacity>
         </View>

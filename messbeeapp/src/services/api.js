@@ -4,6 +4,7 @@ import Constants from 'expo-constants';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AUTH_TOKEN_KEY = 'messbee_auth_token';
+const REFRESH_TOKEN_KEY = 'messbee_refresh_token';
 
 // Backend runs on port 5002
 // Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
@@ -26,14 +27,25 @@ const api = axios.create({
 });
 
 let userToken = null;
+let userRefreshToken = null;
 
-export const setAuthToken = async (token) => {
+export const setAuthToken = async (token, refreshToken = undefined) => {
   userToken = token || null;
+  if (refreshToken !== undefined) {
+    userRefreshToken = refreshToken || null;
+  }
   try {
     if (token) {
       await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
     } else {
       await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+    if (refreshToken !== undefined) {
+      if (refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+      }
     }
   } catch (e) {
     console.warn('AsyncStorage setAuthToken error:', e.message);
@@ -43,10 +55,12 @@ export const setAuthToken = async (token) => {
 export const loadAuthToken = async () => {
   if (userToken) return userToken;
   try {
-    const stored = await AsyncStorage.getItem(AUTH_TOKEN_KEY);
-    if (stored) {
-      userToken = stored;
-    }
+    const [stored, storedRefresh] = await Promise.all([
+      AsyncStorage.getItem(AUTH_TOKEN_KEY),
+      AsyncStorage.getItem(REFRESH_TOKEN_KEY),
+    ]);
+    if (stored) userToken = stored;
+    if (storedRefresh) userRefreshToken = storedRefresh;
     return stored || null;
   } catch (e) {
     console.warn('AsyncStorage loadAuthToken error:', e.message);
@@ -64,6 +78,13 @@ const extractToken = (data) =>
   data?.data?.tokens?.accessToken ||
   null;
 
+const extractRefreshToken = (data) =>
+  data?.refreshToken ||
+  data?.tokens?.refreshToken ||
+  data?.data?.refreshToken ||
+  data?.data?.tokens?.refreshToken ||
+  null;
+
 api.interceptors.request.use(
   async (config) => {
     if (!userToken) {
@@ -75,6 +96,42 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Auto-refresh on 401 if refresh token is available
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/refresh-token')
+    ) {
+      originalRequest._retry = true;
+      try {
+        if (!userRefreshToken) {
+          userRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+        }
+        if (userRefreshToken) {
+          const refreshRes = await axios.post(`${BASE_URL}/auth/refresh-token`, {
+            refreshToken: userRefreshToken,
+          });
+          const newAccess = extractToken(refreshRes.data);
+          const newRefresh = extractRefreshToken(refreshRes.data);
+          if (newAccess) {
+            await setAuthToken(newAccess, newRefresh || userRefreshToken);
+            originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+            return api(originalRequest);
+          }
+        }
+      } catch (refreshErr) {
+        await setAuthToken(null, null);
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 // ==================== AUTH SERVICE ====================
@@ -92,8 +149,9 @@ export const authService = {
   verifySignupOTP: async (email, otp) => {
     const { data } = await api.post('/auth/signup/verify-otp', { email, otp });
     const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
     if (token) {
-      await setAuthToken(token);
+      await setAuthToken(token, refresh);
     }
     return data;
   },
@@ -104,8 +162,9 @@ export const authService = {
   verifyLoginOTP: async (email, otp) => {
     const { data } = await api.post('/auth/login/verify-otp', { email, otp });
     const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
     if (token) {
-      await setAuthToken(token);
+      await setAuthToken(token, refresh);
     }
     return data;
   },
@@ -116,13 +175,14 @@ export const authService = {
   loginWithPassword: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
     const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
     if (token) {
-      await setAuthToken(token);
+      await setAuthToken(token, refresh);
     }
     return data;
   },
   logout: async () => {
-    await setAuthToken(null);
+    await setAuthToken(null, null);
   },
   getCurrentUser: async () => {
     const { data } = await api.get('/auth/me');
