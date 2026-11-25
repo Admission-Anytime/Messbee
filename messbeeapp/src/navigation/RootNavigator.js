@@ -63,6 +63,14 @@ import CommerceCatalogScreen from '../screens/main/CommerceCatalogScreen';
 import InventoryScreen from '../screens/main/InventoryScreen';
 import BillingInvoicesScreen from '../screens/main/BillingInvoicesScreen';
 import ContactGroupsScreen from '../screens/main/ContactGroupsScreen';
+import MediaLibraryScreen from '../screens/main/MediaLibraryScreen';
+import WhatsAppQrScreen from '../screens/main/WhatsAppQrScreen';
+import TeamPerformanceScreen from '../screens/main/TeamPerformanceScreen';
+import SuppliersPurchasesScreen from '../screens/main/SuppliersPurchasesScreen';
+import CategoriesCustomersScreen from '../screens/main/CategoriesCustomersScreen';
+import TeamManagementScreen from '../screens/main/TeamManagementScreen';
+import EntitiesBookingsScreen from '../screens/main/EntitiesBookingsScreen';
+import WorkspaceSettingsScreen from '../screens/main/WorkspaceSettingsScreen';
 import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
@@ -158,6 +166,14 @@ export default function RootNavigator() {
         <Stack.Screen name="Inventory" component={InventoryScreen} />
         <Stack.Screen name="BillingInvoices" component={BillingInvoicesScreen} />
         <Stack.Screen name="ContactGroups" component={ContactGroupsScreen} />
+        <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
+        <Stack.Screen name="WhatsAppQr" component={WhatsAppQrScreen} />
+        <Stack.Screen name="TeamPerformance" component={TeamPerformanceScreen} />
+        <Stack.Screen name="SuppliersPurchases" component={SuppliersPurchasesScreen} />
+        <Stack.Screen name="CategoriesCustomers" component={CategoriesCustomersScreen} />
+        <Stack.Screen name="TeamManagement" component={TeamManagementScreen} />
+        <Stack.Screen name="EntitiesBookings" component={EntitiesBookingsScreen} />
+        <Stack.Screen name="WorkspaceSettings" component={WorkspaceSettingsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

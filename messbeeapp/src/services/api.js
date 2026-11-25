@@ -726,6 +726,18 @@ export const qrWhatsappService = {
     const { data } = await api.post('/qr-whatsapp/broadcast', broadcastData);
     return data;
   },
+  getAutoResponder: async () => {
+    try {
+      const { data } = await api.get('/qr-whatsapp/auto-responder');
+      return data?.data || data;
+    } catch (err) {
+      return { enabled: false, message: '' };
+    }
+  },
+  updateAutoResponder: async (payload) => {
+    const { data } = await api.put('/qr-whatsapp/auto-responder', payload);
+    return data?.data || data;
+  },
 };
 
 // ==================== AUTOMATIONS / BOT SERVICE ====================
@@ -1060,6 +1072,25 @@ export const customerService = {
     const { data } = await api.post('/customers', customerData);
     return data?.data || data;
   },
+
+  updateCustomer: async (id, customerData) => {
+    const { data } = await api.put(`/customers/${id}`, customerData);
+    return data?.data || data;
+  },
+
+  deleteCustomer: async (id) => {
+    const { data } = await api.delete(`/customers/${id}`);
+    return data;
+  },
+
+  getCustomerSales: async (id) => {
+    try {
+      const { data } = await api.get(`/customers/${id}/sales`);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
 };
 
 // ==================== CONTACT GROUP SERVICE (Real DB / API) ====================
@@ -1102,6 +1133,246 @@ export const contactGroupService = {
   addContactsToGroup: async (id, contactIds) => {
     const { data } = await api.post(`/contact-groups/${id}/contacts`, { contactIds });
     return data?.data || data;
+  },
+};
+
+// ==================== MEDIA LIBRARY SERVICE (Real DB / API) ====================
+export const mediaService = {
+  getMedia: async (params = {}) => {
+    try {
+      const { data } = await api.get('/media', { params });
+      return data?.data || data?.media || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('mediaService.getMedia error:', err.message);
+      return [];
+    }
+  },
+
+  deleteMedia: async (id) => {
+    const { data } = await api.delete(`/media/${id}`);
+    return data;
+  },
+
+  bulkDeleteMedia: async (ids) => {
+    const { data } = await api.post('/media/bulk-delete', { ids });
+    return data;
+  },
+};
+
+// ==================== PERFORMANCE & REPORTS SERVICE (Real DB / API) ====================
+export const performanceService = {
+  getOverview: async (date = '') => {
+    try {
+      const url = date ? `/performance/overview?date=${date}` : '/performance/overview';
+      const { data } = await api.get(url);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('performanceService.getOverview error:', err.message);
+      return null;
+    }
+  },
+
+  getWabaConfig: async () => {
+    try {
+      const { data } = await api.get('/performance/waba-config');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+};
+
+export const reportsService = {
+  getDashboardStats: async () => {
+    try {
+      const { data } = await api.get('/reports/dashboard');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  getSalesReport: async (params = {}) => {
+    try {
+      const { data } = await api.get('/reports/sales', { params });
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  getPurchaseReport: async (params = {}) => {
+    try {
+      const { data } = await api.get('/reports/purchases', { params });
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+};
+
+// ==================== SUPPLIERS & PURCHASES SERVICE (Real DB / API) ====================
+export const supplierService = {
+  getSuppliers: async (search = '') => {
+    try {
+      const url = search ? `/suppliers?search=${encodeURIComponent(search)}` : '/suppliers';
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createSupplier: async (supplierData) => {
+    const { data } = await api.post('/suppliers', supplierData);
+    return data?.data || data;
+  },
+
+  updateSupplier: async (id, supplierData) => {
+    const { data } = await api.put(`/suppliers/${id}`, supplierData);
+    return data?.data || data;
+  },
+
+  deleteSupplier: async (id) => {
+    const { data } = await api.delete(`/suppliers/${id}`);
+    return data;
+  },
+};
+
+export const purchaseService = {
+  getPurchases: async (page = 1, limit = 30) => {
+    try {
+      const { data } = await api.get(`/purchases?page=${page}&limit=${limit}`);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createPurchase: async (purchaseData) => {
+    const { data } = await api.post('/purchases', purchaseData);
+    return data?.data || data;
+  },
+};
+
+// ==================== CATEGORIES SERVICE (Real DB / API) ====================
+export const categoryService = {
+  getCategories: async () => {
+    try {
+      const { data } = await api.get('/categories');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createCategory: async (catData) => {
+    const { data } = await api.post('/categories', catData);
+    return data?.data || data;
+  },
+
+  updateCategory: async (id, catData) => {
+    const { data } = await api.put(`/categories/${id}`, catData);
+    return data?.data || data;
+  },
+
+  deleteCategory: async (id) => {
+    const { data } = await api.delete(`/categories/${id}`);
+    return data;
+  },
+};
+
+// ==================== TEAM & ACCOUNT LIMITS SERVICE (Real DB / API) ====================
+export const teamService = {
+  getUsers: async () => {
+    try {
+      const { data } = await api.get('/users');
+      return data?.data || data?.users || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createUser: async (userData) => {
+    const { data } = await api.post('/users', userData);
+    return data?.data || data;
+  },
+
+  updateUser: async (id, userData) => {
+    const { data } = await api.put(`/users/${id}`, userData);
+    return data?.data || data;
+  },
+
+  deleteUser: async (id) => {
+    const { data } = await api.delete(`/users/${id}`);
+    return data;
+  },
+
+  getAccountLimits: async () => {
+    try {
+      const { data } = await api.get('/users/account-limits');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  updateSubscription: async (planData) => {
+    const { data } = await api.put('/users/subscription', planData);
+    return data?.data || data;
+  },
+};
+
+// ==================== ENTITIES / BRANCHES SERVICE (Real DB / API) ====================
+export const entityService = {
+  getEntities: async (params = {}) => {
+    try {
+      const { data } = await api.get('/entities', { params });
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createEntity: async (entityData) => {
+    const { data } = await api.post('/entities', entityData);
+    return data?.data || data;
+  },
+
+  updateEntity: async (id, entityData) => {
+    const { data } = await api.put(`/entities/${id}`, entityData);
+    return data?.data || data;
+  },
+
+  deleteEntity: async (id) => {
+    const { data } = await api.delete(`/entities/${id}`);
+    return data;
+  },
+};
+
+// ==================== TENANT & WORKSPACE SETTINGS SERVICE ====================
+export const tenantSettingsService = {
+  getSettings: async () => {
+    try {
+      const { data } = await api.get('/tenant-settings');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  updateSettings: async (settingsData) => {
+    const { data } = await api.put('/tenant-settings', settingsData);
+    return data?.data || data;
+  },
+
+  getAutomationActivity: async () => {
+    try {
+      const { data } = await api.get('/automation/activity');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
   },
 };
 
