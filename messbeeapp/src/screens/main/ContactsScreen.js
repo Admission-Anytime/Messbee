@@ -45,7 +45,7 @@ export default function ContactsScreen({ navigation }) {
   // Fetch from real DB / API
   const loadContacts = useCallback(async () => {
     try {
-      const data = await contactService.getContacts();
+      const data = await contactService.getContacts({ limit: 100 });
       if (Array.isArray(data)) {
         const mapped = data.map((item, idx) => {
           const rawName = item.name || item.firstName || `Contact ${idx + 1}`;
@@ -87,7 +87,7 @@ export default function ContactsScreen({ navigation }) {
           return {
             _id: item._id || item.id || `c_${idx}`,
             name: rawName,
-            phone: item.phone || item.phoneNumber || '+91 0000000000',
+            phone: item.whatsapp || item.phone || item.phoneNumber || '',
             email: item.email || '',
             status: statusLabel,
             statusDot,

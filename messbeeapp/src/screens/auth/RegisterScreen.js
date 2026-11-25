@@ -104,8 +104,13 @@ export default function RegisterScreen({ navigation }) {
 
   const handleRegisterSubmit = async () => {
     setErrorMessage('');
-    if (!formData.phone.trim()) {
+    const digitsOnly = formData.phone.trim().replace(/[^0-9]/g, '');
+    if (!digitsOnly) {
       setErrorMessage('Phone number is required.');
+      return;
+    }
+    if (digitsOnly.length < 7 || digitsOnly.length > 15) {
+      setErrorMessage('Please enter a valid 7-15 digit phone number.');
       return;
     }
 

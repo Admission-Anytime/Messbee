@@ -63,18 +63,42 @@ import CommerceCatalogScreen from '../screens/main/CommerceCatalogScreen';
 import InventoryScreen from '../screens/main/InventoryScreen';
 import BillingInvoicesScreen from '../screens/main/BillingInvoicesScreen';
 import ContactGroupsScreen from '../screens/main/ContactGroupsScreen';
+import MediaLibraryScreen from '../screens/main/MediaLibraryScreen';
+import WhatsAppQrScreen from '../screens/main/WhatsAppQrScreen';
+import TeamPerformanceScreen from '../screens/main/TeamPerformanceScreen';
+import SuppliersPurchasesScreen from '../screens/main/SuppliersPurchasesScreen';
+import CategoriesCustomersScreen from '../screens/main/CategoriesCustomersScreen';
+import TeamManagementScreen from '../screens/main/TeamManagementScreen';
+import EntitiesBookingsScreen from '../screens/main/EntitiesBookingsScreen';
+import WorkspaceSettingsScreen from '../screens/main/WorkspaceSettingsScreen';
+import SubscriptionPlansScreen from '../screens/main/SubscriptionPlansScreen';
+import HelpSupportScreen from '../screens/main/HelpSupportScreen';
+import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
 
 export default function RootNavigator() {
   const [isReady, setIsReady] = useState(false);
+  const [initialRoute, setInitialRoute] = useState('Onboarding');
 
   useEffect(() => {
+    let mounted = true;
+    const initApp = async () => {
+      const token = await loadAuthToken();
+      if (mounted && token) {
+        setInitialRoute('MainTabs');
+      }
+    };
+    initApp();
+
     // Show splash screen for 1.5 seconds on app start
     const timer = setTimeout(() => {
-      setIsReady(true);
+      if (mounted) setIsReady(true);
     }, 1500);
-    return () => clearTimeout(timer);
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
   }, []);
 
   if (!isReady) {
@@ -83,7 +107,7 @@ export default function RootNavigator() {
 
   return (
     <NavigationContainer>
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Navigator initialRouteName={initialRoute} screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
@@ -144,6 +168,16 @@ export default function RootNavigator() {
         <Stack.Screen name="Inventory" component={InventoryScreen} />
         <Stack.Screen name="BillingInvoices" component={BillingInvoicesScreen} />
         <Stack.Screen name="ContactGroups" component={ContactGroupsScreen} />
+        <Stack.Screen name="MediaLibrary" component={MediaLibraryScreen} />
+        <Stack.Screen name="WhatsAppQr" component={WhatsAppQrScreen} />
+        <Stack.Screen name="TeamPerformance" component={TeamPerformanceScreen} />
+        <Stack.Screen name="SuppliersPurchases" component={SuppliersPurchasesScreen} />
+        <Stack.Screen name="CategoriesCustomers" component={CategoriesCustomersScreen} />
+        <Stack.Screen name="TeamManagement" component={TeamManagementScreen} />
+        <Stack.Screen name="EntitiesBookings" component={EntitiesBookingsScreen} />
+        <Stack.Screen name="WorkspaceSettings" component={WorkspaceSettingsScreen} />
+        <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
+        <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

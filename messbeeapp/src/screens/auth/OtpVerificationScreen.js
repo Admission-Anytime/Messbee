@@ -62,30 +62,25 @@ export default function OtpVerificationScreen({ route, navigation }) {
     setErrorMessage('');
 
     try {
-      if (email && email.includes('@') && !email.includes('@messbee.com')) {
-        // Real backend verification via /auth/signup/verify-otp or /auth/login/verify-otp
-        const response = isSignup
-          ? await authService.verifySignupOTP(email, code)
-          : await authService.verifyLoginOTP(email, code);
+      if (!email || !email.includes('@')) {
+        setErrorMessage('Invalid email address for verification.');
+        return;
+      }
 
-        if (response.success || response.token || response.accessToken) {
-          navigation.navigate('PhoneVerifiedSuccess');
-        } else {
-          setErrorMessage(response.message || 'Invalid verification code');
-        }
-      } else {
-        // Phone verification / fallback (accepts 6-digit code)
+      // Real backend verification via /auth/signup/verify-otp or /auth/login/verify-otp
+      const response = isSignup
+        ? await authService.verifySignupOTP(email, code)
+        : await authService.verifyLoginOTP(email, code);
+
+      if (response?.success || response?.token || response?.accessToken || response?.tokens?.accessToken) {
         navigation.navigate('PhoneVerifiedSuccess');
+      } else {
+        setErrorMessage(response?.message || 'Invalid verification code');
       }
     } catch (error) {
       console.log('OTP Verification error:', error?.response?.data || error.message);
       const apiMsg = error?.response?.data?.message;
-      if (apiMsg) {
-        setErrorMessage(apiMsg);
-      } else {
-        // If network issue or demo mode, allow successful verification
-        navigation.navigate('PhoneVerifiedSuccess');
-      }
+      setErrorMessage(apiMsg || error.message || 'Verification failed. Please check your code and connection.');
     } finally {
       setLoading(false);
     }

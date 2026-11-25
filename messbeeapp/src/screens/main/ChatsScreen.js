@@ -34,8 +34,8 @@ export default function ChatsScreen({ navigation }) {
   const loadChats = useCallback(async () => {
     try {
       const [chatsData, contactsData] = await Promise.all([
-        chatService.getChats().catch(() => []),
-        contactService.getContacts().catch(() => []),
+        chatService.getChats(1, 100).catch(() => []),
+        contactService.getContacts({ limit: 100 }).catch(() => []),
       ]);
 
       if (Array.isArray(contactsData)) {
@@ -70,8 +70,9 @@ export default function ChatsScreen({ navigation }) {
             status: status.charAt(0).toUpperCase() + status.slice(1),
             statusBg: isResolved ? '#F3E8FF' : '#DCFCE7',
             statusColor: isResolved ? '#7E22CE' : '#166534',
-            pinned: item.pinned || false,
-            archived: item.archived || false,
+            pinned: item.isPinned || item.pinned || false,
+            archived: item.status === 'archived' || item.archived || false,
+            assignedTo: item.teamMember || item.assignedTo || null,
           };
         });
         setChats(mapped);
