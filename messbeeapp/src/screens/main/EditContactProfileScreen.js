@@ -48,6 +48,7 @@ export default function EditContactProfileScreen({ route, navigation }) {
     setSaving(true);
     const updatedData = {
       name: name.trim(),
+      whatsapp: phone.trim(),
       phone: phone.trim(),
       email: email.trim(),
       status,
@@ -118,10 +119,11 @@ export default function EditContactProfileScreen({ route, navigation }) {
           <TextInput
             style={styles.textInput}
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => setPhone(text.replace(/[^0-9+\s]/g, '').slice(0, 15))}
             placeholder="+91..."
             placeholderTextColor="#94A3B8"
             keyboardType="phone-pad"
+            maxLength={15}
           />
         </View>
 

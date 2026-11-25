@@ -46,9 +46,15 @@ export default function AddContactScreen({ navigation }) {
   }, []);
 
   const handleSaveContact = async () => {
+    const cleanDigits = phone.replace(/[^0-9]/g, '');
     const { isValid, firstError } = validateForm({
       name: { value: name, required: true, minLength: 2, label: 'Contact Name' },
-      phone: { value: phone, required: true, phone: true, label: 'WhatsApp Number' },
+      phone: {
+        value: cleanDigits,
+        required: true,
+        custom: (v) => (v.length !== 10 ? 'Please enter a valid 10-digit WhatsApp number.' : null),
+        label: 'WhatsApp Number',
+      },
       email: { value: email, email: true, label: 'Email Address' },
     });
 
@@ -59,26 +65,24 @@ export default function AddContactScreen({ navigation }) {
 
     try {
       setSaving(true);
-      const cleanPhone = phone.startsWith('+') ? phone : `+91${phone.replace(/[^0-9]/g, '')}`;
+      const cleanPhone = `+91${cleanDigits}`;
 
       const payload = {
         name: name.trim(),
+        whatsapp: cleanPhone,
         phone: cleanPhone,
         email: email.trim(),
         labels: selectedLabels,
-        customFields: customFields.reduce((acc, f) => {
-          acc[f.name] = f.value;
-          return acc;
-        }, {}),
-        status: 'active',
+        customFields: customFields.map((f) => ({ label: f.name, value: f.value })),
+        status: 'ACTIVE',
       };
 
       await contactService.createContact(payload);
       Alert.alert('Success', 'Contact saved successfully!');
       navigation.goBack();
     } catch (err) {
-      Alert.alert('Success', 'Contact added to list.');
-      navigation.goBack();
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to save contact.';
+      Alert.alert('Error', errMsg);
     } finally {
       setSaving(false);
     }
@@ -158,9 +162,10 @@ export default function AddContactScreen({ navigation }) {
                 style={styles.phoneInput}
                 placeholder="Enter 10-digit WhatsApp number"
                 placeholderTextColor="#94A3B8"
-                keyboardType="phone-pad"
+                keyboardType="number-pad"
+                maxLength={10}
                 value={phone}
-                onChangeText={setPhone}
+                onChangeText={(text) => setPhone(text.replace(/[^0-9]/g, '').slice(0, 10))}
               />
             </View>
           </View>
