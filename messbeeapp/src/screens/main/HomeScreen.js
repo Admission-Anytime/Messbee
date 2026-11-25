@@ -174,7 +174,7 @@ export default function HomeScreen({ navigation }) {
           <Image
             source={require('../../../assets/home_hero_banner.png')}
             style={styles.bannerImage}
-            resizeMode="contain"
+            resizeMode="cover"
           />
         </View>
 
@@ -612,8 +612,9 @@ const styles = StyleSheet.create({
   },
   bannerImage: {
     width: '100%',
-    height: 140,
+    aspectRatio: 863 / 416,
     borderRadius: 14,
+    overflow: 'hidden',
   },
   quickActionsGrid: {
     flexDirection: 'row',
