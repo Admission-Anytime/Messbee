@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
   Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -41,6 +42,10 @@ const getInitials = (name = '') => {
 };
 
 export default function HomeScreen({ navigation }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const bannerWidth = Math.min(windowWidth - 32, 600);
+  const bannerHeight = Math.round(bannerWidth * (416 / 863));
+
   const [activeFilter, setActiveFilter] = useState('unread');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -173,8 +178,11 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.bannerContainer}>
           <Image
             source={require('../../../assets/home_hero_banner.png')}
-            style={styles.bannerImage}
-            resizeMode="cover"
+            style={[
+              styles.bannerImage,
+              { width: bannerWidth, height: bannerHeight },
+            ]}
+            resizeMode="contain"
           />
         </View>
 
@@ -607,14 +615,12 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
+    alignItems: 'center',
   },
   bannerImage: {
-    width: '100%',
-    aspectRatio: 863 / 416,
     borderRadius: 14,
-    overflow: 'hidden',
   },
   quickActionsGrid: {
     flexDirection: 'row',
