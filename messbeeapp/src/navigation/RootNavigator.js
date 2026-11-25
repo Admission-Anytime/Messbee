@@ -71,6 +71,8 @@ import CategoriesCustomersScreen from '../screens/main/CategoriesCustomersScreen
 import TeamManagementScreen from '../screens/main/TeamManagementScreen';
 import EntitiesBookingsScreen from '../screens/main/EntitiesBookingsScreen';
 import WorkspaceSettingsScreen from '../screens/main/WorkspaceSettingsScreen';
+import SubscriptionPlansScreen from '../screens/main/SubscriptionPlansScreen';
+import HelpSupportScreen from '../screens/main/HelpSupportScreen';
 import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
@@ -174,6 +176,8 @@ export default function RootNavigator() {
         <Stack.Screen name="TeamManagement" component={TeamManagementScreen} />
         <Stack.Screen name="EntitiesBookings" component={EntitiesBookingsScreen} />
         <Stack.Screen name="WorkspaceSettings" component={WorkspaceSettingsScreen} />
+        <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
+        <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

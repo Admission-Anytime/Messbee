@@ -744,7 +744,7 @@ export const qrWhatsappService = {
 export const automationService = {
   getAutomations: async () => {
     try {
-      const response = await api.get('/automations');
+      const response = await api.get('/automation');
       return response.data?.data || response.data || [];
     } catch (err) {
       console.warn('automationService.getAutomations error:', err.message);
@@ -752,19 +752,23 @@ export const automationService = {
     }
   },
   getAutomationById: async (id) => {
-    const response = await api.get(`/automations/${id}`);
+    const response = await api.get(`/automation/${id}`);
     return response.data?.data || response.data;
   },
   createAutomation: async (automationData) => {
-    const response = await api.post('/automations', automationData);
+    const response = await api.post('/automation', automationData);
     return response.data?.data || response.data;
   },
   updateAutomation: async (id, data) => {
-    const response = await api.put(`/automations/${id}`, data);
+    const response = await api.put(`/automation/${id}`, data);
     return response.data?.data || response.data;
   },
   deleteAutomation: async (id) => {
-    const response = await api.delete(`/automations/${id}`);
+    const response = await api.delete(`/automation/${id}`);
+    return response.data?.data || response.data;
+  },
+  testAutomation: async (id, payload = {}) => {
+    const response = await api.post(`/automation/${id}/test`, payload);
     return response.data?.data || response.data;
   },
 };
@@ -826,7 +830,7 @@ export const analyticsService = {
 export const devApiService = {
   getApiKeys: async () => {
     try {
-      const { data } = await api.get('/developer/keys');
+      const { data } = await api.get('/dev/keys');
       return data?.data || data?.keys || data || [];
     } catch (err) {
       console.warn('devApiService.getApiKeys error:', err.message);
@@ -834,16 +838,16 @@ export const devApiService = {
     }
   },
   createApiKey: async (payload = { name: 'Mobile App Key' }) => {
-    const { data } = await api.post('/developer/keys', payload);
+    const { data } = await api.post('/dev/keys', payload);
     return data?.data || data?.apiKey || data;
   },
   deleteApiKey: async (id) => {
-    const { data } = await api.delete(`/developer/keys/${id}`);
+    const { data } = await api.delete(`/dev/keys/${id}`);
     return data;
   },
   getWebhookConfig: async () => {
     try {
-      const { data } = await api.get('/developer/webhook');
+      const { data } = await api.get('/dev/webhook');
       return data?.data || data?.webhook || data;
     } catch (err) {
       console.warn('devApiService.getWebhookConfig error:', err.message);
@@ -851,7 +855,7 @@ export const devApiService = {
     }
   },
   saveWebhookConfig: async (payload) => {
-    const { data } = await api.post('/developer/webhook', payload);
+    const { data } = await api.post('/dev/webhook', payload);
     return data?.data || data;
   },
 };
@@ -1319,6 +1323,11 @@ export const teamService = {
 
   updateSubscription: async (planData) => {
     const { data } = await api.put('/users/subscription', planData);
+    return data?.data || data;
+  },
+
+  contactSales: async (inquiryData) => {
+    const { data } = await api.post('/users/contact-sales', inquiryData);
     return data?.data || data;
   },
 };

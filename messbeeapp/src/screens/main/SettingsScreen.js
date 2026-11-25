@@ -189,7 +189,7 @@ export default function SettingsScreen({ navigation }) {
     } else if (item.id === 'preferences') {
       navigation.navigate('WorkspaceSettings');
     } else if (item.id === 'help_support') {
-      Alert.alert('Help & Support', 'Support: support@messbee.com | +91 8181756688');
+      navigation.navigate('HelpSupport');
     } else {
       Alert.alert(item.title, item.subtitle);
     }

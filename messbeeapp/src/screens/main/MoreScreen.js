@@ -161,6 +161,20 @@ const MORE_TILES = [
     route: 'WorkspaceSettings',
   },
   {
+    id: 'subscription_plans',
+    title: 'Plans & Upgrade',
+    subtitle: 'Manage subscription & pricing',
+    icon: 'ribbon-outline',
+    route: 'SubscriptionPlans',
+  },
+  {
+    id: 'help_support',
+    title: 'Help & Support',
+    subtitle: 'FAQs & support tickets',
+    icon: 'help-circle-outline',
+    route: 'HelpSupport',
+  },
+  {
     id: 'settings',
     title: 'Account and Settings',
     subtitle: 'Manage account and settings',
