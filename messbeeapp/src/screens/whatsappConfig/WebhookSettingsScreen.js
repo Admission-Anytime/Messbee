@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { whatsappConfigService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 export default function WebhookSettingsScreen({ route, navigation }) {
   const initialConfig = route.params?.config || {};
@@ -111,8 +112,13 @@ export default function WebhookSettingsScreen({ route, navigation }) {
   };
 
   const handleSaveWebhook = async () => {
-    if (!draftUrl.trim() || !draftToken.trim()) {
-      Alert.alert('Required Fields', 'Webhook URL and Verify Token cannot be empty.');
+    const { isValid, firstError } = validateForm({
+      webhookUrl: { value: draftUrl, required: true, url: true, label: 'Webhook URL' },
+      verifyToken: { value: draftToken, required: true, minLength: 4, label: 'Verify Token' },
+    });
+
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
       return;
     }
 

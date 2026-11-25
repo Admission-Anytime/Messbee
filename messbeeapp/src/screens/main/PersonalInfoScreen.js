@@ -14,6 +14,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 export default function PersonalInfoScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -50,12 +51,23 @@ export default function PersonalInfoScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    const { isValid, firstError } = validateForm({
+      name: { value: name, required: true, minLength: 2, label: 'Full Name' },
+      email: { value: email, required: true, email: true, label: 'Email Address' },
+      phone: { value: phone, phone: true, label: 'Phone Number' },
+    });
+
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
+      return;
+    }
+
     try {
       setSaving(true);
       await authService.updateUserProfile({
-        name,
-        email,
-        phone,
+        name: name.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
       });
       Alert.alert('Success', 'Personal information updated successfully!');
     } catch (err) {

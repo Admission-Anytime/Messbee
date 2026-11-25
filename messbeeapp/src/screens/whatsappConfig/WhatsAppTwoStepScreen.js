@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { whatsappConfigService } from '../../services/api';
+import { isValidPin } from '../../utils/validation';
 
 export default function WhatsAppTwoStepScreen({ navigation }) {
   const [isProtected, setIsProtected] = useState(true);
@@ -55,8 +56,8 @@ export default function WhatsAppTwoStepScreen({ navigation }) {
   };
 
   const handleUpdatePin = async () => {
-    if (newPin.length !== 6 || confirmPin.length !== 6) {
-      Alert.alert('Invalid PIN', 'Please enter a 6-digit PIN.');
+    if (!isValidPin(newPin, 6) || !isValidPin(confirmPin, 6)) {
+      Alert.alert('Invalid PIN', 'PIN must be exactly 6 numeric digits (0-9).');
       return;
     }
     if (newPin !== confirmPin) {

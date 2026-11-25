@@ -89,15 +89,19 @@ export default function CommerceCatalogScreen({ navigation }) {
 
   const handleSaveProduct = async () => {
     if (!name.trim()) {
-      Alert.alert('Required Field', 'Please enter a product name.');
+      Alert.alert('Validation Error', 'Please enter a product name.');
       return;
     }
     if (!sku.trim()) {
-      Alert.alert('Required Field', 'Please enter a product SKU.');
+      Alert.alert('Validation Error', 'Please enter a product SKU.');
       return;
     }
-    if (!sellingPrice.trim() || isNaN(Number(sellingPrice))) {
-      Alert.alert('Invalid Price', 'Please enter a valid selling price.');
+    if (!sellingPrice.trim() || isNaN(Number(sellingPrice)) || Number(sellingPrice) < 0) {
+      Alert.alert('Validation Error', 'Selling price must be 0 or greater.');
+      return;
+    }
+    if (currentStock.trim() && (isNaN(Number(currentStock)) || Number(currentStock) < 0)) {
+      Alert.alert('Validation Error', 'Stock quantity cannot be negative.');
       return;
     }
 

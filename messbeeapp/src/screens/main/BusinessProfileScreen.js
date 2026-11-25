@@ -14,6 +14,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { authService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 const STANDARD_CATEGORIES = [
   'Technology & Software',
@@ -77,6 +78,19 @@ export default function BusinessProfileScreen({ navigation }) {
   };
 
   const handleSave = async () => {
+    const { isValid, firstError } = validateForm({
+      businessName: { value: formData.businessName, required: true, minLength: 2, label: 'Business Name' },
+      email: { value: formData.email, email: true, label: 'Business Email' },
+      phone: { value: formData.phone, phone: true, label: 'Business Phone' },
+      website: { value: formData.website, url: true, label: 'Website URL' },
+      zipcode: { value: formData.zipcode, number: true, label: 'Zipcode' },
+    });
+
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
+      return;
+    }
+
     try {
       setSaving(true);
       await authService.updateUserProfile(formData);

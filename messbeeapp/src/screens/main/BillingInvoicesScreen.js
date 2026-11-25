@@ -156,10 +156,18 @@ export default function BillingInvoicesScreen({ navigation }) {
       return;
     }
 
-    const qty = Number(quantity) || 1;
+    const qty = Number(quantity);
+    if (!quantity.trim() || isNaN(qty) || qty < 1) {
+      Alert.alert('Validation Error', 'Quantity must be at least 1.');
+      return;
+    }
     const unitPrice = Number(targetProduct.sellingPrice ?? targetProduct.price ?? 0);
     const subTotal = unitPrice * qty;
     const disc = Number(discount) || 0;
+    if (disc < 0) {
+      Alert.alert('Validation Error', 'Discount cannot be negative.');
+      return;
+    }
     const taxRate = Number(targetProduct.gstPercentage ?? 18);
     const gstAmount = Math.round((subTotal * taxRate) / 100);
     const grandTotal = Math.max(0, subTotal + gstAmount - disc);

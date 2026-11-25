@@ -15,6 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { quickReplyService } from '../../services/api';
+import { isValidShortcut, isValidUrl } from '../../utils/validation';
 
 const RESPONSE_TYPES = [
   { id: 'Text', label: 'Text', icon: 'chatbubble-ellipses-outline' },
@@ -59,7 +60,11 @@ export default function EditQuickReplyScreen({ navigation, route }) {
   const handleSave = async () => {
     const cleanShortcut = shortcut.trim();
     if (!cleanShortcut) {
-      Alert.alert('Required', 'Please enter a shortcut command.');
+      Alert.alert('Validation Error', 'Please enter a shortcut command.');
+      return;
+    }
+    if (!isValidShortcut(cleanShortcut)) {
+      Alert.alert('Validation Error', 'Shortcut command cannot contain spaces or special characters.');
       return;
     }
 
@@ -69,11 +74,15 @@ export default function EditQuickReplyScreen({ navigation, route }) {
 
     if (responseType === 'CTA URL') {
       if (!destinationUrl.trim()) {
-        Alert.alert('Required', 'Please enter a destination URL for the CTA.');
+        Alert.alert('Validation Error', 'Please enter a destination URL for the CTA.');
+        return;
+      }
+      if (!isValidUrl(destinationUrl)) {
+        Alert.alert('Validation Error', 'Destination URL must start with http:// or https://.');
         return;
       }
     } else if (responseType === 'Text' && !content.trim()) {
-      Alert.alert('Required', 'Please enter message content.');
+      Alert.alert('Validation Error', 'Please enter message content.');
       return;
     }
 

@@ -15,6 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { contactService, labelService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 export default function AddContactScreen({ navigation }) {
   const [name, setName] = useState('');
@@ -45,12 +46,14 @@ export default function AddContactScreen({ navigation }) {
   }, []);
 
   const handleSaveContact = async () => {
-    if (!name.trim()) {
-      Alert.alert('Required', 'Please enter a contact name.');
-      return;
-    }
-    if (!phone.trim()) {
-      Alert.alert('Required', 'Please enter a WhatsApp number.');
+    const { isValid, firstError } = validateForm({
+      name: { value: name, required: true, minLength: 2, label: 'Contact Name' },
+      phone: { value: phone, required: true, phone: true, label: 'WhatsApp Number' },
+      email: { value: email, email: true, label: 'Email Address' },
+    });
+
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
       return;
     }
 
