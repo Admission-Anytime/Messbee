@@ -323,7 +323,7 @@ export const pipelineService = {
 
 // ==================== CHAT SERVICE (Real DB / API) ====================
 export const chatService = {
-  getChats: async (page = 1, limit = 50) => {
+  getChats: async (page = 1, limit = 100) => {
     try {
       const response = await api.get(`/chats?page=${page}&limit=${limit}`);
       const payload = response.data;
@@ -356,6 +356,15 @@ export const chatService = {
       time: msgTime,
     });
     return response.data?.data || response.data;
+  },
+
+  markAsRead: async (chatId) => {
+    try {
+      const response = await api.put(`/chats/${chatId}/read`);
+      return response.data;
+    } catch (err) {
+      return null;
+    }
   },
 
   sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {

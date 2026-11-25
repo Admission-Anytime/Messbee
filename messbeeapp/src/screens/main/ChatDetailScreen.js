@@ -37,46 +37,57 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const flatListRef = useRef(null);
 
-  // Load real messages & quick replies from backend
+  // Load real messages & quick replies from backend + live 5s sync
   useEffect(() => {
     let isMounted = true;
-    const fetchChatData = async () => {
-      setLoading(true);
+    const mapMessages = (liveMsgs) =>
+      liveMsgs.map((m, idx) => ({
+        id: m._id || m.id || `m_${idx}`,
+        type: m.template ? 'template' : (m.status === 'failed' ? 'error' : 'text'),
+        text: m.text || m.body || m.message || '',
+        time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+        sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
+        status: m.status || 'delivered',
+        templateTag: m.templateName || m.template?.name,
+      }));
+
+    const fetchChatData = async (isInitial = false) => {
+      if (isInitial) setLoading(true);
       try {
         const [liveMsgs, liveQuickReplies] = await Promise.all([
           chat._id ? chatService.getMessages(chat._id).catch(() => []) : Promise.resolve([]),
-          quickReplyService.getQuickReplies().catch(() => []),
+          isInitial ? quickReplyService.getQuickReplies().catch(() => []) : Promise.resolve(null),
         ]);
+
+        if (isInitial && chat._id) {
+          chatService.markAsRead(chat._id);
+        }
 
         if (isMounted) {
           if (Array.isArray(liveMsgs)) {
-            const mapped = liveMsgs.map((m, idx) => ({
-              id: m._id || m.id || `m_${idx}`,
-              type: m.template ? 'template' : (m.status === 'failed' ? 'error' : 'text'),
-              text: m.text || m.body || m.message || '',
-              time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '10:42 AM'),
-              sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
-              status: m.status || 'delivered',
-              templateTag: m.templateName || m.template?.name,
-            }));
-            setMessages(mapped);
+            setMessages(mapMessages(liveMsgs));
           }
 
-          if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
-            setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
-          } else {
-            setQuickReplies(['I see. Tell me more.', 'Could you clarify that?', "I'll look into this right away."]);
+          if (isInitial) {
+            if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
+              setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
+            } else {
+              setQuickReplies(['I see. Tell me more.', 'Could you clarify that?', "I'll look into this right away."]);
+            }
           }
         }
       } catch (err) {
-        console.warn('Chat data loading note:', err.message);
+        if (isInitial) console.warn('Chat data loading note:', err.message);
       } finally {
-        if (isMounted) setLoading(false);
+        if (isMounted && isInitial) setLoading(false);
       }
     };
-    fetchChatData();
+
+    fetchChatData(true);
+    const pollInterval = setInterval(() => fetchChatData(false), 5000);
     return () => {
       isMounted = false;
+      clearInterval(pollInterval);
     };
   }, [chat._id]);
 
