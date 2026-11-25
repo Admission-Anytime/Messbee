@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { chatService, contactService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 export default function EditContactProfileScreen({ route, navigation }) {
   const { contact } = route.params || {};
@@ -33,11 +34,23 @@ export default function EditContactProfileScreen({ route, navigation }) {
   };
 
   const handleSaveChanges = async () => {
+    const { isValid, firstError } = validateForm({
+      name: { value: name, required: true, minLength: 2, label: 'Contact Name' },
+      phone: { value: phone, required: true, phone: true, label: 'Phone Number' },
+      email: { value: email, email: true, label: 'Email Address' },
+    });
+
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
+      return;
+    }
+
     setSaving(true);
     const updatedData = {
-      name,
-      phone,
-      email,
+      name: name.trim(),
+      whatsapp: phone.trim(),
+      phone: phone.trim(),
+      email: email.trim(),
       status,
       labels,
     };
@@ -106,10 +119,11 @@ export default function EditContactProfileScreen({ route, navigation }) {
           <TextInput
             style={styles.textInput}
             value={phone}
-            onChangeText={setPhone}
+            onChangeText={(text) => setPhone(text.replace(/[^0-9+\s]/g, '').slice(0, 15))}
             placeholder="+91..."
             placeholderTextColor="#94A3B8"
             keyboardType="phone-pad"
+            maxLength={15}
           />
         </View>
 

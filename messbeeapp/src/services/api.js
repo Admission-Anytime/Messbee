@@ -1,18 +1,27 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 import Constants from 'expo-constants';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// Backend runs on port 5002
-// Automatically detect the PC's Wi-Fi IP from the Expo connection or fallback to 192.168.1.12
+const AUTH_TOKEN_KEY = 'messbee_auth_token';
+const REFRESH_TOKEN_KEY = 'messbee_refresh_token';
+const SERVER_ENV_KEY = 'messbee_server_env';
+
+// Backend runs on port 5002 locally, or https://webservices.messbee.com/api in production
 const detectedHost =
   Constants?.expoConfig?.hostUri?.split(':')?.[0] ||
   Constants?.manifest2?.extra?.expoGo?.debuggerHost?.split(':')?.[0] ||
   '192.168.1.12';
 
-export const BASE_URL =
+export const LIVE_BASE_URL = 'https://webservices.messbee.com/api';
+export const LOCAL_BASE_URL =
   Platform.OS === 'android'
     ? `http://${detectedHost}:5002/api`
     : 'http://localhost:5002/api';
+
+// Default to Live Production Server so production web accounts (like aips.aayush1@gmail.com) work out of the box
+export let BASE_URL = LIVE_BASE_URL;
+let currentEnv = 'live';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -22,22 +31,133 @@ const api = axios.create({
   timeout: 15000,
 });
 
-let userToken = null;
+export const setServerEnvironment = async (env) => {
+  const nextEnv = env === 'local' ? 'local' : 'live';
+  currentEnv = nextEnv;
+  BASE_URL = nextEnv === 'local' ? LOCAL_BASE_URL : LIVE_BASE_URL;
+  api.defaults.baseURL = BASE_URL;
+  try {
+    await AsyncStorage.setItem(SERVER_ENV_KEY, nextEnv);
+  } catch (e) {}
+  return nextEnv;
+};
 
-export const setAuthToken = (token) => {
-  userToken = token;
+export const getServerEnvironment = () => currentEnv;
+
+let userToken = null;
+let userRefreshToken = null;
+
+export const setAuthToken = async (token, refreshToken = undefined) => {
+  userToken = token || null;
+  if (refreshToken !== undefined) {
+    userRefreshToken = refreshToken || null;
+  }
+  try {
+    if (token) {
+      await AsyncStorage.setItem(AUTH_TOKEN_KEY, token);
+    } else {
+      await AsyncStorage.removeItem(AUTH_TOKEN_KEY);
+    }
+    if (refreshToken !== undefined) {
+      if (refreshToken) {
+        await AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      } else {
+        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+      }
+    }
+  } catch (e) {
+    console.warn('AsyncStorage setAuthToken error:', e.message);
+  }
+};
+
+export const loadAuthToken = async () => {
+  try {
+    const savedEnv = await AsyncStorage.getItem(SERVER_ENV_KEY);
+    if (savedEnv === 'local' || savedEnv === 'live') {
+      currentEnv = savedEnv;
+      BASE_URL = savedEnv === 'local' ? LOCAL_BASE_URL : LIVE_BASE_URL;
+      api.defaults.baseURL = BASE_URL;
+    }
+  } catch (e) {}
+  if (userToken) return userToken;
+  try {
+    const [stored, storedRefresh] = await Promise.all([
+      AsyncStorage.getItem(AUTH_TOKEN_KEY),
+      AsyncStorage.getItem(REFRESH_TOKEN_KEY),
+    ]);
+    if (stored) userToken = stored;
+    if (storedRefresh) userRefreshToken = storedRefresh;
+    return stored || null;
+  } catch (e) {
+    console.warn('AsyncStorage loadAuthToken error:', e.message);
+    return null;
+  }
 };
 
 export const getAuthToken = () => userToken;
 
+const extractToken = (data) =>
+  data?.accessToken ||
+  data?.token ||
+  data?.tokens?.accessToken ||
+  data?.data?.accessToken ||
+  data?.data?.tokens?.accessToken ||
+  null;
+
+const extractRefreshToken = (data) =>
+  data?.refreshToken ||
+  data?.tokens?.refreshToken ||
+  data?.data?.refreshToken ||
+  data?.data?.tokens?.refreshToken ||
+  null;
+
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    if (!userToken) {
+      await loadAuthToken();
+    }
     if (userToken) {
       config.headers.Authorization = `Bearer ${userToken}`;
     }
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+// Auto-refresh on 401 if refresh token is available
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !originalRequest.url?.includes('/auth/login') &&
+      !originalRequest.url?.includes('/auth/refresh-token')
+    ) {
+      originalRequest._retry = true;
+      try {
+        if (!userRefreshToken) {
+          userRefreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+        }
+        if (userRefreshToken) {
+          const refreshRes = await axios.post(`${BASE_URL}/auth/refresh-token`, {
+            refreshToken: userRefreshToken,
+          });
+          const newAccess = extractToken(refreshRes.data);
+          const newRefresh = extractRefreshToken(refreshRes.data);
+          if (newAccess) {
+            await setAuthToken(newAccess, newRefresh || userRefreshToken);
+            originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+            return api(originalRequest);
+          }
+        }
+      } catch (refreshErr) {
+        await setAuthToken(null, null);
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 // ==================== AUTH SERVICE ====================
@@ -54,8 +174,10 @@ export const authService = {
   },
   verifySignupOTP: async (email, otp) => {
     const { data } = await api.post('/auth/signup/verify-otp', { email, otp });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
+    if (token) {
+      await setAuthToken(token, refresh);
     }
     return data;
   },
@@ -65,8 +187,10 @@ export const authService = {
   },
   verifyLoginOTP: async (email, otp) => {
     const { data } = await api.post('/auth/login/verify-otp', { email, otp });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
+    if (token) {
+      await setAuthToken(token, refresh);
     }
     return data;
   },
@@ -76,10 +200,15 @@ export const authService = {
   },
   loginWithPassword: async (email, password) => {
     const { data } = await api.post('/auth/login', { email, password });
-    if (data.accessToken || data.token) {
-      setAuthToken(data.accessToken || data.token);
+    const token = extractToken(data);
+    const refresh = extractRefreshToken(data);
+    if (token) {
+      await setAuthToken(token, refresh);
     }
     return data;
+  },
+  logout: async () => {
+    await setAuthToken(null, null);
   },
   getCurrentUser: async () => {
     const { data } = await api.get('/auth/me');
@@ -118,56 +247,29 @@ export const contactService = {
       if (Array.isArray(payload)) return payload;
       return [];
     } catch (err) {
-      try {
-        const fallback = await api.get('/contact', { params });
-        const p = fallback.data;
-        if (p && Array.isArray(p.contacts)) return p.contacts;
-        if (p && Array.isArray(p.data)) return p.data;
-        if (Array.isArray(p)) return p;
-      } catch (_) {}
       console.warn('contactService.getContacts error:', err.message);
       return [];
     }
   },
 
   getContactById: async (id) => {
-    try {
-      const response = await api.get(`/contacts/${id}`);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.get(`/contact/${id}`);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.get(`/contacts/${id}`);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   createContact: async (contactData) => {
-    try {
-      const response = await api.post('/contacts', contactData);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.post('/contact', contactData);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.post('/contacts', contactData);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   updateContact: async (id, contactData) => {
-    try {
-      const response = await api.put(`/contacts/${id}`, contactData);
-      return response.data?.data || response.data?.contact || response.data;
-    } catch (err) {
-      const fb = await api.put(`/contact/${id}`, contactData);
-      return fb.data?.data || fb.data?.contact || fb.data;
-    }
+    const response = await api.put(`/contacts/${id}`, contactData);
+    return response.data?.data || response.data?.contact || response.data;
   },
 
   deleteContact: async (id) => {
-    try {
-      const response = await api.delete(`/contacts/${id}`);
-      return response.data;
-    } catch (err) {
-      const fb = await api.delete(`/contact/${id}`);
-      return fb.data;
-    }
+    const response = await api.delete(`/contacts/${id}`);
+    return response.data;
   },
 
   bulkDelete: async (ids) => {
@@ -247,7 +349,7 @@ export const pipelineService = {
 
 // ==================== CHAT SERVICE (Real DB / API) ====================
 export const chatService = {
-  getChats: async (page = 1, limit = 50) => {
+  getChats: async (page = 1, limit = 100) => {
     try {
       const response = await api.get(`/chats?page=${page}&limit=${limit}`);
       const payload = response.data;
@@ -280,6 +382,15 @@ export const chatService = {
       time: msgTime,
     });
     return response.data?.data || response.data;
+  },
+
+  markAsRead: async (chatId) => {
+    try {
+      const response = await api.put(`/chats/${chatId}/read`);
+      return response.data;
+    } catch (err) {
+      return null;
+    }
   },
 
   sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {
@@ -650,13 +761,25 @@ export const qrWhatsappService = {
     const { data } = await api.post('/qr-whatsapp/broadcast', broadcastData);
     return data;
   },
+  getAutoResponder: async () => {
+    try {
+      const { data } = await api.get('/qr-whatsapp/auto-responder');
+      return data?.data || data;
+    } catch (err) {
+      return { enabled: false, message: '' };
+    }
+  },
+  updateAutoResponder: async (payload) => {
+    const { data } = await api.put('/qr-whatsapp/auto-responder', payload);
+    return data?.data || data;
+  },
 };
 
 // ==================== AUTOMATIONS / BOT SERVICE ====================
 export const automationService = {
   getAutomations: async () => {
     try {
-      const response = await api.get('/automations');
+      const response = await api.get('/automation');
       return response.data?.data || response.data || [];
     } catch (err) {
       console.warn('automationService.getAutomations error:', err.message);
@@ -664,19 +787,23 @@ export const automationService = {
     }
   },
   getAutomationById: async (id) => {
-    const response = await api.get(`/automations/${id}`);
+    const response = await api.get(`/automation/${id}`);
     return response.data?.data || response.data;
   },
   createAutomation: async (automationData) => {
-    const response = await api.post('/automations', automationData);
+    const response = await api.post('/automation', automationData);
     return response.data?.data || response.data;
   },
   updateAutomation: async (id, data) => {
-    const response = await api.put(`/automations/${id}`, data);
+    const response = await api.put(`/automation/${id}`, data);
     return response.data?.data || response.data;
   },
   deleteAutomation: async (id) => {
-    const response = await api.delete(`/automations/${id}`);
+    const response = await api.delete(`/automation/${id}`);
+    return response.data?.data || response.data;
+  },
+  testAutomation: async (id, payload = {}) => {
+    const response = await api.post(`/automation/${id}/test`, payload);
     return response.data?.data || response.data;
   },
 };
@@ -738,7 +865,7 @@ export const analyticsService = {
 export const devApiService = {
   getApiKeys: async () => {
     try {
-      const { data } = await api.get('/developer/keys');
+      const { data } = await api.get('/dev/keys');
       return data?.data || data?.keys || data || [];
     } catch (err) {
       console.warn('devApiService.getApiKeys error:', err.message);
@@ -746,16 +873,16 @@ export const devApiService = {
     }
   },
   createApiKey: async (payload = { name: 'Mobile App Key' }) => {
-    const { data } = await api.post('/developer/keys', payload);
+    const { data } = await api.post('/dev/keys', payload);
     return data?.data || data?.apiKey || data;
   },
   deleteApiKey: async (id) => {
-    const { data } = await api.delete(`/developer/keys/${id}`);
+    const { data } = await api.delete(`/dev/keys/${id}`);
     return data;
   },
   getWebhookConfig: async () => {
     try {
-      const { data } = await api.get('/developer/webhook');
+      const { data } = await api.get('/dev/webhook');
       return data?.data || data?.webhook || data;
     } catch (err) {
       console.warn('devApiService.getWebhookConfig error:', err.message);
@@ -763,7 +890,7 @@ export const devApiService = {
     }
   },
   saveWebhookConfig: async (payload) => {
-    const { data } = await api.post('/developer/webhook', payload);
+    const { data } = await api.post('/dev/webhook', payload);
     return data?.data || data;
   },
 };
@@ -984,6 +1111,25 @@ export const customerService = {
     const { data } = await api.post('/customers', customerData);
     return data?.data || data;
   },
+
+  updateCustomer: async (id, customerData) => {
+    const { data } = await api.put(`/customers/${id}`, customerData);
+    return data?.data || data;
+  },
+
+  deleteCustomer: async (id) => {
+    const { data } = await api.delete(`/customers/${id}`);
+    return data;
+  },
+
+  getCustomerSales: async (id) => {
+    try {
+      const { data } = await api.get(`/customers/${id}/sales`);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
 };
 
 // ==================== CONTACT GROUP SERVICE (Real DB / API) ====================
@@ -1026,6 +1172,251 @@ export const contactGroupService = {
   addContactsToGroup: async (id, contactIds) => {
     const { data } = await api.post(`/contact-groups/${id}/contacts`, { contactIds });
     return data?.data || data;
+  },
+};
+
+// ==================== MEDIA LIBRARY SERVICE (Real DB / API) ====================
+export const mediaService = {
+  getMedia: async (params = {}) => {
+    try {
+      const { data } = await api.get('/media', { params });
+      return data?.data || data?.media || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.warn('mediaService.getMedia error:', err.message);
+      return [];
+    }
+  },
+
+  deleteMedia: async (id) => {
+    const { data } = await api.delete(`/media/${id}`);
+    return data;
+  },
+
+  bulkDeleteMedia: async (ids) => {
+    const { data } = await api.post('/media/bulk-delete', { ids });
+    return data;
+  },
+};
+
+// ==================== PERFORMANCE & REPORTS SERVICE (Real DB / API) ====================
+export const performanceService = {
+  getOverview: async (date = '') => {
+    try {
+      const url = date ? `/performance/overview?date=${date}` : '/performance/overview';
+      const { data } = await api.get(url);
+      return data?.data || data;
+    } catch (err) {
+      console.warn('performanceService.getOverview error:', err.message);
+      return null;
+    }
+  },
+
+  getWabaConfig: async () => {
+    try {
+      const { data } = await api.get('/performance/waba-config');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+};
+
+export const reportsService = {
+  getDashboardStats: async () => {
+    try {
+      const { data } = await api.get('/reports/dashboard');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  getSalesReport: async (params = {}) => {
+    try {
+      const { data } = await api.get('/reports/sales', { params });
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  getPurchaseReport: async (params = {}) => {
+    try {
+      const { data } = await api.get('/reports/purchases', { params });
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+};
+
+// ==================== SUPPLIERS & PURCHASES SERVICE (Real DB / API) ====================
+export const supplierService = {
+  getSuppliers: async (search = '') => {
+    try {
+      const url = search ? `/suppliers?search=${encodeURIComponent(search)}` : '/suppliers';
+      const { data } = await api.get(url);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createSupplier: async (supplierData) => {
+    const { data } = await api.post('/suppliers', supplierData);
+    return data?.data || data;
+  },
+
+  updateSupplier: async (id, supplierData) => {
+    const { data } = await api.put(`/suppliers/${id}`, supplierData);
+    return data?.data || data;
+  },
+
+  deleteSupplier: async (id) => {
+    const { data } = await api.delete(`/suppliers/${id}`);
+    return data;
+  },
+};
+
+export const purchaseService = {
+  getPurchases: async (page = 1, limit = 30) => {
+    try {
+      const { data } = await api.get(`/purchases?page=${page}&limit=${limit}`);
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createPurchase: async (purchaseData) => {
+    const { data } = await api.post('/purchases', purchaseData);
+    return data?.data || data;
+  },
+};
+
+// ==================== CATEGORIES SERVICE (Real DB / API) ====================
+export const categoryService = {
+  getCategories: async () => {
+    try {
+      const { data } = await api.get('/categories');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createCategory: async (catData) => {
+    const { data } = await api.post('/categories', catData);
+    return data?.data || data;
+  },
+
+  updateCategory: async (id, catData) => {
+    const { data } = await api.put(`/categories/${id}`, catData);
+    return data?.data || data;
+  },
+
+  deleteCategory: async (id) => {
+    const { data } = await api.delete(`/categories/${id}`);
+    return data;
+  },
+};
+
+// ==================== TEAM & ACCOUNT LIMITS SERVICE (Real DB / API) ====================
+export const teamService = {
+  getUsers: async () => {
+    try {
+      const { data } = await api.get('/users');
+      return data?.data || data?.users || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createUser: async (userData) => {
+    const { data } = await api.post('/users', userData);
+    return data?.data || data;
+  },
+
+  updateUser: async (id, userData) => {
+    const { data } = await api.put(`/users/${id}`, userData);
+    return data?.data || data;
+  },
+
+  deleteUser: async (id) => {
+    const { data } = await api.delete(`/users/${id}`);
+    return data;
+  },
+
+  getAccountLimits: async () => {
+    try {
+      const { data } = await api.get('/users/account-limits');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  updateSubscription: async (planData) => {
+    const { data } = await api.put('/users/subscription', planData);
+    return data?.data || data;
+  },
+
+  contactSales: async (inquiryData) => {
+    const { data } = await api.post('/users/contact-sales', inquiryData);
+    return data?.data || data;
+  },
+};
+
+// ==================== ENTITIES / BRANCHES SERVICE (Real DB / API) ====================
+export const entityService = {
+  getEntities: async (params = {}) => {
+    try {
+      const { data } = await api.get('/entities', { params });
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
+  },
+
+  createEntity: async (entityData) => {
+    const { data } = await api.post('/entities', entityData);
+    return data?.data || data;
+  },
+
+  updateEntity: async (id, entityData) => {
+    const { data } = await api.put(`/entities/${id}`, entityData);
+    return data?.data || data;
+  },
+
+  deleteEntity: async (id) => {
+    const { data } = await api.delete(`/entities/${id}`);
+    return data;
+  },
+};
+
+// ==================== TENANT & WORKSPACE SETTINGS SERVICE ====================
+export const tenantSettingsService = {
+  getSettings: async () => {
+    try {
+      const { data } = await api.get('/tenant-settings');
+      return data?.data || data;
+    } catch (err) {
+      return null;
+    }
+  },
+
+  updateSettings: async (settingsData) => {
+    const { data } = await api.put('/tenant-settings', settingsData);
+    return data?.data || data;
+  },
+
+  getAutomationActivity: async () => {
+    try {
+      const { data } = await api.get('/automation/activity');
+      return data?.data || (Array.isArray(data) ? data : []);
+    } catch (err) {
+      return [];
+    }
   },
 };
 

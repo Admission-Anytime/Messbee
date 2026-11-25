@@ -9,6 +9,7 @@ import {
   Platform,
   Image,
   Dimensions,
+  useWindowDimensions,
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
@@ -41,6 +42,10 @@ const getInitials = (name = '') => {
 };
 
 export default function HomeScreen({ navigation }) {
+  const { width: windowWidth } = useWindowDimensions();
+  const bannerWidth = Math.min(windowWidth - 32, 600);
+  const bannerHeight = Math.round(bannerWidth * (416 / 863));
+
   const [activeFilter, setActiveFilter] = useState('unread');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -154,7 +159,7 @@ export default function HomeScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.profileCircle}
-            onPress={() => navigation.navigate('You')}
+            onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.8}
           >
             <Text style={styles.profileInitialsText}>{userInitials}</Text>
@@ -173,7 +178,10 @@ export default function HomeScreen({ navigation }) {
         <View style={styles.bannerContainer}>
           <Image
             source={require('../../../assets/home_hero_banner.png')}
-            style={styles.bannerImage}
+            style={[
+              styles.bannerImage,
+              { width: bannerWidth, height: bannerHeight },
+            ]}
             resizeMode="contain"
           />
         </View>
@@ -607,12 +615,11 @@ const styles = StyleSheet.create({
   },
   bannerContainer: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
+    alignItems: 'center',
   },
   bannerImage: {
-    width: '100%',
-    height: 140,
     borderRadius: 14,
   },
   quickActionsGrid: {

@@ -66,17 +66,6 @@ export default function BottomTabNavigator() {
         component={ChatsScreen}
         options={{
           tabBarLabel: 'Chats',
-          tabBarBadge: 3,
-          tabBarBadgeStyle: {
-            backgroundColor: '#00875A',
-            color: '#FFFFFF',
-            fontSize: 10,
-            fontWeight: '700',
-            minWidth: 16,
-            height: 16,
-            borderRadius: 8,
-            lineHeight: 15,
-          },
         }}
       />
       <Tab.Screen
