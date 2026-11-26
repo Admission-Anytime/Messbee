@@ -17,6 +17,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { statusService, authService } from '../../services/api';
+import MainBottomBar from '../../components/MainBottomBar';
 
 const COLOR_PALETTE = [
   '#00B67A', // Emerald green
@@ -686,6 +687,7 @@ export default function StatusScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <MainBottomBar navigation={navigation} activeTab="More" />
     </SafeAreaView>
   );
 }

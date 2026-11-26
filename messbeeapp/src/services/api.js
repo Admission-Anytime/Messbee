@@ -44,6 +44,18 @@ export const setServerEnvironment = async (env) => {
 
 export const getServerEnvironment = () => currentEnv;
 
+export const resolveFileUrl = (url, excludePlaceholder = false) => {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (excludePlaceholder && trimmed.includes('ui-avatars.com')) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('file://')) {
+    return trimmed;
+  }
+  const origin = BASE_URL.replace(/\/api\/?$/, '');
+  return `${origin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+};
+
 let userToken = null;
 let userRefreshToken = null;
 
@@ -222,6 +234,18 @@ export const authService = {
     const { data } = await api.put('/users/profile', profileData);
     return data?.data || data;
   },
+  uploadAvatar: async (asset) => {
+    const formData = new FormData();
+    const uri = asset.uri;
+    const filename = asset.fileName || uri.split('/').pop() || `avatar_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = asset.mimeType || (match ? `image/${match[1].toLowerCase()}` : 'image/jpeg');
+    formData.append('avatar', { uri, name: filename, type });
+    const { data } = await api.post('/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data?.data || data;
+  },
   forgotPassword: async (email) => {
     const { data } = await api.post('/auth/forgot-password', { email });
     return data;
@@ -368,6 +392,9 @@ export const chatService = {
       const response = await api.get(`/chats/messages/${chatId}`);
       return response.data?.data || response.data?.messages || response.data || [];
     } catch (err) {
+      if (err?.response?.status === 404) {
+        throw err;
+      }
       console.warn('chatService.getMessages error:', err.message);
       return [];
     }
@@ -393,9 +420,32 @@ export const chatService = {
     }
   },
 
-  sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {
-    const response = await api.post('/chats/send-template', {
-      chatId,
+  sendTemplate: async ({ chatId, to, phone, templateName, languageCode = 'en', components = [] }) => {
+    const recipient = to || phone;
+    if (chatId) {
+      try {
+        const response = await api.post('/chats/send-template', {
+          chatId,
+          templateName,
+          languageCode,
+          components,
+        });
+        return response.data?.data || response.data;
+      } catch (err) {
+        if (err?.response?.status === 404 && recipient) {
+          const fallbackRes = await api.post('/whatsapp/send-template', {
+            to: recipient,
+            templateName,
+            languageCode,
+            components,
+          });
+          return fallbackRes.data?.data || fallbackRes.data;
+        }
+        throw err;
+      }
+    }
+    const response = await api.post('/whatsapp/send-template', {
+      to: recipient,
       templateName,
       languageCode,
       components,
@@ -470,13 +520,17 @@ export const templateService = {
     try {
       const response = await api.get('/whatsapp/templates');
       const payload = response.data;
+      if (payload?.data && Array.isArray(payload.data.data)) return payload.data.data;
       if (payload && Array.isArray(payload.data)) return payload.data;
       if (payload && Array.isArray(payload.templates)) return payload.templates;
+      if (payload && Array.isArray(payload.approvedTemplates)) {
+        return [...payload.approvedTemplates, ...(payload.nonApprovedTemplates || [])];
+      }
       if (Array.isArray(payload)) return payload;
       return [];
     } catch (err) {
-      console.warn('templateService.getTemplates error:', err.message);
-      return [];
+      console.warn('templateService.getTemplates error:', err?.response?.data?.message || err.message);
+      throw err;
     }
   },
   getTemplateById: async (templateId) => {
@@ -494,6 +548,23 @@ export const templateService = {
   deleteTemplate: async (templateId) => {
     const response = await api.delete(`/whatsapp/templates/${templateId}`);
     return response.data;
+  },
+  uploadTemplateMedia: async (asset) => {
+    const formData = new FormData();
+    const uri = asset.uri;
+    const filename = asset.fileName || uri.split('/').pop() || `header_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = asset.mimeType || (match ? `image/${match[1].toLowerCase()}` : 'image/jpeg');
+    formData.append('file', { uri, name: filename, type });
+    const response = await api.post('/whatsapp/templates/upload-media', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data?.data || response.data;
+  },
+  uploadTemplateMediaByUrl: async (url) => {
+    const response = await api.post('/whatsapp/templates/upload-media-by-url', { url }, { timeout: 60000 });
+    return response.data?.data || response.data;
   },
 };
 

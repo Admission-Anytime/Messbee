@@ -8,10 +8,11 @@ import {
   TouchableOpacity,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { authService } from '../../services/api';
+import { authService, resolveFileUrl } from '../../services/api';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
@@ -44,6 +45,7 @@ export default function ProfileScreen({ navigation }) {
     .map((w) => w[0].toUpperCase())
     .join('') || 'MB';
   const plan = user?.plan ? `${user.plan.toUpperCase()} PLAN` : 'PRO PLAN';
+  const avatarUrl = resolveFileUrl(user?.avatar, true);
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of your MessBee account?', [
@@ -79,7 +81,11 @@ export default function ProfileScreen({ navigation }) {
         {/* User Business Card */}
         <View style={styles.userCard}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+            ) : (
+              <Text style={styles.avatarText}>{initials}</Text>
+            )}
           </View>
           <View style={styles.userInfoCol}>
             <Text style={styles.userName}>{displayName}</Text>
