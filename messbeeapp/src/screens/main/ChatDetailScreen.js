@@ -29,6 +29,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [inputText, setInputText] = useState('');
   const [currentStatus, setCurrentStatus] = useState(chat.status || 'Open');
   const [showActionsSheet, setShowActionsSheet] = useState(false);
+  const [showStatusSheet, setShowStatusSheet] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
@@ -159,6 +160,19 @@ export default function ChatDetailScreen({ route, navigation }) {
       }
     } catch (err) {
       console.warn('Pin API note:', err.message);
+    }
+  };
+
+  // Change conversation status
+  const handleChangeStatus = async (nextStatus) => {
+    setCurrentStatus(nextStatus);
+    setShowStatusSheet(false);
+    try {
+      if (chat._id) {
+        await chatService.updateStatus(chat._id, nextStatus.toLowerCase());
+      }
+    } catch (err) {
+      console.warn('Status update API note:', err.message);
     }
   };
 
