@@ -73,7 +73,7 @@ export default function ChatsScreen({ navigation }) {
             statusBg: isResolved ? '#F3E8FF' : '#DCFCE7',
             statusColor: isResolved ? '#7E22CE' : '#166534',
             pinned: item.isPinned || item.pinned || false,
-            archived: item.status === 'archived' || item.archived || false,
+            archived: String(item.chatStatus || item.status || '').toLowerCase() === 'archived' || item.archived === true,
             assignedTo: item.teamMember || item.assignedTo || null,
           };
         });
