@@ -13,6 +13,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,17 +45,30 @@ export default function ChatDetailScreen({ route, navigation }) {
   useEffect(() => {
     let isMounted = true;
     const mapMessages = (liveMsgs) =>
-      liveMsgs.map((m, idx) => ({
-        id: m._id || m.id || `m_${idx}`,
-        type: m.status === 'failed' ? 'error' : (m.messageType === 'template' || m.template ? 'template' : 'text'),
-        title: m.errorCode ? `WhatsApp Error (${m.errorCode})` : 'Message Failed',
-        subtitle: m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
-        text: m.text || m.body || m.message || '',
-        time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
-        sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
-        status: m.status || 'delivered',
-        templateTag: m.templateName || m.template?.name,
-      }));
+      liveMsgs.map((m, idx) => {
+        const isInviteError =
+          String(m.errorCode) === '131026' ||
+          String(m.errorCode) === '13026' ||
+          String(m.error || '').toLowerCase().includes('not have whatsapp');
+        return {
+          id: m._id || m.id || `m_${idx}`,
+          type: m.status === 'failed' ? 'error' : (m.messageType === 'template' || m.template ? 'template' : 'text'),
+          isInviteError,
+          title: isInviteError
+            ? 'This user is not on WhatsApp'
+            : m.errorCode
+            ? `WhatsApp Error (${m.errorCode})`
+            : 'Message Failed',
+          subtitle: isInviteError
+            ? 'This user is not using WhatsApp. Invite them to connect via MessBee.'
+            : m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
+          text: m.text || m.body || m.message || '',
+          time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+          sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
+          status: m.status || 'delivered',
+          templateTag: m.templateName || m.template?.name,
+        };
+      });
 
     const fetchChatData = async (isInitial = false) => {
       if (!isInitial && pollDisabledRef.current) return;
@@ -271,30 +285,54 @@ export default function ChatDetailScreen({ route, navigation }) {
     } catch (err) {}
   };
 
+  const handleInviteContact = async () => {
+    const contactName = chat?.name ? `${chat.name}, ` : '';
+    const inviteMessage = `Hi ${contactName}we tried reaching you on WhatsApp to share an important update. Join WhatsApp or connect with us directly on MessBee: https://messbee.com`;
+    try {
+      await Share.share({
+        title: 'Invite to WhatsApp & MessBee',
+        message: inviteMessage,
+      });
+    } catch (err) {
+      Alert.alert('Invite Failed', err?.message || 'Unable to open share sheet.');
+    }
+  };
+
   const renderMessageItem = ({ item }) => {
-    // 1. Error / Outside 24h Window Alert Box
+    // 1. Error / Outside 24h Window / Not on WhatsApp Alert Box
     if (item.type === 'error') {
       return (
-        <View style={styles.errorAlertBox}>
-          <View style={styles.errorIconCircle}>
-            <Ionicons name="alert" size={14} color="#FFFFFF" />
+        <View style={[styles.errorAlertBox, item.isInviteError && styles.inviteAlertBox]}>
+          <View style={[styles.errorIconCircle, item.isInviteError && styles.inviteIconCircle]}>
+            <Ionicons name={item.isInviteError ? 'person-add-outline' : 'alert'} size={14} color="#FFFFFF" />
           </View>
           <View style={styles.errorContent}>
-            <Text style={styles.errorTitle}>{item.title}</Text>
-            <Text style={styles.errorSubtitle}>{item.subtitle}</Text>
+            <Text style={[styles.errorTitle, item.isInviteError && styles.inviteTitle]}>{item.title}</Text>
+            <Text style={[styles.errorSubtitle, item.isInviteError && styles.inviteSubtitle]}>{item.subtitle}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() =>
-              navigation.navigate('TemplateSelection', {
-                contact: { ...chat, _id: activeChatId || chat._id },
-              })
-            }
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh-outline" size={13} color="#DC2626" style={{ marginRight: 4 }} />
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
+          {item.isInviteError ? (
+            <TouchableOpacity
+              style={styles.inviteBtn}
+              onPress={handleInviteContact}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-social-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.inviteBtnText}>Invite</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() =>
+                navigation.navigate('TemplateSelection', {
+                  contact: { ...chat, _id: activeChatId || chat._id },
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={13} color="#DC2626" style={{ marginRight: 4 }} />
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -1163,6 +1201,33 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     lineHeight: 14,
     marginTop: 1,
+  },
+  inviteAlertBox: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  inviteIconCircle: {
+    backgroundColor: '#00875A',
+  },
+  inviteTitle: {
+    color: '#065F46',
+  },
+  inviteSubtitle: {
+    color: '#047857',
+  },
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00875A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  inviteBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   retryBtn: {
     flexDirection: 'row',

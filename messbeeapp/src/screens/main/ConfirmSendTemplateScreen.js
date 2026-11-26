@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Platform,
   Alert,
+  Share,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -57,13 +58,32 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
         renderedText,
       });
     } catch (err) {
-      const errMsg =
-        err?.response?.data?.error ||
-        err?.response?.data?.message ||
-        err?.response?.data?.rawError?.message ||
-        err.message ||
-        'Failed to send template.';
-      Alert.alert('Template Send Failed', errMsg);
+      const errCode = err?.response?.data?.errorCode;
+      if (String(errCode) === '131026' || String(errCode) === '13026') {
+        Alert.alert(
+          'User Not on WhatsApp',
+          'This user is not using WhatsApp. Invite them to join WhatsApp or connect with you on MessBee.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Invite',
+              onPress: () =>
+                Share.share({
+                  title: 'Invite to WhatsApp & MessBee',
+                  message: `Hi ${contact?.name ? `${contact.name}, ` : ''}we tried reaching you on WhatsApp to share an important update. Join WhatsApp or connect with us directly on MessBee: https://messbee.com`,
+                }),
+            },
+          ]
+        );
+      } else {
+        const errMsg =
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.response?.data?.rawError?.message ||
+          err.message ||
+          'Failed to send template.';
+        Alert.alert('Template Send Failed', errMsg);
+      }
     } finally {
       setSending(false);
     }
