@@ -145,7 +145,26 @@ export default function ChatDetailScreen({ route, navigation }) {
         });
       }
     } catch (err) {
-      console.warn('Message send API note:', err.message);
+      const errData = err?.response?.data;
+      const errMsg = errData?.error || errData?.message || err.message || 'Failed to send message.';
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== newMsg.id));
+
+      if (errData?.errorCode === 131047) {
+        Alert.alert(
+          '24-Hour Window Expired',
+          'For new contacts or chats older than 24 hours, WhatsApp requires an approved Template message first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send Template',
+              onPress: () => navigation.navigate('TemplateSelection', { chat }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Message Not Sent', errMsg);
+      }
     }
   };
 
@@ -339,12 +358,13 @@ export default function ChatDetailScreen({ route, navigation }) {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          inverted
+          data={[...messages].reverse()}
           keyExtractor={(item) => item.id}
           renderItem={renderMessageItem}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
+          ListFooterComponent={
             <>
               {/* If Chat is Archived, Show Top Banner (Image 1 Screen 3) */}
               {isArchived && (
@@ -373,13 +393,6 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Ionicons name="lock-closed" size={12} color="#64748B" style={{ marginRight: 6 }} />
                 <Text style={styles.securityBannerText}>Messages are secured with WhatsApp</Text>
               </View>
-
-              {/* Date Header */}
-              {messages.length > 0 && (
-                <View style={styles.dateHeader}>
-                  <Text style={styles.dateHeaderText}>Today</Text>
-                </View>
-              )}
             </>
           }
           ListEmptyComponent={
