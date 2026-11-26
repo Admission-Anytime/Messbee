@@ -10,9 +10,11 @@ import {
   Modal,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/colors';
 import { templateService } from '../../services/api';
 import { validateForm } from '../../utils/validation';
@@ -573,6 +575,7 @@ export default function TemplatesScreen({ navigation }) {
   const [formHeaderType, setFormHeaderType] = useState('Text'); // 'None' | 'Text' | 'Image' | 'Video' | 'Document'
   const [formHeaderText, setFormHeaderText] = useState('Welcome to MessBee');
   const [formHeaderMediaUrl, setFormHeaderMediaUrl] = useState('');
+  const [formHeaderMediaRatio, setFormHeaderMediaRatio] = useState(16 / 9);
   const [formBodyText, setFormBodyText] = useState(
     'Hello {{1}}, welcome to MessBee! We are happy to have you with us. How can our team help today?'
   );
@@ -830,6 +833,44 @@ export default function TemplatesScreen({ navigation }) {
       }
     });
     return rendered;
+  };
+
+  useEffect(() => {
+    const uri = formHeaderMediaUrl.trim();
+    if (formHeaderType === 'Image' && uri) {
+      Image.getSize(
+        uri,
+        (w, h) => {
+          if (w > 0 && h > 0) {
+            setFormHeaderMediaRatio(Math.max(0.5, Math.min(2.5, w / h)));
+          }
+        },
+        () => {}
+      );
+    }
+  }, [formHeaderType, formHeaderMediaUrl]);
+
+  const handlePickHeaderImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Please allow photo library access to pick a header image.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets?.length) {
+        const asset = res.assets[0];
+        if (asset.width > 0 && asset.height > 0) {
+          setFormHeaderMediaRatio(Math.max(0.5, Math.min(2.5, asset.width / asset.height)));
+        }
+        setFormHeaderMediaUrl(asset.uri);
+      }
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Could not select header image.');
+    }
   };
 
   const handleCategorySelect = (catId) => {
@@ -2345,14 +2386,43 @@ export default function TemplatesScreen({ navigation }) {
                     )}
 
                     {['Image', 'Video', 'Document'].includes(formHeaderType) && (
-                      <TextInput
-                        style={[styles.formInput, { marginTop: 8 }]}
-                        placeholder={`https://example.com/sample.${formHeaderType === 'Image' ? 'jpg' : formHeaderType === 'Video' ? 'mp4' : 'pdf'}`}
-                        placeholderTextColor="#9CA3AF"
-                        autoCapitalize="none"
-                        value={formHeaderMediaUrl}
-                        onChangeText={setFormHeaderMediaUrl}
-                      />
+                      <View style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TextInput
+                            style={[styles.formInput, { flex: 1 }]}
+                            placeholder={`https://example.com/sample.${formHeaderType === 'Image' ? 'jpg' : formHeaderType === 'Video' ? 'mp4' : 'pdf'}`}
+                            placeholderTextColor="#9CA3AF"
+                            autoCapitalize="none"
+                            value={formHeaderMediaUrl}
+                            onChangeText={setFormHeaderMediaUrl}
+                          />
+                          {formHeaderType === 'Image' && (
+                            <TouchableOpacity
+                              style={[styles.headerTypePill, styles.headerTypePillActive]}
+                              onPress={handlePickHeaderImage}
+                              activeOpacity={0.8}
+                            >
+                              <Text style={[styles.headerTypePillText, styles.headerTypePillTextActive]}>
+                                Pick Image
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {formHeaderType === 'Image' && formHeaderMediaUrl.trim() ? (
+                          <Image
+                            source={{ uri: formHeaderMediaUrl.trim() }}
+                            style={{
+                              width: '100%',
+                              aspectRatio: formHeaderMediaRatio,
+                              maxHeight: 260,
+                              borderRadius: 10,
+                              marginTop: 8,
+                              backgroundColor: '#F1F5F9',
+                            }}
+                            resizeMode="cover"
+                          />
+                        ) : null}
+                      </View>
                     )}
                   </View>
 
@@ -2615,21 +2685,48 @@ export default function TemplatesScreen({ navigation }) {
                 <View style={styles.waChatWallpaper}>
                   {/* WhatsApp Speech Bubble */}
                   <View style={styles.waSpeechBubble}>
-                    {formHeaderType === 'Text' && formHeaderText ? (
-                      <Text style={styles.waBubbleHeader}>
-                        {formHeaderText}
-                      </Text>
-                    ) : null}
+                    {formCategory === 'Authentication' ? (
+                      <>
+                        <Text style={styles.waBubbleBody}>
+                          *123456* is your verification code.
+                          {authSecurityRec ? ' For your security, do not share this code.' : ''}
+                        </Text>
+                        <Text style={styles.waBubbleFooter}>
+                          This code expires in {authExpirationMins || '10'} minutes.
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        {formHeaderType === 'Text' && formHeaderText ? (
+                          <Text style={styles.waBubbleHeader}>
+                            {formHeaderText}
+                          </Text>
+                        ) : formHeaderType === 'Image' && formHeaderMediaUrl.trim() ? (
+                          <Image
+                            source={{ uri: formHeaderMediaUrl.trim() }}
+                            style={{
+                              width: '100%',
+                              aspectRatio: formHeaderMediaRatio,
+                              maxHeight: 240,
+                              borderRadius: 8,
+                              marginBottom: 8,
+                              backgroundColor: '#F1F5F9',
+                            }}
+                            resizeMode="cover"
+                          />
+                        ) : null}
 
-                    <Text style={styles.waBubbleBody}>
-                      {getRenderedBody(formBodyText, formSamples)}
-                    </Text>
+                        <Text style={styles.waBubbleBody}>
+                          {getRenderedBody(formBodyText, formSamples)}
+                        </Text>
 
-                    {formFooterText ? (
-                      <Text style={styles.waBubbleFooter}>
-                        {formFooterText}
-                      </Text>
-                    ) : null}
+                        {formType !== 'LIMITED_TIME_OFFER' && formFooterText ? (
+                          <Text style={styles.waBubbleFooter}>
+                            {formFooterText}
+                          </Text>
+                        ) : null}
+                      </>
+                    )}
 
                     <View style={styles.waBubbleMetaRow}>
                       <Text style={styles.waTimestamp}>12:45 PM</Text>
