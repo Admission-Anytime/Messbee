@@ -549,6 +549,23 @@ export const templateService = {
     const response = await api.delete(`/whatsapp/templates/${templateId}`);
     return response.data;
   },
+  uploadTemplateMedia: async (asset) => {
+    const formData = new FormData();
+    const uri = asset.uri;
+    const filename = asset.fileName || uri.split('/').pop() || `header_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = asset.mimeType || (match ? `image/${match[1].toLowerCase()}` : 'image/jpeg');
+    formData.append('file', { uri, name: filename, type });
+    const response = await api.post('/whatsapp/templates/upload-media', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data?.data || response.data;
+  },
+  uploadTemplateMediaByUrl: async (url) => {
+    const response = await api.post('/whatsapp/templates/upload-media-by-url', { url }, { timeout: 60000 });
+    return response.data?.data || response.data;
+  },
 };
 
 // ==================== CAMPAIGN SERVICE (Real DB / API) ====================

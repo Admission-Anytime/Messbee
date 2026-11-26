@@ -11,12 +11,13 @@ import {
   Platform,
   Alert,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/colors';
-import { templateService } from '../../services/api';
+import { templateService, resolveFileUrl } from '../../services/api';
 import { validateForm } from '../../utils/validation';
 
 // Initial pre-loaded WhatsApp Business Templates matching Meta Cloud API
@@ -576,6 +577,8 @@ export default function TemplatesScreen({ navigation }) {
   const [formHeaderText, setFormHeaderText] = useState('Welcome to MessBee');
   const [formHeaderMediaUrl, setFormHeaderMediaUrl] = useState('');
   const [formHeaderMediaRatio, setFormHeaderMediaRatio] = useState(16 / 9);
+  const [formHeaderMetaHandle, setFormHeaderMetaHandle] = useState(null);
+  const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState(false);
   const [formBodyText, setFormBodyText] = useState(
     'Hello {{1}}, welcome to MessBee! We are happy to have you with us. How can our team help today?'
   );
@@ -867,6 +870,26 @@ export default function TemplatesScreen({ navigation }) {
           setFormHeaderMediaRatio(Math.max(0.5, Math.min(2.5, asset.width / asset.height)));
         }
         setFormHeaderMediaUrl(asset.uri);
+        setFormHeaderMetaHandle(null);
+        setUploadingHeaderMedia(true);
+        try {
+          const uploaded = await templateService.uploadTemplateMedia(asset);
+          if (uploaded?.metaHandle) {
+            setFormHeaderMetaHandle(uploaded.metaHandle);
+            showToast('Image uploaded to Meta servers!');
+          } else {
+            showToast('Image uploaded! Ready for template.');
+          }
+          if (uploaded?.url) {
+            const fullUrl = resolveFileUrl(uploaded.url);
+            if (fullUrl) setFormHeaderMediaUrl(fullUrl);
+          }
+        } catch (uploadErr) {
+          const msg = uploadErr?.response?.data?.message || uploadErr?.message || 'Media upload failed.';
+          Alert.alert('Upload Failed', msg);
+        } finally {
+          setUploadingHeaderMedia(false);
+        }
       }
     } catch (err) {
       Alert.alert('Error', err?.message || 'Could not select header image.');
@@ -949,10 +972,14 @@ export default function TemplatesScreen({ navigation }) {
         return false;
       }
     } else if (['Image', 'Video', 'Document'].includes(formHeaderType)) {
-      if (!/^https?:\/\/.+/i.test(formHeaderMediaUrl.trim())) {
+      if (uploadingHeaderMedia) {
+        Alert.alert('Please Wait', 'Header media is still uploading to Meta.');
+        return false;
+      }
+      if (!formHeaderMetaHandle && !/^https?:\/\/.+/i.test(formHeaderMediaUrl.trim())) {
         Alert.alert(
           'Validation Error',
-          `Please enter a valid https:// URL for your ${formHeaderType} header.`
+          `Please upload a ${formHeaderType} or enter a valid https:// URL.`
         );
         return false;
       }
@@ -1038,11 +1065,23 @@ export default function TemplatesScreen({ navigation }) {
           headerComp.example = { header_text: [formSamples['{{1}}'] || 'Sample'] };
         }
         components.push(headerComp);
-      } else if (['Image', 'Video', 'Document'].includes(formHeaderType) && formHeaderMediaUrl.trim()) {
+      } else if (['Image', 'Video', 'Document'].includes(formHeaderType) && (formHeaderMetaHandle || formHeaderMediaUrl.trim())) {
+        let resolvedHandle = formHeaderMetaHandle;
+        const rawUrl = formHeaderMediaUrl.trim();
+        if (!resolvedHandle && /^https?:\/\/.+/i.test(rawUrl)) {
+          try {
+            const urlUploadRes = await templateService.uploadTemplateMediaByUrl(rawUrl);
+            if (urlUploadRes?.metaHandle) {
+              resolvedHandle = urlUploadRes.metaHandle;
+            }
+          } catch (_) {}
+        }
         components.push({
           type: 'HEADER',
           format: formHeaderType.toUpperCase(),
-          example: { header_handle: [formHeaderMediaUrl.trim()] },
+          example: resolvedHandle
+            ? { header_handle: [resolvedHandle] }
+            : { header_url: [rawUrl] },
         });
       }
 
@@ -2400,11 +2439,16 @@ export default function TemplatesScreen({ navigation }) {
                             <TouchableOpacity
                               style={[styles.headerTypePill, styles.headerTypePillActive]}
                               onPress={handlePickHeaderImage}
+                              disabled={uploadingHeaderMedia}
                               activeOpacity={0.8}
                             >
-                              <Text style={[styles.headerTypePillText, styles.headerTypePillTextActive]}>
-                                Pick Image
-                              </Text>
+                              {uploadingHeaderMedia ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                              ) : (
+                                <Text style={[styles.headerTypePillText, styles.headerTypePillTextActive]}>
+                                  {formHeaderMetaHandle ? 'Uploaded ✓' : 'Pick Image'}
+                                </Text>
+                              )}
                             </TouchableOpacity>
                           )}
                         </View>
