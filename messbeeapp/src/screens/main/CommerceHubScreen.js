@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { commerceService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 const formatCurrencyCompact = (num) => {
   const n = Number(num) || 0;
@@ -221,6 +222,7 @@ export default function CommerceHubScreen({ navigation }) {
           <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
         </TouchableOpacity>
       </ScrollView>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

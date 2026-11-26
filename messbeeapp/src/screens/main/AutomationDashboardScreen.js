@@ -18,6 +18,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { automationService } from '../../services/api';
 import { validateForm } from '../../utils/validation';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 const WORKFLOW_STARTERS = [
   {
@@ -493,6 +494,7 @@ export default function AutomationDashboardScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

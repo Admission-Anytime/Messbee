@@ -17,6 +17,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { commerceService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 const STATUS_TABS = ['All', 'Success', 'Pending', 'Failed', 'Refunded'];
 
@@ -348,6 +349,7 @@ export default function PaymentListScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

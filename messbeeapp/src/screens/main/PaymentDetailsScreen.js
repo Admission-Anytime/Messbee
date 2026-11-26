@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { chatService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 const getStatusConfig = (raw) => {
   const s = String(raw || 'pending').toLowerCase();
@@ -196,6 +197,7 @@ export default function PaymentDetailsScreen({ route, navigation }) {
           ))}
         </View>
       </ScrollView>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }
