@@ -11,10 +11,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, contactService } from '../../services/api';
+import { chatService, contactService, resolveFileUrl } from '../../services/api';
 
 const TABS = ['All', 'Mine', 'Unread', 'Active', 'Resolved'];
 
@@ -64,6 +65,7 @@ export default function ChatsScreen({ navigation }) {
             lastMessage: item.lastMsg || item.lastMessage?.text || item.lastMessage || 'No messages yet',
             time: item.lastMsgTime || (item.updatedAt ? new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
             unread: item.unread || item.unreadCount || 0,
+            avatarUrl: resolveFileUrl(item.avatar, true),
             avatarText: initials || 'WA',
             avatarBg: colorPair.bg,
             avatarColor: colorPair.color,
@@ -211,7 +213,11 @@ export default function ChatsScreen({ navigation }) {
         {/* Avatar Squircle with WhatsApp indicator */}
         <View style={styles.avatarWrapper}>
           <View style={[styles.avatarSquircle, { backgroundColor: item.avatarBg }]}>
-            <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
+            {item.avatarUrl ? (
+              <Image source={{ uri: item.avatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
+            ) : (
+              <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
+            )}
           </View>
           <View style={styles.whatsappDotBadge}>
             <Ionicons name="logo-whatsapp" size={9} color="#FFFFFF" />

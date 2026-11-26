@@ -44,6 +44,18 @@ export const setServerEnvironment = async (env) => {
 
 export const getServerEnvironment = () => currentEnv;
 
+export const resolveFileUrl = (url, excludePlaceholder = false) => {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  if (excludePlaceholder && trimmed.includes('ui-avatars.com')) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('file://')) {
+    return trimmed;
+  }
+  const origin = BASE_URL.replace(/\/api\/?$/, '');
+  return `${origin}${trimmed.startsWith('/') ? '' : '/'}${trimmed}`;
+};
+
 let userToken = null;
 let userRefreshToken = null;
 
@@ -220,6 +232,18 @@ export const authService = {
   },
   updateUserProfile: async (profileData) => {
     const { data } = await api.put('/users/profile', profileData);
+    return data?.data || data;
+  },
+  uploadAvatar: async (asset) => {
+    const formData = new FormData();
+    const uri = asset.uri;
+    const filename = asset.fileName || uri.split('/').pop() || `avatar_${Date.now()}.jpg`;
+    const match = /\.(\w+)$/.exec(filename);
+    const type = asset.mimeType || (match ? `image/${match[1].toLowerCase()}` : 'image/jpeg');
+    formData.append('avatar', { uri, name: filename, type });
+    const { data } = await api.post('/users/avatar', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
     return data?.data || data;
   },
   forgotPassword: async (email) => {

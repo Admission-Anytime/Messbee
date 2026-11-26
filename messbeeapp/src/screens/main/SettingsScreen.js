@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,11 @@ import {
   TextInput,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { authService } from '../../services/api';
+import { authService, resolveFileUrl } from '../../services/api';
 
 const SECTIONS = [
   {
@@ -146,6 +147,31 @@ const SECTIONS = [
 
 export default function SettingsScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const loadUser = async () => {
+      try {
+        const [u, p] = await Promise.all([
+          authService.getCurrentUser().catch(() => null),
+          authService.getUserProfile().catch(() => null),
+        ]);
+        setUser(p || u);
+      } catch (e) {}
+    };
+    loadUser();
+    const unsub = navigation.addListener('focus', loadUser);
+    return unsub;
+  }, [navigation]);
+
+  const avatarUrl = resolveFileUrl(user?.avatar, true);
+  const displayName = user?.name || user?.businessName || 'MessBee';
+  const initials = displayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0].toUpperCase())
+    .join('') || 'MB';
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out of your MessBee account?', [
@@ -228,9 +254,13 @@ export default function SettingsScreen({ navigation }) {
           </TouchableOpacity>
 
           {/* User Avatar Circle */}
-          <View style={styles.userAvatar}>
-            <Text style={styles.userAvatarText}>AK</Text>
-          </View>
+          <TouchableOpacity style={styles.userAvatar} onPress={() => navigation.navigate('PersonalInfo')} activeOpacity={0.8}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: 34, height: 34, borderRadius: 17 }} />
+            ) : (
+              <Text style={styles.userAvatarText}>{initials}</Text>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 

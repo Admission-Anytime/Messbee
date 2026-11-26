@@ -9,10 +9,12 @@ import {
   TextInput,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, contactService } from '../../services/api';
+import * as ImagePicker from 'expo-image-picker';
+import { chatService, contactService, resolveFileUrl } from '../../services/api';
 import { validateForm } from '../../utils/validation';
 
 export default function EditContactProfileScreen({ route, navigation }) {
@@ -22,6 +24,7 @@ export default function EditContactProfileScreen({ route, navigation }) {
   const [phone, setPhone] = useState(contact?.phone || '+91 9350157447');
   const [email, setEmail] = useState(contact?.email || '');
   const [status, setStatus] = useState(contact?.status || 'Open');
+  const [avatarUri, setAvatarUri] = useState(resolveFileUrl(contact?.avatar, true));
   const [labels, setLabels] = useState(
     contact?.labels && contact.labels.length > 0
       ? contact.labels
@@ -31,6 +34,27 @@ export default function EditContactProfileScreen({ route, navigation }) {
 
   const handleRemoveLabel = (lbl) => {
     setLabels(labels.filter((l) => l !== lbl));
+  };
+
+  const handlePickContactPhoto = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Please allow photo library access to pick a contact photo.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (!res.canceled && res.assets?.length) {
+        setAvatarUri(res.assets[0].uri);
+      }
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Could not select photo.');
+    }
   };
 
   const handleSaveChanges = async () => {
@@ -66,7 +90,7 @@ export default function EditContactProfileScreen({ route, navigation }) {
     } finally {
       setSaving(false);
       navigation.navigate('ContactProfile', {
-        contact: { ...contact, ...updatedData },
+        contact: { ...contact, ...updatedData, ...(avatarUri ? { avatar: avatarUri } : {}) },
         updatedProfile: updatedData,
       });
     }
@@ -91,8 +115,12 @@ export default function EditContactProfileScreen({ route, navigation }) {
         {/* Avatar with Camera Icon */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarSquircle}>
-            <Text style={styles.avatarInitials}>{name.slice(0, 2) || '91'}</Text>
-            <TouchableOpacity style={styles.cameraBadge}>
+            {avatarUri ? (
+              <Image source={{ uri: avatarUri }} style={{ width: 72, height: 72, borderRadius: 22 }} />
+            ) : (
+              <Text style={styles.avatarInitials}>{name.slice(0, 2) || '91'}</Text>
+            )}
+            <TouchableOpacity style={styles.cameraBadge} onPress={handlePickContactPhoto} activeOpacity={0.8}>
               <Ionicons name="camera" size={14} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
