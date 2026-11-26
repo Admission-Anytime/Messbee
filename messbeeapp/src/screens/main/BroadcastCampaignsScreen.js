@@ -23,6 +23,7 @@ import {
   templateService,
   authService,
 } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 export default function BroadcastCampaignsScreen({ navigation }) {
   // Campaigns list state
@@ -1092,6 +1093,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

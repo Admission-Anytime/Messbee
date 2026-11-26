@@ -13,6 +13,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, authService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 export default function AnalyticsOverviewScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
@@ -256,6 +257,7 @@ export default function AnalyticsOverviewScreen({ navigation }) {
           </View>
         </View>
       </ScrollView>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

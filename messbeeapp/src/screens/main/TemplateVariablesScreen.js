@@ -8,21 +8,29 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function TemplateVariablesScreen({ route, navigation }) {
   const { template, contact } = route.params || {};
+  const varLabels = Array.isArray(template?.variables) && template.variables.length > 0
+    ? template.variables
+    : ['Variable 1'];
 
-  // Variable values mapping: { 1: 'rhhhhhh' }
-  const [variables, setVariables] = useState({
-    1: 'rhhhhhh',
+  // Initialize dynamic variable map from template placeholders
+  const [variables, setVariables] = useState(() => {
+    const initial = {};
+    varLabels.forEach((_, idx) => {
+      initial[idx + 1] = idx === 0 ? (contact?.name || '') : '';
+    });
+    return initial;
   });
 
   // Calculate rendered text with replacements
   const getRenderedPreview = () => {
-    let text = template?.body || 'Hello {{1}}, thank you for contacting Admission Anytime.';
+    let text = template?.body || '';
     Object.keys(variables).forEach((key) => {
       const val = variables[key] || `{{${key}}}`;
       text = text.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), val);
@@ -31,6 +39,11 @@ export default function TemplateVariablesScreen({ route, navigation }) {
   };
 
   const handleContinue = () => {
+    const missing = varLabels.findIndex((_, idx) => !String(variables[idx + 1] || '').trim());
+    if (missing !== -1) {
+      Alert.alert('Validation Error', `Please fill in ${varLabels[missing]} ({{${missing + 1}}}).`);
+      return;
+    }
     navigation.navigate('ConfirmSendTemplate', {
       template,
       contact,
@@ -81,25 +94,30 @@ export default function TemplateVariablesScreen({ route, navigation }) {
         <Text style={styles.subTitle}>Values are inserted into the template before sending.</Text>
 
         {/* Dynamic Variables Form */}
-        <View style={styles.fieldCard}>
-          <View style={styles.fieldLabelRow}>
-            <Text style={styles.fieldLabel}>Customer Name</Text>
-            <Text style={styles.requiredTag}>Required</Text>
-          </View>
+        {varLabels.map((label, idx) => {
+          const varIndex = idx + 1;
+          return (
+            <View key={varIndex} style={styles.fieldCard}>
+              <View style={styles.fieldLabelRow}>
+                <Text style={styles.fieldLabel}>{label}</Text>
+                <Text style={styles.requiredTag}>Required</Text>
+              </View>
 
-          <View style={styles.inputWithBadge}>
-            <View style={styles.varBadge}>
-              <Text style={styles.varBadgeText}>{"{1}"}</Text>
+              <View style={styles.inputWithBadge}>
+                <View style={styles.varBadge}>
+                  <Text style={styles.varBadgeText}>{`{${varIndex}}`}</Text>
+                </View>
+                <TextInput
+                  style={styles.textInput}
+                  value={variables[varIndex] || ''}
+                  onChangeText={(text) => setVariables({ ...variables, [varIndex]: text })}
+                  placeholder={`Enter ${label.toLowerCase()}`}
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
             </View>
-            <TextInput
-              style={styles.textInput}
-              value={variables[1]}
-              onChangeText={(text) => setVariables({ ...variables, 1: text })}
-              placeholder="Enter customer name"
-              placeholderTextColor="#94A3B8"
-            />
-          </View>
-        </View>
+          );
+        })}
 
         {/* Live Preview Card */}
         <Text style={styles.previewHeading}>PREVIEW</Text>

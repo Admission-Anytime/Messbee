@@ -260,7 +260,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.toolCol}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('BotMenu')}
+            onPress={() => navigation.navigate('AutomationDashboard')}
           >
             <View style={styles.toolSquircle}>
               <Ionicons name="sparkles-outline" size={20} color="#00B67A" />
@@ -293,7 +293,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.toolCol}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('CommerceCatalog')}
+            onPress={() => navigation.navigate('CommerceHub')}
           >
             <View style={styles.toolSquircle}>
               <Ionicons name="cart-outline" size={20} color="#00B67A" />
@@ -382,7 +382,7 @@ export default function HomeScreen({ navigation }) {
           <TouchableOpacity
             style={styles.askButton}
             activeOpacity={0.85}
-            onPress={() => navigation.navigate('BotMenu')}
+            onPress={() => navigation.navigate('AutomationDashboard')}
           >
             <Text style={styles.askButtonText}>Ask  ›</Text>
           </TouchableOpacity>

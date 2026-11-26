@@ -8,6 +8,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
+  Share,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,33 +22,70 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
 
   const handleSendMessage = async () => {
+    const recipientPhone = contact?.phone || contact?.whatsappId || contact?.whatsapp;
+    if (!contact?._id && !recipientPhone) {
+      Alert.alert('Error', 'Missing recipient chat ID or phone number. Please reopen the chat and try again.');
+      return;
+    }
+
     setSending(true);
     try {
-      if (contact?._id) {
-        await chatService.sendTemplate({
-          chatId: contact._id,
-          templateName: template?.name || 'admission_welcome_v1',
-          languageCode: template?.language || 'en_US',
-          components: [
-            {
-              type: 'body',
-              parameters: Object.keys(variables || {}).map((k) => ({
-                type: 'text',
-                text: variables[k],
-              })),
-            },
-          ],
-        });
-      }
-    } catch (err) {
-      console.log('Template send note:', err.message);
-    } finally {
-      setSending(false);
+      const varKeys = Object.keys(variables || {}).sort((a, b) => Number(a) - Number(b));
+      const components =
+        varKeys.length > 0
+          ? [
+              {
+                type: 'body',
+                parameters: varKeys.map((k) => ({
+                  type: 'text',
+                  text: String(variables[k] || ''),
+                })),
+              },
+            ]
+          : [];
+
+      await chatService.sendTemplate({
+        chatId: contact?._id,
+        to: recipientPhone,
+        templateName: template?.whatsappTemplateName || template?.name,
+        languageCode: template?.language || 'en_US',
+        components,
+      });
+
       navigation.navigate('TemplateSuccess', {
         template,
         contact,
         renderedText,
       });
+    } catch (err) {
+      const errCode = err?.response?.data?.errorCode;
+      if (String(errCode) === '131026' || String(errCode) === '13026') {
+        Alert.alert(
+          'User Not on WhatsApp',
+          'This user is not using WhatsApp. Invite them to join WhatsApp or connect with you on MessBee.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Invite',
+              onPress: () =>
+                Share.share({
+                  title: 'Invite to WhatsApp & MessBee',
+                  message: `Hi ${contact?.name ? `${contact.name}, ` : ''}we tried reaching you on WhatsApp to share an important update. Join WhatsApp or connect with us directly on MessBee: https://messbee.com`,
+                }),
+            },
+          ]
+        );
+      } else {
+        const errMsg =
+          err?.response?.data?.error ||
+          err?.response?.data?.message ||
+          err?.response?.data?.rawError?.message ||
+          err.message ||
+          'Failed to send template.';
+        Alert.alert('Template Send Failed', errMsg);
+      }
+    } finally {
+      setSending(false);
     }
   };
 

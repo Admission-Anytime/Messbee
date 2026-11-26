@@ -13,6 +13,7 @@ import {
   Modal,
   Image,
   ActivityIndicator,
+  Share,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,46 +30,95 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [inputText, setInputText] = useState('');
   const [currentStatus, setCurrentStatus] = useState(chat.status || 'Open');
   const [showActionsSheet, setShowActionsSheet] = useState(false);
+  const [showStatusSheet, setShowStatusSheet] = useState(false);
   const [showClearModal, setShowClearModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [isArchived, setIsArchived] = useState(chat.archived || false);
   const [isPinned, setIsPinned] = useState(chat.pinned || false);
+  const [activeChatId, setActiveChatId] = useState(chat._id || null);
 
   const flatListRef = useRef(null);
+  const pollDisabledRef = useRef(false);
 
   // Load real messages & quick replies from backend + live 5s sync
   useEffect(() => {
     let isMounted = true;
     const mapMessages = (liveMsgs) =>
-      liveMsgs.map((m, idx) => ({
-        id: m._id || m.id || `m_${idx}`,
-        type: m.template ? 'template' : (m.status === 'failed' ? 'error' : 'text'),
-        text: m.text || m.body || m.message || '',
-        time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
-        sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
-        status: m.status || 'delivered',
-        templateTag: m.templateName || m.template?.name,
-      }));
+      liveMsgs.map((m, idx) => {
+        const isInviteError =
+          String(m.errorCode) === '131026' ||
+          String(m.errorCode) === '13026' ||
+          String(m.error || '').toLowerCase().includes('not have whatsapp');
+        return {
+          id: m._id || m.id || `m_${idx}`,
+          type: m.status === 'failed' ? 'error' : (m.messageType === 'template' || m.template ? 'template' : 'text'),
+          isInviteError,
+          title: isInviteError
+            ? 'This user is not on WhatsApp'
+            : m.errorCode
+            ? `WhatsApp Error (${m.errorCode})`
+            : 'Message Failed',
+          subtitle: isInviteError
+            ? 'This user is not using WhatsApp. Invite them to connect via MessBee.'
+            : m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
+          text: m.text || m.body || m.message || '',
+          time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+          sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
+          status: m.status || 'delivered',
+          templateTag: m.templateName || m.template?.name,
+        };
+      });
 
     const fetchChatData = async (isInitial = false) => {
+      if (!isInitial && pollDisabledRef.current) return;
       if (isInitial) setLoading(true);
       try {
-        const [liveMsgs, liveQuickReplies] = await Promise.all([
-          chat._id ? chatService.getMessages(chat._id).catch(() => []) : Promise.resolve([]),
-          isInitial ? quickReplyService.getQuickReplies().catch(() => []) : Promise.resolve(null),
-        ]);
+        let targetChatId = activeChatId;
 
-        if (isInitial && chat._id) {
-          chatService.markAsRead(chat._id);
+        if (isInitial && targetChatId) {
+          // Verify chat exists; if contact _id was mistakenly passed, resolve via createChat
+          try {
+            const liveMsgs = await chatService.getMessages(targetChatId);
+            if (isMounted && Array.isArray(liveMsgs)) {
+              setMessages(mapMessages(liveMsgs));
+            }
+          } catch (msgErr) {
+            if (msgErr?.response?.status === 404 && (chat.phone || chat.whatsapp)) {
+              const resolved = await chatService.createChat({
+                name: chat.name,
+                phone: chat.phone || chat.whatsapp,
+              });
+              if (resolved?._id && isMounted) {
+                targetChatId = resolved._id;
+                setActiveChatId(resolved._id);
+                const retryMsgs = await chatService.getMessages(resolved._id).catch(() => []);
+                if (isMounted && Array.isArray(retryMsgs)) {
+                  setMessages(mapMessages(retryMsgs));
+                }
+              } else {
+                pollDisabledRef.current = true;
+              }
+            } else {
+              pollDisabledRef.current = true;
+            }
+          }
+        } else if (targetChatId) {
+          const liveMsgs = await chatService.getMessages(targetChatId).catch(() => null);
+          if (isMounted && Array.isArray(liveMsgs)) {
+            setMessages(mapMessages(liveMsgs));
+          } else if (liveMsgs === null) {
+            pollDisabledRef.current = true;
+          }
         }
 
-        if (isMounted) {
-          if (Array.isArray(liveMsgs)) {
-            setMessages(mapMessages(liveMsgs));
-          }
+        if (isInitial && targetChatId) {
+          chatService.markAsRead(targetChatId);
+        }
 
-          if (isInitial) {
+        if (isInitial && isMounted) {
+          const liveQuickReplies = await quickReplyService.getQuickReplies().catch(() => []);
+          if (isMounted) {
             if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
               setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
             } else {
@@ -89,7 +139,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       isMounted = false;
       clearInterval(pollInterval);
     };
-  }, [chat._id]);
+  }, [activeChatId]);
 
   // Handle status update from UpdateLeadStatusModal
   useEffect(() => {
@@ -136,15 +186,48 @@ export default function ChatDetailScreen({ route, navigation }) {
     setInputText('');
 
     try {
-      if (chat._id) {
+      let targetId = activeChatId || chat._id;
+      if (!targetId && (chat.phone || chat.whatsappId || chat.whatsapp)) {
+        const resolved = await chatService.createChat({
+          name: chat.name,
+          phone: chat.phone || chat.whatsappId || chat.whatsapp,
+        });
+        if (resolved?._id) {
+          targetId = resolved._id;
+          setActiveChatId(resolved._id);
+        }
+      }
+      if (targetId) {
         await chatService.sendMessage({
-          chatId: chat._id,
+          chatId: targetId,
           text: textToSend,
           sender: 'me',
         });
       }
     } catch (err) {
-      console.warn('Message send API note:', err.message);
+      const errData = err?.response?.data;
+      const errMsg = errData?.error || errData?.message || err.message || 'Failed to send message.';
+      // Remove optimistic message on failure
+      setMessages((prev) => prev.filter((m) => m.id !== newMsg.id));
+
+      if (errData?.errorCode === 131047) {
+        Alert.alert(
+          '24-Hour Window Expired',
+          'For new contacts or chats older than 24 hours, WhatsApp requires an approved Template message first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send Template',
+              onPress: () =>
+                navigation.navigate('TemplateSelection', {
+                  contact: { ...chat, _id: activeChatId || chat._id },
+                }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Message Not Sent', errMsg);
+      }
     }
   };
 
@@ -159,6 +242,19 @@ export default function ChatDetailScreen({ route, navigation }) {
       }
     } catch (err) {
       console.warn('Pin API note:', err.message);
+    }
+  };
+
+  // Change conversation status
+  const handleChangeStatus = async (nextStatus) => {
+    setCurrentStatus(nextStatus);
+    setShowStatusSheet(false);
+    try {
+      if (chat._id) {
+        await chatService.updateStatus(chat._id, nextStatus.toLowerCase());
+      }
+    } catch (err) {
+      console.warn('Status update API note:', err.message);
     }
   };
 
@@ -189,26 +285,54 @@ export default function ChatDetailScreen({ route, navigation }) {
     } catch (err) {}
   };
 
+  const handleInviteContact = async () => {
+    const contactName = chat?.name ? `${chat.name}, ` : '';
+    const inviteMessage = `Hi ${contactName}we tried reaching you on WhatsApp to share an important update. Join WhatsApp or connect with us directly on MessBee: https://messbee.com`;
+    try {
+      await Share.share({
+        title: 'Invite to WhatsApp & MessBee',
+        message: inviteMessage,
+      });
+    } catch (err) {
+      Alert.alert('Invite Failed', err?.message || 'Unable to open share sheet.');
+    }
+  };
+
   const renderMessageItem = ({ item }) => {
-    // 1. Error / Outside 24h Window Alert Box
+    // 1. Error / Outside 24h Window / Not on WhatsApp Alert Box
     if (item.type === 'error') {
       return (
-        <View style={styles.errorAlertBox}>
-          <View style={styles.errorIconCircle}>
-            <Ionicons name="alert" size={14} color="#FFFFFF" />
+        <View style={[styles.errorAlertBox, item.isInviteError && styles.inviteAlertBox]}>
+          <View style={[styles.errorIconCircle, item.isInviteError && styles.inviteIconCircle]}>
+            <Ionicons name={item.isInviteError ? 'person-add-outline' : 'alert'} size={14} color="#FFFFFF" />
           </View>
           <View style={styles.errorContent}>
-            <Text style={styles.errorTitle}>{item.title}</Text>
-            <Text style={styles.errorSubtitle}>{item.subtitle}</Text>
+            <Text style={[styles.errorTitle, item.isInviteError && styles.inviteTitle]}>{item.title}</Text>
+            <Text style={[styles.errorSubtitle, item.isInviteError && styles.inviteSubtitle]}>{item.subtitle}</Text>
           </View>
-          <TouchableOpacity
-            style={styles.retryBtn}
-            onPress={() => navigation.navigate('TemplateSelection', { contact: chat })}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="refresh-outline" size={13} color="#DC2626" style={{ marginRight: 4 }} />
-            <Text style={styles.retryBtnText}>Retry</Text>
-          </TouchableOpacity>
+          {item.isInviteError ? (
+            <TouchableOpacity
+              style={styles.inviteBtn}
+              onPress={handleInviteContact}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="share-social-outline" size={13} color="#FFFFFF" style={{ marginRight: 4 }} />
+              <Text style={styles.inviteBtnText}>Invite</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.retryBtn}
+              onPress={() =>
+                navigation.navigate('TemplateSelection', {
+                  contact: { ...chat, _id: activeChatId || chat._id },
+                })
+              }
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh-outline" size={13} color="#DC2626" style={{ marginRight: 4 }} />
+              <Text style={styles.retryBtnText}>Retry</Text>
+            </TouchableOpacity>
+          )}
         </View>
       );
     }
@@ -325,12 +449,13 @@ export default function ChatDetailScreen({ route, navigation }) {
       >
         <FlatList
           ref={flatListRef}
-          data={messages}
+          inverted
+          data={[...messages].reverse()}
           keyExtractor={(item) => item.id}
           renderItem={renderMessageItem}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
+          ListFooterComponent={
             <>
               {/* If Chat is Archived, Show Top Banner (Image 1 Screen 3) */}
               {isArchived && (
@@ -359,13 +484,6 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Ionicons name="lock-closed" size={12} color="#64748B" style={{ marginRight: 6 }} />
                 <Text style={styles.securityBannerText}>Messages are secured with WhatsApp</Text>
               </View>
-
-              {/* Date Header */}
-              {messages.length > 0 && (
-                <View style={styles.dateHeader}>
-                  <Text style={styles.dateHeaderText}>Today</Text>
-                </View>
-              )}
             </>
           }
           ListEmptyComponent={
@@ -429,7 +547,11 @@ export default function ChatDetailScreen({ route, navigation }) {
           {/* WhatsApp Template Document Icon */}
           <TouchableOpacity
             style={styles.composerIconBtn}
-            onPress={() => navigation.navigate('TemplateSelection', { contact: chat })}
+            onPress={() =>
+              navigation.navigate('TemplateSelection', {
+                contact: { ...chat, _id: activeChatId || chat._id },
+              })
+            }
             activeOpacity={0.7}
           >
             <Ionicons name="document-text-outline" size={22} color="#00875A" />
@@ -1079,6 +1201,33 @@ const styles = StyleSheet.create({
     color: '#991B1B',
     lineHeight: 14,
     marginTop: 1,
+  },
+  inviteAlertBox: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  inviteIconCircle: {
+    backgroundColor: '#00875A',
+  },
+  inviteTitle: {
+    color: '#065F46',
+  },
+  inviteSubtitle: {
+    color: '#047857',
+  },
+  inviteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#00875A',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  inviteBtnText: {
+    fontSize: 11.5,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   retryBtn: {
     flexDirection: 'row',

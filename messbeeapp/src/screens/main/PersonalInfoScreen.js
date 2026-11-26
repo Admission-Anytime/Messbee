@@ -10,10 +10,12 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { authService } from '../../services/api';
+import * as ImagePicker from 'expo-image-picker';
+import { authService, resolveFileUrl } from '../../services/api';
 import { validateForm } from '../../utils/validation';
 
 export default function PersonalInfoScreen({ navigation }) {
@@ -21,6 +23,8 @@ export default function PersonalInfoScreen({ navigation }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [role, setRole] = useState('Workspace Member');
+  const [avatarUrl, setAvatarUrl] = useState(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -42,6 +46,7 @@ export default function PersonalInfoScreen({ navigation }) {
         setEmail(activeUser.email || activeUser.emailId || '');
         setPhone(activeUser.phone || activeUser.mobileNumber || '');
         setRole(activeUser.role || (activeUser.isAdmin ? 'Administrator / Owner' : 'Team Member'));
+        setAvatarUrl(resolveFileUrl(activeUser.avatar, true));
       }
     } catch (err) {
       console.warn('loadUserData error:', err.message);
@@ -74,6 +79,35 @@ export default function PersonalInfoScreen({ navigation }) {
       Alert.alert('Error', err?.response?.data?.message || 'Failed to update personal information.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePickAvatar = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Please allow photo library access to change your avatar.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+      if (res.canceled || !res.assets?.length) return;
+
+      const asset = res.assets[0];
+      setAvatarUrl(asset.uri);
+      setUploadingAvatar(true);
+      const updated = await authService.uploadAvatar(asset);
+      const serverAvatar = resolveFileUrl(updated?.avatar, true);
+      if (serverAvatar) setAvatarUrl(serverAvatar);
+      Alert.alert('Success', 'Profile photo updated!');
+    } catch (err) {
+      Alert.alert('Upload Failed', err?.response?.data?.message || err?.message || 'Could not upload avatar.');
+    } finally {
+      setUploadingAvatar(false);
     }
   };
 
@@ -123,11 +157,26 @@ export default function PersonalInfoScreen({ navigation }) {
         {/* User Avatar Big */}
         <View style={styles.avatarSection}>
           <View style={styles.avatarCircle}>
-            <Text style={styles.avatarText}>{initials}</Text>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={{ width: 84, height: 84, borderRadius: 42 }} />
+            ) : (
+              <Text style={styles.avatarText}>{initials}</Text>
+            )}
           </View>
-          <TouchableOpacity style={styles.changePhotoBtn} activeOpacity={0.8}>
-            <Ionicons name="camera-outline" size={16} color="#00B67A" />
-            <Text style={styles.changePhotoText}>Change Avatar</Text>
+          <TouchableOpacity
+            style={styles.changePhotoBtn}
+            activeOpacity={0.8}
+            onPress={handlePickAvatar}
+            disabled={uploadingAvatar}
+          >
+            {uploadingAvatar ? (
+              <ActivityIndicator size="small" color="#00B67A" />
+            ) : (
+              <>
+                <Ionicons name="camera-outline" size={16} color="#00B67A" />
+                <Text style={styles.changePhotoText}>Change Avatar</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 

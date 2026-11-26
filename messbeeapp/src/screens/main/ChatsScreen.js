@@ -11,10 +11,11 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Image,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, contactService } from '../../services/api';
+import { chatService, contactService, resolveFileUrl } from '../../services/api';
 
 const TABS = ['All', 'Mine', 'Unread', 'Active', 'Resolved'];
 
@@ -64,6 +65,7 @@ export default function ChatsScreen({ navigation }) {
             lastMessage: item.lastMsg || item.lastMessage?.text || item.lastMessage || 'No messages yet',
             time: item.lastMsgTime || (item.updatedAt ? new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
             unread: item.unread || item.unreadCount || 0,
+            avatarUrl: resolveFileUrl(item.avatar, true),
             avatarText: initials || 'WA',
             avatarBg: colorPair.bg,
             avatarColor: colorPair.color,
@@ -71,7 +73,7 @@ export default function ChatsScreen({ navigation }) {
             statusBg: isResolved ? '#F3E8FF' : '#DCFCE7',
             statusColor: isResolved ? '#7E22CE' : '#166534',
             pinned: item.isPinned || item.pinned || false,
-            archived: item.status === 'archived' || item.archived || false,
+            archived: String(item.chatStatus || item.status || '').toLowerCase() === 'archived' || item.archived === true,
             assignedTo: item.teamMember || item.assignedTo || null,
           };
         });
@@ -135,28 +137,49 @@ export default function ChatsScreen({ navigation }) {
 
   const unreadCount = chats.filter((c) => c.unread > 0).length;
 
-  const handleStartChatWithContact = (contact) => {
+  const handleStartChatWithContact = async (contact) => {
     setShowNewChatModal(false);
-    const existing = chats.find((c) => c.phone.includes(contact.phone.replace(/[^0-9]/g, '')));
+    const rawPhone = contact.whatsapp || contact.phone || contact.phoneNumber || '';
+    const digits = rawPhone.replace(/[^0-9]/g, '');
+    const last10 = digits.length > 10 ? digits.slice(-10) : digits;
+
+    const existing = last10
+      ? chats.find((c) => (c.phone || '').replace(/[^0-9]/g, '').endsWith(last10))
+      : null;
+
     if (existing) {
       navigation.navigate('ChatDetail', { chat: existing });
-    } else {
-      const newChat = {
-        _id: `chat_${Date.now()}`,
-        name: contact.name,
-        phone: contact.phone,
-        lastMessage: 'Tap to start conversation',
+      return;
+    }
+
+    try {
+      const created = await chatService.createChat({
+        name: contact.name || rawPhone || 'Contact',
+        phone: rawPhone,
+        whatsappId: digits,
+      });
+
+      const realChat = {
+        _id: created?._id || created?.id,
+        name: created?.name || contact.name || rawPhone,
+        phone: created?.phone || created?.whatsappId || rawPhone,
+        lastMessage: created?.lastMsg || 'Start conversation',
         time: 'Just now',
         unread: 0,
-        avatarText: contact.initials,
-        avatarBg: contact.bg,
-        avatarColor: contact.color,
+        avatarText: (contact.name || rawPhone || 'WA').slice(0, 2).toUpperCase(),
+        avatarBg: '#D1FAE5',
+        avatarColor: '#065F46',
         status: 'Open',
         statusBg: '#DCFCE7',
         statusColor: '#166534',
       };
-      setChats([newChat, ...chats]);
-      navigation.navigate('ChatDetail', { chat: newChat });
+
+      if (realChat._id) {
+        setChats((prev) => [realChat, ...prev]);
+        navigation.navigate('ChatDetail', { chat: realChat });
+      }
+    } catch (err) {
+      console.warn('handleStartChatWithContact error:', err?.response?.data || err.message);
     }
   };
 
@@ -190,7 +213,11 @@ export default function ChatsScreen({ navigation }) {
         {/* Avatar Squircle with WhatsApp indicator */}
         <View style={styles.avatarWrapper}>
           <View style={[styles.avatarSquircle, { backgroundColor: item.avatarBg }]}>
-            <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
+            {item.avatarUrl ? (
+              <Image source={{ uri: item.avatarUrl }} style={{ width: '100%', height: '100%', borderRadius: 16 }} />
+            ) : (
+              <Text style={[styles.avatarInitials, { color: item.avatarColor }]}>{item.avatarText}</Text>
+            )}
           </View>
           <View style={styles.whatsappDotBadge}>
             <Ionicons name="logo-whatsapp" size={9} color="#FFFFFF" />
@@ -448,23 +475,27 @@ export default function ChatsScreen({ navigation }) {
 
             <Text style={styles.suggestedHeading}>SUGGESTED CONTACTS</Text>
 
-            {suggestedContacts.map((contact) => (
+            {suggestedContacts.map((contact, idx) => {
+              const displayPhone = contact.whatsapp || contact.phone || contact.phoneNumber || '';
+              const initials = (contact.name || displayPhone || 'WA').slice(0, 2).toUpperCase();
+              return (
               <TouchableOpacity
-                key={contact.id}
+                key={contact._id || contact.id || idx}
                 style={styles.contactRow}
                 onPress={() => handleStartChatWithContact(contact)}
                 activeOpacity={0.7}
               >
-                <View style={[styles.contactAvatar, { backgroundColor: contact.bg }]}>
-                  <Text style={[styles.contactInitials, { color: contact.color }]}>{contact.initials}</Text>
+                <View style={[styles.contactAvatar, { backgroundColor: contact.bg || '#D1FAE5' }]}>
+                  <Text style={[styles.contactInitials, { color: contact.color || '#065F46' }]}>{initials}</Text>
                 </View>
                 <View style={styles.contactInfo}>
-                  <Text style={styles.contactNameText}>{contact.name}</Text>
-                  <Text style={styles.contactPhoneText}>{contact.phone}</Text>
+                  <Text style={styles.contactNameText}>{contact.name || displayPhone}</Text>
+                  <Text style={styles.contactPhoneText}>{displayPhone}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#CBD5E1" />
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         </TouchableOpacity>
       </Modal>

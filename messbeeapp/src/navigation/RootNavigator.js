@@ -60,6 +60,10 @@ import WhatsAppDisconnectedScreen from '../screens/whatsappConfig/WhatsAppDiscon
 import ReconnectWhatsAppScreen from '../screens/whatsappConfig/ReconnectWhatsAppScreen';
 import NotificationsScreen from '../screens/main/NotificationsScreen';
 import CommerceCatalogScreen from '../screens/main/CommerceCatalogScreen';
+import CommerceHubScreen from '../screens/main/CommerceHubScreen';
+import PaymentListScreen from '../screens/main/PaymentListScreen';
+import PaymentDetailsScreen from '../screens/main/PaymentDetailsScreen';
+import AutomationDashboardScreen from '../screens/main/AutomationDashboardScreen';
 import InventoryScreen from '../screens/main/InventoryScreen';
 import BillingInvoicesScreen from '../screens/main/BillingInvoicesScreen';
 import ContactGroupsScreen from '../screens/main/ContactGroupsScreen';
@@ -164,6 +168,10 @@ export default function RootNavigator() {
         <Stack.Screen name="WhatsAppDisconnected" component={WhatsAppDisconnectedScreen} />
         <Stack.Screen name="ReconnectWhatsApp" component={ReconnectWhatsAppScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
+        <Stack.Screen name="CommerceHub" component={CommerceHubScreen} />
+        <Stack.Screen name="PaymentList" component={PaymentListScreen} />
+        <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
+        <Stack.Screen name="AutomationDashboard" component={AutomationDashboardScreen} />
         <Stack.Screen name="CommerceCatalog" component={CommerceCatalogScreen} />
         <Stack.Screen name="Inventory" component={InventoryScreen} />
         <Stack.Screen name="BillingInvoices" component={BillingInvoicesScreen} />

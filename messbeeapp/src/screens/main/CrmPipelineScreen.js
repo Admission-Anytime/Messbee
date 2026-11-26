@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { contactService, pipelineService } from '../../services/api';
+import { contactService, pipelineService, chatService } from '../../services/api';
 
 const STAGES = [
   { id: 'Active', label: 'Active', color: '#16A34A', bg: '#DCFCE7', barBg: '#D1FAE5', barText: '#065F46' },
@@ -378,19 +378,27 @@ export default function CrmPipelineScreen({ navigation }) {
 
             <TouchableOpacity
               style={styles.actionRowItem}
-              onPress={() => {
+              onPress={async () => {
                 const lead = selectedLead;
                 setSelectedLead(null);
-                navigation.navigate('ChatDetail', {
-                  chat: {
-                    _id: lead._id,
+                try {
+                  const created = await chatService.createChat({
                     name: lead.name,
                     phone: lead.phone,
-                    avatarText: lead.initials,
-                    avatarBg: '#D1FAE5',
-                    avatarColor: '#065F46',
-                  },
-                });
+                  });
+                  navigation.navigate('ChatDetail', {
+                    chat: {
+                      _id: created?._id || created?.id,
+                      name: created?.name || lead.name,
+                      phone: created?.phone || lead.phone,
+                      avatarText: lead.initials,
+                      avatarBg: '#D1FAE5',
+                      avatarColor: '#065F46',
+                    },
+                  });
+                } catch (err) {
+                  Alert.alert('Error', err?.response?.data?.error || err?.message || 'Could not open chat.');
+                }
               }}
             >
               <Ionicons name="chatbubble-outline" size={19} color="#0F172A" style={{ marginRight: 12 }} />

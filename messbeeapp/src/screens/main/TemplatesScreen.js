@@ -10,11 +10,16 @@ import {
   Modal,
   Platform,
   Alert,
+  Image,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/colors';
-import { templateService } from '../../services/api';
+import { templateService, resolveFileUrl } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
+import { validateForm } from '../../utils/validation';
 
 // Initial pre-loaded WhatsApp Business Templates matching Meta Cloud API
 const INITIAL_TEMPLATES_DATA = [
@@ -507,15 +512,23 @@ const TEMPLATE_TYPE_OPTIONS = [
   {
     id: 'Custom',
     title: 'Custom',
-    desc: 'Flexible messages with custom content and buttons.',
+    desc: 'Flexible messages with custom header, body, footer, and buttons.',
     icon: 'document-text-outline',
+    categories: ['Marketing', 'Utility'],
   },
   {
-    id: 'Catalog',
-    title: 'Catalog',
-    desc: 'Display your online product catalog directly in chat.',
-    icon: 'grid-outline',
-    badge: 'Coming Soon',
+    id: 'LIMITED_TIME_OFFER',
+    title: 'Limited Time Offer',
+    desc: 'Highlight expiring deals with countdown badge and copy-code button.',
+    icon: 'flash-outline',
+    categories: ['Marketing'],
+  },
+  {
+    id: 'OTP',
+    title: 'One-Time Passcode (OTP)',
+    desc: 'Structured Meta authentication template with copy-code button.',
+    icon: 'lock-closed-outline',
+    categories: ['Authentication'],
   },
 ];
 
@@ -524,8 +537,8 @@ export default function TemplatesScreen({ navigation }) {
   const [activeMainTab, setActiveMainTab] = useState('list');
 
   // Templates State
-  const [templates, setTemplates] = useState(INITIAL_TEMPLATES_DATA);
-  const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -560,9 +573,13 @@ export default function TemplatesScreen({ navigation }) {
   const [formCategory, setFormCategory] = useState('Utility');
   const [formType, setFormType] = useState('Custom');
   const [formName, setFormName] = useState('welcome_customer');
-  const [formLanguage, setFormLanguage] = useState('English');
-  const [formHeaderType, setFormHeaderType] = useState('Text'); // 'None' | 'Text' | 'Media'
+  const [formLanguage, setFormLanguage] = useState('English (US)');
+  const [formHeaderType, setFormHeaderType] = useState('Text'); // 'None' | 'Text' | 'Image' | 'Video' | 'Document'
   const [formHeaderText, setFormHeaderText] = useState('Welcome to MessBee');
+  const [formHeaderMediaUrl, setFormHeaderMediaUrl] = useState('');
+  const [formHeaderMediaRatio, setFormHeaderMediaRatio] = useState(16 / 9);
+  const [formHeaderMetaHandle, setFormHeaderMetaHandle] = useState(null);
+  const [uploadingHeaderMedia, setUploadingHeaderMedia] = useState(false);
   const [formBodyText, setFormBodyText] = useState(
     'Hello {{1}}, welcome to MessBee! We are happy to have you with us. How can our team help today?'
   );
@@ -573,6 +590,14 @@ export default function TemplatesScreen({ navigation }) {
     { id: 'btn_1', type: 'QUICK_REPLY', text: 'Talk to support' },
   ]);
   const [formSamples, setFormSamples] = useState({ '{{1}}': 'Aarav' });
+  // Authentication OTP state
+  const [authSecurityRec, setAuthSecurityRec] = useState(true);
+  const [authExpirationMins, setAuthExpirationMins] = useState('10');
+  // Limited Time Offer state
+  const [ltoOfferCode, setLtoOfferCode] = useState('SAVE20');
+  const [ltoExpiration, setLtoExpiration] = useState('24h');
+  const [ltoUrlText, setLtoUrlText] = useState('Shop Now');
+  const [ltoUrl, setLtoUrl] = useState('https://messbee.com');
 
   // Confirmation Modal for Submit (Image 1 Screen 5)
   const [isSubmitConfirmVisible, setIsSubmitConfirmVisible] = useState(false);
@@ -589,41 +614,54 @@ export default function TemplatesScreen({ navigation }) {
     }, 4000);
   };
 
-  // Load live templates from backend with fallback
+  // Load live templates from backend
   const loadTemplates = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await templateService.getTemplates();
       if (Array.isArray(data) && data.length > 0) {
-        const mapped = data.map((t, idx) => ({
-          id: t._id || t.id || `tmpl_${idx}`,
-          name: t.name || `template_${idx + 1}`,
-          category: (t.category || 'UTILITY').toUpperCase(),
-          language: t.language || 'English',
-          status: (t.status || 'APPROVED').toUpperCase(),
-          quality: t.quality || 'High',
-          headerType: t.headerType || (t.headerText ? 'TEXT' : 'NONE'),
-          headerText: t.headerText || '',
-          bodyText: t.bodyText || t.body || '',
-          variables: t.variables || [],
-          sampleValues: t.sampleValues || {},
-          footerText: t.footerText || t.footer || '',
-          buttons: t.buttons || [],
-          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '12 Jan 2025',
-          updatedAt: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '14 Jan 2025',
-          statusNote:
-            t.statusNote ||
-            (t.status === 'APPROVED'
-              ? 'Approved by Meta.'
-              : 'Updates are usually approved within a few minutes.'),
-        }));
+        const mapped = data.map((t, idx) => {
+          const bodyComp = t.components?.find((c) => c.type === 'BODY');
+          const headerComp = t.components?.find((c) => c.type === 'HEADER');
+          const footerComp = t.components?.find((c) => c.type === 'FOOTER');
+          const buttonsComp = t.components?.find((c) => c.type === 'BUTTONS');
+          return {
+            id: String(t._id || t.id || `tmpl_${idx}`),
+            name: t.name || `template_${idx + 1}`,
+            whatsappTemplateName: t.whatsappTemplateName || t.name || `template_${idx + 1}`,
+            category: (t.category || 'UTILITY').toUpperCase(),
+            language: t.language || 'en_US',
+            status: (t.status || 'APPROVED').toUpperCase(),
+            quality: t.quality || 'High',
+            headerType: t.headerType || headerComp?.format || (t.headerText || headerComp?.text ? 'TEXT' : 'NONE'),
+            headerText: t.headerText || headerComp?.text || '',
+            bodyText: bodyComp?.text || t.bodyText || t.body || '',
+            variables: t.variables || [],
+            sampleValues: t.sampleValues || {},
+            footerText: t.footerText || footerComp?.text || t.footer || '',
+            buttons: buttonsComp?.buttons || t.buttons || [],
+            rejectedReason: t.rejected_reason || t.rejectedReason || '',
+            createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
+            updatedAt: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '',
+            statusNote:
+              t.rejected_reason ||
+              t.rejectedReason ||
+              t.statusNote ||
+              (t.status === 'APPROVED'
+                ? 'Approved by Meta.'
+                : 'Updates are usually approved within a few minutes.'),
+          };
+        });
         setTemplates(mapped);
       } else {
-        // Fallback to initial mock templates if backend has no records
-        setTemplates(INITIAL_TEMPLATES_DATA);
+        setTemplates([]);
       }
     } catch (err) {
-      // Offline fallback
-      setTemplates(INITIAL_TEMPLATES_DATA);
+      const errMsg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Failed to load templates.';
+      showToast(errMsg);
+      setTemplates([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -801,42 +839,353 @@ export default function TemplatesScreen({ navigation }) {
     return rendered;
   };
 
-  // Handle Submit Template to Meta
-  const handleConfirmSubmit = () => {
-    setIsSubmitConfirmVisible(false);
-    setIsCreateModalVisible(false);
-
-    const safeName = (formName.trim() || 'custom_template')
-      .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_');
-
-    const newTemplateObj = {
-      id: isEditingId || `tmpl_${Date.now()}`,
-      name: safeName,
-      category: formCategory.toUpperCase(),
-      language: formLanguage,
-      status: 'PENDING',
-      quality: 'Pending',
-      headerType: formHeaderType === 'None' ? 'NONE' : 'TEXT',
-      headerText: formHeaderType === 'Text' ? formHeaderText : '',
-      bodyText: formBodyText,
-      variables: Object.keys(formSamples).map((_, i) => `Variable ${i + 1}`),
-      sampleValues: formSamples,
-      footerText: formFooterText,
-      buttons: formButtons,
-      createdAt: 'Just now',
-      updatedAt: 'Just now',
-      statusNote: 'Submitted to Meta. Status updates usually within 5-10 minutes.',
-    };
-
-    if (isEditingId) {
-      setTemplates((prev) =>
-        prev.map((t) => (t.id === isEditingId ? newTemplateObj : t))
+  useEffect(() => {
+    const uri = formHeaderMediaUrl.trim();
+    if (formHeaderType === 'Image' && uri) {
+      Image.getSize(
+        uri,
+        (w, h) => {
+          if (w > 0 && h > 0) {
+            setFormHeaderMediaRatio(Math.max(0.5, Math.min(2.5, w / h)));
+          }
+        },
+        () => {}
       );
-      showToast('Template updated & submitted to Meta for review!');
+    }
+  }, [formHeaderType, formHeaderMediaUrl]);
+
+  const handlePickHeaderImage = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Please allow photo library access to pick a header image.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.85,
+      });
+      if (!res.canceled && res.assets?.length) {
+        const asset = res.assets[0];
+        if (asset.width > 0 && asset.height > 0) {
+          setFormHeaderMediaRatio(Math.max(0.5, Math.min(2.5, asset.width / asset.height)));
+        }
+        setFormHeaderMediaUrl(asset.uri);
+        setFormHeaderMetaHandle(null);
+        setUploadingHeaderMedia(true);
+        try {
+          const uploaded = await templateService.uploadTemplateMedia(asset);
+          if (uploaded?.metaHandle) {
+            setFormHeaderMetaHandle(uploaded.metaHandle);
+            showToast('Image uploaded to Meta servers!');
+          } else {
+            showToast('Image uploaded! Ready for template.');
+          }
+          if (uploaded?.url) {
+            const fullUrl = resolveFileUrl(uploaded.url);
+            if (fullUrl) setFormHeaderMediaUrl(fullUrl);
+          }
+        } catch (uploadErr) {
+          const msg = uploadErr?.response?.data?.message || uploadErr?.message || 'Media upload failed.';
+          Alert.alert('Upload Failed', msg);
+        } finally {
+          setUploadingHeaderMedia(false);
+        }
+      }
+    } catch (err) {
+      Alert.alert('Error', err?.message || 'Could not select header image.');
+    }
+  };
+
+  const handleCategorySelect = (catId) => {
+    setFormCategory(catId);
+    if (catId === 'Authentication') {
+      setFormType('OTP');
+      setFormHeaderType('None');
+    } else if (formType === 'OTP' || (catId !== 'Marketing' && formType === 'LIMITED_TIME_OFFER')) {
+      setFormType('Custom');
+    }
+  };
+
+  const handleBodyTextChange = (text) => {
+    const trimmedMax = text.slice(0, 1024);
+    setFormBodyText(trimmedMax);
+    const matches = trimmedMax.match(/\{\{(\d+)\}\}/g) || [];
+    const uniqueTags = [...new Set(matches)].sort(
+      (a, b) => Number(a.replace(/[{}]/g, '')) - Number(b.replace(/[{}]/g, ''))
+    );
+    setFormSamples((prev) => {
+      const next = {};
+      uniqueTags.forEach((tag, idx) => {
+        next[tag] = prev[tag] !== undefined ? prev[tag] : `Sample ${idx + 1}`;
+      });
+      return next;
+    });
+  };
+
+  const getSanitizedTemplateName = (raw) =>
+    String(raw || '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+
+  const validateStep1 = () => {
+    const safeName = getSanitizedTemplateName(formName);
+    if (!safeName || safeName.length < 4) {
+      Alert.alert(
+        'Validation Error',
+        'Template name must be at least 4 characters (lowercase letters, numbers, underscores).'
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const validateStep2 = () => {
+    if (!validateStep1()) return false;
+
+    if (formCategory === 'Authentication') {
+      const mins = Number(authExpirationMins);
+      if (isNaN(mins) || mins < 1 || mins > 90) {
+        Alert.alert('Validation Error', 'Code expiration must be between 1 and 90 minutes.');
+        return false;
+      }
+      return true;
+    }
+
+    const cleanedBody = formBodyText.trim().replace(/[ \t]{2,}/g, ' ');
+    if (cleanedBody.length < 20) {
+      Alert.alert(
+        'Validation Error',
+        'Template body must be at least 20 characters for Meta approval.'
+      );
+      return false;
+    }
+
+    if (formHeaderType === 'Text') {
+      if (!formHeaderText.trim()) {
+        Alert.alert('Validation Error', 'Header text is required when Text header is selected.');
+        return false;
+      }
+      if (formHeaderText.trim().length > 60) {
+        Alert.alert('Validation Error', 'Header text cannot exceed 60 characters.');
+        return false;
+      }
+    } else if (['Image', 'Video', 'Document'].includes(formHeaderType)) {
+      if (uploadingHeaderMedia) {
+        Alert.alert('Please Wait', 'Header media is still uploading to Meta.');
+        return false;
+      }
+      if (!formHeaderMetaHandle && !/^https?:\/\/.+/i.test(formHeaderMediaUrl.trim())) {
+        Alert.alert(
+          'Validation Error',
+          `Please upload a ${formHeaderType} or enter a valid https:// URL.`
+        );
+        return false;
+      }
+    }
+
+    if (formType !== 'LIMITED_TIME_OFFER' && formFooterText.trim()) {
+      if (formFooterText.trim().length > 60) {
+        Alert.alert('Validation Error', 'Footer text cannot exceed 60 characters.');
+        return false;
+      }
+      if (/\{\{\d+\}\}/.test(formFooterText)) {
+        Alert.alert('Validation Error', 'Meta does not allow variables in Footer text.');
+        return false;
+      }
+    }
+
+    const missingVar = Object.keys(formSamples).find((k) => !String(formSamples[k] || '').trim());
+    if (missingVar) {
+      Alert.alert('Validation Error', `Please provide a sample value for ${missingVar}.`);
+      return false;
+    }
+
+    if (formType === 'LIMITED_TIME_OFFER') {
+      if (!ltoOfferCode.trim() || ltoOfferCode.trim().length > 15) {
+        Alert.alert('Validation Error', 'Offer code is required (max 15 characters).');
+        return false;
+      }
+      if (!/^https?:\/\/.+/i.test(ltoUrl.trim())) {
+        Alert.alert('Validation Error', 'Limited Time Offer URL must start with https:// or http://.');
+        return false;
+      }
     } else {
-      setTemplates((prev) => [newTemplateObj, ...prev]);
-      showToast('Template submitted! Meta review status will update within a few minutes.');
+      for (const b of formButtons) {
+        if (!String(b.text || '').trim()) {
+          Alert.alert('Validation Error', 'All buttons must have button text.');
+          return false;
+        }
+        if (b.type === 'URL' && !/^https?:\/\/.+/i.test(String(b.value || b.url || '').trim())) {
+          Alert.alert('Validation Error', `Button "${b.text}" URL must start with https:// or http://.`);
+          return false;
+        }
+        if (b.type === 'PHONE_NUMBER') {
+          const digits = String(b.value || b.phone_number || '').replace(/\D/g, '');
+          if (digits.length < 7 || digits.length > 15) {
+            Alert.alert('Validation Error', `Button "${b.text}" needs a valid 7-15 digit phone number.`);
+            return false;
+          }
+        }
+      }
+    }
+
+    return true;
+  };
+
+  // Handle Submit Template to Meta
+  const handleConfirmSubmit = async () => {
+    if (!validateStep2()) return;
+
+    const safeName = getSanitizedTemplateName(formName);
+    const langMap = {
+      English: 'en_US',
+      'English (US)': 'en_US',
+      Hindi: 'hi_IN',
+      Spanish: 'es',
+    };
+    const langCode = langMap[formLanguage] || (formLanguage?.includes('_') ? formLanguage : 'en_US');
+
+    let components = [];
+    if (formCategory === 'Authentication') {
+      components = [
+        { type: 'BODY', add_security_recommendation: authSecurityRec },
+        { type: 'FOOTER', code_expiration_minutes: Number(authExpirationMins) || 10 },
+        { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
+      ];
+    } else {
+      if (formHeaderType === 'Text' && formHeaderText.trim()) {
+        const headerComp = {
+          type: 'HEADER',
+          format: 'TEXT',
+          text: formHeaderText.trim(),
+        };
+        if (formHeaderText.includes('{{1}}')) {
+          headerComp.example = { header_text: [formSamples['{{1}}'] || 'Sample'] };
+        }
+        components.push(headerComp);
+      } else if (['Image', 'Video', 'Document'].includes(formHeaderType) && (formHeaderMetaHandle || formHeaderMediaUrl.trim())) {
+        let resolvedHandle = formHeaderMetaHandle;
+        const rawUrl = formHeaderMediaUrl.trim();
+        if (!resolvedHandle && /^https?:\/\/.+/i.test(rawUrl)) {
+          try {
+            const urlUploadRes = await templateService.uploadTemplateMediaByUrl(rawUrl);
+            if (urlUploadRes?.metaHandle) {
+              resolvedHandle = urlUploadRes.metaHandle;
+            }
+          } catch (_) {}
+        }
+        components.push({
+          type: 'HEADER',
+          format: formHeaderType.toUpperCase(),
+          example: resolvedHandle
+            ? { header_handle: [resolvedHandle] }
+            : { header_url: [rawUrl] },
+        });
+      }
+
+      const cleanedBody = formBodyText.trim().replace(/[ \t]{2,}/g, ' ');
+      const bodyMatches = cleanedBody.match(/\{\{(\d+)\}\}/g) || [];
+      const uniqueVarNums = [...new Set(bodyMatches.map((m) => m.replace(/[{}]/g, '')))].sort(
+        (a, b) => Number(a) - Number(b)
+      );
+      const bodyComp = {
+        type: 'BODY',
+        text: cleanedBody,
+      };
+      if (uniqueVarNums.length > 0) {
+        bodyComp.example = {
+          body_text: [uniqueVarNums.map((num) => String(formSamples[`{{${num}}}`] || `Sample ${num}`))],
+        };
+      }
+      components.push(bodyComp);
+
+      if (formType === 'LIMITED_TIME_OFFER') {
+        components.push({
+          type: 'LIMITED_TIME_OFFER',
+          limited_time_offer: {
+            text: 'Limited time offer!',
+            has_expiration: true,
+          },
+        });
+        components.push({
+          type: 'BUTTONS',
+          buttons: [
+            { type: 'COPY_CODE', example: ltoOfferCode.trim().slice(0, 15) },
+            {
+              type: 'URL',
+              text: (ltoUrlText.trim() || 'Shop Now').slice(0, 25),
+              url: ltoUrl.trim(),
+            },
+          ],
+        });
+      } else {
+        if (formFooterText.trim()) {
+          components.push({
+            type: 'FOOTER',
+            text: formFooterText.trim(),
+          });
+        }
+        if (Array.isArray(formButtons) && formButtons.length > 0) {
+          const waButtons = formButtons
+            .filter((b) => b && (b.text || '').trim())
+            .map((b) => {
+              const bType = String(b.type || 'QUICK_REPLY').toUpperCase();
+              if (bType === 'URL') {
+                return {
+                  type: 'URL',
+                  text: b.text.trim().slice(0, 25),
+                  url: (b.value || b.url || '').trim(),
+                };
+              }
+              if (bType === 'PHONE_NUMBER') {
+                return {
+                  type: 'PHONE_NUMBER',
+                  text: b.text.trim().slice(0, 25),
+                  phone_number: (b.value || b.phone_number || '').trim(),
+                };
+              }
+              return {
+                type: 'QUICK_REPLY',
+                text: b.text.trim().slice(0, 25),
+              };
+            });
+          if (waButtons.length > 0) {
+            components.push({ type: 'BUTTONS', buttons: waButtons });
+          }
+        }
+      }
+    }
+
+    try {
+      setLoading(true);
+      if (isEditingId) {
+        await templateService.updateTemplate(isEditingId, { components });
+        showToast('Template updated & submitted to Meta for review!');
+      } else {
+        await templateService.createTemplate({
+          name: safeName,
+          category: formCategory.toUpperCase(),
+          language: langCode,
+          components,
+          ...(formType === 'LIMITED_TIME_OFFER' ? { expirationDate: ltoExpiration } : {}),
+        });
+        showToast('Template submitted! Meta review status will update within a few minutes.');
+      }
+      setIsSubmitConfirmVisible(false);
+      setIsCreateModalVisible(false);
+      await loadTemplates();
+    } catch (err) {
+      setLoading(false);
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.error ||
+        err.message ||
+        'Failed to submit template to Meta.';
+      Alert.alert('Template Submission Failed', String(errMsg));
     }
   };
 
@@ -1818,7 +2167,7 @@ export default function TemplatesScreen({ navigation }) {
                       styles.radioCard,
                       isSelected && styles.radioCardSelected,
                     ]}
-                    onPress={() => setFormCategory(cat.id)}
+                    onPress={() => handleCategorySelect(cat.id)}
                     activeOpacity={0.8}
                   >
                     <View style={styles.radioTopRow}>
@@ -1862,10 +2211,10 @@ export default function TemplatesScreen({ navigation }) {
                 <Text style={styles.builderSectionTitle}>Choose Template Type</Text>
               </View>
               <Text style={styles.builderSectionSubtitle}>
-                Only one format can be selected.
+                Available formats for {formCategory}.
               </Text>
 
-              {TEMPLATE_TYPE_OPTIONS.map((tp) => {
+              {TEMPLATE_TYPE_OPTIONS.filter((tp) => tp.categories.includes(formCategory)).map((tp) => {
                 const isSelected = formType === tp.id;
                 return (
                   <TouchableOpacity
@@ -1894,18 +2243,63 @@ export default function TemplatesScreen({ navigation }) {
                       >
                         {tp.title}
                       </Text>
-                      {tp.badge ? (
-                        <View style={styles.comingSoonBadge}>
-                          <Text style={styles.comingSoonBadgeText}>
-                            {tp.badge}
-                          </Text>
-                        </View>
-                      ) : null}
                     </View>
                     <Text style={styles.radioCardDesc}>{tp.desc}</Text>
                   </TouchableOpacity>
                 );
               })}
+
+              <View style={{ height: 16 }} />
+
+              {/* 3. Template Name & Language */}
+              <View style={styles.numberedHeaderRow}>
+                <View style={styles.stepNumberBadge}>
+                  <Text style={styles.stepNumberText}>3</Text>
+                </View>
+                <Text style={styles.builderSectionTitle}>Template Name & Language</Text>
+              </View>
+              <Text style={styles.builderSectionSubtitle}>
+                Use lowercase letters, numbers, and underscores (min 4 characters).
+              </Text>
+
+              <Text style={styles.formLabel}>Template Name *</Text>
+              <TextInput
+                style={[styles.formInput, { marginTop: 6 }]}
+                placeholder="e.g. welcome_customer_v1"
+                placeholderTextColor="#9CA3AF"
+                autoCapitalize="none"
+                value={formName}
+                onChangeText={setFormName}
+              />
+              <Text style={styles.charCountText}>
+                Meta ID: {getSanitizedTemplateName(formName) || '—'}
+              </Text>
+
+              <Text style={[styles.formLabel, { marginTop: 12 }]}>Language</Text>
+              <View style={[styles.headerTypeSelectorRow, { marginTop: 6 }]}>
+                {['English (US)', 'Hindi', 'Spanish'].map((lang) => {
+                  const isSel = formLanguage === lang;
+                  return (
+                    <TouchableOpacity
+                      key={lang}
+                      style={[
+                        styles.headerTypePill,
+                        isSel && styles.headerTypePillActive,
+                      ]}
+                      onPress={() => setFormLanguage(lang)}
+                    >
+                      <Text
+                        style={[
+                          styles.headerTypePillText,
+                          isSel && styles.headerTypePillTextActive,
+                        ]}
+                      >
+                        {lang}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             </ScrollView>
           )}
 
@@ -1940,155 +2334,368 @@ export default function TemplatesScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Header Selector */}
-              <View style={{ marginTop: 14 }}>
-                <Text style={styles.formLabel}>Header (Optional)</Text>
-                <Text style={styles.formLabelHelper}>
-                  Add a title header which type of content to use.
-                </Text>
-                <View style={styles.headerTypeSelectorRow}>
-                  {['None', 'Text', 'Media'].map((ht) => {
-                    const isSel = formHeaderType === ht;
-                    return (
+              {formCategory === 'Authentication' ? (
+                <View style={{ marginTop: 14 }}>
+                  <View style={styles.radioCard}>
+                    <Text style={styles.radioCardTitle}>Authentication OTP Settings</Text>
+                    <Text style={styles.radioCardDesc}>
+                      Meta automatically generates a verified one-time passcode message with a Copy Code button.
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={[styles.radioCard, authSecurityRec && styles.radioCardSelected, { marginTop: 10 }]}
+                    onPress={() => setAuthSecurityRec((prev) => !prev)}
+                    activeOpacity={0.8}
+                  >
+                    <View style={styles.radioTopRow}>
+                      <Ionicons
+                        name={authSecurityRec ? 'checkbox' : 'square-outline'}
+                        size={20}
+                        color={authSecurityRec ? '#00875A' : '#64748B'}
+                        style={{ marginRight: 8 }}
+                      />
+                      <Text style={styles.radioCardTitle}>Add Security Recommendation</Text>
+                    </View>
+                    <Text style={styles.radioCardDesc}>
+                      Appends "For your security, do not share this code."
+                    </Text>
+                  </TouchableOpacity>
+
+                  <Text style={[styles.formLabel, { marginTop: 14 }]}>Code Expiration (1–90 minutes)</Text>
+                  <TextInput
+                    style={[styles.formInput, { marginTop: 6 }]}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                    value={authExpirationMins}
+                    onChangeText={(txt) => setAuthExpirationMins(txt.replace(/[^0-9]/g, ''))}
+                    placeholder="10"
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              ) : (
+                <>
+                  {/* Header Selector */}
+                  <View style={{ marginTop: 14 }}>
+                    <Text style={styles.formLabel}>Header (Optional)</Text>
+                    <Text style={styles.formLabelHelper}>
+                      {formType === 'LIMITED_TIME_OFFER'
+                        ? 'Document headers are disabled for Limited Time Offer templates.'
+                        : 'Add a text or media header.'}
+                    </Text>
+                    <View style={[styles.headerTypeSelectorRow, { flexWrap: 'wrap', gap: 6 }]}>
+                      {['None', 'Text', 'Image', 'Video', 'Document'].map((ht) => {
+                        const isSel = formHeaderType === ht;
+                        const isDisabled = formType === 'LIMITED_TIME_OFFER' && ht === 'Document';
+                        return (
+                          <TouchableOpacity
+                            key={ht}
+                            disabled={isDisabled}
+                            style={[
+                              styles.headerTypePill,
+                              isSel && styles.headerTypePillActive,
+                              isDisabled && { opacity: 0.4 },
+                            ]}
+                            onPress={() => setFormHeaderType(ht)}
+                          >
+                            <Text
+                              style={[
+                                styles.headerTypePillText,
+                                isSel && styles.headerTypePillTextActive,
+                              ]}
+                            >
+                              {ht}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {formHeaderType === 'Text' && (
+                      <View style={{ marginTop: 8 }}>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="Welcome to MessBee"
+                          placeholderTextColor="#9CA3AF"
+                          maxLength={60}
+                          value={formHeaderText}
+                          onChangeText={setFormHeaderText}
+                        />
+                        <Text style={styles.charCountText}>{formHeaderText.length} / 60 characters</Text>
+                      </View>
+                    )}
+
+                    {['Image', 'Video', 'Document'].includes(formHeaderType) && (
+                      <View style={{ marginTop: 8 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <TextInput
+                            style={[styles.formInput, { flex: 1 }]}
+                            placeholder={`https://example.com/sample.${formHeaderType === 'Image' ? 'jpg' : formHeaderType === 'Video' ? 'mp4' : 'pdf'}`}
+                            placeholderTextColor="#9CA3AF"
+                            autoCapitalize="none"
+                            value={formHeaderMediaUrl}
+                            onChangeText={setFormHeaderMediaUrl}
+                          />
+                          {formHeaderType === 'Image' && (
+                            <TouchableOpacity
+                              style={[styles.headerTypePill, styles.headerTypePillActive]}
+                              onPress={handlePickHeaderImage}
+                              disabled={uploadingHeaderMedia}
+                              activeOpacity={0.8}
+                            >
+                              {uploadingHeaderMedia ? (
+                                <ActivityIndicator size="small" color="#FFFFFF" />
+                              ) : (
+                                <Text style={[styles.headerTypePillText, styles.headerTypePillTextActive]}>
+                                  {formHeaderMetaHandle ? 'Uploaded ✓' : 'Pick Image'}
+                                </Text>
+                              )}
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                        {formHeaderType === 'Image' && formHeaderMediaUrl.trim() ? (
+                          <Image
+                            source={{ uri: formHeaderMediaUrl.trim() }}
+                            style={{
+                              width: '100%',
+                              aspectRatio: formHeaderMediaRatio,
+                              maxHeight: 260,
+                              borderRadius: 10,
+                              marginTop: 8,
+                              backgroundColor: '#F1F5F9',
+                            }}
+                            resizeMode="cover"
+                          />
+                        ) : null}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Body Textarea with Rich Formatting Toolbar */}
+                  <View style={{ marginTop: 16 }}>
+                    <Text style={styles.formLabel}>Body *</Text>
+                    <Text style={styles.formLabelHelper}>
+                      Minimum 20 characters recommended for Meta approval.
+                    </Text>
+
+                    {/* Toolbar */}
+                    <View style={styles.bodyFormatToolbar}>
                       <TouchableOpacity
-                        key={ht}
-                        style={[
-                          styles.headerTypePill,
-                          isSel && styles.headerTypePillActive,
-                        ]}
-                        onPress={() => setFormHeaderType(ht)}
+                        style={styles.toolbarIconBtn}
+                        onPress={() => handleBodyTextChange(`${formBodyText}*bold*`)}
                       >
-                        <Text
-                          style={[
-                            styles.headerTypePillText,
-                            isSel && styles.headerTypePillTextActive,
-                          ]}
-                        >
-                          {ht}
+                        <Text style={[styles.toolbarText, { fontWeight: '800' }]}>B</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.toolbarIconBtn}
+                        onPress={() => handleBodyTextChange(`${formBodyText}_italic_`)}
+                      >
+                        <Text style={[styles.toolbarText, { fontStyle: 'italic' }]}>I</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity
+                        style={styles.toolbarIconBtn}
+                        onPress={() => handleBodyTextChange(`${formBodyText}~strike~`)}
+                      >
+                        <Text style={[styles.toolbarText, { textDecorationLine: 'line-through' }]}>
+                          S
                         </Text>
                       </TouchableOpacity>
-                    );
-                  })}
-                </View>
 
-                {formHeaderType === 'Text' && (
-                  <TextInput
-                    style={[styles.formInput, { marginTop: 8 }]}
-                    placeholder="Welcome to MessBee"
-                    placeholderTextColor="#9CA3AF"
-                    value={formHeaderText}
-                    onChangeText={setFormHeaderText}
-                  />
-                )}
-              </View>
+                      <TouchableOpacity
+                        style={styles.toolbarIconBtn}
+                        onPress={() => handleBodyTextChange(`${formBodyText}\`code\``)}
+                      >
+                        <Text style={[styles.toolbarText, { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }]}>
+                          C
+                        </Text>
+                      </TouchableOpacity>
 
-              {/* Body Textarea with Rich Formatting Toolbar (Image 1 Screen 4) */}
-              <View style={{ marginTop: 16 }}>
-                <Text style={styles.formLabel}>Body *</Text>
-                <Text style={styles.formLabelHelper}>
-                  Enter the message in English.
-                </Text>
+                      <TouchableOpacity
+                        style={styles.toolbarIconBtn}
+                        onPress={() => handleBodyTextChange(`${formBodyText} 😊`)}
+                      >
+                        <Text style={styles.toolbarText}>😊</Text>
+                      </TouchableOpacity>
 
-                {/* Toolbar */}
-                <View style={styles.bodyFormatToolbar}>
-                  <TouchableOpacity
-                    style={styles.toolbarIconBtn}
-                    onPress={() => setFormBodyText((prev) => `${prev}*bold*`)}
-                  >
-                    <Text style={[styles.toolbarText, { fontWeight: '800' }]}>B</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.toolbarIconBtn}
-                    onPress={() => setFormBodyText((prev) => `${prev}_italic_`)}
-                  >
-                    <Text style={[styles.toolbarText, { fontStyle: 'italic' }]}>I</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.toolbarIconBtn}
-                    onPress={() => setFormBodyText((prev) => `${prev}~strike~`)}
-                  >
-                    <Text style={[styles.toolbarText, { textDecorationLine: 'line-through' }]}>
-                      S
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.toolbarIconBtn}
-                    onPress={() => setFormBodyText((prev) => `${prev}\`code\``)}
-                  >
-                    <Text style={[styles.toolbarText, { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' }]}>
-                      C
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.toolbarIconBtn}
-                    onPress={() => setFormBodyText((prev) => `${prev} 😊`)}
-                  >
-                    <Text style={styles.toolbarText}>😊</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.addVariableBtn}
-                    onPress={handleInsertVariable}
-                    activeOpacity={0.7}
-                  >
-                    <Ionicons name="add" size={14} color="#00875A" />
-                    <Text style={styles.addVariableBtnText}>Variable</Text>
-                  </TouchableOpacity>
-                </View>
-
-                <TextInput
-                  style={styles.formTextArea}
-                  placeholder="Hello {{1}}, welcome to MessBee! We are happy to have you with us. How can our team help today?"
-                  placeholderTextColor="#9CA3AF"
-                  multiline
-                  numberOfLines={4}
-                  value={formBodyText}
-                  onChangeText={setFormBodyText}
-                />
-                <Text style={styles.charCountText}>
-                  {formBodyText.length} / 1024 characters
-                </Text>
-              </View>
-
-              {/* Footer Input */}
-              <View style={{ marginTop: 14 }}>
-                <Text style={styles.formLabel}>Footer (Optional)</Text>
-                <TextInput
-                  style={styles.formInput}
-                  placeholder="Replies are usually sent within a few minutes"
-                  placeholderTextColor="#9CA3AF"
-                  value={formFooterText}
-                  onChangeText={setFormFooterText}
-                />
-              </View>
-
-              {/* Variable Sample Values Setup */}
-              {Object.keys(formSamples).length > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <Text style={styles.formLabel}>
-                    Sample variable test values
-                  </Text>
-                  {Object.keys(formSamples).map((k) => (
-                    <View key={k} style={styles.sampleInputRow}>
-                      <View style={styles.varBadge}>
-                        <Text style={styles.varBadgeText}>{k}</Text>
-                      </View>
-                      <TextInput
-                        style={[styles.formInput, { flex: 1 }]}
-                        value={formSamples[k]}
-                        onChangeText={(txt) =>
-                          setFormSamples((prev) => ({ ...prev, [k]: txt }))
-                        }
-                        placeholder="Sample preview value"
-                        placeholderTextColor="#9CA3AF"
-                      />
+                      <TouchableOpacity
+                        style={styles.addVariableBtn}
+                        onPress={handleInsertVariable}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="add" size={14} color="#00875A" />
+                        <Text style={styles.addVariableBtnText}>Variable</Text>
+                      </TouchableOpacity>
                     </View>
-                  ))}
-                </View>
+
+                    <TextInput
+                      style={styles.formTextArea}
+                      placeholder="Hello {{1}}, welcome to MessBee! We are happy to have you with us."
+                      placeholderTextColor="#9CA3AF"
+                      multiline
+                      numberOfLines={4}
+                      value={formBodyText}
+                      onChangeText={handleBodyTextChange}
+                    />
+                    <Text style={styles.charCountText}>
+                      {formBodyText.length} / 1024 characters{formBodyText.trim().length < 20 ? ' • Min 20 chars required' : ''}
+                    </Text>
+                  </View>
+
+                  {/* Limited Time Offer Config */}
+                  {formType === 'LIMITED_TIME_OFFER' ? (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={styles.formLabel}>Limited Time Offer Details *</Text>
+                      <TextInput
+                        style={[styles.formInput, { marginTop: 6 }]}
+                        placeholder="Offer Code (max 15 chars, e.g. SAVE20)"
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={15}
+                        value={ltoOfferCode}
+                        onChangeText={setLtoOfferCode}
+                      />
+                      <TextInput
+                        style={[styles.formInput, { marginTop: 8 }]}
+                        placeholder="Button Label (e.g. Shop Now)"
+                        placeholderTextColor="#9CA3AF"
+                        maxLength={25}
+                        value={ltoUrlText}
+                        onChangeText={setLtoUrlText}
+                      />
+                      <TextInput
+                        style={[styles.formInput, { marginTop: 8 }]}
+                        placeholder="Offer URL (https://...)"
+                        placeholderTextColor="#9CA3AF"
+                        autoCapitalize="none"
+                        value={ltoUrl}
+                        onChangeText={setLtoUrl}
+                      />
+                      <Text style={[styles.formLabel, { marginTop: 10 }]}>Offer Expiration</Text>
+                      <View style={[styles.headerTypeSelectorRow, { flexWrap: 'wrap', gap: 6, marginTop: 6 }]}>
+                        {['6h', '12h', '24h', '48h', '72h', '7d'].map((exp) => (
+                          <TouchableOpacity
+                            key={exp}
+                            style={[styles.headerTypePill, ltoExpiration === exp && styles.headerTypePillActive]}
+                            onPress={() => setLtoExpiration(exp)}
+                          >
+                            <Text style={[styles.headerTypePillText, ltoExpiration === exp && styles.headerTypePillTextActive]}>
+                              {exp}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+                  ) : (
+                    <>
+                      {/* Footer Input */}
+                      <View style={{ marginTop: 14 }}>
+                        <Text style={styles.formLabel}>Footer (Optional)</Text>
+                        <TextInput
+                          style={styles.formInput}
+                          placeholder="Replies are usually sent within a few minutes"
+                          placeholderTextColor="#9CA3AF"
+                          maxLength={60}
+                          value={formFooterText}
+                          onChangeText={setFormFooterText}
+                        />
+                        <Text style={styles.charCountText}>{formFooterText.length} / 60 characters</Text>
+                      </View>
+
+                      {/* Interactive Buttons Editor */}
+                      <View style={{ marginTop: 16 }}>
+                        <Text style={styles.formLabel}>Buttons (Optional, max 3)</Text>
+                        <View style={[styles.headerTypeSelectorRow, { flexWrap: 'wrap', gap: 6, marginTop: 6 }]}>
+                          {[
+                            { type: 'QUICK_REPLY', label: '+ Quick Reply' },
+                            { type: 'URL', label: '+ Visit Website' },
+                            { type: 'PHONE_NUMBER', label: '+ Call Phone' },
+                          ].map((bt) => (
+                            <TouchableOpacity
+                              key={bt.type}
+                              style={styles.headerTypePill}
+                              onPress={() => {
+                                if (formButtons.length >= 3) {
+                                  Alert.alert('Limit Reached', 'You can add up to 3 buttons.');
+                                  return;
+                                }
+                                setFormButtons((prev) => [
+                                  ...prev,
+                                  {
+                                    id: `btn_${Date.now()}`,
+                                    type: bt.type,
+                                    text: bt.type === 'QUICK_REPLY' ? 'Reply' : bt.type === 'URL' ? 'Visit Website' : 'Call Us',
+                                    value: bt.type === 'URL' ? 'https://messbee.com' : bt.type === 'PHONE_NUMBER' ? '+919876543210' : '',
+                                  },
+                                ]);
+                              }}
+                            >
+                              <Text style={styles.headerTypePillText}>{bt.label}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+
+                        {formButtons.map((btn, bIdx) => (
+                          <View key={btn.id || bIdx} style={[styles.radioCard, { marginTop: 8, padding: 10 }]}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                              <Text style={{ fontSize: 11, fontWeight: '700', color: '#00875A' }}>{btn.type}</Text>
+                              <TouchableOpacity onPress={() => setFormButtons((prev) => prev.filter((_, idx) => idx !== bIdx))}>
+                                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                              </TouchableOpacity>
+                            </View>
+                            <TextInput
+                              style={styles.formInput}
+                              placeholder="Button Text (max 25 chars)"
+                              placeholderTextColor="#9CA3AF"
+                              maxLength={25}
+                              value={btn.text}
+                              onChangeText={(txt) =>
+                                setFormButtons((prev) => prev.map((item, idx) => (idx === bIdx ? { ...item, text: txt } : item)))
+                              }
+                            />
+                            {(btn.type === 'URL' || btn.type === 'PHONE_NUMBER') && (
+                              <TextInput
+                                style={[styles.formInput, { marginTop: 6 }]}
+                                placeholder={btn.type === 'URL' ? 'https://messbee.com' : '+919876543210'}
+                                placeholderTextColor="#9CA3AF"
+                                autoCapitalize="none"
+                                value={btn.value || btn.url || btn.phone_number || ''}
+                                onChangeText={(txt) =>
+                                  setFormButtons((prev) => prev.map((item, idx) => (idx === bIdx ? { ...item, value: txt } : item)))
+                                }
+                              />
+                            )}
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+
+                  {/* Variable Sample Values Setup */}
+                  {Object.keys(formSamples).length > 0 && (
+                    <View style={{ marginTop: 16 }}>
+                      <Text style={styles.formLabel}>
+                        Sample variable test values *
+                      </Text>
+                      {Object.keys(formSamples).map((k) => (
+                        <View key={k} style={styles.sampleInputRow}>
+                          <View style={styles.varBadge}>
+                            <Text style={styles.varBadgeText}>{k}</Text>
+                          </View>
+                          <TextInput
+                            style={[styles.formInput, { flex: 1 }]}
+                            value={formSamples[k]}
+                            onChangeText={(txt) =>
+                              setFormSamples((prev) => ({ ...prev, [k]: txt }))
+                            }
+                            placeholder="Sample preview value"
+                            placeholderTextColor="#9CA3AF"
+                          />
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </>
               )}
             </ScrollView>
           )}
@@ -2123,21 +2730,48 @@ export default function TemplatesScreen({ navigation }) {
                 <View style={styles.waChatWallpaper}>
                   {/* WhatsApp Speech Bubble */}
                   <View style={styles.waSpeechBubble}>
-                    {formHeaderType === 'Text' && formHeaderText ? (
-                      <Text style={styles.waBubbleHeader}>
-                        {formHeaderText}
-                      </Text>
-                    ) : null}
+                    {formCategory === 'Authentication' ? (
+                      <>
+                        <Text style={styles.waBubbleBody}>
+                          *123456* is your verification code.
+                          {authSecurityRec ? ' For your security, do not share this code.' : ''}
+                        </Text>
+                        <Text style={styles.waBubbleFooter}>
+                          This code expires in {authExpirationMins || '10'} minutes.
+                        </Text>
+                      </>
+                    ) : (
+                      <>
+                        {formHeaderType === 'Text' && formHeaderText ? (
+                          <Text style={styles.waBubbleHeader}>
+                            {formHeaderText}
+                          </Text>
+                        ) : formHeaderType === 'Image' && formHeaderMediaUrl.trim() ? (
+                          <Image
+                            source={{ uri: formHeaderMediaUrl.trim() }}
+                            style={{
+                              width: '100%',
+                              aspectRatio: formHeaderMediaRatio,
+                              maxHeight: 240,
+                              borderRadius: 8,
+                              marginBottom: 8,
+                              backgroundColor: '#F1F5F9',
+                            }}
+                            resizeMode="cover"
+                          />
+                        ) : null}
 
-                    <Text style={styles.waBubbleBody}>
-                      {getRenderedBody(formBodyText, formSamples)}
-                    </Text>
+                        <Text style={styles.waBubbleBody}>
+                          {getRenderedBody(formBodyText, formSamples)}
+                        </Text>
 
-                    {formFooterText ? (
-                      <Text style={styles.waBubbleFooter}>
-                        {formFooterText}
-                      </Text>
-                    ) : null}
+                        {formType !== 'LIMITED_TIME_OFFER' && formFooterText ? (
+                          <Text style={styles.waBubbleFooter}>
+                            {formFooterText}
+                          </Text>
+                        ) : null}
+                      </>
+                    )}
 
                     <View style={styles.waBubbleMetaRow}>
                       <Text style={styles.waTimestamp}>12:45 PM</Text>
@@ -2194,7 +2828,9 @@ export default function TemplatesScreen({ navigation }) {
 
                 <TouchableOpacity
                   style={styles.continueSolidBtn}
-                  onPress={() => setBuilderStep(2)}
+                  onPress={() => {
+                    if (validateStep1()) setBuilderStep(2);
+                  }}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.continueSolidBtnText}>Continue</Text>
@@ -2221,7 +2857,9 @@ export default function TemplatesScreen({ navigation }) {
 
                 <TouchableOpacity
                   style={styles.submitSolidBtn}
-                  onPress={() => setIsSubmitConfirmVisible(true)}
+                  onPress={() => {
+                    if (validateStep2()) setIsSubmitConfirmVisible(true);
+                  }}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.submitSolidBtnText}>Submit Template</Text>
@@ -2808,6 +3446,7 @@ export default function TemplatesScreen({ navigation }) {
           </View>
         </View>
       )}
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }
