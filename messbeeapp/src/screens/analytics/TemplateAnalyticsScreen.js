@@ -14,6 +14,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, authService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 import DateFilterModal from './DateFilterModal';
 
 export default function TemplateAnalyticsScreen({ navigation }) {
@@ -345,6 +346,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

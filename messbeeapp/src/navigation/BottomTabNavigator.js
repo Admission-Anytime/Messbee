@@ -80,6 +80,7 @@ export default function BottomTabNavigator() {
         component={BroadcastCampaignsScreen}
         options={{
           tabBarLabel: 'Campaigns',
+          tabBarStyle: { display: 'none' },
         }}
       />
       <Tab.Screen

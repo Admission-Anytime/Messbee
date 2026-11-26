@@ -18,6 +18,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/colors';
 import { templateService, resolveFileUrl } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 import { validateForm } from '../../utils/validation';
 
 // Initial pre-loaded WhatsApp Business Templates matching Meta Cloud API
@@ -3445,6 +3446,7 @@ export default function TemplatesScreen({ navigation }) {
           </View>
         </View>
       )}
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }

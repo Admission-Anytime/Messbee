@@ -15,6 +15,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, campaignService, authService } from '../../services/api';
+import QuickBottomBar from '../../components/QuickBottomBar';
 
 const STATUS_FILTERS = ['All', 'Draft', 'Scheduled', 'Processing', 'Completed', 'Failed'];
 const TEMPLATE_CATEGORIES = ['All Templates', 'Marketing', 'Utility', 'Authentication'];
@@ -666,6 +667,7 @@ export default function CampaignAnalyticsScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
 }
