@@ -67,14 +67,14 @@ const MORE_TILES = [
     title: 'Commerce',
     subtitle: 'Manage commerce',
     icon: 'cart-outline',
-    route: 'CommerceCatalog',
+    route: 'CommerceHub',
   },
   {
     id: 'automation',
     title: 'Automation',
     subtitle: 'Manage automation',
     icon: 'git-network-outline',
-    route: 'BotMenu',
+    route: 'AutomationDashboard',
   },
   {
     id: 'dev_api',
