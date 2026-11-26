@@ -35,8 +35,10 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [isArchived, setIsArchived] = useState(chat.archived || false);
   const [isPinned, setIsPinned] = useState(chat.pinned || false);
+  const [activeChatId, setActiveChatId] = useState(chat._id || null);
 
   const flatListRef = useRef(null);
+  const pollDisabledRef = useRef(false);
 
   // Load real messages & quick replies from backend + live 5s sync
   useEffect(() => {
@@ -53,23 +55,54 @@ export default function ChatDetailScreen({ route, navigation }) {
       }));
 
     const fetchChatData = async (isInitial = false) => {
+      if (!isInitial && pollDisabledRef.current) return;
       if (isInitial) setLoading(true);
       try {
-        const [liveMsgs, liveQuickReplies] = await Promise.all([
-          chat._id ? chatService.getMessages(chat._id).catch(() => []) : Promise.resolve([]),
-          isInitial ? quickReplyService.getQuickReplies().catch(() => []) : Promise.resolve(null),
-        ]);
+        let targetChatId = activeChatId;
 
-        if (isInitial && chat._id) {
-          chatService.markAsRead(chat._id);
+        if (isInitial && targetChatId) {
+          // Verify chat exists; if contact _id was mistakenly passed, resolve via createChat
+          try {
+            const liveMsgs = await chatService.getMessages(targetChatId);
+            if (isMounted && Array.isArray(liveMsgs)) {
+              setMessages(mapMessages(liveMsgs));
+            }
+          } catch (msgErr) {
+            if (msgErr?.response?.status === 404 && (chat.phone || chat.whatsapp)) {
+              const resolved = await chatService.createChat({
+                name: chat.name,
+                phone: chat.phone || chat.whatsapp,
+              });
+              if (resolved?._id && isMounted) {
+                targetChatId = resolved._id;
+                setActiveChatId(resolved._id);
+                const retryMsgs = await chatService.getMessages(resolved._id).catch(() => []);
+                if (isMounted && Array.isArray(retryMsgs)) {
+                  setMessages(mapMessages(retryMsgs));
+                }
+              } else {
+                pollDisabledRef.current = true;
+              }
+            } else {
+              pollDisabledRef.current = true;
+            }
+          }
+        } else if (targetChatId) {
+          const liveMsgs = await chatService.getMessages(targetChatId).catch(() => null);
+          if (isMounted && Array.isArray(liveMsgs)) {
+            setMessages(mapMessages(liveMsgs));
+          } else if (liveMsgs === null) {
+            pollDisabledRef.current = true;
+          }
         }
 
-        if (isMounted) {
-          if (Array.isArray(liveMsgs)) {
-            setMessages(mapMessages(liveMsgs));
-          }
+        if (isInitial && targetChatId) {
+          chatService.markAsRead(targetChatId);
+        }
 
-          if (isInitial) {
+        if (isInitial && isMounted) {
+          const liveQuickReplies = await quickReplyService.getQuickReplies().catch(() => []);
+          if (isMounted) {
             if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
               setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
             } else {
@@ -90,7 +123,7 @@ export default function ChatDetailScreen({ route, navigation }) {
       isMounted = false;
       clearInterval(pollInterval);
     };
-  }, [chat._id]);
+  }, [activeChatId]);
 
   // Handle status update from UpdateLeadStatusModal
   useEffect(() => {
@@ -137,9 +170,10 @@ export default function ChatDetailScreen({ route, navigation }) {
     setInputText('');
 
     try {
-      if (chat._id) {
+      const targetId = activeChatId || chat._id;
+      if (targetId) {
         await chatService.sendMessage({
-          chatId: chat._id,
+          chatId: targetId,
           text: textToSend,
           sender: 'me',
         });

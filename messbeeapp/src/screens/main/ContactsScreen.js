@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { contactService, labelService } from '../../services/api';
+import { contactService, labelService, chatService } from '../../services/api';
 
 const FILTER_TABS = ['All Contacts', 'Active', 'Inactive', 'Blocked'];
 
@@ -642,19 +642,27 @@ export default function ContactsScreen({ navigation }) {
 
             <TouchableOpacity
               style={styles.actionMenuRow}
-              onPress={() => {
+              onPress={async () => {
                 const c = selectedContactAction;
                 setSelectedContactAction(null);
-                navigation.navigate('ChatDetail', {
-                  chat: {
-                    _id: c._id,
+                try {
+                  const created = await chatService.createChat({
                     name: c.name,
                     phone: c.phone,
-                    avatarText: c.initials,
-                    avatarBg: '#D1FAE5',
-                    avatarColor: '#065F46',
-                  },
-                });
+                  });
+                  navigation.navigate('ChatDetail', {
+                    chat: {
+                      _id: created?._id || created?.id,
+                      name: created?.name || c.name,
+                      phone: created?.phone || c.phone,
+                      avatarText: c.initials,
+                      avatarBg: '#D1FAE5',
+                      avatarColor: '#065F46',
+                    },
+                  });
+                } catch (err) {
+                  Alert.alert('Error', err?.response?.data?.error || err?.message || 'Could not open chat.');
+                }
               }}
             >
               <Ionicons name="chatbubble-outline" size={18} color="#00875A" style={{ marginRight: 12 }} />

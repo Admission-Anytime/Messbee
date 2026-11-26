@@ -368,6 +368,9 @@ export const chatService = {
       const response = await api.get(`/chats/messages/${chatId}`);
       return response.data?.data || response.data?.messages || response.data || [];
     } catch (err) {
+      if (err?.response?.status === 404) {
+        throw err;
+      }
       console.warn('chatService.getMessages error:', err.message);
       return [];
     }
