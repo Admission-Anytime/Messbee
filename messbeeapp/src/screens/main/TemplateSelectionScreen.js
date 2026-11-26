@@ -21,6 +21,7 @@ export default function TemplateSelectionScreen({ route, navigation }) {
 
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -28,11 +29,15 @@ export default function TemplateSelectionScreen({ route, navigation }) {
   // Load real templates from Meta API / DB
   useEffect(() => {
     const fetchTemplates = async () => {
+      setErrorMsg('');
       try {
         const live = await templateService.getTemplates();
         if (Array.isArray(live) && live.length > 0) {
           const mapped = live.map((item, idx) => {
             const bodyComponent = item.components?.find((c) => c.type === 'BODY') || {};
+            const headerComponent = item.components?.find((c) => c.type === 'HEADER') || {};
+            const footerComponent = item.components?.find((c) => c.type === 'FOOTER') || {};
+            const buttonsComponent = item.components?.find((c) => c.type === 'BUTTONS') || {};
             const rawBody = bodyComponent.text || item.bodyText || item.body || '';
             const vars = [];
             const matches = rawBody.match(/\{\{(\d+)\}\}/g);
@@ -41,15 +46,24 @@ export default function TemplateSelectionScreen({ route, navigation }) {
               uniqueNums.forEach((num) => vars.push(`Variable ${num}`));
             }
             return {
-              id: item._id || item.id || `live_${idx}`,
+              id: String(item._id || item.id || `live_${idx}`),
               name: item.name || `template_${idx}`,
+              whatsappTemplateName: item.whatsappTemplateName || item.name || `template_${idx}`,
               category: item.category || 'Utility',
               language: item.language || 'en_US',
-              status: item.status || 'Approved',
+              status: item.status || 'APPROVED',
               updated: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'Synced',
+              header: headerComponent.text || item.headerText || '',
               body: rawBody,
+              footer: footerComponent.text || item.footerText || '',
+              buttons: buttonsComponent.buttons || item.buttons || [],
               variables: vars,
             };
+          });
+          mapped.sort((a, b) => {
+            const aApp = String(a.status).toUpperCase() === 'APPROVED' ? 0 : 1;
+            const bApp = String(b.status).toUpperCase() === 'APPROVED' ? 0 : 1;
+            return aApp - bApp;
           });
           setTemplates(mapped);
           setSelectedTemplate(mapped[0]);
@@ -57,7 +71,8 @@ export default function TemplateSelectionScreen({ route, navigation }) {
           setTemplates([]);
         }
       } catch (err) {
-        console.log('Template fetch note:', err.message);
+        const msg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Failed to load templates.';
+        setErrorMsg(msg);
         setTemplates([]);
       } finally {
         setLoading(false);
@@ -215,6 +230,24 @@ export default function TemplateSelectionScreen({ route, navigation }) {
         renderItem={renderTemplateCard}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          loading ? (
+            <View style={{ paddingVertical: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#00875A" />
+              <Text style={{ marginTop: 10, color: '#64748B', fontSize: 13 }}>Loading templates...</Text>
+            </View>
+          ) : (
+            <View style={{ paddingVertical: 40, paddingHorizontal: 20, alignItems: 'center' }}>
+              <Ionicons name="document-text-outline" size={36} color="#94A3B8" />
+              <Text style={{ marginTop: 10, color: '#0F172A', fontSize: 15, fontWeight: '700', textAlign: 'center' }}>
+                {errorMsg ? 'Could not load templates' : 'No templates found'}
+              </Text>
+              <Text style={{ marginTop: 6, color: '#64748B', fontSize: 13, textAlign: 'center', lineHeight: 18 }}>
+                {errorMsg || 'Create or sync a WhatsApp template in the Templates tab first.'}
+              </Text>
+            </View>
+          )
+        }
       />
 
       {/* Footer Actions */}

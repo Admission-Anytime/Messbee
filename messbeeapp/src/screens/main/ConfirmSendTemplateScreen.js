@@ -44,7 +44,7 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
 
       await chatService.sendTemplate({
         chatId: contact._id,
-        templateName: template?.name,
+        templateName: template?.whatsappTemplateName || template?.name,
         languageCode: template?.language || 'en_US',
         components,
       });

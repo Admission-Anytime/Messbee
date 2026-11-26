@@ -473,13 +473,17 @@ export const templateService = {
     try {
       const response = await api.get('/whatsapp/templates');
       const payload = response.data;
+      if (payload?.data && Array.isArray(payload.data.data)) return payload.data.data;
       if (payload && Array.isArray(payload.data)) return payload.data;
       if (payload && Array.isArray(payload.templates)) return payload.templates;
+      if (payload && Array.isArray(payload.approvedTemplates)) {
+        return [...payload.approvedTemplates, ...(payload.nonApprovedTemplates || [])];
+      }
       if (Array.isArray(payload)) return payload;
       return [];
     } catch (err) {
-      console.warn('templateService.getTemplates error:', err.message);
-      return [];
+      console.warn('templateService.getTemplates error:', err?.response?.data?.message || err.message);
+      throw err;
     }
   },
   getTemplateById: async (templateId) => {

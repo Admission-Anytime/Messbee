@@ -15,6 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS } from '../../constants/colors';
 import { templateService } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 
 // Initial pre-loaded WhatsApp Business Templates matching Meta Cloud API
 const INITIAL_TEMPLATES_DATA = [
@@ -599,9 +600,11 @@ export default function TemplatesScreen({ navigation }) {
           const bodyComp = t.components?.find((c) => c.type === 'BODY');
           const headerComp = t.components?.find((c) => c.type === 'HEADER');
           const footerComp = t.components?.find((c) => c.type === 'FOOTER');
+          const buttonsComp = t.components?.find((c) => c.type === 'BUTTONS');
           return {
-            id: t._id || t.id || `tmpl_${idx}`,
+            id: String(t._id || t.id || `tmpl_${idx}`),
             name: t.name || `template_${idx + 1}`,
+            whatsappTemplateName: t.whatsappTemplateName || t.name || `template_${idx + 1}`,
             category: (t.category || 'UTILITY').toUpperCase(),
             language: t.language || 'en_US',
             status: (t.status || 'APPROVED').toUpperCase(),
@@ -612,10 +615,13 @@ export default function TemplatesScreen({ navigation }) {
             variables: t.variables || [],
             sampleValues: t.sampleValues || {},
             footerText: t.footerText || footerComp?.text || t.footer || '',
-            buttons: t.buttons || [],
+            buttons: buttonsComp?.buttons || t.buttons || [],
+            rejectedReason: t.rejected_reason || t.rejectedReason || '',
             createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
             updatedAt: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '',
             statusNote:
+              t.rejected_reason ||
+              t.rejectedReason ||
               t.statusNote ||
               (t.status === 'APPROVED'
                 ? 'Approved by Meta.'
@@ -627,6 +633,8 @@ export default function TemplatesScreen({ navigation }) {
         setTemplates([]);
       }
     } catch (err) {
+      const errMsg = err?.response?.data?.message || err?.response?.data?.error || err.message || 'Failed to load templates.';
+      showToast(errMsg);
       setTemplates([]);
     } finally {
       setLoading(false);
@@ -808,41 +816,130 @@ export default function TemplatesScreen({ navigation }) {
   };
 
   // Handle Submit Template to Meta
-  const handleConfirmSubmit = () => {
-    setIsSubmitConfirmVisible(false);
-    setIsCreateModalVisible(false);
+  const handleConfirmSubmit = async () => {
+    const { isValid, firstError } = validateForm({
+      name: { value: formName, required: true, label: 'Template Name' },
+      bodyText: { value: formBodyText, required: true, label: 'Message Body' },
+      ...(formHeaderType === 'Text'
+        ? { headerText: { value: formHeaderText, required: true, label: 'Header Text' } }
+        : {}),
+    });
 
-    const safeName = (formName.trim() || 'custom_template')
+    if (!isValid) {
+      Alert.alert('Validation Error', firstError);
+      return;
+    }
+
+    const safeName = formName
+      .trim()
       .toLowerCase()
-      .replace(/[^a-z0-9_]/g, '_');
+      .replace(/\s+/g, '_')
+      .replace(/[^a-z0-9_]/g, '_')
+      .replace(/^_+|_+$/g, '');
 
-    const newTemplateObj = {
-      id: isEditingId || `tmpl_${Date.now()}`,
-      name: safeName,
-      category: formCategory.toUpperCase(),
-      language: formLanguage,
-      status: 'PENDING',
-      quality: 'Pending',
-      headerType: formHeaderType === 'None' ? 'NONE' : 'TEXT',
-      headerText: formHeaderType === 'Text' ? formHeaderText : '',
-      bodyText: formBodyText,
-      variables: Object.keys(formSamples).map((_, i) => `Variable ${i + 1}`),
-      sampleValues: formSamples,
-      footerText: formFooterText,
-      buttons: formButtons,
-      createdAt: 'Just now',
-      updatedAt: 'Just now',
-      statusNote: 'Submitted to Meta. Status updates usually within 5-10 minutes.',
+    if (!safeName) {
+      Alert.alert('Validation Error', 'Template Name must contain letters or numbers.');
+      return;
+    }
+
+    const langMap = {
+      English: 'en_US',
+      'English (US)': 'en_US',
+      Hindi: 'hi_IN',
+      Spanish: 'es',
     };
+    const langCode = langMap[formLanguage] || (formLanguage?.includes('_') ? formLanguage : 'en_US');
 
-    if (isEditingId) {
-      setTemplates((prev) =>
-        prev.map((t) => (t.id === isEditingId ? newTemplateObj : t))
-      );
-      showToast('Template updated & submitted to Meta for review!');
-    } else {
-      setTemplates((prev) => [newTemplateObj, ...prev]);
-      showToast('Template submitted! Meta review status will update within a few minutes.');
+    const components = [];
+    if (formHeaderType === 'Text' && formHeaderText.trim()) {
+      const headerComp = {
+        type: 'HEADER',
+        format: 'TEXT',
+        text: formHeaderText.trim(),
+      };
+      if (formHeaderText.includes('{{1}}')) {
+        headerComp.example = { header_text: [formSamples['{{1}}'] || 'Sample'] };
+      }
+      components.push(headerComp);
+    }
+
+    const bodyMatches = formBodyText.match(/\{\{(\d+)\}\}/g) || [];
+    const uniqueVarNums = [...new Set(bodyMatches.map((m) => m.replace(/[{}]/g, '')))].sort(
+      (a, b) => Number(a) - Number(b)
+    );
+    const bodyComp = {
+      type: 'BODY',
+      text: formBodyText.trim(),
+    };
+    if (uniqueVarNums.length > 0) {
+      bodyComp.example = {
+        body_text: [uniqueVarNums.map((num) => String(formSamples[`{{${num}}}`] || `Sample ${num}`))],
+      };
+    }
+    components.push(bodyComp);
+
+    if (formFooterText.trim()) {
+      components.push({
+        type: 'FOOTER',
+        text: formFooterText.trim(),
+      });
+    }
+
+    if (Array.isArray(formButtons) && formButtons.length > 0) {
+      const waButtons = formButtons
+        .filter((b) => b && (b.text || '').trim())
+        .map((b) => {
+          const bType = String(b.type || 'QUICK_REPLY').toUpperCase();
+          if (bType === 'URL') {
+            return {
+              type: 'URL',
+              text: b.text.trim().slice(0, 25),
+              url: (b.value || b.url || '').trim(),
+            };
+          }
+          if (bType === 'PHONE_NUMBER') {
+            return {
+              type: 'PHONE_NUMBER',
+              text: b.text.trim().slice(0, 25),
+              phone_number: (b.value || b.phone_number || '').trim(),
+            };
+          }
+          return {
+            type: 'QUICK_REPLY',
+            text: b.text.trim().slice(0, 25),
+          };
+        });
+      if (waButtons.length > 0) {
+        components.push({ type: 'BUTTONS', buttons: waButtons });
+      }
+    }
+
+    try {
+      setLoading(true);
+      if (isEditingId) {
+        await templateService.updateTemplate(isEditingId, { components });
+        showToast('Template updated & submitted to Meta for review!');
+      } else {
+        await templateService.createTemplate({
+          name: safeName,
+          category: formCategory.toUpperCase(),
+          language: langCode,
+          components,
+        });
+        showToast('Template submitted! Meta review status will update within a few minutes.');
+      }
+      setIsSubmitConfirmVisible(false);
+      setIsCreateModalVisible(false);
+      await loadTemplates();
+    } catch (err) {
+      setLoading(false);
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error?.message ||
+        err?.response?.data?.error ||
+        err.message ||
+        'Failed to submit template to Meta.';
+      Alert.alert('Template Submission Failed', String(errMsg));
     }
   };
 
