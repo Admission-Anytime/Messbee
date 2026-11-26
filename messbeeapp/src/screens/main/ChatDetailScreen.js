@@ -46,7 +46,9 @@ export default function ChatDetailScreen({ route, navigation }) {
     const mapMessages = (liveMsgs) =>
       liveMsgs.map((m, idx) => ({
         id: m._id || m.id || `m_${idx}`,
-        type: m.template ? 'template' : (m.status === 'failed' ? 'error' : 'text'),
+        type: m.status === 'failed' ? 'error' : (m.messageType === 'template' || m.template ? 'template' : 'text'),
+        title: m.errorCode ? `WhatsApp Error (${m.errorCode})` : 'Message Failed',
+        subtitle: m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
         text: m.text || m.body || m.message || '',
         time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
         sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
@@ -170,7 +172,17 @@ export default function ChatDetailScreen({ route, navigation }) {
     setInputText('');
 
     try {
-      const targetId = activeChatId || chat._id;
+      let targetId = activeChatId || chat._id;
+      if (!targetId && (chat.phone || chat.whatsappId || chat.whatsapp)) {
+        const resolved = await chatService.createChat({
+          name: chat.name,
+          phone: chat.phone || chat.whatsappId || chat.whatsapp,
+        });
+        if (resolved?._id) {
+          targetId = resolved._id;
+          setActiveChatId(resolved._id);
+        }
+      }
       if (targetId) {
         await chatService.sendMessage({
           chatId: targetId,
@@ -273,7 +285,11 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
           <TouchableOpacity
             style={styles.retryBtn}
-            onPress={() => navigation.navigate('TemplateSelection', { contact: chat })}
+            onPress={() =>
+              navigation.navigate('TemplateSelection', {
+                contact: { ...chat, _id: activeChatId || chat._id },
+              })
+            }
             activeOpacity={0.7}
           >
             <Ionicons name="refresh-outline" size={13} color="#DC2626" style={{ marginRight: 4 }} />
@@ -493,7 +509,11 @@ export default function ChatDetailScreen({ route, navigation }) {
           {/* WhatsApp Template Document Icon */}
           <TouchableOpacity
             style={styles.composerIconBtn}
-            onPress={() => navigation.navigate('TemplateSelection', { contact: chat })}
+            onPress={() =>
+              navigation.navigate('TemplateSelection', {
+                contact: { ...chat, _id: activeChatId || chat._id },
+              })
+            }
             activeOpacity={0.7}
           >
             <Ionicons name="document-text-outline" size={22} color="#00875A" />

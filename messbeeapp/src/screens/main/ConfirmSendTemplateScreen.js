@@ -21,8 +21,9 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
 
   const handleSendMessage = async () => {
-    if (!contact?._id) {
-      Alert.alert('Error', 'Missing recipient chat ID. Please reopen the chat and try again.');
+    const recipientPhone = contact?.phone || contact?.whatsappId || contact?.whatsapp;
+    if (!contact?._id && !recipientPhone) {
+      Alert.alert('Error', 'Missing recipient chat ID or phone number. Please reopen the chat and try again.');
       return;
     }
 
@@ -43,7 +44,8 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
           : [];
 
       await chatService.sendTemplate({
-        chatId: contact._id,
+        chatId: contact?._id,
+        to: recipientPhone,
         templateName: template?.whatsappTemplateName || template?.name,
         languageCode: template?.language || 'en_US',
         components,
@@ -55,7 +57,12 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
         renderedText,
       });
     } catch (err) {
-      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Failed to send template.';
+      const errMsg =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        err?.response?.data?.rawError?.message ||
+        err.message ||
+        'Failed to send template.';
       Alert.alert('Template Send Failed', errMsg);
     } finally {
       setSending(false);

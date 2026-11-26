@@ -396,9 +396,32 @@ export const chatService = {
     }
   },
 
-  sendTemplate: async ({ chatId, templateName, languageCode = 'en', components = [] }) => {
-    const response = await api.post('/chats/send-template', {
-      chatId,
+  sendTemplate: async ({ chatId, to, phone, templateName, languageCode = 'en', components = [] }) => {
+    const recipient = to || phone;
+    if (chatId) {
+      try {
+        const response = await api.post('/chats/send-template', {
+          chatId,
+          templateName,
+          languageCode,
+          components,
+        });
+        return response.data?.data || response.data;
+      } catch (err) {
+        if (err?.response?.status === 404 && recipient) {
+          const fallbackRes = await api.post('/whatsapp/send-template', {
+            to: recipient,
+            templateName,
+            languageCode,
+            components,
+          });
+          return fallbackRes.data?.data || fallbackRes.data;
+        }
+        throw err;
+      }
+    }
+    const response = await api.post('/whatsapp/send-template', {
+      to: recipient,
       templateName,
       languageCode,
       components,
