@@ -192,7 +192,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             { text: 'Cancel', style: 'cancel' },
             {
               text: 'Send Template',
-              onPress: () => navigation.navigate('TemplateSelection', { chat }),
+              onPress: () =>
+                navigation.navigate('TemplateSelection', {
+                  contact: { ...chat, _id: activeChatId || chat._id },
+                }),
             },
           ]
         );

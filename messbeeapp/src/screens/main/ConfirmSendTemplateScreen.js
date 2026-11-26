@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Platform,
+  Alert,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,33 +21,44 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
   const [sending, setSending] = useState(false);
 
   const handleSendMessage = async () => {
+    if (!contact?._id) {
+      Alert.alert('Error', 'Missing recipient chat ID. Please reopen the chat and try again.');
+      return;
+    }
+
     setSending(true);
     try {
-      if (contact?._id) {
-        await chatService.sendTemplate({
-          chatId: contact._id,
-          templateName: template?.name || 'admission_welcome_v1',
-          languageCode: template?.language || 'en_US',
-          components: [
-            {
-              type: 'body',
-              parameters: Object.keys(variables || {}).map((k) => ({
-                type: 'text',
-                text: variables[k],
-              })),
-            },
-          ],
-        });
-      }
-    } catch (err) {
-      console.log('Template send note:', err.message);
-    } finally {
-      setSending(false);
+      const varKeys = Object.keys(variables || {}).sort((a, b) => Number(a) - Number(b));
+      const components =
+        varKeys.length > 0
+          ? [
+              {
+                type: 'body',
+                parameters: varKeys.map((k) => ({
+                  type: 'text',
+                  text: String(variables[k] || ''),
+                })),
+              },
+            ]
+          : [];
+
+      await chatService.sendTemplate({
+        chatId: contact._id,
+        templateName: template?.name,
+        languageCode: template?.language || 'en_US',
+        components,
+      });
+
       navigation.navigate('TemplateSuccess', {
         template,
         contact,
         renderedText,
       });
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.response?.data?.message || err.message || 'Failed to send template.';
+      Alert.alert('Template Send Failed', errMsg);
+    } finally {
+      setSending(false);
     }
   };
 

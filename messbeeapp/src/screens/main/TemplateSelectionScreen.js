@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   TextInput,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,56 +16,14 @@ import { templateService } from '../../services/api';
 
 const CATEGORIES = ['All', 'Utility', 'Marketing', 'Authentication'];
 
-const DEFAULT_TEMPLATES = [
-  {
-    id: 't1',
-    name: 'admission_welcome_v1',
-    category: 'Utility',
-    language: 'en_US',
-    status: 'Approved',
-    updated: 'Updated 2 days ago',
-    body: 'Hello {{1}}, thank you for contacting Admission Anytime. We have received your inquiry and our counseling team will get in touch with you shortly.',
-    variables: ['Customer Name'],
-  },
-  {
-    id: 't2',
-    name: 'testing',
-    category: 'Marketing',
-    language: 'en_US',
-    status: 'Approved',
-    updated: 'Updated 5 days ago',
-    body: 'Hello, welcome to Admission Anytime.',
-    variables: [],
-  },
-  {
-    id: 't3',
-    name: 'custom',
-    category: 'Marketing',
-    language: 'en_US',
-    status: 'Approved',
-    updated: 'Updated 1 week ago',
-    body: 'the main purpose for testing metam gd',
-    variables: [],
-  },
-  {
-    id: 't4',
-    name: 'login_code',
-    category: 'Authentication',
-    language: 'en',
-    status: 'Approved',
-    updated: 'Updated 3 weeks ago',
-    body: 'Your login code is {{1}}. This code expires in 10 minutes.',
-    variables: ['Login Code'],
-  },
-];
-
 export default function TemplateSelectionScreen({ route, navigation }) {
-  const { contact = { name: '919350157447', phone: '+91 9350157447' } } = route.params || {};
+  const contact = route.params?.contact || route.params?.chat || {};
 
-  const [templates, setTemplates] = useState(DEFAULT_TEMPLATES);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState(DEFAULT_TEMPLATES[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
 
   // Load real templates from Meta API / DB
   useEffect(() => {
@@ -74,28 +33,34 @@ export default function TemplateSelectionScreen({ route, navigation }) {
         if (Array.isArray(live) && live.length > 0) {
           const mapped = live.map((item, idx) => {
             const bodyComponent = item.components?.find((c) => c.type === 'BODY') || {};
-            const rawBody = bodyComponent.text || item.body || 'Template message';
+            const rawBody = bodyComponent.text || item.bodyText || item.body || '';
             const vars = [];
             const matches = rawBody.match(/\{\{(\d+)\}\}/g);
             if (matches) {
-              matches.forEach((_, i) => vars.push(`Variable ${i + 1}`));
+              const uniqueNums = [...new Set(matches.map((m) => m.replace(/[{}]/g, '')))].sort((a, b) => Number(a) - Number(b));
+              uniqueNums.forEach((num) => vars.push(`Variable ${num}`));
             }
             return {
-              id: item.id || `live_${idx}`,
+              id: item._id || item.id || `live_${idx}`,
               name: item.name || `template_${idx}`,
               category: item.category || 'Utility',
               language: item.language || 'en_US',
               status: item.status || 'Approved',
-              updated: 'Recently synced',
+              updated: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'Synced',
               body: rawBody,
-              variables: vars.length > 0 ? vars : ['Customer Name'],
+              variables: vars,
             };
           });
           setTemplates(mapped);
           setSelectedTemplate(mapped[0]);
+        } else {
+          setTemplates([]);
         }
       } catch (err) {
         console.log('Template fetch note:', err.message);
+        setTemplates([]);
+      } finally {
+        setLoading(false);
       }
     };
     fetchTemplates();
@@ -114,6 +79,15 @@ export default function TemplateSelectionScreen({ route, navigation }) {
 
   const handleUseTemplate = () => {
     if (!selectedTemplate) return;
+    if (!selectedTemplate.variables || selectedTemplate.variables.length === 0) {
+      navigation.navigate('ConfirmSendTemplate', {
+        template: selectedTemplate,
+        contact,
+        variables: {},
+        renderedText: selectedTemplate.body,
+      });
+      return;
+    }
     navigation.navigate('TemplateVariables', {
       template: selectedTemplate,
       contact,

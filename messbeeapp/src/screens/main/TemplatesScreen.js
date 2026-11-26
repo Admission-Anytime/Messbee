@@ -524,8 +524,8 @@ export default function TemplatesScreen({ navigation }) {
   const [activeMainTab, setActiveMainTab] = useState('list');
 
   // Templates State
-  const [templates, setTemplates] = useState(INITIAL_TEMPLATES_DATA);
-  const [loading, setLoading] = useState(false);
+  const [templates, setTemplates] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [isSyncing, setIsSyncing] = useState(false);
@@ -589,41 +589,47 @@ export default function TemplatesScreen({ navigation }) {
     }, 4000);
   };
 
-  // Load live templates from backend with fallback
+  // Load live templates from backend
   const loadTemplates = useCallback(async () => {
+    setLoading(true);
     try {
       const data = await templateService.getTemplates();
       if (Array.isArray(data) && data.length > 0) {
-        const mapped = data.map((t, idx) => ({
-          id: t._id || t.id || `tmpl_${idx}`,
-          name: t.name || `template_${idx + 1}`,
-          category: (t.category || 'UTILITY').toUpperCase(),
-          language: t.language || 'English',
-          status: (t.status || 'APPROVED').toUpperCase(),
-          quality: t.quality || 'High',
-          headerType: t.headerType || (t.headerText ? 'TEXT' : 'NONE'),
-          headerText: t.headerText || '',
-          bodyText: t.bodyText || t.body || '',
-          variables: t.variables || [],
-          sampleValues: t.sampleValues || {},
-          footerText: t.footerText || t.footer || '',
-          buttons: t.buttons || [],
-          createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '12 Jan 2025',
-          updatedAt: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '14 Jan 2025',
-          statusNote:
-            t.statusNote ||
-            (t.status === 'APPROVED'
-              ? 'Approved by Meta.'
-              : 'Updates are usually approved within a few minutes.'),
-        }));
+        const mapped = data.map((t, idx) => {
+          const bodyComp = t.components?.find((c) => c.type === 'BODY');
+          const headerComp = t.components?.find((c) => c.type === 'HEADER');
+          const footerComp = t.components?.find((c) => c.type === 'FOOTER');
+          return {
+            id: t._id || t.id || `tmpl_${idx}`,
+            name: t.name || `template_${idx + 1}`,
+            category: (t.category || 'UTILITY').toUpperCase(),
+            language: t.language || 'en_US',
+            status: (t.status || 'APPROVED').toUpperCase(),
+            quality: t.quality || 'High',
+            headerType: t.headerType || headerComp?.format || (t.headerText || headerComp?.text ? 'TEXT' : 'NONE'),
+            headerText: t.headerText || headerComp?.text || '',
+            bodyText: bodyComp?.text || t.bodyText || t.body || '',
+            variables: t.variables || [],
+            sampleValues: t.sampleValues || {},
+            footerText: t.footerText || footerComp?.text || t.footer || '',
+            buttons: t.buttons || [],
+            createdAt: t.createdAt ? new Date(t.createdAt).toLocaleDateString() : '',
+            updatedAt: t.updatedAt ? new Date(t.updatedAt).toLocaleDateString() : '',
+            statusNote:
+              t.statusNote ||
+              (t.status === 'APPROVED'
+                ? 'Approved by Meta.'
+                : 'Updates are usually approved within a few minutes.'),
+          };
+        });
         setTemplates(mapped);
       } else {
-        // Fallback to initial mock templates if backend has no records
-        setTemplates(INITIAL_TEMPLATES_DATA);
+        setTemplates([]);
       }
     } catch (err) {
-      // Offline fallback
-      setTemplates(INITIAL_TEMPLATES_DATA);
+      setTemplates([]);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
