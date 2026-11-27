@@ -257,7 +257,11 @@ export default function ContactsScreen({ navigation }) {
           <Text style={styles.headerTitle}>Contacts</Text>
           <Text style={styles.headerSubtitle}>Manage people, labels, and custom fields.</Text>
         </View>
-        <TouchableOpacity style={styles.gridIconBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.gridIconBtn}
+          onPress={() => navigation.navigate('CrmPipeline')}
+          activeOpacity={0.7}
+        >
           <Ionicons name="grid-outline" size={20} color="#0F172A" />
         </TouchableOpacity>
       </View>
