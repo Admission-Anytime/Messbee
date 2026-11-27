@@ -31,18 +31,28 @@ export default function ConfirmSendTemplateScreen({ route, navigation }) {
     setSending(true);
     try {
       const varKeys = Object.keys(variables || {}).sort((a, b) => Number(a) - Number(b));
-      const components =
-        varKeys.length > 0
-          ? [
-              {
-                type: 'body',
-                parameters: varKeys.map((k) => ({
-                  type: 'text',
-                  text: String(variables[k] || ''),
-                })),
-              },
-            ]
-          : [];
+      const components = [];
+      const hType = String(template?.headerType || '').toLowerCase();
+      if (['image', 'video', 'document'].includes(hType) && /^https?:\/\//i.test(String(template?.headerMediaUrl || ''))) {
+        components.push({
+          type: 'header',
+          parameters: [
+            {
+              type: hType,
+              [hType]: { link: template.headerMediaUrl },
+            },
+          ],
+        });
+      }
+      if (varKeys.length > 0) {
+        components.push({
+          type: 'body',
+          parameters: varKeys.map((k) => ({
+            type: 'text',
+            text: String(variables[k] || ''),
+          })),
+        });
+      }
 
       await chatService.sendTemplate({
         chatId: contact?._id,

@@ -221,7 +221,10 @@ export default function CrmPipelineScreen({ navigation }) {
           <Text style={styles.headerSubtitle}>Manage and track deal stages for your contacts.</Text>
         </View>
 
-        <TouchableOpacity style={styles.moreHeaderBtn}>
+        <TouchableOpacity
+          style={styles.moreHeaderBtn}
+          onPress={() => navigation.navigate('CustomFields')}
+        >
           <Ionicons name="ellipsis-horizontal" size={20} color="#0F172A" />
         </TouchableOpacity>
       </View>

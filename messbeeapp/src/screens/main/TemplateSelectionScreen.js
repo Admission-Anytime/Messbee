@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { templateService } from '../../services/api';
+import { templateService, resolveFileUrl } from '../../services/api';
 
 const CATEGORIES = ['All', 'Utility', 'Marketing', 'Authentication'];
 
@@ -45,6 +45,14 @@ export default function TemplateSelectionScreen({ route, navigation }) {
               const uniqueNums = [...new Set(matches.map((m) => m.replace(/[{}]/g, '')))].sort((a, b) => Number(a) - Number(b));
               uniqueNums.forEach((num) => vars.push(`Variable ${num}`));
             }
+            const rawHeaderMedia =
+              headerComponent.headerMediaUrlPreview ||
+              headerComponent.headerMediaUrl ||
+              item.headerMediaUrlPreview ||
+              item.headerMediaUrl ||
+              (Array.isArray(headerComponent.example?.header_handle) && /^https?:\/\//i.test(String(headerComponent.example.header_handle[0] || ''))
+                ? headerComponent.example.header_handle[0]
+                : '');
             return {
               id: String(item._id || item.id || `live_${idx}`),
               name: item.name || `template_${idx}`,
@@ -53,6 +61,8 @@ export default function TemplateSelectionScreen({ route, navigation }) {
               language: item.language || 'en_US',
               status: item.status || 'APPROVED',
               updated: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString() : 'Synced',
+              headerType: headerComponent.format || item.headerType || (headerComponent.text ? 'TEXT' : 'NONE'),
+              headerMediaUrl: resolveFileUrl(rawHeaderMedia) || '',
               header: headerComponent.text || item.headerText || '',
               body: rawBody,
               footer: footerComponent.text || item.footerText || '',

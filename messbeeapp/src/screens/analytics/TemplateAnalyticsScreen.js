@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, authService } from '../../services/api';
 import QuickBottomBar from '../../components/QuickBottomBar';
-import DateFilterModal from './DateFilterModal';
+import DateFilterModal, { getDateRangeFromPreset } from './DateFilterModal';
 
 export default function TemplateAnalyticsScreen({ navigation }) {
   const [timeframe, setTimeframe] = useState('Daily');
@@ -25,6 +25,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [activePreset, setActivePreset] = useState('30d');
+  const [customDates, setCustomDates] = useState({ fromDate: '', toDate: '' });
 
   // Performance Modal
   const [selectedTemplate, setSelectedTemplate] = useState(null);
@@ -32,8 +33,13 @@ export default function TemplateAnalyticsScreen({ navigation }) {
 
   const loadData = useCallback(async () => {
     try {
+      const range = getDateRangeFromPreset(activePreset, customDates.fromDate, customDates.toDate);
+      const params = {
+        groupBy: timeframe.toLowerCase(),
+        ...range,
+      };
       const [data, user] = await Promise.all([
-        analyticsService.getTemplateAnalytics().catch(() => null),
+        analyticsService.getTemplateAnalytics(params).catch(() => null),
         authService.getCurrentUser().catch(() => null),
       ]);
       if (data) setTmplData(data);
@@ -44,7 +50,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [timeframe, activePreset, customDates.fromDate, customDates.toDate]);
 
   useEffect(() => {
     loadData();
@@ -160,7 +166,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Total sent</Text>
             <Text style={styles.metricValue}>{totalSent}</Text>
-            <Text style={styles.metricDelta}>+12.5%</Text>
+            <Text style={styles.metricDelta}>{timeframe}</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -169,7 +175,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Delivered</Text>
             <Text style={styles.metricValue}>{deliveryRate}%</Text>
-            <Text style={styles.metricDelta}>+3.2%</Text>
+            <Text style={styles.metricDelta}>Delivery rate</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -178,7 +184,7 @@ export default function TemplateAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Read rate</Text>
             <Text style={styles.metricValue}>{readRate}%</Text>
-            <Text style={[styles.metricDelta, { color: '#EF4444' }]}>-5.8%</Text>
+            <Text style={styles.metricDelta}>Engagement</Text>
           </View>
         </View>
 
@@ -240,13 +246,13 @@ export default function TemplateAnalyticsScreen({ navigation }) {
         visible={showFilterModal}
         activePreset={activePreset}
         onClose={() => setShowFilterModal(false)}
-        onApply={({ preset }) => {
+        onApply={({ preset, fromDate, toDate }) => {
           setActivePreset(preset);
-          loadData();
+          setCustomDates({ fromDate: fromDate || '', toDate: toDate || '' });
         }}
       />
 
-      {/* Template Performance Modal (Exact match to Image 3 Screen 1) */}
+      {/* Template Performance Modal */}
       <Modal
         visible={showPerfModal}
         transparent
@@ -268,20 +274,24 @@ export default function TemplateAnalyticsScreen({ navigation }) {
               </TouchableOpacity>
             </View>
 
-            {/* Simulated WhatsApp Template Preview Box */}
+            {/* WhatsApp Template Preview Box */}
             <View style={styles.waPreviewContainer}>
-              <Text style={styles.waPreviewNotice}>WHATSAPP TEMPLATE PREVIEW</Text>
+              <Text style={styles.waPreviewNotice}>WHATSAPP TEMPLATE</Text>
               <View style={styles.waMessageBubble}>
-                <Text style={styles.waBubbleTitle}>Software design update</Text>
+                <Text style={styles.waBubbleTitle}>
+                  {selectedTemplate?.name || 'Template'}
+                </Text>
                 <Text style={styles.waBubbleBody}>
                   {selectedTemplate?.body ||
-                    'Hello, your latest design review is ready. Tap below to view the update.'}
+                    `Template "${selectedTemplate?.name || ''}" (${selectedTemplate?.language || 'en'})`}
                 </Text>
-                <View style={styles.waBubbleButton}>
-                  <Text style={styles.waBubbleButtonText}>
-                    {selectedTemplate?.buttonLabel || 'View update'}
-                  </Text>
-                </View>
+                {!!selectedTemplate?.buttonLabel && (
+                  <View style={styles.waBubbleButton}>
+                    <Text style={styles.waBubbleButtonText}>
+                      {selectedTemplate.buttonLabel}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -289,47 +299,55 @@ export default function TemplateAnalyticsScreen({ navigation }) {
             <View style={styles.tmplDetailHeader}>
               <View>
                 <Text style={styles.tmplDetailName}>
-                  {selectedTemplate?.name || 'software_design_update'}
+                  {selectedTemplate?.name || 'Template'}
                 </Text>
                 <Text style={styles.tmplDetailMeta}>
-                  {selectedTemplate?.language || 'English'} •{' '}
+                  {selectedTemplate?.language || 'en'} •{' '}
                   {selectedTemplate?.category || 'Marketing'}
                 </Text>
               </View>
               <View style={styles.approvedBadge}>
-                <Text style={styles.approvedText}>Approved</Text>
+                <Text style={styles.approvedText}>{selectedTemplate?.status || 'Approved'}</Text>
               </View>
             </View>
 
             {/* 4 Stat Boxes (2x2 Grid) */}
-            <View style={styles.statsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statBoxLabel}>Total sent</Text>
-                <Text style={styles.statBoxVal}>{selectedTemplate?.sent || 8}</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statBoxLabel}>Delivered</Text>
-                <Text style={styles.statBoxVal}>
-                  {selectedTemplate?.delivered || 8}
-                </Text>
-                <Text style={styles.statBoxSub}>Delivery rate 100%</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statBoxLabel}>Read</Text>
-                <Text style={styles.statBoxVal}>{selectedTemplate?.read || 4}</Text>
-                <Text style={styles.statBoxSub}>Read rate 50%</Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statBoxLabel}>Failed</Text>
-                <Text style={styles.statBoxVal}>{selectedTemplate?.failed || 0}</Text>
-              </View>
-            </View>
+            {(() => {
+              const s = selectedTemplate?.sent || 0;
+              const d = selectedTemplate?.delivered || 0;
+              const r = selectedTemplate?.read || 0;
+              const f = selectedTemplate?.failed || 0;
+              const dRate = s > 0 ? Math.round((d / s) * 100) : 0;
+              const rRate = s > 0 ? Math.round((r / s) * 100) : 0;
+              return (
+                <View style={styles.statsGrid}>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Total sent</Text>
+                    <Text style={styles.statBoxVal}>{s}</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Delivered</Text>
+                    <Text style={styles.statBoxVal}>{d}</Text>
+                    <Text style={styles.statBoxSub}>Delivery rate {dRate}%</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Read</Text>
+                    <Text style={styles.statBoxVal}>{r}</Text>
+                    <Text style={styles.statBoxSub}>Read rate {rRate}%</Text>
+                  </View>
+                  <View style={styles.statBox}>
+                    <Text style={styles.statBoxLabel}>Failed</Text>
+                    <Text style={styles.statBoxVal}>{f}</Text>
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* Total charges row */}
             <View style={styles.chargesRow}>
-              <Text style={styles.chargesLabel}>Total charges</Text>
+              <Text style={styles.chargesLabel}>Estimated charges</Text>
               <Text style={styles.chargesVal}>
-                ₹{(selectedTemplate?.charges || 6.4).toFixed(2)}
+                ₹{Number(selectedTemplate?.charges || 0).toFixed(2)}
               </Text>
             </View>
 

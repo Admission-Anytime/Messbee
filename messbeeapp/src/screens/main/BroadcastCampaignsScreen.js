@@ -18,12 +18,14 @@ import { Ionicons } from '@expo/vector-icons';
 import {
   campaignService,
   contactService,
+  contactGroupService,
   labelService,
   statusService,
   templateService,
   authService,
   qrWhatsappService,
 } from '../../services/api';
+import { validateForm } from '../../utils/validation';
 import QuickBottomBar from '../../components/QuickBottomBar';
 
 export default function BroadcastCampaignsScreen({ navigation }) {
@@ -37,8 +39,8 @@ export default function BroadcastCampaignsScreen({ navigation }) {
 
   // User & Contacts state
   const [userProfile, setUserProfile] = useState(null);
-  const [contacts, setContacts] = useState([]);
-  const [contactsCount, setContactsCount] = useState(0);
+  const [contactsList, setContactsList] = useState([]);
+  const [contactGroups, setContactGroups] = useState([]);
   const [labels, setLabels] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [templates, setTemplates] = useState([]);
@@ -55,11 +57,13 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   // Form Fields
   const [campaignName, setCampaignName] = useState('');
   const [campaignDesc, setCampaignDesc] = useState('');
-  const [audienceType, setAudienceType] = useState('ALL'); // 'ALL' | 'LABELS' | 'STATUS' | 'CSV'
+  const [audienceType, setAudienceType] = useState('ALL'); // 'ALL' | 'LABELS' | 'STATUS' | 'GROUP'
   const [selectedLabels, setSelectedLabels] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('');
+  const [selectedGroup, setSelectedGroup] = useState(null);
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [customMessage, setCustomMessage] = useState('');
+  const [templateVars, setTemplateVars] = useState({});
+  const [customBodyText, setCustomBodyText] = useState('');
   const [scheduleMode, setScheduleMode] = useState('NOW'); // 'NOW' | 'SCHEDULE'
   const [scheduleDate, setScheduleDate] = useState('');
   const [delayOption, setDelayOption] = useState('10s');
@@ -69,19 +73,23 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   const [selectedCampaign, setSelectedCampaign] = useState(null);
   const [showOptionsModal, setShowOptionsModal] = useState(false);
 
+  const isFreeQr = userProfile?.whatsappChannelType === 'free_qr';
+
   // Load Data dynamically from backend APIs
   const loadData = useCallback(async () => {
     try {
       const [
         campaignsData,
         contactsData,
+        groupsData,
         labelsData,
         statusesData,
         templatesData,
         currentUser,
       ] = await Promise.all([
         campaignService.getCampaigns().catch(() => []),
-        contactService.getContacts().catch(() => []),
+        contactService.getContacts({ limit: 1000 }).catch(() => []),
+        contactGroupService.getContactGroups().catch(() => []),
         labelService.getLabels().catch(() => []),
         statusService.getStatuses().catch(() => []),
         templateService.getTemplates().catch(() => []),
@@ -94,13 +102,26 @@ export default function BroadcastCampaignsScreen({ navigation }) {
         ? campaignsData.data
         : [];
 
-      const safeContacts = Array.isArray(contactsData) ? contactsData : [];
+      const approvedTemplates = (Array.isArray(templatesData) ? templatesData : [])
+        .filter((t) => String(t.status || '').toUpperCase() === 'APPROVED')
+        .map((t, idx) => {
+          const bodyComp = t.components?.find((c) => c.type === 'BODY') || {};
+          const headerComp = t.components?.find((c) => c.type === 'HEADER') || {};
+          return {
+            ...t,
+            id: t._id || t.id || `tmpl_${idx}`,
+            body: bodyComp.text || t.bodyText || t.body || '',
+            headerType: headerComp.format || t.headerType || 'NONE',
+            headerMediaUrl: headerComp.headerMediaUrlPreview || headerComp.headerMediaUrl || t.headerMediaUrl || '',
+          };
+        });
+
       setCampaigns(campaignList);
-      setContacts(safeContacts);
-      setContactsCount(safeContacts.length);
+      setContactsList(Array.isArray(contactsData) ? contactsData : []);
+      setContactGroups(Array.isArray(groupsData) ? groupsData : []);
       setLabels(Array.isArray(labelsData) ? labelsData : []);
       setStatuses(Array.isArray(statusesData) ? statusesData : []);
-      setTemplates(Array.isArray(templatesData) ? templatesData : []);
+      setTemplates(approvedTemplates);
       if (currentUser) setUserProfile(currentUser);
     } catch (err) {
       console.warn('Error loading campaigns data:', err.message);
@@ -117,6 +138,16 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     });
     return unsubscribe;
   }, [navigation, loadData]);
+
+  // Live 6s auto-refresh while any campaign is actively sending
+  useEffect(() => {
+    const hasRunning = campaigns.some((c) =>
+      ['active', 'processing', 'running'].includes(String(c.status || '').toLowerCase())
+    );
+    if (!hasRunning) return;
+    const timer = setInterval(loadData, 6000);
+    return () => clearInterval(timer);
+  }, [campaigns, loadData]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -160,26 +191,48 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     });
   }, [campaigns, searchQuery, statusFilter]);
 
-  const isFreeQr = userProfile?.whatsappChannelType === 'free_qr';
-
-  // Estimated audience computation from real contacts
+  // Estimated audience computation (100% dynamic from live backend data)
   const estimatedAudienceCount = useMemo(() => {
     if (audienceType === 'ALL') {
-      return contactsCount;
+      return contactsList.length;
     }
     if (audienceType === 'LABELS') {
       if (selectedLabels.length === 0) return 0;
-      return contacts.filter((c) => {
-        const tags = Array.isArray(c.tags) ? c.tags : Array.isArray(c.labels) ? c.labels : [];
-        return selectedLabels.some((lbl) => tags.includes(lbl));
+      return contactsList.filter((c) => {
+        const cLabels = Array.isArray(c.labels) ? c.labels : [];
+        return selectedLabels.some((lbl) => cLabels.includes(lbl));
       }).length;
     }
     if (audienceType === 'STATUS') {
       if (!selectedStatus) return 0;
-      return contacts.filter((c) => (c.status || '').toLowerCase() === selectedStatus.toLowerCase()).length;
+      const targetSt = selectedStatus.toUpperCase();
+      return contactsList.filter((c) => String(c.status || '').toUpperCase() === targetSt).length;
+    }
+    if (audienceType === 'GROUP') {
+      return selectedGroup
+        ? Number(selectedGroup.contactCount ?? selectedGroup.contacts?.length ?? 0)
+        : 0;
     }
     return 0;
-  }, [audienceType, selectedLabels, selectedStatus, contactsCount, contacts]);
+  }, [audienceType, selectedLabels, selectedStatus, selectedGroup, contactsList]);
+
+  const selectedTemplateVarKeys = useMemo(() => {
+    if (!selectedTemplate?.body) return [];
+    const matches = selectedTemplate.body.match(/\{\{(\d+)\}\}/g) || [];
+    return [...new Set(matches.map((m) => m.replace(/[{}]/g, '')))].sort((a, b) => Number(a) - Number(b));
+  }, [selectedTemplate]);
+
+  const renderedPreviewBody = useMemo(() => {
+    if (isFreeQr) return customBodyText.trim();
+    let txt = selectedTemplate?.body || '';
+    selectedTemplateVarKeys.forEach((k) => {
+      const val = String(templateVars[k] || '').trim();
+      if (val) {
+        txt = txt.split(`{{${k}}}`).join(val);
+      }
+    });
+    return txt;
+  }, [isFreeQr, customBodyText, selectedTemplate, selectedTemplateVarKeys, templateVars]);
 
   const resetCreateForm = () => {
     setCampaignName('');
@@ -187,8 +240,10 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     setAudienceType('ALL');
     setSelectedLabels([]);
     setSelectedStatus('');
+    setSelectedGroup(null);
     setSelectedTemplate(null);
-    setCustomMessage('');
+    setTemplateVars({});
+    setCustomBodyText('');
     setScheduleMode('NOW');
     setScheduleDate('');
     setCurrentStep(1);
@@ -197,20 +252,46 @@ export default function BroadcastCampaignsScreen({ navigation }) {
 
   const handleNextStep = () => {
     if (currentStep === 1) {
-      if (!campaignName.trim()) {
-        Alert.alert('Required', 'Please enter a campaign name.');
+      const { isValid, firstError } = validateForm({
+        campaignName: { value: campaignName, required: true, minLength: 2, label: 'Campaign Name' },
+      });
+      if (!isValid) {
+        Alert.alert('Validation Error', firstError);
+        return;
+      }
+      if (audienceType === 'LABELS' && selectedLabels.length === 0) {
+        Alert.alert('Select Labels', 'Please select at least one label.');
+        return;
+      }
+      if (audienceType === 'STATUS' && !selectedStatus) {
+        Alert.alert('Select Status', 'Please select a contact status.');
+        return;
+      }
+      if (audienceType === 'GROUP' && !selectedGroup) {
+        Alert.alert('Select Group', 'Please select a contact group.');
+        return;
+      }
+      if (estimatedAudienceCount === 0) {
+        Alert.alert('No Audience', '0 contacts match this audience filter. Please adjust your selection.');
         return;
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
       if (isFreeQr) {
-        if (!customMessage.trim()) {
-          Alert.alert('Message Required', 'Please enter a broadcast message to continue.');
+        if (!customBodyText.trim()) {
+          Alert.alert('Message Required', 'Please enter your broadcast message.');
           return;
         }
-      } else if (!selectedTemplate && templates.length > 0) {
-        Alert.alert('Select Template', 'Please select a message template to continue.');
-        return;
+      } else {
+        if (!selectedTemplate) {
+          Alert.alert('Select Template', 'Please select an approved WhatsApp template to continue.');
+          return;
+        }
+        const missingVar = selectedTemplateVarKeys.find((k) => !String(templateVars[k] || '').trim());
+        if (missingVar) {
+          Alert.alert('Variable Required', `Please enter a value for Variable {{${missingVar}}}.`);
+          return;
+        }
       }
       setCurrentStep(3);
     } else if (currentStep === 3) {
@@ -219,44 +300,82 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   };
 
   const handleLaunchCampaign = async () => {
+    if (scheduleMode === 'SCHEDULE') {
+      if (!scheduleDate.trim() || isNaN(new Date(scheduleDate.trim()).getTime())) {
+        Alert.alert('Invalid Date', 'Please enter a valid schedule date/time (e.g. 2026-12-01 10:30).');
+        return;
+      }
+    }
+
     setCreating(true);
     try {
+      const bodyParameters = selectedTemplateVarKeys.map((k) => ({
+        type: 'text',
+        text: String(templateVars[k] || ''),
+      }));
+      const components =
+        bodyParameters.length > 0 ? [{ type: 'body', parameters: bodyParameters }] : [];
+
       const payload = {
         name: campaignName.trim(),
         description: campaignDesc.trim() || 'Broadcast Campaign',
         channelType: isFreeQr ? 'FREE_QR' : 'META_CLOUD',
         messageTemplate: isFreeQr
-          ? customMessage.trim()
-          : (selectedTemplate?.name || selectedTemplate?.title || 'Broadcast Message'),
-        status: scheduleMode === 'SCHEDULE' ? 'scheduled' : 'active',
-        scheduledDate: scheduleMode === 'SCHEDULE' && scheduleDate ? new Date(scheduleDate) : null,
-        delayOption: delayOption,
-        audienceFilter: {
-          tags: audienceType === 'LABELS' ? selectedLabels : [],
-          status: audienceType === 'STATUS' && selectedStatus ? selectedStatus : null,
-        },
+          ? customBodyText.trim()
+          : selectedTemplate?.whatsappTemplateName || selectedTemplate?.name,
+        bodyText: isFreeQr ? customBodyText.trim() : selectedTemplate?.body || '',
+        templateLanguage: selectedTemplate?.language || 'en_US',
+        headerType: selectedTemplate?.headerType || 'NONE',
+        headerMediaUrl: selectedTemplate?.headerMediaUrl || undefined,
+        components,
+        status: scheduleMode === 'SCHEDULE' ? 'scheduled' : 'draft',
+        scheduledDate: scheduleMode === 'SCHEDULE' && scheduleDate ? new Date(scheduleDate).toISOString() : undefined,
+        delayOption,
+        ...(audienceType === 'GROUP' && selectedGroup?._id
+          ? { contactGroupId: selectedGroup._id }
+          : {
+              audienceFilter: {
+                tags: audienceType === 'LABELS' ? selectedLabels : [],
+                ...(audienceType === 'STATUS' && selectedStatus ? { status: selectedStatus } : {}),
+              },
+            }),
       };
 
       const created = await campaignService.createCampaign(payload);
+      const createdId = created?._id || created?.id;
 
-      setCampaigns((prev) => [created || payload, ...prev]);
+      if (scheduleMode === 'NOW' && createdId) {
+        await campaignService.sendCampaign(createdId);
+      }
+
       resetCreateForm();
+      await loadData();
       Alert.alert(
         'Success',
         scheduleMode === 'SCHEDULE'
           ? 'Campaign scheduled successfully!'
-          : 'Campaign launched successfully!'
+          : 'Campaign launched! Messages are being sent.'
       );
     } catch (err) {
-      const errMsg = err?.response?.data?.message || err?.message || 'Failed to launch campaign.';
-      Alert.alert('Campaign Error', errMsg);
+      const errCode = err?.response?.data?.errorCode;
+      const errMsg =
+        err?.response?.data?.message ||
+        err?.response?.data?.error ||
+        err.message ||
+        'Failed to launch campaign.';
+      if (errCode === 'INSUFFICIENT_WCC_CREDITS' || err?.response?.status === 402) {
+        Alert.alert('Insufficient WCC Credits', errMsg);
+      } else {
+        Alert.alert('Campaign Launch Failed', errMsg);
+      }
+      await loadData();
     } finally {
       setCreating(false);
     }
   };
 
   const handleSendQuickBroadcast = async () => {
-    const recipientPhones = contacts
+    const recipientPhones = contactsList
       .map((c) => String(c.whatsapp || c.phone || '').replace(/\D/g, ''))
       .filter((p) => p.length >= 10);
 
@@ -296,15 +415,29 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     }
   };
 
-  const handleDeleteCampaign = async (campaign) => {
+  const handleCampaignAction = async (action, campaign) => {
     if (!campaign?._id) return;
+    setShowOptionsModal(false);
     try {
-      await campaignService.deleteCampaign(campaign._id);
-      setCampaigns((prev) => prev.filter((c) => c._id !== campaign._id));
-      setShowOptionsModal(false);
+      if (action === 'send') {
+        await campaignService.sendCampaign(campaign._id);
+        Alert.alert('Launched', 'Campaign sending started!');
+      } else if (action === 'pause') {
+        await campaignService.pauseCampaign(campaign._id);
+      } else if (action === 'resume') {
+        await campaignService.resumeCampaign(campaign._id);
+      } else if (action === 'cancel') {
+        await campaignService.cancelCampaign(campaign._id);
+      } else if (action === 'delete') {
+        await campaignService.deleteCampaign(campaign._id);
+      }
       setSelectedCampaign(null);
+      await loadData();
     } catch (err) {
-      Alert.alert('Error', 'Failed to delete campaign');
+      Alert.alert(
+        'Action Failed',
+        err?.response?.data?.message || err?.response?.data?.error || err.message || 'Operation failed.'
+      );
     }
   };
 
@@ -327,7 +460,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   const creatorName =
     userProfile?.name ||
     userProfile?.businessName ||
-    'User';
+    'Workspace User';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -746,7 +879,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   {audienceType === 'ALL' && (
                     <View style={styles.availableBanner}>
                       <Text style={styles.availableCount}>
-                        {Number(contactsCount).toLocaleString()}{' '}
+                        {contactsList.length.toLocaleString()}{' '}
                         <Text style={styles.availableText}>available contacts</Text>
                       </Text>
                     </View>
@@ -893,43 +1026,74 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   )}
                 </TouchableOpacity>
 
-                {/* 4. Upload CSV */}
+                {/* 4. Contact Group */}
                 <TouchableOpacity
                   style={[
                     styles.audienceCard,
-                    audienceType === 'CSV' && styles.audienceCardSelected,
+                    audienceType === 'GROUP' && styles.audienceCardSelected,
                   ]}
-                  onPress={() => setAudienceType('CSV')}
+                  onPress={() => setAudienceType('GROUP')}
                   activeOpacity={0.8}
                 >
                   <View style={styles.audienceCardRow}>
                     <View
                       style={[
                         styles.audienceIconBox,
-                        { backgroundColor: audienceType === 'CSV' ? '#EDF9F2' : '#F1F5F9' },
+                        { backgroundColor: audienceType === 'GROUP' ? '#EDF9F2' : '#F1F5F9' },
                       ]}
                     >
                       <Ionicons
-                        name="cloud-upload-outline"
+                        name="people-circle-outline"
                         size={18}
-                        color={audienceType === 'CSV' ? '#00B67A' : '#64748B'}
+                        color={audienceType === 'GROUP' ? '#00B67A' : '#64748B'}
                       />
                     </View>
                     <View style={styles.audienceTextCol}>
-                      <Text style={styles.audienceTitle}>Upload CSV</Text>
+                      <Text style={styles.audienceTitle}>Contact Group</Text>
                       <Text style={styles.audienceDesc}>
-                        Import contacts from a CSV or Excel file.
+                        Send to a saved contact group ({contactGroups.length} groups).
                       </Text>
                     </View>
                     <View
                       style={[
                         styles.radioButton,
-                        audienceType === 'CSV' && styles.radioButtonSelected,
+                        audienceType === 'GROUP' && styles.radioButtonSelected,
                       ]}
                     >
-                      {audienceType === 'CSV' && <View style={styles.radioInnerDot} />}
+                      {audienceType === 'GROUP' && <View style={styles.radioInnerDot} />}
                     </View>
                   </View>
+
+                  {audienceType === 'GROUP' && (
+                    <View style={styles.inlineChipsContainer}>
+                      {contactGroups.length === 0 ? (
+                        <Text style={{ fontSize: 12, color: '#64748B' }}>No contact groups found.</Text>
+                      ) : (
+                        contactGroups.map((grp) => {
+                          const isChosen = selectedGroup?._id === grp._id;
+                          return (
+                            <TouchableOpacity
+                              key={grp._id}
+                              style={[
+                                styles.labelChip,
+                                isChosen && styles.labelChipActive,
+                              ]}
+                              onPress={() => setSelectedGroup(grp)}
+                            >
+                              <Text
+                                style={[
+                                  styles.labelChipText,
+                                  isChosen && styles.labelChipTextActive,
+                                ]}
+                              >
+                                {grp.name} ({grp.contactCount ?? grp.contacts?.length ?? 0})
+                              </Text>
+                            </TouchableOpacity>
+                          );
+                        })
+                      )}
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
             )}
@@ -939,7 +1103,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               <View>
                 <Text style={styles.stepSubtitleBadge}>STEP 2 OF 3</Text>
                 <Text style={styles.stepMainTitle}>
-                  {isFreeQr ? 'Write broadcast message' : 'Select message template'}
+                  {isFreeQr ? 'Compose broadcast message' : 'Select message template'}
                 </Text>
                 <Text style={styles.stepDescription}>
                   {isFreeQr
@@ -954,47 +1118,77 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                       style={[styles.textInput, styles.textAreaInput]}
                       placeholder="Hi {{name}}, we have an exciting update for you!"
                       placeholderTextColor="#94A3B8"
-                      value={customMessage}
-                      onChangeText={setCustomMessage}
+                      value={customBodyText}
+                      onChangeText={setCustomBodyText}
                       multiline
                       numberOfLines={5}
                       textAlignVertical="top"
                     />
-                    <Text style={styles.charCounter}>{customMessage.length} characters</Text>
+                    <Text style={styles.charCounter}>{customBodyText.length} characters</Text>
                   </View>
                 ) : templates.length === 0 ? (
                   <View style={styles.emptyContainer}>
-                    <Text style={styles.emptyTitle}>No templates available</Text>
+                    <Text style={styles.emptyTitle}>No approved templates found</Text>
                     <Text style={styles.emptyDesc}>
-                      Create and approve a template first to send a Meta Cloud broadcast.
+                      Create and get a WhatsApp template approved in the Templates section first.
                     </Text>
                   </View>
                 ) : (
-                  templates.map((tmpl) => {
-                    const isSelected =
-                      selectedTemplate?.name === tmpl.name ||
-                      selectedTemplate?.id === tmpl.id;
-                    return (
-                      <TouchableOpacity
-                        key={tmpl._id || tmpl.id || tmpl.name}
-                        style={[
-                          styles.templateCard,
-                          isSelected && styles.templateCardSelected,
-                        ]}
-                        onPress={() => setSelectedTemplate(tmpl)}
-                      >
-                        <View style={styles.templateHeader}>
-                          <Text style={styles.templateName}>{tmpl.name || tmpl.title}</Text>
-                          <View style={styles.approvedBadge}>
-                            <Text style={styles.approvedBadgeText}>Approved</Text>
+                  <>
+                    {templates.map((tmpl) => {
+                      const isSelected =
+                        selectedTemplate?.name === tmpl.name ||
+                        selectedTemplate?.id === tmpl.id;
+                      return (
+                        <TouchableOpacity
+                          key={tmpl._id || tmpl.id || tmpl.name}
+                          style={[
+                            styles.templateCard,
+                            isSelected && styles.templateCardSelected,
+                          ]}
+                          onPress={() => {
+                            setSelectedTemplate(tmpl);
+                            setTemplateVars({});
+                          }}
+                        >
+                          <View style={styles.templateHeader}>
+                            <Text style={styles.templateName}>{tmpl.name || tmpl.title}</Text>
+                            <View style={styles.approvedBadge}>
+                              <Text style={styles.approvedBadgeText}>Approved</Text>
+                            </View>
                           </View>
-                        </View>
-                        <Text style={styles.templateBody} numberOfLines={2}>
-                          {tmpl.body || tmpl.content || 'Hello, thank you for contacting us...'}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })
+                          <Text style={styles.templateBody} numberOfLines={3}>
+                            {tmpl.body || tmpl.content || ''}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+
+                    {selectedTemplateVarKeys.length > 0 && (
+                      <View style={{ marginTop: 12 }}>
+                        <Text style={styles.inputLabel}>Template Variable Values *</Text>
+                        {selectedTemplateVarKeys.map((varKey) => (
+                          <TextInput
+                            key={varKey}
+                            style={[styles.textInput, { marginBottom: 8 }]}
+                            placeholder={`Value for {{${varKey}}}`}
+                            placeholderTextColor="#94A3B8"
+                            value={templateVars[varKey] || ''}
+                            onChangeText={(txt) =>
+                              setTemplateVars((prev) => ({ ...prev, [varKey]: txt }))
+                            }
+                          />
+                        ))}
+                      </View>
+                    )}
+
+                    {selectedTemplate && renderedPreviewBody ? (
+                      <View style={[styles.reviewSummaryCard, { marginTop: 12, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                        <Text style={[styles.inputLabel, { color: '#065F46', marginBottom: 4 }]}>Live Message Preview</Text>
+                        <Text style={{ fontSize: 13, color: '#1E293B', lineHeight: 19 }}>{renderedPreviewBody}</Text>
+                      </View>
+                    ) : null}
+                  </>
                 )}
               </View>
             )}
@@ -1023,13 +1217,46 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   </View>
                   <View style={styles.reviewDivider} />
                   <View style={styles.reviewRow}>
-                    <Text style={styles.reviewLabel}>{isFreeQr ? 'Message' : 'Template'}</Text>
-                    <Text style={styles.reviewValue} numberOfLines={2}>
-                      {isFreeQr
-                        ? (customMessage.trim() || 'Broadcast Message')
-                        : (selectedTemplate?.name || 'Broadcast Message')}
+                    <Text style={styles.reviewLabel}>Template</Text>
+                    <Text style={styles.reviewValue}>
+                      {isFreeQr ? 'Custom Message' : (selectedTemplate?.name || '—')}
                     </Text>
                   </View>
+                  {renderedPreviewBody ? (
+                    <>
+                      <View style={styles.reviewDivider} />
+                      <View style={{ paddingVertical: 4 }}>
+                        <Text style={styles.reviewLabel}>Message Preview</Text>
+                        <Text style={{ fontSize: 12.5, color: '#334155', marginTop: 4, lineHeight: 18 }}>
+                          {renderedPreviewBody}
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
+                </View>
+
+                {/* Send Delay Interval */}
+                <Text style={styles.inputLabel}>Message Interval</Text>
+                <View style={[styles.scheduleModeRow, { marginBottom: 14 }]}>
+                  {['5s', '10s', '30s'].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[
+                        styles.scheduleModeBtn,
+                        delayOption === d && styles.scheduleModeBtnActive,
+                      ]}
+                      onPress={() => setDelayOption(d)}
+                    >
+                      <Text
+                        style={[
+                          styles.scheduleModeText,
+                          delayOption === d && styles.scheduleModeTextActive,
+                        ]}
+                      >
+                        {d} delay
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
 
                 {/* Scheduling Mode */}
@@ -1182,9 +1409,49 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               {selectedCampaign?.name || 'Campaign Options'}
             </Text>
 
+            {['draft', 'scheduled', 'failed'].includes(String(selectedCampaign?.status || '').toLowerCase()) && (
+              <TouchableOpacity
+                style={styles.optionsItem}
+                onPress={() => handleCampaignAction('send', selectedCampaign)}
+              >
+                <Ionicons name="paper-plane-outline" size={18} color="#00B67A" style={{ marginRight: 10 }} />
+                <Text style={styles.optionsItemText}>Send Now</Text>
+              </TouchableOpacity>
+            )}
+
+            {['active', 'processing', 'running'].includes(String(selectedCampaign?.status || '').toLowerCase()) && (
+              <TouchableOpacity
+                style={styles.optionsItem}
+                onPress={() => handleCampaignAction('pause', selectedCampaign)}
+              >
+                <Ionicons name="pause-circle-outline" size={18} color="#D97706" style={{ marginRight: 10 }} />
+                <Text style={styles.optionsItemText}>Pause Campaign</Text>
+              </TouchableOpacity>
+            )}
+
+            {String(selectedCampaign?.status || '').toLowerCase() === 'paused' && (
+              <TouchableOpacity
+                style={styles.optionsItem}
+                onPress={() => handleCampaignAction('resume', selectedCampaign)}
+              >
+                <Ionicons name="play-circle-outline" size={18} color="#00B67A" style={{ marginRight: 10 }} />
+                <Text style={styles.optionsItemText}>Resume Campaign</Text>
+              </TouchableOpacity>
+            )}
+
+            {['active', 'processing', 'paused', 'scheduled'].includes(String(selectedCampaign?.status || '').toLowerCase()) && (
+              <TouchableOpacity
+                style={styles.optionsItem}
+                onPress={() => handleCampaignAction('cancel', selectedCampaign)}
+              >
+                <Ionicons name="close-circle-outline" size={18} color="#64748B" style={{ marginRight: 10 }} />
+                <Text style={styles.optionsItemText}>Cancel Campaign</Text>
+              </TouchableOpacity>
+            )}
+
             <TouchableOpacity
               style={styles.optionsItem}
-              onPress={() => handleDeleteCampaign(selectedCampaign)}
+              onPress={() => handleCampaignAction('delete', selectedCampaign)}
             >
               <Ionicons name="trash-outline" size={18} color="#EF4444" style={{ marginRight: 10 }} />
               <Text style={[styles.optionsItemText, { color: '#EF4444' }]}>Delete Campaign</Text>
@@ -1210,7 +1477,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               </TouchableOpacity>
             </View>
             <Text style={styles.quickBroadcastSub}>
-              Sending to {contactsCount} contact{contactsCount === 1 ? '' : 's'} via connected WhatsApp Web
+              Sending to {contactsList.length} contact{contactsList.length === 1 ? '' : 's'} via connected WhatsApp Web
             </Text>
             <TextInput
               style={[styles.textInput, styles.textAreaInput]}

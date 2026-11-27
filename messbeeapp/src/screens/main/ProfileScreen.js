@@ -12,19 +12,27 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { authService, resolveFileUrl } from '../../services/api';
+import { authService, resolveFileUrl, whatsappConfigService } from '../../services/api';
 
 export default function ProfileScreen({ navigation }) {
   const [user, setUser] = useState(null);
+  const [waStatus, setWaStatus] = useState({ connected: false, phoneNumber: '' });
 
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const [u, p] = await Promise.all([
+        const [u, p, phoneSt] = await Promise.all([
           authService.getCurrentUser().catch(() => null),
           authService.getUserProfile().catch(() => null),
+          whatsappConfigService.getPhoneStatus().catch(() => null),
         ]);
         setUser(p || u);
+        if (phoneSt) {
+          setWaStatus({
+            connected: Boolean(phoneSt.connected),
+            phoneNumber: phoneSt.phoneNumber || '',
+          });
+        }
       } catch (err) {
         console.warn('Profile fetch error:', err.message);
       }
@@ -150,7 +158,11 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <View style={styles.menuTextBox}>
               <Text style={styles.menuRowTitle}>WhatsApp Connection</Text>
-              <Text style={styles.menuRowSubtitle}>+91 8181756688 • Active</Text>
+              <Text style={styles.menuRowSubtitle}>
+                {waStatus.connected
+                  ? `${waStatus.phoneNumber ? `${waStatus.phoneNumber} • ` : ''}Active`
+                  : 'Not connected • Tap to configure'}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>
@@ -174,7 +186,7 @@ export default function ProfileScreen({ navigation }) {
           {/* Team Members */}
           <TouchableOpacity
             style={styles.menuRow}
-            onPress={() => navigation.navigate('ContactCRM')}
+            onPress={() => navigation.navigate('TeamManagement')}
             activeOpacity={0.7}
           >
             <View style={[styles.menuIconBox, { backgroundColor: '#F3E8FF' }]}>
@@ -182,15 +194,15 @@ export default function ProfileScreen({ navigation }) {
             </View>
             <View style={styles.menuTextBox}>
               <Text style={styles.menuRowTitle}>Team Management</Text>
-              <Text style={styles.menuRowSubtitle}>4 active members and roles</Text>
+              <Text style={styles.menuRowSubtitle}>Manage team members and roles</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>
 
           {/* Help & Support */}
           <TouchableOpacity
-            style={[styles.menuRow, { borderBottomWidth: 0 }]}
-            onPress={() => navigation.navigate('Settings')}
+            style={styles.menuRow}
+            onPress={() => navigation.navigate('HelpSupport')}
             activeOpacity={0.7}
           >
             <View style={[styles.menuIconBox, { backgroundColor: '#FEF3C7' }]}>
@@ -199,6 +211,38 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.menuTextBox}>
               <Text style={styles.menuRowTitle}>Help & Support</Text>
               <Text style={styles.menuRowSubtitle}>Guides, FAQ and contact support</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Privacy Policy */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#00B67A" />
+            </View>
+            <View style={styles.menuTextBox}>
+              <Text style={styles.menuRowTitle}>Privacy Policy</Text>
+              <Text style={styles.menuRowSubtitle}>Data protection & security practices</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Terms & Conditions */}
+          <TouchableOpacity
+            style={[styles.menuRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('TermsConditions')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#F1F5F9' }]}>
+              <Ionicons name="document-text-outline" size={20} color="#475569" />
+            </View>
+            <View style={styles.menuTextBox}>
+              <Text style={styles.menuRowTitle}>Terms & Conditions</Text>
+              <Text style={styles.menuRowSubtitle}>Service terms & Meta compliance rules</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>
