@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, quickReplyService } from '../../services/api';
+import { chatService, quickReplyService, resolveFileUrl } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
@@ -67,6 +67,9 @@ export default function ChatDetailScreen({ route, navigation }) {
           sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
           status: m.status || 'delivered',
           templateTag: m.templateName || m.template?.name,
+          mediaUrl: resolveFileUrl(m.mediaUrl),
+          mediaType: m.mediaType || null,
+          fileName: m.fileName || null,
         };
       });
 
@@ -342,17 +345,31 @@ export default function ChatDetailScreen({ route, navigation }) {
       return (
         <View style={styles.templateBubbleWrapper}>
           <View style={styles.templateBubbleCard}>
-            {/* Banner Graphic */}
-            <View style={styles.templateBanner}>
-              <View style={styles.bannerDecorCircle} />
-              <Text style={styles.bannerTagText}>ADMISSIONS</Text>
-              <Text style={styles.bannerHeadingText}>{item.bannerText || 'Build your future.'}</Text>
-            </View>
+            {item.mediaUrl && (!item.mediaType || item.mediaType === 'image') ? (
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={{
+                  width: '100%',
+                  height: 170,
+                  borderRadius: 10,
+                  marginBottom: 8,
+                  backgroundColor: '#F1F5F9',
+                }}
+                resizeMode="cover"
+              />
+            ) : item.mediaUrl ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 10, borderRadius: 10, marginBottom: 8 }}>
+                <Ionicons name="document-attach-outline" size={18} color="#00875A" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A', flex: 1 }} numberOfLines={1}>
+                  {item.fileName || 'Attached Media'}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Template Header Badge */}
             <View style={styles.templateMetaRow}>
               <Ionicons name="document-text-outline" size={12} color="#00875A" style={{ marginRight: 4 }} />
-              <Text style={styles.templateNameTag}>{item.templateTag || 'ADMISSION_WELCOME_V1'}</Text>
+              <Text style={styles.templateNameTag}>{item.templateTag || 'WhatsApp Template'}</Text>
             </View>
 
             {/* Template Body */}
@@ -373,6 +390,19 @@ export default function ChatDetailScreen({ route, navigation }) {
     return (
       <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowThem]}>
         <View style={[styles.bubbleBox, isMe ? styles.bubbleBoxMe : styles.bubbleBoxThem]}>
+          {item.mediaUrl && item.mediaType === 'image' ? (
+            <Image
+              source={{ uri: item.mediaUrl }}
+              style={{
+                width: 210,
+                height: 150,
+                borderRadius: 10,
+                marginBottom: 6,
+                backgroundColor: '#F1F5F9',
+              }}
+              resizeMode="cover"
+            />
+          ) : null}
           <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
             {item.text}
           </Text>
