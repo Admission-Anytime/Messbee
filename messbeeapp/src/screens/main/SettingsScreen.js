@@ -249,7 +249,11 @@ export default function SettingsScreen({ navigation }) {
 
         <View style={styles.headerRight}>
           {/* Notification Bell */}
-          <TouchableOpacity style={styles.bellButton} activeOpacity={0.8}>
+          <TouchableOpacity
+            style={styles.bellButton}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+          >
             <Ionicons name="notifications-outline" size={20} color="#374151" />
           </TouchableOpacity>
 

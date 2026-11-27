@@ -14,7 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, authService } from '../../services/api';
 import QuickBottomBar from '../../components/QuickBottomBar';
-import DateFilterModal from './DateFilterModal';
+import DateFilterModal, { getDateRangeFromPreset } from './DateFilterModal';
 
 export default function ConversationalAnalyticsScreen({ navigation }) {
   const [activeTab, setActiveTab] = useState('Table'); // 'Table' | 'Charts'
@@ -23,16 +23,24 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
   const [convData, setConvData] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  const [expandedDates, setExpandedDates] = useState(['Nov 18, 2024']);
+  const [expandedDates, setExpandedDates] = useState([]);
   const [activePreset, setActivePreset] = useState('30d');
+  const [customDates, setCustomDates] = useState({ fromDate: '', toDate: '' });
 
   const loadData = useCallback(async () => {
     try {
+      const range = getDateRangeFromPreset(activePreset, customDates.fromDate, customDates.toDate);
       const [data, user] = await Promise.all([
-        analyticsService.getConversationAnalytics().catch(() => null),
+        analyticsService.getConversationAnalytics(range).catch(() => null),
         authService.getCurrentUser().catch(() => null),
       ]);
-      if (data) setConvData(data);
+      if (data) {
+        setConvData(data);
+        const rows = data.tableData || data.dailyBreakdown || [];
+        if (rows.length > 0 && expandedDates.length === 0) {
+          setExpandedDates([rows[0].date]);
+        }
+      }
       if (user) setUserProfile(user);
     } catch (err) {
       console.warn('Error loading conversational analytics:', err.message);
@@ -40,7 +48,7 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [activePreset, customDates.fromDate, customDates.toDate]);
 
   useEffect(() => {
     loadData();
@@ -59,9 +67,35 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
     );
   };
 
-  const totalConversations = convData?.totals?.totalConversations || 0;
-  const totalCharges = convData?.totals?.totalCharges || 0.0;
-  const dailyData = convData?.dailyBreakdown || [];
+  const totalConversations =
+    convData?.totalConversations ?? convData?.totals?.totalConversations ?? 0;
+  const totalCharges =
+    convData?.totalCharges ?? convData?.totals?.totalCharges ?? 0.0;
+
+  const rawRows = convData?.tableData || convData?.dailyBreakdown || [];
+  const dailyData = rawRows.map((row) => {
+    if (Array.isArray(row.categories)) return row;
+    return {
+      date: row.date,
+      totalConversations: row.totalQty || 0,
+      totalCharges: row.totalCharges || 0,
+      categories: [
+        { name: 'Marketing', count: row.marketing?.qty || 0, charge: row.marketing?.charges || 0, color: '#00B67A' },
+        { name: 'Utility', count: row.utility?.qty || 0, charge: row.utility?.charges || 0, color: '#3B82F6' },
+        { name: 'Authentication', count: row.auth?.qty || 0, charge: row.auth?.charges || 0, color: '#F59E0B' },
+        { name: 'Service', count: row.service?.qty || 0, charge: row.service?.charges || 0, color: '#8B5CF6' },
+      ],
+    };
+  });
+
+  const catTotals = convData?.totals || {};
+  const maxCatVal = Math.max(
+    1,
+    catTotals?.marketing?.qty || 0,
+    catTotals?.utility?.qty || 0,
+    catTotals?.auth?.qty || 0,
+    catTotals?.service?.qty || 0
+  );
 
   const userInitials = (
     userProfile?.name?.substring(0, 2) ||
@@ -173,15 +207,15 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel}>Total conversations</Text>
             <Text style={styles.summaryValue}>{totalConversations}</Text>
-            <Text style={styles.summaryDelta}>+14.8% vs previous period</Text>
+            <Text style={styles.summaryDelta}>{dailyData.length} active days</Text>
           </View>
 
           <View style={styles.summaryDivider} />
 
           <View style={styles.summaryCol}>
             <Text style={styles.summaryLabel}>Total charges</Text>
-            <Text style={styles.summaryValue}>₹{totalCharges.toFixed(2)}</Text>
-            <Text style={styles.summaryDelta}>+14% charges vs previous period</Text>
+            <Text style={styles.summaryValue}>₹{Number(totalCharges).toFixed(2)}</Text>
+            <Text style={styles.summaryDelta}>Estimated WhatsApp cost</Text>
           </View>
         </View>
 
@@ -289,20 +323,35 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
                 </View>
               </View>
 
-              {/* Visual Simulated SVG Chart */}
-              <View style={styles.trendGraphBox}>
-                <View style={styles.graphGridLine} />
-                <View style={styles.graphGridLine} />
-                <View style={styles.graphGridLine} />
-                <View style={styles.graphTrendLines}>
-                  <View style={styles.pointDotBlue} />
-                  <View style={styles.pointDotGreen} />
-                </View>
-                <View style={styles.graphXAxis}>
-                  <Text style={styles.axisLabel}>Nov 12</Text>
-                  <Text style={styles.axisLabel}>Nov 15</Text>
-                  <Text style={styles.axisLabel}>Nov 18</Text>
-                </View>
+              {/* Dynamic Daily Bar Chart */}
+              <View style={[styles.trendGraphBox, { justifyContent: 'flex-end', paddingBottom: 8 }]}>
+                {dailyData.length === 0 ? (
+                  <Text style={{ textAlign: 'center', color: '#94A3B8', fontSize: 12, marginBottom: 24 }}>
+                    No conversation data in selected period
+                  </Text>
+                ) : (
+                  <>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-around', flex: 1, paddingTop: 10 }}>
+                      {dailyData.slice(-6).map((d) => {
+                        const maxDay = Math.max(1, ...dailyData.slice(-6).map((x) => x.totalConversations || 0));
+                        const h = Math.max(8, Math.round(((d.totalConversations || 0) / maxDay) * 65));
+                        return (
+                          <View key={d.date} style={{ alignItems: 'center', flex: 1 }}>
+                            <Text style={{ fontSize: 10, color: '#64748B', marginBottom: 2 }}>
+                              {d.totalConversations}
+                            </Text>
+                            <View style={{ width: 16, height: h, borderRadius: 4, backgroundColor: '#00B67A' }} />
+                          </View>
+                        );
+                      })}
+                    </View>
+                    <View style={styles.graphXAxis}>
+                      {dailyData.slice(-3).map((d) => (
+                        <Text key={d.date} style={styles.axisLabel}>{d.date}</Text>
+                      ))}
+                    </View>
+                  </>
+                )}
               </View>
             </View>
 
@@ -313,16 +362,16 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
                 <Text style={styles.miniChartTitle}>Category volume</Text>
                 <View style={styles.barChartContainer}>
                   <View style={styles.barCol}>
-                    <View style={[styles.bar, { height: 48, backgroundColor: '#00B67A' }]} />
+                    <View style={[styles.bar, { height: Math.max(6, Math.round(((catTotals?.marketing?.qty || 0) / maxCatVal) * 56)), backgroundColor: '#00B67A' }]} />
                   </View>
                   <View style={styles.barCol}>
-                    <View style={[styles.bar, { height: 28, backgroundColor: '#3B82F6' }]} />
+                    <View style={[styles.bar, { height: Math.max(6, Math.round(((catTotals?.utility?.qty || 0) / maxCatVal) * 56)), backgroundColor: '#3B82F6' }]} />
                   </View>
                   <View style={styles.barCol}>
-                    <View style={[styles.bar, { height: 16, backgroundColor: '#EF4444' }]} />
+                    <View style={[styles.bar, { height: Math.max(6, Math.round(((catTotals?.auth?.qty || 0) / maxCatVal) * 56)), backgroundColor: '#F59E0B' }]} />
                   </View>
                   <View style={styles.barCol}>
-                    <View style={[styles.bar, { height: 22, backgroundColor: '#8B5CF6' }]} />
+                    <View style={[styles.bar, { height: Math.max(6, Math.round(((catTotals?.service?.qty || 0) / maxCatVal) * 56)), backgroundColor: '#8B5CF6' }]} />
                   </View>
                 </View>
               </View>
@@ -345,9 +394,9 @@ export default function ConversationalAnalyticsScreen({ navigation }) {
         visible={showFilterModal}
         activePreset={activePreset}
         onClose={() => setShowFilterModal(false)}
-        onApply={({ preset }) => {
+        onApply={({ preset, fromDate, toDate }) => {
           setActivePreset(preset);
-          loadData();
+          setCustomDates({ fromDate: fromDate || '', toDate: toDate || '' });
         }}
       />
       <QuickBottomBar navigation={navigation} activeTab="Home" />

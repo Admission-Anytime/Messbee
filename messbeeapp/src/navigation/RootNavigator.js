@@ -23,6 +23,7 @@ import AddContactScreen from '../screens/main/AddContactScreen';
 import TemplatesScreen from '../screens/main/TemplatesScreen';
 import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
 import BusinessProfileScreen from '../screens/main/BusinessProfileScreen';
 import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
 import ApiManagementScreen from '../screens/main/ApiManagementScreen';
@@ -77,6 +78,8 @@ import EntitiesBookingsScreen from '../screens/main/EntitiesBookingsScreen';
 import WorkspaceSettingsScreen from '../screens/main/WorkspaceSettingsScreen';
 import SubscriptionPlansScreen from '../screens/main/SubscriptionPlansScreen';
 import HelpSupportScreen from '../screens/main/HelpSupportScreen';
+import PrivacyPolicyScreen from '../screens/main/PrivacyPolicyScreen';
+import TermsConditionsScreen from '../screens/main/TermsConditionsScreen';
 import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
@@ -139,6 +142,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="BusinessProfile" component={BusinessProfileScreen} />
         <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
         <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
@@ -186,6 +190,8 @@ export default function RootNavigator() {
         <Stack.Screen name="WorkspaceSettings" component={WorkspaceSettingsScreen} />
         <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
         <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

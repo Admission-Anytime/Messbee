@@ -81,7 +81,10 @@ export default function ContactProfileScreen({ route, navigation }) {
           <Ionicons name="arrow-back" size={22} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Contact Info</Text>
-        <TouchableOpacity style={styles.headerBtn}>
+        <TouchableOpacity
+          style={styles.headerBtn}
+          onPress={() => navigation.navigate('EditContactProfile', { contact })}
+        >
           <Ionicons name="ellipsis-vertical" size={20} color="#0F172A" />
         </TouchableOpacity>
       </View>

@@ -127,7 +127,9 @@ export default function AnalyticsOverviewScreen({ navigation }) {
           <View style={styles.heroBottomRow}>
             <View>
               <Text style={styles.heroBottomLabel}>Messages delivered</Text>
-              <Text style={styles.heroDeltaText}>+12.4% this month</Text>
+              <Text style={styles.heroDeltaText}>
+                {totalSent} sent • {successRate}% delivery rate
+              </Text>
             </View>
             <Text style={styles.heroDeliveredValue}>
               {formatLargeNumber(totalDelivered)}

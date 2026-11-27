@@ -278,11 +278,29 @@ export default function LoginScreen({ navigation }) {
         </View>
 
         {/* Bottom Footer: Don't have account? Create Account */}
-        <View style={styles.footerRow}>
-          <Text style={styles.footerText}>Don't have account? </Text>
-          <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-            <Text style={styles.createAccountText}>Create Account</Text>
-          </TouchableOpacity>
+        <View style={styles.footerWrap}>
+          <View style={styles.footerRow}>
+            <Text style={styles.footerText}>Don't have account? </Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+              <Text style={styles.createAccountText}>Create Account</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.legalLinksRow}>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('PrivacyPolicy')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.legalLinkText}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={styles.legalDot}>•</Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('TermsConditions')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.legalLinkText}>Terms & Conditions</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -433,11 +451,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
   },
+  footerWrap: {
+    marginTop: 28,
+    alignItems: 'center',
+  },
   footerRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 32,
+  },
+  legalLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 14,
+    gap: 10,
+  },
+  legalLinkText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  legalDot: {
+    fontSize: 12,
+    color: '#94A3B8',
   },
   footerText: {
     fontSize: 13,

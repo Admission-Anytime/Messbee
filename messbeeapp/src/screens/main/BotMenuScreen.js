@@ -31,7 +31,7 @@ export default function BotMenuScreen({ route, navigation }) {
       const [automations, qrList, autoResponder] = await Promise.all([
         automationService.getAutomations().catch(() => []),
         quickReplyService.getQuickReplies().catch(() => []),
-        qrWhatsappService.getAutoResponderSettings().catch(() => null),
+        qrWhatsappService.getAutoResponder().catch(() => null),
       ]);
 
       if (autoResponder && autoResponder.botEnabled !== undefined) {
@@ -108,7 +108,7 @@ export default function BotMenuScreen({ route, navigation }) {
   const handleToggleMasterBot = async (val) => {
     setBotEnabled(val);
     try {
-      await qrWhatsappService.saveAutoResponderSettings({ botEnabled: val });
+      await qrWhatsappService.updateAutoResponder({ botEnabled: val });
     } catch (err) {
       console.warn('Save bot setting note:', err.message);
     }
