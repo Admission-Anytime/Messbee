@@ -201,7 +201,7 @@ export default function ProfileScreen({ navigation }) {
 
           {/* Help & Support */}
           <TouchableOpacity
-            style={[styles.menuRow, { borderBottomWidth: 0 }]}
+            style={styles.menuRow}
             onPress={() => navigation.navigate('HelpSupport')}
             activeOpacity={0.7}
           >
@@ -211,6 +211,38 @@ export default function ProfileScreen({ navigation }) {
             <View style={styles.menuTextBox}>
               <Text style={styles.menuRowTitle}>Help & Support</Text>
               <Text style={styles.menuRowSubtitle}>Guides, FAQ and contact support</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Privacy Policy */}
+          <TouchableOpacity
+            style={styles.menuRow}
+            onPress={() => navigation.navigate('PrivacyPolicy')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="shield-checkmark-outline" size={20} color="#00B67A" />
+            </View>
+            <View style={styles.menuTextBox}>
+              <Text style={styles.menuRowTitle}>Privacy Policy</Text>
+              <Text style={styles.menuRowSubtitle}>Data protection & security practices</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
+          </TouchableOpacity>
+
+          {/* Terms & Conditions */}
+          <TouchableOpacity
+            style={[styles.menuRow, { borderBottomWidth: 0 }]}
+            onPress={() => navigation.navigate('TermsConditions')}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.menuIconBox, { backgroundColor: '#F1F5F9' }]}>
+              <Ionicons name="document-text-outline" size={20} color="#475569" />
+            </View>
+            <View style={styles.menuTextBox}>
+              <Text style={styles.menuRowTitle}>Terms & Conditions</Text>
+              <Text style={styles.menuRowSubtitle}>Service terms & Meta compliance rules</Text>
             </View>
             <Ionicons name="chevron-forward" size={16} color="#CBD5E1" />
           </TouchableOpacity>

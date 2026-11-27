@@ -78,6 +78,8 @@ import EntitiesBookingsScreen from '../screens/main/EntitiesBookingsScreen';
 import WorkspaceSettingsScreen from '../screens/main/WorkspaceSettingsScreen';
 import SubscriptionPlansScreen from '../screens/main/SubscriptionPlansScreen';
 import HelpSupportScreen from '../screens/main/HelpSupportScreen';
+import PrivacyPolicyScreen from '../screens/main/PrivacyPolicyScreen';
+import TermsConditionsScreen from '../screens/main/TermsConditionsScreen';
 import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
@@ -188,6 +190,8 @@ export default function RootNavigator() {
         <Stack.Screen name="WorkspaceSettings" component={WorkspaceSettingsScreen} />
         <Stack.Screen name="SubscriptionPlans" component={SubscriptionPlansScreen} />
         <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+        <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
