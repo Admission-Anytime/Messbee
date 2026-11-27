@@ -792,7 +792,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   {audienceType === 'ALL' && (
                     <View style={styles.availableBanner}>
                       <Text style={styles.availableCount}>
-                        {Number(contactsCount > 0 ? contactsCount : 3842).toLocaleString()}{' '}
+                        {contactsList.length.toLocaleString()}{' '}
                         <Text style={styles.availableText}>available contacts</Text>
                       </Text>
                     </View>
