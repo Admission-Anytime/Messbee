@@ -23,6 +23,7 @@ import AddContactScreen from '../screens/main/AddContactScreen';
 import TemplatesScreen from '../screens/main/TemplatesScreen';
 import BroadcastCampaignsScreen from '../screens/main/BroadcastCampaignsScreen';
 import SettingsScreen from '../screens/main/SettingsScreen';
+import ProfileScreen from '../screens/main/ProfileScreen';
 import BusinessProfileScreen from '../screens/main/BusinessProfileScreen';
 import PersonalInfoScreen from '../screens/main/PersonalInfoScreen';
 import ApiManagementScreen from '../screens/main/ApiManagementScreen';
@@ -139,6 +140,7 @@ export default function RootNavigator() {
         <Stack.Screen name="Templates" component={TemplatesScreen} />
         <Stack.Screen name="BroadcastCampaigns" component={BroadcastCampaignsScreen} />
         <Stack.Screen name="Settings" component={SettingsScreen} />
+        <Stack.Screen name="Profile" component={ProfileScreen} />
         <Stack.Screen name="BusinessProfile" component={BusinessProfileScreen} />
         <Stack.Screen name="PersonalInfo" component={PersonalInfoScreen} />
         <Stack.Screen name="ApiManagement" component={ApiManagementScreen} />
