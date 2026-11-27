@@ -788,6 +788,10 @@ export const whatsappConfigService = {
     const { data } = await api.post('/whatsapp/register', { pin });
     return data;
   },
+  deregisterPin: async () => {
+    const { data } = await api.post('/whatsapp/deregister');
+    return data;
+  },
   disconnect: async () => {
     try {
       const current = await whatsappConfigService.getConfig();
