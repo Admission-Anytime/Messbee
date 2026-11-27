@@ -18,7 +18,7 @@ import {
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { io } from 'socket.io-client';
-import { chatService, quickReplyService, resolveFileUrl, getSocketUrl } from '../../services/api';
+import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
@@ -26,6 +26,7 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const [messages, setMessages] = useState([]);
   const [quickReplies, setQuickReplies] = useState([]);
+  const [templateMap, setTemplateMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [inputText, setInputText] = useState('');
@@ -122,12 +123,39 @@ export default function ChatDetailScreen({ route, navigation }) {
         }
 
         if (isInitial && isMounted) {
-          const liveQuickReplies = await quickReplyService.getQuickReplies().catch(() => []);
+          const [liveQuickReplies, liveTemplates] = await Promise.all([
+            quickReplyService.getQuickReplies().catch(() => []),
+            templateService.getTemplates().catch(() => []),
+          ]);
           if (isMounted) {
             if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
               setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
             } else {
               setQuickReplies(['I see. Tell me more.', 'Could you clarify that?', "I'll look into this right away."]);
+            }
+            if (Array.isArray(liveTemplates) && liveTemplates.length > 0) {
+              const tMap = {};
+              liveTemplates.forEach((tpl) => {
+                const headerComp = tpl.components?.find((c) => String(c.type).toUpperCase() === 'HEADER') || {};
+                const footerComp = tpl.components?.find((c) => String(c.type).toUpperCase() === 'FOOTER') || {};
+                const rawMedia =
+                  headerComp.headerMediaUrlPreview ||
+                  headerComp.headerMediaUrl ||
+                  tpl.headerMediaUrlPreview ||
+                  tpl.headerMediaUrl ||
+                  (Array.isArray(headerComp.example?.header_handle) && /^https?:\/\//i.test(String(headerComp.example.header_handle[0] || ''))
+                    ? headerComp.example.header_handle[0]
+                    : '');
+                const info = {
+                  mediaUrl: resolveFileUrl(rawMedia),
+                  headerType: headerComp.format || tpl.headerType || '',
+                  headerText: headerComp.text || tpl.headerText || '',
+                  footerText: footerComp.text || tpl.footerText || '',
+                };
+                if (tpl.name) tMap[String(tpl.name).toLowerCase()] = info;
+                if (tpl.whatsappTemplateName) tMap[String(tpl.whatsappTemplateName).toLowerCase()] = info;
+              });
+              setTemplateMap(tMap);
             }
           }
         }
@@ -444,22 +472,27 @@ export default function ChatDetailScreen({ route, navigation }) {
 
     // 2. Template Message Card
     if (item.type === 'template') {
+      const tplKey = String(item.templateTag || '').toLowerCase();
+      const tplInfo = tplKey ? templateMap[tplKey] : null;
+      const effectiveMediaUrl = item.mediaUrl || tplInfo?.mediaUrl || null;
+      const effectiveMediaType = item.mediaType || (tplInfo?.headerType ? String(tplInfo.headerType).toLowerCase() : null);
+
       return (
         <View style={styles.templateBubbleWrapper}>
           <View style={styles.templateBubbleCard}>
-            {item.mediaUrl && (!item.mediaType || item.mediaType === 'image') ? (
+            {effectiveMediaUrl && (!effectiveMediaType || effectiveMediaType === 'image') ? (
               <Image
-                source={{ uri: item.mediaUrl }}
+                source={{ uri: effectiveMediaUrl }}
                 style={{
                   width: '100%',
-                  height: 170,
+                  height: 175,
                   borderRadius: 10,
                   marginBottom: 8,
                   backgroundColor: '#F1F5F9',
                 }}
                 resizeMode="cover"
               />
-            ) : item.mediaUrl ? (
+            ) : effectiveMediaUrl ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 10, borderRadius: 10, marginBottom: 8 }}>
                 <Ionicons name="document-attach-outline" size={18} color="#00875A" style={{ marginRight: 8 }} />
                 <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A', flex: 1 }} numberOfLines={1}>
@@ -474,8 +507,20 @@ export default function ChatDetailScreen({ route, navigation }) {
               <Text style={styles.templateNameTag}>{item.templateTag || 'WhatsApp Template'}</Text>
             </View>
 
+            {tplInfo?.headerText ? (
+              <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                {tplInfo.headerText}
+              </Text>
+            ) : null}
+
             {/* Template Body */}
             <Text style={styles.templateBodyText}>{item.text}</Text>
+
+            {tplInfo?.footerText ? (
+              <Text style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                {tplInfo.footerText}
+              </Text>
+            ) : null}
 
             {/* Footer with Time and Status Ticks */}
             <View style={styles.bubbleFooter}>
