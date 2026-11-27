@@ -619,6 +619,11 @@ export const campaignService = {
     return response.data;
   },
 
+  getCampaignQueue: async (id) => {
+    const response = await api.get(`/campaigns/${id}/queue`);
+    return response.data?.data || response.data;
+  },
+
   deleteCampaign: async (id) => {
     const response = await api.delete(`/campaigns/${id}`);
     return response.data;
