@@ -133,6 +133,16 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     return unsubscribe;
   }, [navigation, loadData]);
 
+  // Live 6s auto-refresh while any campaign is actively sending
+  useEffect(() => {
+    const hasRunning = campaigns.some((c) =>
+      ['active', 'processing', 'running'].includes(String(c.status || '').toLowerCase())
+    );
+    if (!hasRunning) return;
+    const timer = setInterval(loadData, 6000);
+    return () => clearInterval(timer);
+  }, [campaigns, loadData]);
+
   const onRefresh = () => {
     setRefreshing(true);
     loadData();
@@ -205,6 +215,18 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     const matches = selectedTemplate.body.match(/\{\{(\d+)\}\}/g) || [];
     return [...new Set(matches.map((m) => m.replace(/[{}]/g, '')))].sort((a, b) => Number(a) - Number(b));
   }, [selectedTemplate]);
+
+  const renderedPreviewBody = useMemo(() => {
+    if (isFreeQr) return customBodyText.trim();
+    let txt = selectedTemplate?.body || '';
+    selectedTemplateVarKeys.forEach((k) => {
+      const val = String(templateVars[k] || '').trim();
+      if (val) {
+        txt = txt.split(`{{${k}}}`).join(val);
+      }
+    });
+    return txt;
+  }, [isFreeQr, customBodyText, selectedTemplate, selectedTemplateVarKeys, templateVars]);
 
   const resetCreateForm = () => {
     setCampaignName('');
@@ -1088,6 +1110,13 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                         ))}
                       </View>
                     )}
+
+                    {selectedTemplate && renderedPreviewBody ? (
+                      <View style={[styles.reviewSummaryCard, { marginTop: 12, backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' }]}>
+                        <Text style={[styles.inputLabel, { color: '#065F46', marginBottom: 4 }]}>Live Message Preview</Text>
+                        <Text style={{ fontSize: 13, color: '#1E293B', lineHeight: 19 }}>{renderedPreviewBody}</Text>
+                      </View>
+                    ) : null}
                   </>
                 )}
               </View>
@@ -1122,6 +1151,41 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                       {isFreeQr ? 'Custom Message' : (selectedTemplate?.name || '—')}
                     </Text>
                   </View>
+                  {renderedPreviewBody ? (
+                    <>
+                      <View style={styles.reviewDivider} />
+                      <View style={{ paddingVertical: 4 }}>
+                        <Text style={styles.reviewLabel}>Message Preview</Text>
+                        <Text style={{ fontSize: 12.5, color: '#334155', marginTop: 4, lineHeight: 18 }}>
+                          {renderedPreviewBody}
+                        </Text>
+                      </View>
+                    </>
+                  ) : null}
+                </View>
+
+                {/* Send Delay Interval */}
+                <Text style={styles.inputLabel}>Message Interval</Text>
+                <View style={[styles.scheduleModeRow, { marginBottom: 14 }]}>
+                  {['5s', '10s', '30s'].map((d) => (
+                    <TouchableOpacity
+                      key={d}
+                      style={[
+                        styles.scheduleModeBtn,
+                        delayOption === d && styles.scheduleModeBtnActive,
+                      ]}
+                      onPress={() => setDelayOption(d)}
+                    >
+                      <Text
+                        style={[
+                          styles.scheduleModeText,
+                          delayOption === d && styles.scheduleModeTextActive,
+                        ]}
+                      >
+                        {d} delay
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
 
                 {/* Scheduling Mode */}
