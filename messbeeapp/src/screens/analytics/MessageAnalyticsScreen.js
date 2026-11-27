@@ -15,7 +15,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { analyticsService, authService } from '../../services/api';
 import QuickBottomBar from '../../components/QuickBottomBar';
-import DateFilterModal from './DateFilterModal';
+import DateFilterModal, { getDateRangeFromPreset } from './DateFilterModal';
 
 export default function MessageAnalyticsScreen({ navigation }) {
   const [timeframe, setTimeframe] = useState('Daily'); // 'Daily' | 'Weekly' | 'Monthly'
@@ -25,6 +25,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
   const [userProfile, setUserProfile] = useState(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [activePreset, setActivePreset] = useState('30d');
+  const [customDates, setCustomDates] = useState({ fromDate: '', toDate: '' });
 
   // Details Modal
   const [selectedDateItem, setSelectedDateItem] = useState(null);
@@ -32,8 +33,13 @@ export default function MessageAnalyticsScreen({ navigation }) {
 
   const loadData = useCallback(async () => {
     try {
+      const range = getDateRangeFromPreset(activePreset, customDates.fromDate, customDates.toDate);
+      const params = {
+        groupBy: timeframe.toLowerCase(),
+        ...range,
+      };
       const [data, user] = await Promise.all([
-        analyticsService.getMessageAnalytics().catch(() => null),
+        analyticsService.getMessageAnalytics(params).catch(() => null),
         authService.getCurrentUser().catch(() => null),
       ]);
       if (data) setMsgData(data);
@@ -44,7 +50,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [timeframe, activePreset, customDates.fromDate, customDates.toDate]);
 
   useEffect(() => {
     loadData();
@@ -55,10 +61,14 @@ export default function MessageAnalyticsScreen({ navigation }) {
     loadData();
   };
 
-  const totalSent = msgData?.totals?.sent || 0;
-  const totalDelivered = msgData?.totals?.delivered || 0;
+  const totalSent = msgData?.summary?.totalSent ?? msgData?.totals?.sent ?? 0;
+  const totalDelivered = msgData?.summary?.totalDelivered ?? msgData?.totals?.delivered ?? 0;
   const successRate =
-    totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) : '0.0';
+    msgData?.summary?.successRate !== undefined
+      ? String(msgData.summary.successRate)
+      : totalSent > 0
+      ? ((totalDelivered / totalSent) * 100).toFixed(1)
+      : '0.0';
 
   const tableRows = msgData?.chartData || [];
 
@@ -161,7 +171,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Total sent</Text>
             <Text style={styles.metricValue}>{totalSent}</Text>
-            <Text style={styles.metricDelta}>+8.4%</Text>
+            <Text style={styles.metricDelta}>{timeframe}</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -170,7 +180,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Delivered</Text>
             <Text style={styles.metricValue}>{totalDelivered}</Text>
-            <Text style={styles.metricDelta}>+7.9%</Text>
+            <Text style={styles.metricDelta}>Confirmed</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -179,7 +189,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
             </View>
             <Text style={styles.metricLabel}>Success rate</Text>
             <Text style={styles.metricValue}>{successRate}%</Text>
-            <Text style={styles.metricDelta}>+0.4%</Text>
+            <Text style={styles.metricDelta}>Delivery</Text>
           </View>
         </View>
 
@@ -243,13 +253,13 @@ export default function MessageAnalyticsScreen({ navigation }) {
         visible={showFilterModal}
         activePreset={activePreset}
         onClose={() => setShowFilterModal(false)}
-        onApply={({ preset }) => {
+        onApply={({ preset, fromDate, toDate }) => {
           setActivePreset(preset);
-          loadData();
+          setCustomDates({ fromDate: fromDate || '', toDate: toDate || '' });
         }}
       />
 
-      {/* Message Details Modal (Exact match to Image 2 Screen 3) */}
+      {/* Message Details Modal */}
       <Modal
         visible={showDetailsModal}
         transparent
@@ -266,7 +276,7 @@ export default function MessageAnalyticsScreen({ navigation }) {
 
             <View style={styles.detailsHeader}>
               <Text style={styles.detailsTitle}>
-                Message details - {selectedDateItem?.date || 'Nov 18'}
+                Message details - {selectedDateItem?.date || ''}
               </Text>
               <TouchableOpacity onPress={() => setShowDetailsModal(false)}>
                 <Ionicons name="close" size={22} color="#64748B" />
@@ -274,52 +284,58 @@ export default function MessageAnalyticsScreen({ navigation }) {
             </View>
 
             {/* Green Summary Banner */}
-            <View style={styles.detailsGreenBanner}>
-              <View style={styles.bannerRow}>
-                <Text style={styles.bannerCount}>
-                  {selectedDateItem?.sent || 30} sent
-                </Text>
-                <Text style={styles.bannerDivider}>|</Text>
-                <Text style={styles.bannerCount}>
-                  {selectedDateItem?.delivered || 29} delivered
-                </Text>
-              </View>
-              <Text style={styles.bannerRate}>96.7% success rate</Text>
-            </View>
+            {(() => {
+              const s = selectedDateItem?.sent || 0;
+              const d = selectedDateItem?.delivered || 0;
+              const r = selectedDateItem?.read || 0;
+              const f = selectedDateItem?.failed || 0;
+              const rate = s > 0 ? ((d / s) * 100).toFixed(1) : '0.0';
+              return (
+                <>
+                  <View style={styles.detailsGreenBanner}>
+                    <View style={styles.bannerRow}>
+                      <Text style={styles.bannerCount}>{s} sent</Text>
+                      <Text style={styles.bannerDivider}>|</Text>
+                      <Text style={styles.bannerCount}>{d} delivered</Text>
+                    </View>
+                    <Text style={styles.bannerRate}>{rate}% delivery rate</Text>
+                  </View>
 
-            {/* Message items list */}
-            <View style={styles.messagesList}>
-              <View style={styles.messageItemRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#00B67A" style={{ marginRight: 10 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.msgItemTitle}>Order confirmed • +91 98*** 1245</Text>
-                  <Text style={styles.msgItemTime}>9:20 AM Delivered</Text>
-                </View>
-              </View>
+                  <View style={styles.messagesList}>
+                    <View style={styles.messageItemRow}>
+                      <Ionicons name="paper-plane-outline" size={18} color="#3B82F6" style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.msgItemTitle}>Total Sent</Text>
+                        <Text style={styles.msgItemTime}>{s} messages dispatched on {selectedDateItem?.date}</Text>
+                      </View>
+                    </View>
 
-              <View style={styles.messageItemRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#00B67A" style={{ marginRight: 10 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.msgItemTitle}>Welcome message • +91 87*** 3456</Text>
-                  <Text style={styles.msgItemTime}>10:21 AM Delivered</Text>
-                </View>
-              </View>
+                    <View style={styles.messageItemRow}>
+                      <Ionicons name="checkmark-circle" size={18} color="#00B67A" style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.msgItemTitle}>Delivered & Read</Text>
+                        <Text style={styles.msgItemTime}>{d} delivered • {r} read</Text>
+                      </View>
+                    </View>
 
-              <View style={styles.messageItemRow}>
-                <Ionicons name="checkmark-circle" size={18} color="#00B67A" style={{ marginRight: 10 }} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.msgItemTitle}>Delivery update • +91 99*** 7841</Text>
-                  <Text style={styles.msgItemTime}>11:02 AM Delivered</Text>
-                </View>
-              </View>
-            </View>
+                    <View style={styles.messageItemRow}>
+                      <Ionicons name="alert-circle-outline" size={18} color={f > 0 ? '#EF4444' : '#94A3B8'} style={{ marginRight: 10 }} />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.msgItemTitle}>Failed</Text>
+                        <Text style={styles.msgItemTime}>{f} failed deliveries</Text>
+                      </View>
+                    </View>
+                  </View>
+                </>
+              );
+            })()}
 
             {/* Button */}
             <TouchableOpacity
               style={styles.viewAllDetailsBtn}
               onPress={() => setShowDetailsModal(false)}
             >
-              <Text style={styles.viewAllDetailsText}>View all message details</Text>
+              <Text style={styles.viewAllDetailsText}>Close details</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
