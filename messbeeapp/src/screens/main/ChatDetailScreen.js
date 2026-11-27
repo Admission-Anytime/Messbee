@@ -855,8 +855,8 @@ export default function ChatDetailScreen({ route, navigation }) {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 24}
       >
         <FlatList
           ref={flatListRef}
@@ -866,6 +866,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           renderItem={renderMessageItem}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <>
               {/* If Chat is Archived, Show Top Banner (Image 1 Screen 3) */}
