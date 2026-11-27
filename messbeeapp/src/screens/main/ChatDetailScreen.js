@@ -17,7 +17,8 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, quickReplyService, resolveFileUrl } from '../../services/api';
+import { io } from 'socket.io-client';
+import { chatService, quickReplyService, resolveFileUrl, getSocketUrl } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
@@ -64,8 +65,9 @@ export default function ChatDetailScreen({ route, navigation }) {
             : m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
           text: m.text || m.body || m.message || '',
           time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+          createdAt: m.createdAt || null,
           sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
-          status: m.status || 'delivered',
+          status: m.status || 'sent',
           templateTag: m.templateName || m.template?.name,
           mediaUrl: resolveFileUrl(m.mediaUrl),
           mediaType: m.mediaType || null,
@@ -143,6 +145,106 @@ export default function ChatDetailScreen({ route, navigation }) {
       clearInterval(pollInterval);
     };
   }, [activeChatId]);
+
+  // Real-time Socket.IO listener for incoming messages & live read/delivery ticks
+  useEffect(() => {
+    if (!activeChatId) return;
+    let socket;
+    try {
+      socket = io(getSocketUrl(), {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      });
+
+      socket.on('connect', () => {
+        socket.emit('join_chat', activeChatId);
+      });
+
+      socket.on('message_status_update', (payload) => {
+        if (!payload || String(payload.chatId) !== String(activeChatId)) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            String(m.id) === String(payload.messageId)
+              ? {
+                  ...m,
+                  status: payload.status || m.status,
+                  type: payload.status === 'failed' ? 'error' : m.type,
+                  subtitle: payload.error || m.subtitle,
+                }
+              : m
+          )
+        );
+      });
+
+      const handleIncomingSocketMsg = (payload) => {
+        const msg = payload?.message || payload;
+        const msgChatId = payload?.chatId || msg?.chatId;
+        if (!msg || String(msgChatId) !== String(activeChatId)) return;
+        const mappedId = String(msg._id || msg.id || '');
+        if (!mappedId) return;
+
+        setMessages((prev) => {
+          if (prev.some((m) => String(m.id) === mappedId)) return prev;
+          return [
+            ...prev,
+            {
+              id: mappedId,
+              type: msg.status === 'failed' ? 'error' : (msg.messageType === 'template' || msg.template ? 'template' : 'text'),
+              text: msg.text || msg.body || msg.message || '',
+              time: msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+              createdAt: msg.createdAt || new Date().toISOString(),
+              sender: msg.sender === 'me' || msg.sender === 'user' || msg.fromMe ? 'me' : 'customer',
+              status: msg.status || 'sent',
+              templateTag: msg.templateName || msg.template?.name,
+              mediaUrl: resolveFileUrl(msg.mediaUrl),
+              mediaType: msg.mediaType || null,
+              fileName: msg.fileName || null,
+            },
+          ];
+        });
+      };
+
+      socket.on('receive_message', handleIncomingSocketMsg);
+      socket.on('message_sent', handleIncomingSocketMsg);
+    } catch (e) {}
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [activeChatId]);
+
+  const customerPresence = React.useMemo(() => {
+    const incoming = [...messages].reverse().find((m) => m.sender === 'customer' && m.createdAt);
+    const refTs = incoming?.createdAt || chat?.lastActivity || chat?.updatedAt;
+    if (!refTs) return { label: 'WhatsApp', active: false };
+    const diffMs = Date.now() - new Date(refTs).getTime();
+    if (diffMs <= 5 * 60 * 1000) return { label: 'Active now • WhatsApp', active: true };
+    if (diffMs <= 24 * 60 * 60 * 1000) {
+      const t = new Date(refTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return { label: `Active (24h window) • ${t}`, active: true };
+    }
+    const d = new Date(refTs).toLocaleDateString([], { day: '2-digit', month: 'short' });
+    return { label: `Last active ${d} • WhatsApp`, active: false };
+  }, [messages, chat?.lastActivity, chat?.updatedAt]);
+
+  const renderStatusTicks = (status) => {
+    const st = String(status || 'sent').toLowerCase();
+    if (st === 'read') {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+          <Ionicons name="checkmark-done" size={14} color="#3B82F6" />
+          <Text style={{ fontSize: 9.5, color: '#3B82F6', fontWeight: '700', marginLeft: 2 }}>Seen</Text>
+        </View>
+      );
+    }
+    if (st === 'delivered') {
+      return <Ionicons name="checkmark-done" size={14} color="#64748B" style={{ marginLeft: 4 }} />;
+    }
+    if (st === 'failed') {
+      return <Ionicons name="alert-circle" size={13} color="#EF4444" style={{ marginLeft: 4 }} />;
+    }
+    return <Ionicons name="checkmark" size={14} color="#64748B" style={{ marginLeft: 4 }} />;
+  };
 
   // Handle status update from UpdateLeadStatusModal
   useEffect(() => {
@@ -375,10 +477,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             {/* Template Body */}
             <Text style={styles.templateBodyText}>{item.text}</Text>
 
-            {/* Footer with Time and Double Tick */}
+            {/* Footer with Time and Status Ticks */}
             <View style={styles.bubbleFooter}>
               <Text style={styles.bubbleTime}>{item.time}</Text>
-              <Ionicons name="checkmark-done" size={14} color="#00B67A" style={{ marginLeft: 4 }} />
+              {renderStatusTicks(item.status)}
             </View>
           </View>
         </View>
@@ -408,7 +510,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           </Text>
           <View style={styles.bubbleFooter}>
             <Text style={styles.bubbleTime}>{item.time}</Text>
-            {isMe && <Ionicons name="checkmark-done" size={14} color="#00B67A" style={{ marginLeft: 4 }} />}
+            {isMe && renderStatusTicks(item.status)}
           </View>
         </View>
       </View>
@@ -445,8 +547,8 @@ export default function ChatDetailScreen({ route, navigation }) {
               {isPinned && <Ionicons name="pin" size={13} color="#D97706" style={{ marginLeft: 5 }} />}
             </View>
             <View style={styles.headerSubtitleRow}>
-              <View style={styles.directDot} />
-              <Text style={styles.headerSubtitleText}>Direct • WhatsApp</Text>
+              <View style={[styles.directDot, !customerPresence.active && { backgroundColor: '#94A3B8' }]} />
+              <Text style={styles.headerSubtitleText}>{customerPresence.label}</Text>
             </View>
           </View>
         </TouchableOpacity>

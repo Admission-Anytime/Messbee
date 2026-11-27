@@ -44,6 +44,8 @@ export const setServerEnvironment = async (env) => {
 
 export const getServerEnvironment = () => currentEnv;
 
+export const getSocketUrl = () => BASE_URL.replace(/\/api\/?$/, '');
+
 export const resolveFileUrl = (url, excludePlaceholder = false) => {
   if (!url || typeof url !== 'string') return null;
   const trimmed = url.trim();
