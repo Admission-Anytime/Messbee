@@ -177,8 +177,11 @@ const QrBroadcastModal = ({ isOpen, onClose, selectedContacts = [] }) => {
       };
 
       const res = await sendQrBroadcast(payload);
-      if (res.success) {
+      if (res?.success) {
         toast.info(res.message || "Broadcast started in background with anti-ban delay.");
+      } else {
+        setIsBroadcasting(false);
+        toast.error(res?.message || "Failed to start broadcast");
       }
     } catch (err) {
       setIsBroadcasting(false);

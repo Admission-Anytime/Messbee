@@ -22,6 +22,7 @@ import {
   statusService,
   templateService,
   authService,
+  qrWhatsappService,
 } from '../../services/api';
 import QuickBottomBar from '../../components/QuickBottomBar';
 
@@ -36,10 +37,16 @@ export default function BroadcastCampaignsScreen({ navigation }) {
 
   // User & Contacts state
   const [userProfile, setUserProfile] = useState(null);
+  const [contacts, setContacts] = useState([]);
   const [contactsCount, setContactsCount] = useState(0);
   const [labels, setLabels] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [templates, setTemplates] = useState([]);
+
+  // Quick Broadcast Modal State (for Free QR direct broadcast)
+  const [showQuickBroadcastModal, setShowQuickBroadcastModal] = useState(false);
+  const [quickBroadcastMsg, setQuickBroadcastMsg] = useState('');
+  const [sendingQuickBroadcast, setSendingQuickBroadcast] = useState(false);
 
   // Create Campaign Wizard State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -52,6 +59,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   const [selectedLabels, setSelectedLabels] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [customMessage, setCustomMessage] = useState('');
   const [scheduleMode, setScheduleMode] = useState('NOW'); // 'NOW' | 'SCHEDULE'
   const [scheduleDate, setScheduleDate] = useState('');
   const [delayOption, setDelayOption] = useState('10s');
@@ -86,8 +94,10 @@ export default function BroadcastCampaignsScreen({ navigation }) {
         ? campaignsData.data
         : [];
 
+      const safeContacts = Array.isArray(contactsData) ? contactsData : [];
       setCampaigns(campaignList);
-      setContactsCount(Array.isArray(contactsData) ? contactsData.length : 0);
+      setContacts(safeContacts);
+      setContactsCount(safeContacts.length);
       setLabels(Array.isArray(labelsData) ? labelsData : []);
       setStatuses(Array.isArray(statusesData) ? statusesData : []);
       setTemplates(Array.isArray(templatesData) ? templatesData : []);
@@ -150,22 +160,26 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     });
   }, [campaigns, searchQuery, statusFilter]);
 
-  // Estimated audience computation
+  const isFreeQr = userProfile?.whatsappChannelType === 'free_qr';
+
+  // Estimated audience computation from real contacts
   const estimatedAudienceCount = useMemo(() => {
     if (audienceType === 'ALL') {
-      return contactsCount > 0 ? contactsCount : 3842;
+      return contactsCount;
     }
     if (audienceType === 'LABELS') {
-      return selectedLabels.length > 0 ? selectedLabels.length * 420 : 0;
+      if (selectedLabels.length === 0) return 0;
+      return contacts.filter((c) => {
+        const tags = Array.isArray(c.tags) ? c.tags : Array.isArray(c.labels) ? c.labels : [];
+        return selectedLabels.some((lbl) => tags.includes(lbl));
+      }).length;
     }
     if (audienceType === 'STATUS') {
-      return selectedStatus ? 850 : 0;
+      if (!selectedStatus) return 0;
+      return contacts.filter((c) => (c.status || '').toLowerCase() === selectedStatus.toLowerCase()).length;
     }
-    if (audienceType === 'CSV') {
-      return 1200;
-    }
-    return contactsCount || 3842;
-  }, [audienceType, selectedLabels, selectedStatus, contactsCount]);
+    return 0;
+  }, [audienceType, selectedLabels, selectedStatus, contactsCount, contacts]);
 
   const resetCreateForm = () => {
     setCampaignName('');
@@ -174,6 +188,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     setSelectedLabels([]);
     setSelectedStatus('');
     setSelectedTemplate(null);
+    setCustomMessage('');
     setScheduleMode('NOW');
     setScheduleDate('');
     setCurrentStep(1);
@@ -188,7 +203,12 @@ export default function BroadcastCampaignsScreen({ navigation }) {
       }
       setCurrentStep(2);
     } else if (currentStep === 2) {
-      if (!selectedTemplate && templates.length > 0) {
+      if (isFreeQr) {
+        if (!customMessage.trim()) {
+          Alert.alert('Message Required', 'Please enter a broadcast message to continue.');
+          return;
+        }
+      } else if (!selectedTemplate && templates.length > 0) {
         Alert.alert('Select Template', 'Please select a message template to continue.');
         return;
       }
@@ -204,34 +224,75 @@ export default function BroadcastCampaignsScreen({ navigation }) {
       const payload = {
         name: campaignName.trim(),
         description: campaignDesc.trim() || 'Broadcast Campaign',
-        templateName: selectedTemplate?.name || selectedTemplate?.title || 'admission_welcome_v1',
-        status: scheduleMode === 'SCHEDULE' ? 'SCHEDULED' : 'PROCESSING',
-        scheduledAt: scheduleMode === 'SCHEDULE' && scheduleDate ? new Date(scheduleDate) : null,
+        channelType: isFreeQr ? 'FREE_QR' : 'META_CLOUD',
+        messageTemplate: isFreeQr
+          ? customMessage.trim()
+          : (selectedTemplate?.name || selectedTemplate?.title || 'Broadcast Message'),
+        status: scheduleMode === 'SCHEDULE' ? 'scheduled' : 'active',
+        scheduledDate: scheduleMode === 'SCHEDULE' && scheduleDate ? new Date(scheduleDate) : null,
         delayOption: delayOption,
         audienceFilter: {
-          tags: selectedLabels,
-          status: selectedStatus ? [selectedStatus] : [],
+          tags: audienceType === 'LABELS' ? selectedLabels : [],
+          status: audienceType === 'STATUS' && selectedStatus ? selectedStatus : null,
         },
       };
 
       const created = await campaignService.createCampaign(payload);
 
-      // Trigger send if immediate
-      if (scheduleMode === 'NOW' && created?._id) {
-        campaignService.sendCampaign(created._id).catch(() => {});
-      }
-
       setCampaigns((prev) => [created || payload, ...prev]);
       resetCreateForm();
-      Alert.alert('Success', 'Campaign created successfully!');
-    } catch (err) {
       Alert.alert(
-        'Campaign Created',
-        'Campaign has been scheduled and added to the processing queue.',
-        [{ text: 'OK', onPress: resetCreateForm }]
+        'Success',
+        scheduleMode === 'SCHEDULE'
+          ? 'Campaign scheduled successfully!'
+          : 'Campaign launched successfully!'
       );
+    } catch (err) {
+      const errMsg = err?.response?.data?.message || err?.message || 'Failed to launch campaign.';
+      Alert.alert('Campaign Error', errMsg);
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSendQuickBroadcast = async () => {
+    const recipientPhones = contacts
+      .map((c) => String(c.whatsapp || c.phone || '').replace(/\D/g, ''))
+      .filter((p) => p.length >= 10);
+
+    if (recipientPhones.length === 0) {
+      Alert.alert('No Recipients', 'No contacts with valid phone numbers were found.');
+      return;
+    }
+    if (!quickBroadcastMsg.trim()) {
+      Alert.alert('Message Required', 'Please enter a broadcast message.');
+      return;
+    }
+
+    setSendingQuickBroadcast(true);
+    try {
+      const res = await qrWhatsappService.sendBroadcast({
+        recipientPhones,
+        messageText: quickBroadcastMsg.trim(),
+        intervalSeconds: 5,
+      });
+      if (res?.success) {
+        setShowQuickBroadcastModal(false);
+        setQuickBroadcastMsg('');
+        Alert.alert(
+          'Broadcast Started',
+          res.message || `Sending broadcast to ${recipientPhones.length} contacts.`
+        );
+      } else {
+        Alert.alert('Broadcast Failed', res?.message || 'Failed to start broadcast.');
+      }
+    } catch (err) {
+      Alert.alert(
+        'Broadcast Error',
+        err?.response?.data?.message || err?.message || 'Failed to send broadcast message.'
+      );
+    } finally {
+      setSendingQuickBroadcast(false);
     }
   };
 
@@ -266,7 +327,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   const creatorName =
     userProfile?.name ||
     userProfile?.businessName ||
-    'Aarav Mehta';
+    'User';
 
   return (
     <SafeAreaView style={styles.container}>
@@ -277,7 +338,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
         <View>
           <Text style={styles.headerTitle}>Campaigns</Text>
           <Text style={styles.headerSubtitle}>
-            {totalCampaigns > 0 ? `${totalCampaigns} total campaigns` : '5 total campaigns'}
+            {`${totalCampaigns} total campaign${totalCampaigns === 1 ? '' : 's'}`}
           </Text>
         </View>
       </View>
@@ -296,7 +357,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               <Ionicons name="stats-chart" size={16} color="#00B67A" />
             </View>
             <Text style={styles.metricLabel}>Total campaigns</Text>
-            <Text style={styles.metricValue}>{totalCampaigns || 5}</Text>
+            <Text style={styles.metricValue}>{totalCampaigns}</Text>
             <Text style={styles.metricSub}>All time</Text>
           </View>
 
@@ -306,7 +367,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               <Ionicons name="checkmark-outline" size={18} color="#00B67A" />
             </View>
             <Text style={styles.metricLabel}>Completed</Text>
-            <Text style={styles.metricValue}>{completedCount || 1}</Text>
+            <Text style={styles.metricValue}>{completedCount}</Text>
             <Text style={styles.metricSub}>Successfully sent</Text>
           </View>
 
@@ -316,7 +377,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               <Ionicons name="paper-plane-outline" size={16} color="#3B82F6" />
             </View>
             <Text style={styles.metricLabel}>Processing</Text>
-            <Text style={styles.metricValue}>{processingCount || 1}</Text>
+            <Text style={styles.metricValue}>{processingCount}</Text>
             <Text style={styles.metricSub}>Sending now</Text>
           </View>
         </View>
@@ -348,15 +409,32 @@ export default function BroadcastCampaignsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Create Campaign CTA Button */}
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={styles.createButtonText}>Create</Text>
-        </TouchableOpacity>
+        {/* Create Campaign & Send Broadcast CTA Buttons */}
+        <View style={styles.ctaRow}>
+          <TouchableOpacity
+            style={[styles.createButton, { flex: 1, marginBottom: 0 }]}
+            onPress={() => setShowCreateModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.createButtonText}>Create</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.sendBroadcastBtn}
+            onPress={() => {
+              if (isFreeQr) {
+                setShowQuickBroadcastModal(true);
+              } else {
+                setShowCreateModal(true);
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="paper-plane-outline" size={18} color="#00B67A" style={{ marginRight: 6 }} />
+            <Text style={styles.sendBroadcastBtnText}>Send Broadcast Message</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Section Header */}
         <View style={styles.sectionHeaderRow}>
@@ -387,7 +465,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
             const audienceTarget =
               camp.stats?.totalTargeted ||
               camp.targetCount ||
-              (idx === 0 ? 1248 : idx === 1 ? 2840 : 956);
+              (Array.isArray(camp.targetAudience) ? camp.targetAudience.length : 0);
 
             let statusBg = '#FEF3C7';
             let statusTextColor = '#D97706';
@@ -410,7 +488,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
             const scheduleDisplay = formatScheduleText(camp);
             const createdDateText = camp.createdAt
               ? `Created ${new Date(camp.createdAt).getDate()} ${new Date(camp.createdAt).toLocaleString('default', { month: 'short' })} ${new Date(camp.createdAt).getFullYear()} by ${camp.user?.name || creatorName}`
-              : `Created 24 Sep 2024 by ${creatorName}`;
+              : `Created by ${creatorName}`;
 
             return (
               <View key={camp._id || camp.id || idx} style={styles.campaignCard}>
@@ -668,7 +746,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   {audienceType === 'ALL' && (
                     <View style={styles.availableBanner}>
                       <Text style={styles.availableCount}>
-                        {Number(contactsCount > 0 ? contactsCount : 3842).toLocaleString()}{' '}
+                        {Number(contactsCount).toLocaleString()}{' '}
                         <Text style={styles.availableText}>available contacts</Text>
                       </Text>
                     </View>
@@ -856,20 +934,39 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               </View>
             )}
 
-            {/* ================= STEP 2: TEMPLATE ================= */}
+            {/* ================= STEP 2: TEMPLATE / MESSAGE ================= */}
             {currentStep === 2 && (
               <View>
                 <Text style={styles.stepSubtitleBadge}>STEP 2 OF 3</Text>
-                <Text style={styles.stepMainTitle}>Select message template</Text>
+                <Text style={styles.stepMainTitle}>
+                  {isFreeQr ? 'Write broadcast message' : 'Select message template'}
+                </Text>
                 <Text style={styles.stepDescription}>
-                  Choose an approved WhatsApp message template for this broadcast.
+                  {isFreeQr
+                    ? 'Write your custom WhatsApp broadcast message. Use {{name}} to personalize.'
+                    : 'Choose an approved WhatsApp message template for this broadcast.'}
                 </Text>
 
-                {templates.length === 0 ? (
+                {isFreeQr ? (
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Broadcast Message *</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textAreaInput]}
+                      placeholder="Hi {{name}}, we have an exciting update for you!"
+                      placeholderTextColor="#94A3B8"
+                      value={customMessage}
+                      onChangeText={setCustomMessage}
+                      multiline
+                      numberOfLines={5}
+                      textAlignVertical="top"
+                    />
+                    <Text style={styles.charCounter}>{customMessage.length} characters</Text>
+                  </View>
+                ) : templates.length === 0 ? (
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyTitle}>No templates available</Text>
                     <Text style={styles.emptyDesc}>
-                      Using default verified broadcast template.
+                      Create and approve a template first to send a Meta Cloud broadcast.
                     </Text>
                   </View>
                 ) : (
@@ -926,9 +1023,11 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                   </View>
                   <View style={styles.reviewDivider} />
                   <View style={styles.reviewRow}>
-                    <Text style={styles.reviewLabel}>Template</Text>
-                    <Text style={styles.reviewValue}>
-                      {selectedTemplate?.name || 'admission_welcome_v1'}
+                    <Text style={styles.reviewLabel}>{isFreeQr ? 'Message' : 'Template'}</Text>
+                    <Text style={styles.reviewValue} numberOfLines={2}>
+                      {isFreeQr
+                        ? (customMessage.trim() || 'Broadcast Message')
+                        : (selectedTemplate?.name || 'Broadcast Message')}
                     </Text>
                   </View>
                 </View>
@@ -1093,6 +1192,59 @@ export default function BroadcastCampaignsScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      {/* Quick Broadcast Modal (Free QR) */}
+      <Modal
+        visible={showQuickBroadcastModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !sendingQuickBroadcast && setShowQuickBroadcastModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.quickBroadcastSheet}>
+            <View style={styles.quickBroadcastHeader}>
+              <Text style={styles.optionsSheetTitle}>Send Broadcast Message</Text>
+              <TouchableOpacity
+                onPress={() => !sendingQuickBroadcast && setShowQuickBroadcastModal(false)}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.quickBroadcastSub}>
+              Sending to {contactsCount} contact{contactsCount === 1 ? '' : 's'} via connected WhatsApp Web
+            </Text>
+            <TextInput
+              style={[styles.textInput, styles.textAreaInput]}
+              placeholder="Hi {{name}}, write your broadcast message here..."
+              placeholderTextColor="#94A3B8"
+              value={quickBroadcastMsg}
+              onChangeText={setQuickBroadcastMsg}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[
+                styles.createButton,
+                { marginTop: 14, marginBottom: 0 },
+                sendingQuickBroadcast && { opacity: 0.7 },
+              ]}
+              onPress={handleSendQuickBroadcast}
+              disabled={sendingQuickBroadcast}
+              activeOpacity={0.85}
+            >
+              {sendingQuickBroadcast ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.createButtonText}>Send Broadcast Message</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
@@ -1217,6 +1369,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  sendBroadcastBtn: {
+    flex: 1.5,
+    backgroundColor: '#EDF9F2',
+    borderWidth: 1,
+    borderColor: '#00B67A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+  },
+  sendBroadcastBtnText: {
+    color: '#00875A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  textAreaInput: {
+    minHeight: 110,
+    paddingTop: 12,
+  },
+  quickBroadcastSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 34,
+  },
+  quickBroadcastHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickBroadcastSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 12,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
