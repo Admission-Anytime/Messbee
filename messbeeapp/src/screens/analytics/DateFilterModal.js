@@ -10,6 +10,29 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
+export const getDateRangeFromPreset = (preset = '30d', customFrom = '', customTo = '') => {
+  if (customFrom && customTo) {
+    return { startDate: customFrom.trim(), endDate: customTo.trim() };
+  }
+  const now = new Date();
+  const end = now.toISOString().split('T')[0];
+  const start = new Date(now);
+  if (preset === 'today') {
+    return { startDate: end, endDate: end };
+  }
+  if (preset === 'yesterday') {
+    start.setDate(start.getDate() - 1);
+    const yest = start.toISOString().split('T')[0];
+    return { startDate: yest, endDate: yest };
+  }
+  if (preset === '7d') {
+    start.setDate(start.getDate() - 7);
+    return { startDate: start.toISOString().split('T')[0], endDate: end };
+  }
+  start.setDate(start.getDate() - 30);
+  return { startDate: start.toISOString().split('T')[0], endDate: end };
+};
+
 export default function DateFilterModal({
   visible,
   onClose,

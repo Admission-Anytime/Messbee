@@ -268,7 +268,10 @@ export default function QuickRepliesScreen({ navigation }) {
                     >
                       <Ionicons name="trash-outline" size={17} color="#EF4444" />
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionIconBtn}>
+                    <TouchableOpacity
+                      style={styles.actionIconBtn}
+                      onPress={() => setPreviewReply(reply)}
+                    >
                       <Ionicons name="ellipsis-horizontal" size={17} color="#94A3B8" />
                     </TouchableOpacity>
                   </View>

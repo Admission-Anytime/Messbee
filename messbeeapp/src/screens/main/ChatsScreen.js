@@ -39,13 +39,24 @@ export default function ChatsScreen({ navigation }) {
         contactService.getContacts({ limit: 100 }).catch(() => []),
       ]);
 
+      const contactNameMap = {};
       if (Array.isArray(contactsData)) {
         setSuggestedContacts(contactsData);
+        contactsData.forEach((c) => {
+          const digits = String(c.whatsapp || c.phone || c.phoneNumber || '').replace(/\D/g, '').slice(-10);
+          if (digits.length === 10 && c.name) {
+            contactNameMap[digits] = c.name;
+          }
+        });
       }
 
       if (Array.isArray(chatsData)) {
         const mapped = chatsData.map((item, idx) => {
-          const rawName = item.name || item.whatsappId || item.phone || `Contact ${idx + 1}`;
+          const phoneDigits = String(item.phone || item.whatsappId || '').replace(/\D/g, '').slice(-10);
+          const savedName = phoneDigits.length === 10 ? contactNameMap[phoneDigits] : null;
+          const baseName = item.name || item.whatsappId || item.phone || `Contact ${idx + 1}`;
+          const isPhoneOnly = /^[0-9+\s-]+$/.test(baseName.trim());
+          const rawName = isPhoneOnly && savedName ? savedName : baseName;
           const isPhone = /^[0-9+]+$/.test(rawName.trim());
           const initials = isPhone ? rawName.slice(0, 2) : rawName.slice(0, 2).toUpperCase();
           const colors = [

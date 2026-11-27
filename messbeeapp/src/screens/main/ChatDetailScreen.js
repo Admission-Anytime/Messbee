@@ -17,7 +17,10 @@ import {
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { chatService, quickReplyService } from '../../services/api';
+import { io } from 'socket.io-client';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService, mediaService } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
@@ -25,12 +28,21 @@ export default function ChatDetailScreen({ route, navigation }) {
 
   const [messages, setMessages] = useState([]);
   const [quickReplies, setQuickReplies] = useState([]);
+  const [templateMap, setTemplateMap] = useState({});
   const [loading, setLoading] = useState(true);
 
   const [inputText, setInputText] = useState('');
   const [currentStatus, setCurrentStatus] = useState(chat.status || 'Open');
   const [showActionsSheet, setShowActionsSheet] = useState(false);
   const [showStatusSheet, setShowStatusSheet] = useState(false);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [mediaTab, setMediaTab] = useState('recent');
+  const [mediaAssets, setMediaAssets] = useState([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
+  const [uploadingMedia, setUploadingMedia] = useState(false);
+  const [selectedMedia, setSelectedMedia] = useState(null);
+  const [mediaCaption, setMediaCaption] = useState('');
+  const [mediaSearch, setMediaSearch] = useState('');
   const [showClearModal, setShowClearModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
@@ -64,9 +76,13 @@ export default function ChatDetailScreen({ route, navigation }) {
             : m.error || m.text || 'Tap Retry to send an approved WhatsApp template.',
           text: m.text || m.body || m.message || '',
           time: m.time || (m.createdAt ? new Date(m.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+          createdAt: m.createdAt || null,
           sender: m.sender === 'me' || m.sender === 'user' || m.fromMe ? 'me' : 'customer',
-          status: m.status || 'delivered',
+          status: m.status || 'sent',
           templateTag: m.templateName || m.template?.name,
+          mediaUrl: resolveFileUrl(m.mediaUrl),
+          mediaType: m.mediaType || null,
+          fileName: m.fileName || null,
         };
       });
 
@@ -117,12 +133,39 @@ export default function ChatDetailScreen({ route, navigation }) {
         }
 
         if (isInitial && isMounted) {
-          const liveQuickReplies = await quickReplyService.getQuickReplies().catch(() => []);
+          const [liveQuickReplies, liveTemplates] = await Promise.all([
+            quickReplyService.getQuickReplies().catch(() => []),
+            templateService.getTemplates().catch(() => []),
+          ]);
           if (isMounted) {
             if (Array.isArray(liveQuickReplies) && liveQuickReplies.length > 0) {
               setQuickReplies(liveQuickReplies.map((qr) => qr.message || qr.body || qr.title || qr.shortcut || ''));
             } else {
               setQuickReplies(['I see. Tell me more.', 'Could you clarify that?', "I'll look into this right away."]);
+            }
+            if (Array.isArray(liveTemplates) && liveTemplates.length > 0) {
+              const tMap = {};
+              liveTemplates.forEach((tpl) => {
+                const headerComp = tpl.components?.find((c) => String(c.type).toUpperCase() === 'HEADER') || {};
+                const footerComp = tpl.components?.find((c) => String(c.type).toUpperCase() === 'FOOTER') || {};
+                const rawMedia =
+                  headerComp.headerMediaUrlPreview ||
+                  headerComp.headerMediaUrl ||
+                  tpl.headerMediaUrlPreview ||
+                  tpl.headerMediaUrl ||
+                  (Array.isArray(headerComp.example?.header_handle) && /^https?:\/\//i.test(String(headerComp.example.header_handle[0] || ''))
+                    ? headerComp.example.header_handle[0]
+                    : '');
+                const info = {
+                  mediaUrl: resolveFileUrl(rawMedia),
+                  headerType: headerComp.format || tpl.headerType || '',
+                  headerText: headerComp.text || tpl.headerText || '',
+                  footerText: footerComp.text || tpl.footerText || '',
+                };
+                if (tpl.name) tMap[String(tpl.name).toLowerCase()] = info;
+                if (tpl.whatsappTemplateName) tMap[String(tpl.whatsappTemplateName).toLowerCase()] = info;
+              });
+              setTemplateMap(tMap);
             }
           }
         }
@@ -140,6 +183,106 @@ export default function ChatDetailScreen({ route, navigation }) {
       clearInterval(pollInterval);
     };
   }, [activeChatId]);
+
+  // Real-time Socket.IO listener for incoming messages & live read/delivery ticks
+  useEffect(() => {
+    if (!activeChatId) return;
+    let socket;
+    try {
+      socket = io(getSocketUrl(), {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      });
+
+      socket.on('connect', () => {
+        socket.emit('join_chat', activeChatId);
+      });
+
+      socket.on('message_status_update', (payload) => {
+        if (!payload || String(payload.chatId) !== String(activeChatId)) return;
+        setMessages((prev) =>
+          prev.map((m) =>
+            String(m.id) === String(payload.messageId)
+              ? {
+                  ...m,
+                  status: payload.status || m.status,
+                  type: payload.status === 'failed' ? 'error' : m.type,
+                  subtitle: payload.error || m.subtitle,
+                }
+              : m
+          )
+        );
+      });
+
+      const handleIncomingSocketMsg = (payload) => {
+        const msg = payload?.message || payload;
+        const msgChatId = payload?.chatId || msg?.chatId;
+        if (!msg || String(msgChatId) !== String(activeChatId)) return;
+        const mappedId = String(msg._id || msg.id || '');
+        if (!mappedId) return;
+
+        setMessages((prev) => {
+          if (prev.some((m) => String(m.id) === mappedId)) return prev;
+          return [
+            ...prev,
+            {
+              id: mappedId,
+              type: msg.status === 'failed' ? 'error' : (msg.messageType === 'template' || msg.template ? 'template' : 'text'),
+              text: msg.text || msg.body || msg.message || '',
+              time: msg.time || (msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''),
+              createdAt: msg.createdAt || new Date().toISOString(),
+              sender: msg.sender === 'me' || msg.sender === 'user' || msg.fromMe ? 'me' : 'customer',
+              status: msg.status || 'sent',
+              templateTag: msg.templateName || msg.template?.name,
+              mediaUrl: resolveFileUrl(msg.mediaUrl),
+              mediaType: msg.mediaType || null,
+              fileName: msg.fileName || null,
+            },
+          ];
+        });
+      };
+
+      socket.on('receive_message', handleIncomingSocketMsg);
+      socket.on('message_sent', handleIncomingSocketMsg);
+    } catch (e) {}
+
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, [activeChatId]);
+
+  const customerPresence = React.useMemo(() => {
+    const incoming = [...messages].reverse().find((m) => m.sender === 'customer' && m.createdAt);
+    const refTs = incoming?.createdAt || chat?.lastActivity || chat?.updatedAt;
+    if (!refTs) return { label: 'WhatsApp', active: false };
+    const diffMs = Date.now() - new Date(refTs).getTime();
+    if (diffMs <= 5 * 60 * 1000) return { label: 'Active now • WhatsApp', active: true };
+    if (diffMs <= 24 * 60 * 60 * 1000) {
+      const t = new Date(refTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return { label: `Active (24h window) • ${t}`, active: true };
+    }
+    const d = new Date(refTs).toLocaleDateString([], { day: '2-digit', month: 'short' });
+    return { label: `Last active ${d} • WhatsApp`, active: false };
+  }, [messages, chat?.lastActivity, chat?.updatedAt]);
+
+  const renderStatusTicks = (status) => {
+    const st = String(status || 'sent').toLowerCase();
+    if (st === 'read') {
+      return (
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 4 }}>
+          <Ionicons name="checkmark-done" size={14} color="#3B82F6" />
+          <Text style={{ fontSize: 9.5, color: '#3B82F6', fontWeight: '700', marginLeft: 2 }}>Seen</Text>
+        </View>
+      );
+    }
+    if (st === 'delivered') {
+      return <Ionicons name="checkmark-done" size={14} color="#64748B" style={{ marginLeft: 4 }} />;
+    }
+    if (st === 'failed') {
+      return <Ionicons name="alert-circle" size={13} color="#EF4444" style={{ marginLeft: 4 }} />;
+    }
+    return <Ionicons name="checkmark" size={14} color="#64748B" style={{ marginLeft: 4 }} />;
+  };
 
   // Handle status update from UpdateLeadStatusModal
   useEffect(() => {
@@ -227,6 +370,206 @@ export default function ChatDetailScreen({ route, navigation }) {
         );
       } else {
         Alert.alert('Message Not Sent', errMsg);
+      }
+    }
+  };
+
+  // ==================== MEDIA ATTACHMENT & UPLOAD (Web-Matching) ====================
+  const openMediaModal = async () => {
+    setShowMediaModal(true);
+    setMediaCaption('');
+    setMediaSearch('');
+    setLoadingMedia(true);
+    try {
+      const list = await mediaService.getMedia();
+      const mapped = (Array.isArray(list) ? list : []).map((a) => ({
+        id: a._id || a.id,
+        name: a.name || a.filename || 'Media Asset',
+        size: a.size || '',
+        type:
+          a.type === 'IMAGE' || a.type === 'image'
+            ? 'image'
+            : a.type === 'VIDEO' || a.type === 'video'
+            ? 'video'
+            : a.type === 'AUDIO' || a.type === 'audio'
+            ? 'audio'
+            : 'document',
+        url: resolveFileUrl(a.url),
+        whatsappMediaId: a.whatsappMediaId || null,
+      }));
+      setMediaAssets(mapped);
+      if (mapped.length > 0 && !selectedMedia) {
+        setSelectedMedia(mapped[0]);
+      }
+    } catch (err) {
+      console.warn('openMediaModal fetch error:', err.message);
+    } finally {
+      setLoadingMedia(false);
+    }
+  };
+
+  const uploadPickedAsset = async (asset, fallbackType = 'image') => {
+    if (!asset?.uri) return;
+    setUploadingMedia(true);
+    try {
+      const res = await chatService.uploadFile(asset);
+      if (res?.success) {
+        const mime = res.mimeType || asset.mimeType || '';
+        const detectedType = mime.startsWith('image/')
+          ? 'image'
+          : mime.startsWith('video/')
+          ? 'video'
+          : mime.startsWith('audio/')
+          ? 'audio'
+          : fallbackType;
+        const newAsset = {
+          id: res.mediaId || `media_${Date.now()}`,
+          name: res.fileName || asset.fileName || asset.name || 'Uploaded File',
+          size: res.size || '',
+          type: detectedType,
+          url: resolveFileUrl(res.fileUrl),
+          whatsappMediaId: res.whatsappMediaId || null,
+        };
+        setMediaAssets((prev) => [newAsset, ...prev]);
+        setSelectedMedia(newAsset);
+        if (mediaTab !== 'recent') {
+          setMediaTab(detectedType);
+        }
+      } else {
+        Alert.alert('Upload Failed', res?.error || 'Could not upload file to WhatsApp.');
+      }
+    } catch (err) {
+      const errMsg = err?.response?.data?.error || err?.response?.data?.details || err.message || 'Upload failed.';
+      Alert.alert('Upload Error', errMsg);
+    } finally {
+      setUploadingMedia(false);
+    }
+  };
+
+  const handlePickImageOrVideo = async (fromCamera = false) => {
+    try {
+      if (fromCamera) {
+        const perm = await ImagePicker.requestCameraPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission Required', 'Camera permission is needed to take a photo.');
+          return;
+        }
+        const res = await ImagePicker.launchCameraAsync({
+          mediaTypes: ['images', 'videos'],
+          quality: 0.85,
+        });
+        if (!res.canceled && res.assets?.[0]) {
+          const a = res.assets[0];
+          await uploadPickedAsset(a, a.type === 'video' ? 'video' : 'image');
+        }
+      } else {
+        const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (!perm.granted) {
+          Alert.alert('Permission Required', 'Gallery permission is needed to pick photos or videos.');
+          return;
+        }
+        const res = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ['images', 'videos'],
+          quality: 0.85,
+        });
+        if (!res.canceled && res.assets?.[0]) {
+          const a = res.assets[0];
+          await uploadPickedAsset(a, a.type === 'video' ? 'video' : 'image');
+        }
+      }
+    } catch (err) {
+      Alert.alert('Picker Error', err.message || 'Could not open media picker.');
+    }
+  };
+
+  const handlePickDocument = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'audio/*', '*/*'],
+        copyToCacheDirectory: true,
+      });
+      if (!res.canceled && res.assets?.[0]) {
+        const a = res.assets[0];
+        const mime = a.mimeType || '';
+        const fallback = mime.startsWith('audio/') ? 'audio' : mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : 'document';
+        await uploadPickedAsset(a, fallback);
+      }
+    } catch (err) {
+      Alert.alert('Document Error', err.message || 'Could not pick document.');
+    }
+  };
+
+  const handleSendSelectedMedia = async () => {
+    if (!selectedMedia) {
+      Alert.alert('No Media Selected', 'Please upload or select a media asset first.');
+      return;
+    }
+    const caption = mediaCaption.trim();
+    const mediaToSend = selectedMedia;
+    setShowMediaModal(false);
+    setMediaCaption('');
+
+    const optimisticMsg = {
+      id: `msg_media_${Date.now()}`,
+      type: 'text',
+      text: caption,
+      mediaUrl: mediaToSend.url,
+      mediaType: mediaToSend.type,
+      fileName: mediaToSend.name,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      sender: 'me',
+      status: 'sent',
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      let targetId = activeChatId || chat._id;
+      if (!targetId && (chat.phone || chat.whatsappId || chat.whatsapp)) {
+        const resolved = await chatService.createChat({
+          name: chat.name,
+          phone: chat.phone || chat.whatsappId || chat.whatsapp,
+        });
+        if (resolved?._id) {
+          targetId = resolved._id;
+          setActiveChatId(resolved._id);
+        }
+      }
+      if (targetId) {
+        await chatService.sendMediaMessage({
+          chatId: targetId,
+          text: caption,
+          sender: 'me',
+          media: {
+            id: mediaToSend.id,
+            whatsappMediaId: mediaToSend.whatsappMediaId,
+            url: mediaToSend.url,
+            name: mediaToSend.name,
+            type: mediaToSend.type,
+          },
+          mediaType: mediaToSend.type,
+        });
+      }
+    } catch (err) {
+      const errData = err?.response?.data;
+      const errMsg = errData?.error || errData?.message || err.message || 'Failed to send media.';
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      if (errData?.errorCode === 131047) {
+        Alert.alert(
+          '24-Hour Window Expired',
+          'For new contacts or chats older than 24 hours, WhatsApp requires an approved Template message first.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Send Template',
+              onPress: () =>
+                navigation.navigate('TemplateSelection', {
+                  contact: { ...chat, _id: activeChatId || chat._id },
+                }),
+            },
+          ]
+        );
+      } else {
+        Alert.alert('Media Not Sent', errMsg);
       }
     }
   };
@@ -339,46 +682,114 @@ export default function ChatDetailScreen({ route, navigation }) {
 
     // 2. Template Message Card
     if (item.type === 'template') {
+      const tplKey = String(item.templateTag || '').toLowerCase();
+      const tplInfo = tplKey ? templateMap[tplKey] : null;
+      const effectiveMediaUrl = item.mediaUrl || tplInfo?.mediaUrl || null;
+      const effectiveMediaType = item.mediaType || (tplInfo?.headerType ? String(tplInfo.headerType).toLowerCase() : null);
+
       return (
         <View style={styles.templateBubbleWrapper}>
           <View style={styles.templateBubbleCard}>
-            {/* Banner Graphic */}
-            <View style={styles.templateBanner}>
-              <View style={styles.bannerDecorCircle} />
-              <Text style={styles.bannerTagText}>ADMISSIONS</Text>
-              <Text style={styles.bannerHeadingText}>{item.bannerText || 'Build your future.'}</Text>
-            </View>
+            {effectiveMediaUrl && (!effectiveMediaType || effectiveMediaType === 'image') ? (
+              <Image
+                source={{ uri: effectiveMediaUrl }}
+                style={{
+                  width: '100%',
+                  height: 175,
+                  borderRadius: 10,
+                  marginBottom: 8,
+                  backgroundColor: '#F1F5F9',
+                }}
+                resizeMode="cover"
+              />
+            ) : effectiveMediaUrl ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 10, borderRadius: 10, marginBottom: 8 }}>
+                <Ionicons name="document-attach-outline" size={18} color="#00875A" style={{ marginRight: 8 }} />
+                <Text style={{ fontSize: 12, fontWeight: '600', color: '#0F172A', flex: 1 }} numberOfLines={1}>
+                  {item.fileName || 'Attached Media'}
+                </Text>
+              </View>
+            ) : null}
 
             {/* Template Header Badge */}
             <View style={styles.templateMetaRow}>
               <Ionicons name="document-text-outline" size={12} color="#00875A" style={{ marginRight: 4 }} />
-              <Text style={styles.templateNameTag}>{item.templateTag || 'ADMISSION_WELCOME_V1'}</Text>
+              <Text style={styles.templateNameTag}>{item.templateTag || 'WhatsApp Template'}</Text>
             </View>
+
+            {tplInfo?.headerText ? (
+              <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#0F172A', marginBottom: 4 }}>
+                {tplInfo.headerText}
+              </Text>
+            ) : null}
 
             {/* Template Body */}
             <Text style={styles.templateBodyText}>{item.text}</Text>
 
-            {/* Footer with Time and Double Tick */}
+            {tplInfo?.footerText ? (
+              <Text style={{ fontSize: 11, color: '#64748B', marginTop: 4 }}>
+                {tplInfo.footerText}
+              </Text>
+            ) : null}
+
+            {/* Footer with Time and Status Ticks */}
             <View style={styles.bubbleFooter}>
               <Text style={styles.bubbleTime}>{item.time}</Text>
-              <Ionicons name="checkmark-done" size={14} color="#00B67A" style={{ marginLeft: 4 }} />
+              {renderStatusTicks(item.status)}
             </View>
           </View>
         </View>
       );
     }
 
-    // 3. Regular Text Bubble
+    // 3. Regular Text & Media Bubble
     const isMe = item.sender === 'me';
+    const mediaTypeLower = String(item.mediaType || '').toLowerCase();
     return (
       <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowThem]}>
         <View style={[styles.bubbleBox, isMe ? styles.bubbleBoxMe : styles.bubbleBoxThem]}>
-          <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
-            {item.text}
-          </Text>
+          {item.mediaUrl && (!mediaTypeLower || mediaTypeLower === 'image' || mediaTypeLower.startsWith('image/')) ? (
+            <Image
+              source={{ uri: item.mediaUrl }}
+              style={{
+                width: 210,
+                height: 150,
+                borderRadius: 10,
+                marginBottom: item.text ? 6 : 2,
+                backgroundColor: '#F1F5F9',
+              }}
+              resizeMode="cover"
+            />
+          ) : item.mediaUrl && (mediaTypeLower === 'video' || mediaTypeLower.startsWith('video/')) ? (
+            <View style={styles.mediaFileBubble}>
+              <Ionicons name="videocam" size={20} color="#00875A" style={{ marginRight: 8 }} />
+              <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
+                {item.fileName || 'Video Attachment'}
+              </Text>
+            </View>
+          ) : item.mediaUrl && (mediaTypeLower === 'audio' || mediaTypeLower.startsWith('audio/')) ? (
+            <View style={styles.mediaFileBubble}>
+              <Ionicons name="musical-notes" size={20} color="#00875A" style={{ marginRight: 8 }} />
+              <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
+                {item.fileName || 'Audio Message'}
+              </Text>
+            </View>
+          ) : item.mediaUrl ? (
+            <View style={styles.mediaFileBubble}>
+              <Ionicons name="document-text" size={20} color="#00875A" style={{ marginRight: 8 }} />
+              <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
+                {item.fileName || 'Document Attachment'}
+              </Text>
+            </View>
+          ) : null}
+          {!!item.text && (
+            <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
+              {item.text}
+            </Text>
+          )}
           <View style={styles.bubbleFooter}>
             <Text style={styles.bubbleTime}>{item.time}</Text>
-            {isMe && <Ionicons name="checkmark-done" size={14} color="#00B67A" style={{ marginLeft: 4 }} />}
+            {isMe && renderStatusTicks(item.status)}
           </View>
         </View>
       </View>
@@ -415,8 +826,8 @@ export default function ChatDetailScreen({ route, navigation }) {
               {isPinned && <Ionicons name="pin" size={13} color="#D97706" style={{ marginLeft: 5 }} />}
             </View>
             <View style={styles.headerSubtitleRow}>
-              <View style={styles.directDot} />
-              <Text style={styles.headerSubtitleText}>Direct • WhatsApp</Text>
+              <View style={[styles.directDot, !customerPresence.active && { backgroundColor: '#94A3B8' }]} />
+              <Text style={styles.headerSubtitleText}>{customerPresence.label}</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -444,8 +855,8 @@ export default function ChatDetailScreen({ route, navigation }) {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 24}
       >
         <FlatList
           ref={flatListRef}
@@ -455,6 +866,7 @@ export default function ChatDetailScreen({ route, navigation }) {
           renderItem={renderMessageItem}
           contentContainerStyle={styles.messagesList}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           ListFooterComponent={
             <>
               {/* If Chat is Archived, Show Top Banner (Image 1 Screen 3) */}
@@ -530,7 +942,11 @@ export default function ChatDetailScreen({ route, navigation }) {
         {/* Bottom Input Composer */}
         <View style={styles.composerBar}>
           {/* Attachment Paperclip */}
-          <TouchableOpacity style={styles.composerIconBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            style={styles.composerIconBtn}
+            onPress={openMediaModal}
+            activeOpacity={0.7}
+          >
             <Ionicons name="attach" size={22} color="#64748B" />
           </TouchableOpacity>
 
@@ -910,6 +1326,197 @@ export default function ChatDetailScreen({ route, navigation }) {
             <TouchableOpacity style={styles.failureLink} activeOpacity={0.7}>
               <Text style={styles.failureLinkText}>Preview failure state</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= MEDIA LIBRARY & UPLOAD MODAL (Web-Matching) ================= */}
+      <Modal
+        visible={showMediaModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowMediaModal(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.mediaModalCard}>
+            <View style={styles.sheetHandle} />
+
+            {/* Modal Header */}
+            <View style={styles.mediaModalHeader}>
+              <View>
+                <Text style={styles.mediaModalTitle}>Attach Media</Text>
+                <Text style={styles.mediaModalSubtitle}>Upload new or pick from Media Gallery</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowMediaModal(false)}
+                style={styles.mediaCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Upload Quick Actions (Gallery, Camera, Document/Audio) */}
+            <View style={styles.uploadActionRow}>
+              <TouchableOpacity
+                style={[styles.uploadActionBtn, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}
+                onPress={() => handlePickImageOrVideo(false)}
+                disabled={uploadingMedia}
+              >
+                <Ionicons name="images-outline" size={18} color="#00875A" />
+                <Text style={[styles.uploadActionText, { color: '#00875A' }]}>Photo / Video</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.uploadActionBtn, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}
+                onPress={() => handlePickImageOrVideo(true)}
+                disabled={uploadingMedia}
+              >
+                <Ionicons name="camera-outline" size={18} color="#2563EB" />
+                <Text style={[styles.uploadActionText, { color: '#2563EB' }]}>Camera</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.uploadActionBtn, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A' }]}
+                onPress={handlePickDocument}
+                disabled={uploadingMedia}
+              >
+                <Ionicons name="document-attach-outline" size={18} color="#D97706" />
+                <Text style={[styles.uploadActionText, { color: '#D97706' }]}>Doc / Audio</Text>
+              </TouchableOpacity>
+            </View>
+
+            {uploadingMedia && (
+              <View style={styles.uploadingBanner}>
+                <ActivityIndicator size="small" color="#00875A" />
+                <Text style={styles.uploadingBannerText}>Uploading to WhatsApp & Media Gallery...</Text>
+              </View>
+            )}
+
+            {/* Search + Category Filter Tabs */}
+            <View style={styles.mediaSearchBox}>
+              <Ionicons name="search" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.mediaSearchInput}
+                placeholder="Search media assets..."
+                placeholderTextColor="#94A3B8"
+                value={mediaSearch}
+                onChangeText={setMediaSearch}
+              />
+            </View>
+
+            <View style={styles.mediaTabsRow}>
+              {[
+                { id: 'recent', label: 'Recent' },
+                { id: 'image', label: 'Images' },
+                { id: 'video', label: 'Videos' },
+                { id: 'audio', label: 'Audio' },
+                { id: 'document', label: 'Docs' },
+              ].map((tab) => {
+                const active = mediaTab === tab.id;
+                return (
+                  <TouchableOpacity
+                    key={tab.id}
+                    style={[styles.mediaTabPill, active && styles.mediaTabPillActive]}
+                    onPress={() => setMediaTab(tab.id)}
+                  >
+                    <Text style={[styles.mediaTabText, active && styles.mediaTabTextActive]}>
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Gallery Grid */}
+            <View style={{ flex: 1, minHeight: 170 }}>
+              {loadingMedia ? (
+                <View style={styles.mediaEmptyBox}>
+                  <ActivityIndicator size="small" color="#00875A" />
+                  <Text style={styles.mediaEmptyText}>Loading Media Gallery...</Text>
+                </View>
+              ) : (
+                <FlatList
+                  data={mediaAssets.filter((m) => {
+                    const matchTab = mediaTab === 'recent' || m.type === mediaTab;
+                    const matchSearch =
+                      !mediaSearch.trim() ||
+                      (m.name || '').toLowerCase().includes(mediaSearch.toLowerCase());
+                    return matchTab && matchSearch;
+                  })}
+                  keyExtractor={(item, index) => String(item.id || index)}
+                  numColumns={2}
+                  columnWrapperStyle={{ gap: 10 }}
+                  contentContainerStyle={{ paddingBottom: 10, gap: 10 }}
+                  ListEmptyComponent={
+                    <View style={styles.mediaEmptyBox}>
+                      <Ionicons name="folder-open-outline" size={32} color="#CBD5E1" />
+                      <Text style={styles.mediaEmptyText}>No media found. Upload a file above!</Text>
+                    </View>
+                  }
+                  renderItem={({ item }) => {
+                    const isSelected = selectedMedia?.id === item.id;
+                    return (
+                      <TouchableOpacity
+                        style={[styles.mediaGridCard, isSelected && styles.mediaGridCardActive]}
+                        onPress={() => setSelectedMedia(item)}
+                        activeOpacity={0.8}
+                      >
+                        <View style={styles.mediaThumbBox}>
+                          {item.type === 'image' && item.url ? (
+                            <Image source={{ uri: item.url }} style={styles.mediaThumbImg} resizeMode="cover" />
+                          ) : (
+                            <Ionicons
+                              name={
+                                item.type === 'video'
+                                  ? 'videocam-outline'
+                                  : item.type === 'audio'
+                                  ? 'musical-notes-outline'
+                                  : 'document-text-outline'
+                              }
+                              size={28}
+                              color="#00875A"
+                            />
+                          )}
+                          {isSelected && (
+                            <View style={styles.mediaSelectedCheck}>
+                              <Ionicons name="checkmark-circle" size={20} color="#00B67A" />
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.mediaGridName} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        {!!item.size && (
+                          <Text style={styles.mediaGridSize}>{item.size}</Text>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  }}
+                />
+              )}
+            </View>
+
+            {/* Caption & Send Bar */}
+            <View style={styles.mediaSendBar}>
+              <TextInput
+                style={styles.mediaCaptionInput}
+                placeholder="Add a caption (optional)..."
+                placeholderTextColor="#94A3B8"
+                value={mediaCaption}
+                onChangeText={setMediaCaption}
+              />
+              <TouchableOpacity
+                style={[
+                  styles.mediaSendBtn,
+                  (!selectedMedia || uploadingMedia) && { opacity: 0.5 },
+                ]}
+                onPress={handleSendSelectedMedia}
+                disabled={!selectedMedia || uploadingMedia}
+              >
+                <Ionicons name="send" size={16} color="#FFFFFF" />
+                <Text style={styles.mediaSendBtnText}>Send</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1651,5 +2258,214 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: '#94A3B8',
     textDecorationLine: 'underline',
+  },
+  mediaFileBubble: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 4,
+    maxWidth: 220,
+  },
+  mediaFileBubbleText: {
+    fontSize: 12.5,
+    fontWeight: '600',
+    color: '#0F172A',
+    flexShrink: 1,
+  },
+  mediaModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 18,
+    height: '80%',
+  },
+  mediaModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  mediaModalTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+  },
+  mediaModalSubtitle: {
+    fontSize: 11.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  mediaCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F1F5F9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  uploadActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  uploadActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  uploadActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  uploadingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  uploadingBannerText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  mediaSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 40,
+    marginBottom: 10,
+  },
+  mediaSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  mediaTabsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 12,
+  },
+  mediaTabPill: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+  },
+  mediaTabPillActive: {
+    backgroundColor: '#DCFCE7',
+  },
+  mediaTabText: {
+    fontSize: 11.5,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  mediaTabTextActive: {
+    color: '#00875A',
+    fontWeight: '700',
+  },
+  mediaEmptyBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 36,
+    gap: 8,
+  },
+  mediaEmptyText: {
+    fontSize: 12.5,
+    color: '#94A3B8',
+    fontWeight: '500',
+  },
+  mediaGridCard: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 14,
+    padding: 8,
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+  },
+  mediaGridCardActive: {
+    borderColor: '#00B67A',
+    backgroundColor: '#ECFDF5',
+  },
+  mediaThumbBox: {
+    height: 86,
+    borderRadius: 10,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+    marginBottom: 6,
+    position: 'relative',
+  },
+  mediaThumbImg: {
+    width: '100%',
+    height: '100%',
+  },
+  mediaSelectedCheck: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+  },
+  mediaGridName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0F172A',
+  },
+  mediaGridSize: {
+    fontSize: 10.5,
+    color: '#64748B',
+    marginTop: 1,
+  },
+  mediaSendBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+  },
+  mediaCaptionInput: {
+    flex: 1,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 42,
+    fontSize: 13,
+    color: '#0F172A',
+  },
+  mediaSendBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#00875A',
+    paddingHorizontal: 16,
+    height: 42,
+    borderRadius: 12,
+  },
+  mediaSendBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13.5,
+    fontWeight: '700',
   },
 });

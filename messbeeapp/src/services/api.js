@@ -44,6 +44,8 @@ export const setServerEnvironment = async (env) => {
 
 export const getServerEnvironment = () => currentEnv;
 
+export const getSocketUrl = () => BASE_URL.replace(/\/api\/?$/, '');
+
 export const resolveFileUrl = (url, excludePlaceholder = false) => {
   if (!url || typeof url !== 'string') return null;
   const trimmed = url.trim();
@@ -411,6 +413,42 @@ export const chatService = {
     return response.data?.data || response.data;
   },
 
+  uploadFile: async (asset) => {
+    const formData = new FormData();
+    const uri = asset.uri;
+    const filename = asset.fileName || asset.name || uri.split('/').pop() || `file_${Date.now()}`;
+    const match = /\.(\w+)$/.exec(filename);
+    const ext = match ? match[1].toLowerCase() : '';
+    let fallbackMime = 'application/octet-stream';
+    if (['jpg', 'jpeg'].includes(ext)) fallbackMime = 'image/jpeg';
+    else if (ext === 'png') fallbackMime = 'image/png';
+    else if (ext === 'webp') fallbackMime = 'image/webp';
+    else if (ext === 'mp4') fallbackMime = 'video/mp4';
+    else if (ext === 'mp3') fallbackMime = 'audio/mpeg';
+    else if (ext === 'pdf') fallbackMime = 'application/pdf';
+
+    const type = asset.mimeType || fallbackMime;
+    formData.append('file', { uri, name: filename, type });
+    const response = await api.post('/chats/upload-file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000,
+    });
+    return response.data;
+  },
+
+  sendMediaMessage: async ({ chatId, text = '', sender = 'me', time, media, mediaType }) => {
+    const msgTime = time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const response = await api.post('/chats/message', {
+      chatId,
+      text,
+      sender,
+      time: msgTime,
+      media,
+      mediaType,
+    });
+    return response.data?.data || response.data;
+  },
+
   markAsRead: async (chatId) => {
     try {
       const response = await api.put(`/chats/${chatId}/read`);
@@ -619,6 +657,11 @@ export const campaignService = {
     return response.data;
   },
 
+  getCampaignQueue: async (id) => {
+    const response = await api.get(`/campaigns/${id}/queue`);
+    return response.data?.data || response.data;
+  },
+
   deleteCampaign: async (id) => {
     const response = await api.delete(`/campaigns/${id}`);
     return response.data;
@@ -781,6 +824,10 @@ export const whatsappConfigService = {
   },
   registerPin: async (pin) => {
     const { data } = await api.post('/whatsapp/register', { pin });
+    return data;
+  },
+  deregisterPin: async () => {
+    const { data } = await api.post('/whatsapp/deregister');
     return data;
   },
   disconnect: async () => {

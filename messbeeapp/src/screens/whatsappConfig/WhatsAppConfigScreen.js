@@ -21,16 +21,16 @@ export default function WhatsAppConfigScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState('Active');
+  const [connectionStatus, setConnectionStatus] = useState('Checking...');
   const [lastSync, setLastSync] = useState('just now');
-  const [lastSyncTime, setLastSyncTime] = useState('Today, 10:42 AM');
+  const [lastSyncTime, setLastSyncTime] = useState('Not synced yet');
 
   const [config, setConfig] = useState({
-    businessAccountId: '102938475610293',
-    phoneNumberId: '107654321098765',
-    accessToken: 'EAAGNO4XZC5ZB8BOZBZ89vZCz029...',
-    webhookUrl: 'https://api.messbee.com/webhooks/whatsapp',
-    verifyToken: 'messbee_verify_token_2026',
+    businessAccountId: '',
+    phoneNumberId: '',
+    accessToken: '',
+    webhookUrl: 'https://webservices.messbee.com/api/whatsapp/webhook',
+    verifyToken: '',
     events: {
       messages: true,
       messageStatus: true,
@@ -84,20 +84,23 @@ export default function WhatsAppConfigScreen({ navigation, route }) {
       if (data && typeof data === 'object') {
         setConfig((prev) => ({
           ...prev,
-          businessAccountId: data.businessAccountId || prev.businessAccountId,
-          phoneNumberId: data.phoneNumberId || prev.phoneNumberId,
-          accessToken: data.accessToken || prev.accessToken,
+          businessAccountId: data.businessAccountId || '',
+          phoneNumberId: data.phoneNumberId || '',
+          accessToken: data.accessToken || '',
           webhookUrl: data.webhookUrl || prev.webhookUrl,
-          verifyToken: data.verifyToken || prev.verifyToken,
+          verifyToken: data.verifyToken || '',
           events: data.events ? { ...prev.events, ...data.events } : prev.events,
           apiVersion: data.apiVersion || prev.apiVersion,
         }));
-        if (data.phoneNumberId && data.accessToken) {
-          setConnectionStatus('Active');
-        }
+        const isConn = Boolean(data.connected || (data.phoneNumberId && data.accessToken));
+        setConnectionStatus(isConn ? 'Active' : 'Disconnected');
+        setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      } else {
+        setConnectionStatus('Disconnected');
       }
     } catch (err) {
       console.warn('Failed to load whatsapp config:', err.message);
+      setConnectionStatus('Disconnected');
     } finally {
       setLoading(false);
     }
