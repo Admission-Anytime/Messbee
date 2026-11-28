@@ -24,6 +24,16 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService, mediaService, authService, commerceService } from '../../services/api';
 
+const CHAT_WALLPAPER_KEY = 'messbee_chat_wallpaper_v1';
+
+const DEFAULT_WALLPAPERS = [
+  { id: 'solid', label: 'Clean Solid', type: 'solid', color: '#F1F5F3' },
+  { id: 'bg1', label: 'Mint Doodle', type: 'asset', source: require('../../../assets/chat_bg_1.png') },
+  { id: 'bg2', label: 'Sage Waves', type: 'asset', source: require('../../../assets/chat_bg_2.png') },
+  { id: 'bg3', label: 'Warm Sand', type: 'asset', source: require('../../../assets/chat_bg_3.jpg') },
+  { id: 'bg4', label: 'Night Slate', type: 'asset', source: require('../../../assets/chat_bg_4.png') },
+];
+
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
     route.params || {};
@@ -60,6 +70,43 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [replyingTo, setReplyingTo] = useState(null);
   const [replyMap, setReplyMap] = useState({});
   const [showAtTagMenu, setShowAtTagMenu] = useState(false);
+  const [chatWallpaper, setChatWallpaper] = useState({ id: 'bg1' });
+  const [showWallpaperModal, setShowWallpaperModal] = useState(false);
+
+  useEffect(() => {
+    AsyncStorage.getItem(CHAT_WALLPAPER_KEY)
+      .then((raw) => {
+        if (raw) setChatWallpaper(JSON.parse(raw));
+      })
+      .catch(() => {});
+  }, []);
+
+  const selectWallpaper = async (wpObj) => {
+    setChatWallpaper(wpObj);
+    try {
+      await AsyncStorage.setItem(CHAT_WALLPAPER_KEY, JSON.stringify(wpObj));
+    } catch {}
+  };
+
+  const handlePickCustomWallpaper = async () => {
+    try {
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Permission Required', 'Gallery permission is needed to choose a custom chat background.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        quality: 0.9,
+      });
+      if (!res.canceled && res.assets?.[0]?.uri) {
+        await selectWallpaper({ id: 'custom', uri: res.assets[0].uri });
+        setShowWallpaperModal(false);
+      }
+    } catch (err) {
+      Alert.alert('Error', err.message || 'Could not pick background image.');
+    }
+  };
 
   const replyStorageKey = `messbee_reply_map_${activeChatId || chat._id || 'default'}`;
 
@@ -1092,10 +1139,24 @@ export default function ChatDetailScreen({ route, navigation }) {
         behavior="padding"
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 24}
       >
+        {(() => {
+          const preset = DEFAULT_WALLPAPERS.find((w) => w.id === chatWallpaper?.id);
+          const bgSource =
+            chatWallpaper?.id === 'custom' && chatWallpaper?.uri
+              ? { uri: chatWallpaper.uri }
+              : preset?.type === 'asset'
+              ? preset.source
+              : null;
+          const Wrapper = bgSource ? ImageBackground : View;
+          const wrapperProps = bgSource
+            ? { source: bgSource, style: { flex: 1 }, resizeMode: 'cover' }
+            : { style: { flex: 1, backgroundColor: preset?.color || '#F1F5F3' } };
+          return (
+            <Wrapper {...wrapperProps}>
         <FlatList
           ref={flatListRef}
           inverted
-          style={{ flex: 1, backgroundColor: '#F1F5F3' }}
+          style={{ flex: 1, backgroundColor: 'transparent' }}
           data={[...messages].reverse()}
           keyExtractor={(item) => item.id}
           renderItem={renderMessageItem}
@@ -1151,6 +1212,9 @@ export default function ChatDetailScreen({ route, navigation }) {
             )
           }
         />
+            </Wrapper>
+          );
+        })()}
 
         {/* Quick Reply Suggestion Pills */}
         {quickReplies.length > 0 && (
@@ -1343,6 +1407,19 @@ export default function ChatDetailScreen({ route, navigation }) {
               <Ionicons name="swap-horizontal-outline" size={20} color="#00875A" style={styles.actionIcon} />
               <Text style={[styles.actionLabel, { flex: 1 }]}>Change Status</Text>
               <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+            </TouchableOpacity>
+
+            {/* Action 3b: Chat Wallpaper */}
+            <TouchableOpacity
+              style={styles.actionItemRow}
+              onPress={() => {
+                setShowActionsSheet(false);
+                setShowWallpaperModal(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="image-outline" size={20} color="#00875A" style={styles.actionIcon} />
+              <Text style={styles.actionLabel}>Chat Wallpaper</Text>
             </TouchableOpacity>
 
             {/* Action 4: View Full History */}
@@ -1950,6 +2027,78 @@ export default function ChatDetailScreen({ route, navigation }) {
               resizeMode="contain"
             />
           )}
+        </View>
+      </Modal>
+
+      {/* ================= CHAT WALLPAPER PICKER MODAL ================= */}
+      <Modal
+        visible={showWallpaperModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowWallpaperModal(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.wallpaperModalCard}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.mediaModalHeader}>
+              <View>
+                <Text style={styles.mediaModalTitle}>Chat Wallpaper</Text>
+                <Text style={styles.mediaModalSubtitle}>Choose a default theme or upload your own</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowWallpaperModal(false)}
+                style={styles.mediaCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity style={styles.customWallpaperBtn} onPress={handlePickCustomWallpaper} activeOpacity={0.85}>
+              <Ionicons name="cloud-upload-outline" size={18} color="#FFFFFF" />
+              <Text style={styles.customWallpaperBtnText}>Upload Custom Image from Gallery</Text>
+            </TouchableOpacity>
+
+            <ScrollView contentContainerStyle={styles.wallpaperGrid} showsVerticalScrollIndicator={false}>
+              {DEFAULT_WALLPAPERS.map((wp) => {
+                const active = chatWallpaper?.id === wp.id;
+                return (
+                  <TouchableOpacity
+                    key={wp.id}
+                    style={[styles.wallpaperItem, active && styles.wallpaperItemActive]}
+                    onPress={() => {
+                      selectWallpaper({ id: wp.id });
+                      setShowWallpaperModal(false);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    {wp.type === 'asset' ? (
+                      <Image source={wp.source} style={styles.wallpaperThumb} resizeMode="cover" />
+                    ) : (
+                      <View style={[styles.wallpaperThumb, { backgroundColor: wp.color }]} />
+                    )}
+                    <Text style={styles.wallpaperLabel}>{wp.label}</Text>
+                    {active && (
+                      <View style={styles.wallpaperCheck}>
+                        <Ionicons name="checkmark-circle" size={20} color="#00B67A" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+              {chatWallpaper?.id === 'custom' && chatWallpaper?.uri && (
+                <TouchableOpacity
+                  style={[styles.wallpaperItem, styles.wallpaperItemActive]}
+                  onPress={() => setShowWallpaperModal(false)}
+                >
+                  <Image source={{ uri: chatWallpaper.uri }} style={styles.wallpaperThumb} resizeMode="cover" />
+                  <Text style={styles.wallpaperLabel}>Custom Photo</Text>
+                  <View style={styles.wallpaperCheck}>
+                    <Ionicons name="checkmark-circle" size={20} color="#00B67A" />
+                  </View>
+                </TouchableOpacity>
+              )}
+            </ScrollView>
+          </View>
         </View>
       </Modal>
     </SafeAreaView>
@@ -2967,6 +3116,60 @@ const styles = StyleSheet.create({
     maxWidth: 170,
   },
   atTagChipText: { fontSize: 12, fontWeight: '600', color: '#065F46' },
+  wallpaperModalCard: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+    maxHeight: '78%',
+  },
+  customWallpaperBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#00875A',
+    paddingVertical: 12,
+    borderRadius: 14,
+    marginBottom: 14,
+  },
+  customWallpaperBtnText: { color: '#FFFFFF', fontSize: 13.5, fontWeight: '700' },
+  wallpaperGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    paddingBottom: 12,
+  },
+  wallpaperItem: {
+    width: '31%',
+    borderRadius: 14,
+    padding: 5,
+    backgroundColor: '#F8FAFC',
+    borderWidth: 1.5,
+    borderColor: '#E2E8F0',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  wallpaperItemActive: {
+    borderColor: '#00B67A',
+    backgroundColor: '#ECFDF5',
+  },
+  wallpaperThumb: {
+    width: '100%',
+    height: 112,
+    borderRadius: 10,
+    marginBottom: 5,
+  },
+  wallpaperLabel: { fontSize: 11, fontWeight: '700', color: '#0F172A' },
+  wallpaperCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+  },
   mediaSendBtnText: {
     color: '#FFFFFF',
     fontSize: 13.5,
