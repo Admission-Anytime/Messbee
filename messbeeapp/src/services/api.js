@@ -924,6 +924,14 @@ export const automationService = {
     const response = await api.post(`/automation/${id}/test`, payload);
     return response.data?.data || response.data;
   },
+  simulateStart: async (id, payload = {}) => {
+    const response = await api.post(`/automation/${id}/simulate-start`, payload);
+    return response.data;
+  },
+  simulateMessage: async (id, payload = {}) => {
+    const response = await api.post(`/automation/${id}/simulate-message`, payload);
+    return response.data;
+  },
 };
 
 // ==================== ANALYTICS SERVICE (Real DB / API) ====================
