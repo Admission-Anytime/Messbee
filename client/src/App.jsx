@@ -377,16 +377,16 @@ function App() {
             path="/admin/templates/create"
             element={<MetaRouteGuard featureName="Create Template"><CreateTemplate /></MetaRouteGuard>}
           />
-          {/* 6. Campaigns (Meta WABA Required) */}
-          <Route path="/admin/campaign" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
-          <Route path="/admin/campaigns" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
-          <Route path="/admin/campaign/:id" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
-          <Route path="/admin/campaigns/:id" element={<MetaRouteGuard featureName="Broadcast Campaigns"><Campaign /></MetaRouteGuard>} />
-          <Route path="/admin/campaign/create" element={<MetaRouteGuard featureName="Create Campaign"><CreateCampaign /></MetaRouteGuard>} />
-          <Route path="/admin/campaign-success" element={<MetaRouteGuard featureName="Campaign Launch"><CampaignLaunchSuccess /></MetaRouteGuard>} />
+          {/* 6. Campaigns (Available for both Free QR and Meta WABA) */}
+          <Route path="/admin/campaign" element={<Campaign />} />
+          <Route path="/admin/campaigns" element={<Campaign />} />
+          <Route path="/admin/campaign/:id" element={<Campaign />} />
+          <Route path="/admin/campaigns/:id" element={<Campaign />} />
+          <Route path="/admin/campaign/create" element={<CreateCampaign />} />
+          <Route path="/admin/campaign-success" element={<CampaignLaunchSuccess />} />
           <Route
             path="/admin/campaigns/bulk"
-            element={<MetaRouteGuard featureName="Bulk Send"><Placeholder title="Bulk Send" /></MetaRouteGuard>}
+            element={<Placeholder title="Bulk Send" />}
           />
           {/* 7. Commerce (Requires Growth plan and above) */}
           <Route
@@ -420,7 +420,7 @@ function App() {
           {/* 9. Analytics */}
           <Route
             path="/admin/analytic/campaign"
-            element={<MetaRouteGuard featureName="Campaign Analytics"><CampaignAnalytics /></MetaRouteGuard>}
+            element={<CampaignAnalytics />}
           />
           <Route
             path="/admin/analytic"

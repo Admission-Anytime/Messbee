@@ -267,7 +267,7 @@ const Context = (props) => {
       reqPlan = getRequiredPlan(feature)?.name || "Growth";
     }
 
-    const metaFeatures = ["metaWaba", "Templates", "Campaign", "Automation", "templateAnalytics"];
+    const metaFeatures = ["metaWaba", "Templates", "Automation", "templateAnalytics"];
     const isMeta = isMetaLock || (user?.whatsappChannelType === "free_qr" && (metaFeatures.includes(feature) || reqPlan === "Meta Verified WABA"));
 
     setUpgradeModal({

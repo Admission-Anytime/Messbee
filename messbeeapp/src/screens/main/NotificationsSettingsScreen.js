@@ -1,22 +1,46 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   Switch,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const NOTIF_PREFS_KEY = 'messbee_notification_prefs_v1';
 
 export default function NotificationsSettingsScreen({ navigation }) {
   const [newChat, setNewChat] = useState(true);
   const [mentions, setMentions] = useState(true);
   const [campaigns, setCampaigns] = useState(false);
   const [sounds, setSounds] = useState(true);
+
+  useEffect(() => {
+    AsyncStorage.getItem(NOTIF_PREFS_KEY)
+      .then((raw) => {
+        if (!raw) return;
+        const p = JSON.parse(raw);
+        if (typeof p.newChat === 'boolean') setNewChat(p.newChat);
+        if (typeof p.mentions === 'boolean') setMentions(p.mentions);
+        if (typeof p.campaigns === 'boolean') setCampaigns(p.campaigns);
+        if (typeof p.sounds === 'boolean') setSounds(p.sounds);
+      })
+      .catch(() => {});
+  }, []);
+
+  const updatePref = async (key, val, setter) => {
+    setter(val);
+    const next = { newChat, mentions, campaigns, sounds, [key]: val };
+    try {
+      await AsyncStorage.setItem(NOTIF_PREFS_KEY, JSON.stringify(next));
+    } catch {}
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -49,7 +73,7 @@ export default function NotificationsSettingsScreen({ navigation }) {
               </View>
               <Switch
                 value={newChat}
-                onValueChange={setNewChat}
+                onValueChange={(v) => updatePref('newChat', v, setNewChat)}
                 trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
                 thumbColor={newChat ? '#00B67A' : '#CBD5E1'}
               />
@@ -62,7 +86,7 @@ export default function NotificationsSettingsScreen({ navigation }) {
               </View>
               <Switch
                 value={mentions}
-                onValueChange={setMentions}
+                onValueChange={(v) => updatePref('mentions', v, setMentions)}
                 trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
                 thumbColor={mentions ? '#00B67A' : '#CBD5E1'}
               />
@@ -75,7 +99,7 @@ export default function NotificationsSettingsScreen({ navigation }) {
               </View>
               <Switch
                 value={sounds}
-                onValueChange={setSounds}
+                onValueChange={(v) => updatePref('sounds', v, setSounds)}
                 trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
                 thumbColor={sounds ? '#00B67A' : '#CBD5E1'}
               />
@@ -93,7 +117,7 @@ export default function NotificationsSettingsScreen({ navigation }) {
               </View>
               <Switch
                 value={campaigns}
-                onValueChange={setCampaigns}
+                onValueChange={(v) => updatePref('campaigns', v, setCampaigns)}
                 trackColor={{ false: '#E2E8F0', true: '#A7F3D0' }}
                 thumbColor={campaigns ? '#00B67A' : '#CBD5E1'}
               />
@@ -115,7 +139,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: Platform.OS === 'android' ? 24 : 10,
+    paddingTop: 10,
     paddingBottom: 14,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,

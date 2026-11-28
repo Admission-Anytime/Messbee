@@ -8,12 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Image,
   Dimensions,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { authService, getServerEnvironment, setServerEnvironment } from '../../services/api';
@@ -253,28 +253,30 @@ export default function LoginScreen({ navigation }) {
             )}
           </TouchableOpacity>
 
-          {/* Server Environment Switcher */}
-          <TouchableOpacity
-            onPress={toggleServerEnv}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginTop: 14,
-              paddingVertical: 6,
-              gap: 6,
-            }}
-            activeOpacity={0.7}
-          >
-            <Ionicons
-              name={serverEnv === 'live' ? 'globe-outline' : 'laptop-outline'}
-              size={14}
-              color="#64748B"
-            />
-            <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
-              Server: {serverEnv === 'live' ? 'Live (webservices.messbee.com)' : 'Local Dev (:5002)'} • Tap to switch
-            </Text>
-          </TouchableOpacity>
+          {/* Server Environment Switcher (Dev builds only) */}
+          {__DEV__ && (
+            <TouchableOpacity
+              onPress={toggleServerEnv}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: 14,
+                paddingVertical: 6,
+                gap: 6,
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={serverEnv === 'live' ? 'globe-outline' : 'laptop-outline'}
+                size={14}
+                color="#64748B"
+              />
+              <Text style={{ fontSize: 12, color: '#64748B', fontWeight: '600' }}>
+                Server: {serverEnv === 'live' ? 'Live (webservices.messbee.com)' : 'Local Dev (:5002)'} • Tap to switch
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Bottom Footer: Don't have account? Create Account */}
@@ -332,7 +334,7 @@ const styles = StyleSheet.create({
   },
   safeHeaderArea: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 24 : 10,
+    paddingTop: 10,
     height: 60,
   },
   backButton: {

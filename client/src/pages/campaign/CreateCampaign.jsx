@@ -290,7 +290,7 @@ const CreateCampaign = () => {
                 delayInterval: delayOption.endsWith('m') ? parseInt(delayOption) : parseInt(delayOption),
                 delayUnit: delayOption.endsWith('m') ? 'minutes' : 'seconds',
                 contactGroupId: selectedOption === 'group' ? selectedGroup : undefined,
-                messageTemplate: isFreeQr ? (customMessage.slice(0, 35) || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
+                messageTemplate: isFreeQr ? (customMessage.trim() || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
                 bodyText: isFreeQr ? customMessage : (customMessage || activeTemplate?.preview || ''),
                 templateLanguage: activeTemplate?.language || 'en_US',
                 status: scheduleOption === 'now' ? 'active' : 'scheduled',
@@ -369,7 +369,7 @@ const CreateCampaign = () => {
                 delayInterval: delayOption.endsWith('m') ? parseInt(delayOption) : parseInt(delayOption),
                 delayUnit: delayOption.endsWith('m') ? 'minutes' : 'seconds',
                 contactGroupId: selectedOption === 'group' ? selectedGroup : undefined,
-                messageTemplate: isFreeQr ? (customMessage.slice(0, 35) || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
+                messageTemplate: isFreeQr ? (customMessage.trim() || 'Broadcast Message') : (activeTemplate?.name || selectedTemplate || 'Broadcast Message'),
                 bodyText: isFreeQr ? customMessage : (customMessage || activeTemplate?.preview || ''),
                 templateLanguage: activeTemplate?.language || 'en_US',
                 status: 'draft',
@@ -1318,14 +1318,16 @@ const CreateCampaign = () => {
                                     <Eye className="w-4 h-4" /> Message Preview
                                 </div>
                                 <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
-                                    <div className="text-xs text-gray-800 leading-relaxed mb-4">
-                                        Hello <strong>[Name]!</strong> 👋
-                                        <br /><br />
-                                        Admissions are now open for 2025 batch. Apply now and get early bird discounts...
+                                    <div className="text-xs text-gray-800 leading-relaxed mb-4 whitespace-pre-wrap">
+                                        {isFreeQr
+                                            ? (customMessage || 'Your broadcast message preview will appear here...')
+                                            : (activeTemplate?.preview || 'Hello [Name]! Admissions are now open...')}
                                     </div>
-                                    <button className="w-full py-1.5 text-center text-emerald-500 font-bold text-[10px] border border-emerald-100 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors">
-                                        Apply Now
-                                    </button>
+                                    {!isFreeQr && (
+                                        <button className="w-full py-1.5 text-center text-emerald-500 font-bold text-[10px] border border-emerald-100 rounded bg-emerald-50 hover:bg-emerald-100 transition-colors">
+                                            Apply Now
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>

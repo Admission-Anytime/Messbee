@@ -145,7 +145,6 @@ const SidebarItem = ({ item, unreadCount, isActive, isExpanded, openSubmenu, act
   const planFeature = ITEM_PLAN_FEATURES[item.title];
   const isMetaRestricted = isFreeTier && (
     item.title === "Templates" ||
-    item.title === "Campaign" ||
     item.title === "Automation"
   );
   const isPlanLocked = isMetaRestricted || (planFeature ? !hasPlanFeature(currentPlan, planFeature, user) : false);
