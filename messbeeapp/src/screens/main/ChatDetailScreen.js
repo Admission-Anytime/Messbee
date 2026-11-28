@@ -13,6 +13,7 @@ import {
   Image,
   ActivityIndicator,
   Share,
+  Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
@@ -54,6 +55,7 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [catalogProducts, setCatalogProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  const [previewImageUrl, setPreviewImageUrl] = useState(null);
 
   useEffect(() => {
     authService
@@ -798,17 +800,19 @@ export default function ChatDetailScreen({ route, navigation }) {
         <View style={styles.templateBubbleWrapper}>
           <View style={styles.templateBubbleCard}>
             {effectiveMediaUrl && (!effectiveMediaType || effectiveMediaType === 'image') ? (
-              <Image
-                source={{ uri: effectiveMediaUrl }}
-                style={{
-                  width: '100%',
-                  height: 175,
-                  borderRadius: 10,
-                  marginBottom: 8,
-                  backgroundColor: '#F1F5F9',
-                }}
-                resizeMode="cover"
-              />
+              <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(effectiveMediaUrl)}>
+                <Image
+                  source={{ uri: effectiveMediaUrl }}
+                  style={{
+                    width: '100%',
+                    height: 175,
+                    borderRadius: 10,
+                    marginBottom: 8,
+                    backgroundColor: '#F1F5F9',
+                  }}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
             ) : effectiveMediaUrl ? (
               <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F1F5F9', padding: 10, borderRadius: 10, marginBottom: 8 }}>
                 <Ionicons name="document-attach-outline" size={18} color="#00875A" style={{ marginRight: 8 }} />
@@ -856,38 +860,40 @@ export default function ChatDetailScreen({ route, navigation }) {
       <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowThem]}>
         <View style={[styles.bubbleBox, isMe ? styles.bubbleBoxMe : styles.bubbleBoxThem]}>
           {item.mediaUrl && (!mediaTypeLower || mediaTypeLower === 'image' || mediaTypeLower.startsWith('image/')) ? (
-            <Image
-              source={{ uri: item.mediaUrl }}
-              style={{
-                width: 210,
-                height: 150,
-                borderRadius: 10,
-                marginBottom: item.text ? 6 : 2,
-                backgroundColor: '#F1F5F9',
-              }}
-              resizeMode="cover"
-            />
+            <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(item.mediaUrl)}>
+              <Image
+                source={{ uri: item.mediaUrl }}
+                style={{
+                  width: 210,
+                  height: 150,
+                  borderRadius: 10,
+                  marginBottom: item.text ? 6 : 2,
+                  backgroundColor: '#F1F5F9',
+                }}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
           ) : item.mediaUrl && (mediaTypeLower === 'video' || mediaTypeLower.startsWith('video/')) ? (
-            <View style={styles.mediaFileBubble}>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(item.mediaUrl).catch(() => {})} style={styles.mediaFileBubble}>
               <Ionicons name="videocam" size={20} color="#00875A" style={{ marginRight: 8 }} />
               <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
                 {item.fileName || 'Video Attachment'}
               </Text>
-            </View>
+            </TouchableOpacity>
           ) : item.mediaUrl && (mediaTypeLower === 'audio' || mediaTypeLower.startsWith('audio/')) ? (
-            <View style={styles.mediaFileBubble}>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(item.mediaUrl).catch(() => {})} style={styles.mediaFileBubble}>
               <Ionicons name="musical-notes" size={20} color="#00875A" style={{ marginRight: 8 }} />
               <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
                 {item.fileName || 'Audio Message'}
               </Text>
-            </View>
+            </TouchableOpacity>
           ) : item.mediaUrl ? (
-            <View style={styles.mediaFileBubble}>
+            <TouchableOpacity activeOpacity={0.8} onPress={() => Linking.openURL(item.mediaUrl).catch(() => {})} style={styles.mediaFileBubble}>
               <Ionicons name="document-text" size={20} color="#00875A" style={{ marginRight: 8 }} />
               <Text style={styles.mediaFileBubbleText} numberOfLines={1}>
                 {item.fileName || 'Document Attachment'}
               </Text>
-            </View>
+            </TouchableOpacity>
           ) : null}
           {!!item.text && (
             <Text style={[styles.bubbleText, isMe ? styles.bubbleTextMe : styles.bubbleTextThem]}>
@@ -1735,6 +1741,38 @@ export default function ChatDetailScreen({ route, navigation }) {
               />
             )}
           </View>
+        </View>
+      </Modal>
+
+      {/* ================= FULL-SCREEN IMAGE VIEWER MODAL ================= */}
+      <Modal
+        visible={!!previewImageUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPreviewImageUrl(null)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.95)', justifyContent: 'center', alignItems: 'center' }}>
+          <View style={{ position: 'absolute', top: Platform.OS === 'android' ? 38 : 54, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', zIndex: 10 }}>
+            <TouchableOpacity
+              onPress={() => Share.share({ message: previewImageUrl, url: previewImageUrl }).catch(() => {})}
+              style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Ionicons name="share-outline" size={22} color="#FFFFFF" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setPreviewImageUrl(null)}
+              style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.16)', justifyContent: 'center', alignItems: 'center' }}
+            >
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+          {!!previewImageUrl && (
+            <Image
+              source={{ uri: previewImageUrl }}
+              style={{ width: '96%', height: '80%' }}
+              resizeMode="contain"
+            />
+          )}
         </View>
       </Modal>
     </SafeAreaView>
