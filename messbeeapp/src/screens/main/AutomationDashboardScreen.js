@@ -83,7 +83,9 @@ export default function AutomationDashboardScreen({ navigation }) {
 
   const stats = useMemo(() => {
     const total = automations.length;
-    const active = automations.filter((a) => String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && a.active !== false).length;
+    const active = automations.filter(
+      (a) => a.isActive !== false && String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE'
+    ).length;
     const paused = total - active;
     const messages = automations.reduce((s, a) => s + Number(a.runsCount || a.executions || a.messagesSent || 0), 0);
     return { total, active, paused, messages };
@@ -91,7 +93,7 @@ export default function AutomationDashboardScreen({ navigation }) {
 
   const filteredAutomations = useMemo(() => {
     return automations.filter((a) => {
-      const isActive = String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && a.active !== false;
+      const isActive = a.isActive !== false && String(a.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
       if (statusFilter === 'Active' && !isActive) return false;
       if (statusFilter === 'Paused' && isActive) return false;
       if (searchQuery.trim()) {
@@ -106,15 +108,17 @@ export default function AutomationDashboardScreen({ navigation }) {
   }, [automations, statusFilter, searchQuery]);
 
   const handleToggleStatus = async (item) => {
-    const isCurrentlyActive = String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && item.active !== false;
-    const nextStatus = isCurrentlyActive ? 'PAUSED' : 'ACTIVE';
+    const isCurrentlyActive = item.isActive !== false && String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
+    const nextActive = !isCurrentlyActive;
+    const nextStatus = nextActive ? 'ACTIVE' : 'PAUSED';
     setAutomations((prev) =>
-      prev.map((a) => (a._id === item._id ? { ...a, status: nextStatus, active: nextStatus === 'ACTIVE' } : a))
+      prev.map((a) => (a._id === item._id ? { ...a, status: nextStatus, isActive: nextActive, active: nextActive } : a))
     );
     try {
       await automationService.updateAutomation(item._id, {
         status: nextStatus,
-        active: nextStatus === 'ACTIVE',
+        isActive: nextActive,
+        active: nextActive,
       });
     } catch (err) {
       loadAutomations();
@@ -285,7 +289,7 @@ export default function AutomationDashboardScreen({ navigation }) {
               Build customer journeys that work around the clock.
             </Text>
           </View>
-          <TouchableOpacity style={styles.heroPlusBtn} onPress={() => openCreateModal(null)}>
+          <TouchableOpacity style={styles.heroPlusBtn} onPress={() => navigation.navigate('CreateAutomation')}>
             <Ionicons name="add" size={24} color="#00875A" />
           </TouchableOpacity>
         </View>
@@ -310,12 +314,12 @@ export default function AutomationDashboardScreen({ navigation }) {
 
         {/* 2 Quick Action Cards */}
         <View style={styles.quickRow}>
-          <TouchableOpacity style={styles.quickCard} onPress={() => openCreateModal(null)} activeOpacity={0.8}>
+          <TouchableOpacity style={styles.quickCard} onPress={() => navigation.navigate('CreateAutomation')} activeOpacity={0.8}>
             <View style={[styles.quickIcon, { backgroundColor: '#ECFDF5' }]}>
               <Ionicons name="add" size={18} color="#00875A" />
             </View>
             <View style={{ flex: 1, marginLeft: 10 }}>
-              <Text style={styles.quickTitle}>Start from scratch</Text>
+              <Text style={styles.quickTitle}>New Flow Builder</Text>
               <Text style={styles.quickSub}>Build your own workflow</Text>
             </View>
           </TouchableOpacity>
@@ -353,7 +357,7 @@ export default function AutomationDashboardScreen({ navigation }) {
           </View>
         ) : (
           filteredAutomations.map((item, idx) => {
-            const isActive = String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE' && item.active !== false;
+            const isActive = item.isActive !== false && String(item.status || 'ACTIVE').toUpperCase() === 'ACTIVE';
             const triggerText =
               Array.isArray(item.triggers) && item.triggers.length > 0
                 ? item.triggers.map((t) => t.value || t.type).join(', ')
@@ -401,9 +405,19 @@ export default function AutomationDashboardScreen({ navigation }) {
                 </View>
 
                 <View style={styles.flowActionsRow}>
-                  <TouchableOpacity style={styles.flowBtn} onPress={() => openCreateModal(item)}>
-                    <Ionicons name="create-outline" size={14} color="#00875A" />
-                    <Text style={styles.flowBtnText}>Edit</Text>
+                  <TouchableOpacity
+                    style={styles.flowBtn}
+                    onPress={() => navigation.navigate('AutomationFlowBuilder', { flow: item, automationId: item._id })}
+                  >
+                    <Ionicons name="git-network-outline" size={14} color="#00875A" />
+                    <Text style={styles.flowBtnText}>Configure</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.flowBtn}
+                    onPress={() => navigation.navigate('AutomationSimulator', { flow: item })}
+                  >
+                    <Ionicons name="play-outline" size={14} color="#3B82F6" />
+                    <Text style={[styles.flowBtnText, { color: '#3B82F6' }]}>Simulate</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.flowBtn} onPress={() => handleDeleteAutomation(item)}>
                     <Ionicons name="trash-outline" size={14} color="#EF4444" />

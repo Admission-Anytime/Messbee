@@ -65,6 +65,11 @@ import CommerceHubScreen from '../screens/main/CommerceHubScreen';
 import PaymentListScreen from '../screens/main/PaymentListScreen';
 import PaymentDetailsScreen from '../screens/main/PaymentDetailsScreen';
 import AutomationDashboardScreen from '../screens/main/AutomationDashboardScreen';
+import CreateAutomationScreen from '../screens/automation/CreateAutomationScreen';
+import AutomationFlowBuilderScreen from '../screens/automation/AutomationFlowBuilderScreen';
+import AutomationNodeConfigScreen from '../screens/automation/AutomationNodeConfigScreen';
+import PublishAutomationScreen from '../screens/automation/PublishAutomationScreen';
+import AutomationSimulatorScreen from '../screens/automation/AutomationSimulatorScreen';
 import InventoryScreen from '../screens/main/InventoryScreen';
 import BillingInvoicesScreen from '../screens/main/BillingInvoicesScreen';
 import ContactGroupsScreen from '../screens/main/ContactGroupsScreen';
@@ -176,6 +181,11 @@ export default function RootNavigator() {
         <Stack.Screen name="PaymentList" component={PaymentListScreen} />
         <Stack.Screen name="PaymentDetails" component={PaymentDetailsScreen} />
         <Stack.Screen name="AutomationDashboard" component={AutomationDashboardScreen} />
+        <Stack.Screen name="CreateAutomation" component={CreateAutomationScreen} />
+        <Stack.Screen name="AutomationFlowBuilder" component={AutomationFlowBuilderScreen} />
+        <Stack.Screen name="AutomationNodeConfig" component={AutomationNodeConfigScreen} />
+        <Stack.Screen name="PublishAutomation" component={PublishAutomationScreen} />
+        <Stack.Screen name="AutomationSimulator" component={AutomationSimulatorScreen} />
         <Stack.Screen name="CommerceCatalog" component={CommerceCatalogScreen} />
         <Stack.Screen name="Inventory" component={InventoryScreen} />
         <Stack.Screen name="BillingInvoices" component={BillingInvoicesScreen} />
