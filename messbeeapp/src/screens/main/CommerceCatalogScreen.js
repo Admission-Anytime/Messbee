@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   FlatList,
   TouchableOpacity,
   TextInput,
@@ -15,6 +14,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { commerceService } from '../../services/api';
@@ -27,6 +27,7 @@ export default function CommerceCatalogScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [stockFilter, setStockFilter] = useState('All'); // 'All' | 'In Stock' | 'Low Stock' | 'Out of Stock'
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -56,7 +57,9 @@ export default function CommerceCatalogScreen({ navigation }) {
 
   useEffect(() => {
     fetchCatalog();
-  }, [fetchCatalog]);
+    const unsub = navigation.addListener('focus', fetchCatalog);
+    return unsub;
+  }, [fetchCatalog, navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -173,14 +176,19 @@ export default function CommerceCatalogScreen({ navigation }) {
       const pCat = typeof p.category === 'object' ? p.category?.name : p.category;
       const matchesCategory =
         selectedCategory === 'All' || (pCat && pCat.toLowerCase() === selectedCategory.toLowerCase());
+      const stk = Number(p.currentStock ?? p.stock ?? 0);
+      let matchesStock = true;
+      if (stockFilter === 'In Stock') matchesStock = stk > 5;
+      else if (stockFilter === 'Low Stock') matchesStock = stk > 0 && stk <= 5;
+      else if (stockFilter === 'Out of Stock') matchesStock = stk <= 0;
       const query = searchQuery.trim().toLowerCase();
       const matchesQuery =
         !query ||
         (p.name && p.name.toLowerCase().includes(query)) ||
         (p.sku && p.sku.toLowerCase().includes(query));
-      return matchesCategory && matchesQuery;
+      return matchesCategory && matchesStock && matchesQuery;
     });
-  }, [products, selectedCategory, searchQuery]);
+  }, [products, selectedCategory, stockFilter, searchQuery]);
 
   // Stock status helper
   const getStockStatus = (stock) => {
@@ -196,7 +204,11 @@ export default function CommerceCatalogScreen({ navigation }) {
     const catName = typeof item.category === 'object' ? item.category?.name : item.category;
 
     return (
-      <View style={styles.card}>
+      <TouchableOpacity
+        style={styles.card}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('ProductDetails', { product: item })}
+      >
         <View style={styles.cardHeader}>
           <View style={styles.productIconBox}>
             <Ionicons name="cube-outline" size={24} color="#00B67A" />
@@ -233,7 +245,7 @@ export default function CommerceCatalogScreen({ navigation }) {
           <View style={styles.cardActions}>
             <TouchableOpacity
               style={styles.actionIconButton}
-              onPress={() => openEditModal(item)}
+              onPress={() => navigation.navigate('AddProduct', { product: item })}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
               <Ionicons name="pencil-outline" size={18} color="#0284C7" />
@@ -247,7 +259,7 @@ export default function CommerceCatalogScreen({ navigation }) {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -264,10 +276,48 @@ export default function CommerceCatalogScreen({ navigation }) {
         >
           <Ionicons name="chevron-back" size={24} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Commerce Catalog</Text>
-        <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
+        <Text style={styles.headerTitle}>Product List</Text>
+        <TouchableOpacity style={styles.addBtn} onPress={() => navigation.navigate('AddProduct')}>
           <Ionicons name="add" size={20} color="#FFFFFF" />
           <Text style={styles.addBtnText}>Add</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Connect Meta + Add Product Bar (matching screenshot) */}
+      <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, backgroundColor: '#FFFFFF' }}>
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            paddingVertical: 10,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            backgroundColor: '#F8FAFC',
+          }}
+          onPress={() => navigation.navigate('WhatsAppConfig')}
+        >
+          <Ionicons name="link-outline" size={16} color="#0F172A" />
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#0F172A' }}>Connect Meta</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={{
+            flex: 1,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            paddingVertical: 10,
+            borderRadius: 12,
+            backgroundColor: '#00875A',
+          }}
+          onPress={() => navigation.navigate('AddProduct')}
+        >
+          <Ionicons name="add" size={16} color="#FFFFFF" />
+          <Text style={{ fontSize: 12.5, fontWeight: '700', color: '#FFFFFF' }}>Add Product</Text>
         </TouchableOpacity>
       </View>
 
@@ -291,7 +341,7 @@ export default function CommerceCatalogScreen({ navigation }) {
         </View>
       </View>
 
-      {/* Categories Filter Horizontal Bar */}
+      {/* Categories & Stock Status Filter Horizontal Bar */}
       <View style={styles.categoryBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryScroll}>
           {categoriesList.map((cat) => {
@@ -304,6 +354,20 @@ export default function CommerceCatalogScreen({ navigation }) {
               >
                 <Text style={[styles.categoryPillText, isActive && styles.categoryPillTextActive]}>
                   {cat}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          {['In Stock', 'Low Stock', 'Out of Stock'].map((st) => {
+            const isActive = stockFilter === st;
+            return (
+              <TouchableOpacity
+                key={st}
+                style={[styles.categoryPill, isActive && { backgroundColor: '#0F172A' }]}
+                onPress={() => setStockFilter(isActive ? 'All' : st)}
+              >
+                <Text style={[styles.categoryPillText, isActive && { color: '#FFFFFF' }]}>
+                  {st}
                 </Text>
               </TouchableOpacity>
             );
@@ -459,7 +523,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    paddingTop: Platform.OS === 'android' ? 36 : 0,
+    paddingTop: 0,
   },
   header: {
     flexDirection: 'row',

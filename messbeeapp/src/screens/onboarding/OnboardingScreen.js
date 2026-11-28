@@ -7,9 +7,9 @@ import {
   TouchableOpacity,
   Dimensions,
   Image,
-  SafeAreaView,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -363,7 +363,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 22,
-    paddingTop: Platform.OS === 'android' ? 24 : 10,
+    paddingTop: 10,
     height: 48,
   },
   headerText: {
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingTop: Platform.OS === 'android' ? 64 : 74,
+    paddingTop: 74,
     paddingBottom: 16,
     paddingHorizontal: 16,
   },

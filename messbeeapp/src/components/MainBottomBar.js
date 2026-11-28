@@ -1,12 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * 5-option bottom navigation bar (Home, Chats, Contacts, Campaigns, More)
  * matching BottomTabNavigator for stack screens accessed from More/Tabs.
  */
 export default function MainBottomBar({ navigation, activeTab = 'More' }) {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
   const tabs = [
     { key: 'Home', label: 'Home', icon: 'home-outline', activeIcon: 'home' },
     { key: 'Chats', label: 'Chats', icon: 'chatbubble-outline', activeIcon: 'chatbubble' },
@@ -16,7 +19,7 @@ export default function MainBottomBar({ navigation, activeTab = 'More' }) {
   ];
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: bottomPad }]}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
         return (

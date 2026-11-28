@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import {
@@ -463,7 +463,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
     'Workspace User';
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
 
       {/* Main Screen Header */}
@@ -690,7 +690,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
         presentationStyle="pageSheet"
         onRequestClose={resetCreateForm}
       >
-        <SafeAreaView style={styles.wizardContainer}>
+        <SafeAreaView style={styles.wizardContainer} edges={['top', 'left', 'right']}>
           <StatusBar style="dark" />
 
           {/* Wizard Header */}
@@ -1521,7 +1521,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    paddingTop: Platform.OS === 'android' ? 28 : 0,
+    paddingTop: 0,
   },
   header: {
     paddingHorizontal: 20,

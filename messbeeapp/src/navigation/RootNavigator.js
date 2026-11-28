@@ -85,6 +85,11 @@ import SubscriptionPlansScreen from '../screens/main/SubscriptionPlansScreen';
 import HelpSupportScreen from '../screens/main/HelpSupportScreen';
 import PrivacyPolicyScreen from '../screens/main/PrivacyPolicyScreen';
 import TermsConditionsScreen from '../screens/main/TermsConditionsScreen';
+import ProductDetailsScreen from '../screens/main/ProductDetailsScreen';
+import AddProductScreen from '../screens/main/AddProductScreen';
+import InventoryDetailsScreen from '../screens/main/InventoryDetailsScreen';
+import StockAdjustmentScreen from '../screens/main/StockAdjustmentScreen';
+import DownloadReportScreen from '../screens/main/DownloadReportScreen';
 import { loadAuthToken } from '../services/api';
 
 const Stack = createStackNavigator();
@@ -202,6 +207,11 @@ export default function RootNavigator() {
         <Stack.Screen name="HelpSupport" component={HelpSupportScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
         <Stack.Screen name="TermsConditions" component={TermsConditionsScreen} />
+        <Stack.Screen name="ProductDetails" component={ProductDetailsScreen} />
+        <Stack.Screen name="AddProduct" component={AddProductScreen} />
+        <Stack.Screen name="InventoryDetails" component={InventoryDetailsScreen} />
+        <Stack.Screen name="StockAdjustment" component={StockAdjustmentScreen} />
+        <Stack.Screen name="DownloadReport" component={DownloadReportScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );
