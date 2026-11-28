@@ -75,18 +75,21 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [chatWallpaper, setChatWallpaper] = useState({ id: 'bg1' });
   const [showWallpaperModal, setShowWallpaperModal] = useState(false);
 
+  const chatWallpaperKey = `messbee_chat_wallpaper_${activeChatId || chat._id || chat.phone || 'default'}`;
+
   useEffect(() => {
-    AsyncStorage.getItem(CHAT_WALLPAPER_KEY)
+    AsyncStorage.getItem(chatWallpaperKey)
       .then((raw) => {
         if (raw) setChatWallpaper(JSON.parse(raw));
+        else setChatWallpaper({ id: 'bg1' });
       })
       .catch(() => {});
-  }, []);
+  }, [chatWallpaperKey]);
 
   const selectWallpaper = async (wpObj) => {
     setChatWallpaper(wpObj);
     try {
-      await AsyncStorage.setItem(CHAT_WALLPAPER_KEY, JSON.stringify(wpObj));
+      await AsyncStorage.setItem(chatWallpaperKey, JSON.stringify(wpObj));
     } catch {}
   };
 
@@ -2319,8 +2322,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 6,
     elevation: 2,
-    paddingBottom: 8,
-    paddingHorizontal: 10,
+    paddingTop: 10,
+    paddingBottom: 10,
+    paddingHorizontal: 11,
   },
   templateBanner: {
     backgroundColor: '#00875A',
