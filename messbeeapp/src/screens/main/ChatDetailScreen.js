@@ -895,7 +895,7 @@ export default function ChatDetailScreen({ route, navigation }) {
             </Text>
           )}
           <View style={styles.bubbleFooter}>
-            <Text style={styles.bubbleTime}>{item.time}</Text>
+            <Text style={[styles.bubbleTime, isMe && { color: '#D1FAE5' }]}>{item.time}</Text>
             {isMe && renderStatusTicks(item.status)}
           </View>
         </View>
@@ -968,6 +968,7 @@ export default function ChatDetailScreen({ route, navigation }) {
         <FlatList
           ref={flatListRef}
           inverted
+          style={{ flex: 1, backgroundColor: '#F1F5F3' }}
           data={[...messages].reverse()}
           keyExtractor={(item) => item.id}
           renderItem={renderMessageItem}
@@ -1894,12 +1895,24 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
   },
   bubbleBoxThem: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
     borderBottomLeftRadius: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
   bubbleBoxMe: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: '#00875A',
     borderBottomRightRadius: 4,
+    shadowColor: '#00875A',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 5,
+    elevation: 2,
   },
   bubbleText: {
     fontSize: 13.5,
@@ -1909,7 +1922,7 @@ const styles = StyleSheet.create({
     color: '#0F172A',
   },
   bubbleTextMe: {
-    color: '#064E3B',
+    color: '#FFFFFF',
   },
   bubbleFooter: {
     flexDirection: 'row',
@@ -1930,10 +1943,10 @@ const styles = StyleSheet.create({
   },
   templateBubbleCard: {
     width: '84%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#ECFDF5',
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderWidth: 1.2,
+    borderColor: '#A7F3D0',
     overflow: 'hidden',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
