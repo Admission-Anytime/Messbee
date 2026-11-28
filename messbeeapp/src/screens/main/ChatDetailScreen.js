@@ -19,6 +19,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { io } from 'socket.io-client';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService, mediaService, authService, commerceService } from '../../services/api';
@@ -56,6 +57,67 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState(null);
+  const [replyingTo, setReplyingTo] = useState(null);
+  const [replyMap, setReplyMap] = useState({});
+  const [showAtTagMenu, setShowAtTagMenu] = useState(false);
+
+  const replyStorageKey = `messbee_reply_map_${activeChatId || chat._id || 'default'}`;
+
+  useEffect(() => {
+    AsyncStorage.getItem(replyStorageKey)
+      .then((raw) => {
+        if (raw) setReplyMap(JSON.parse(raw));
+      })
+      .catch(() => {});
+  }, [replyStorageKey]);
+
+  const saveReplyMeta = async (msgObj, replyMeta) => {
+    if (!replyMeta) return;
+    const next = {
+      ...replyMap,
+      [msgObj.id]: replyMeta,
+      ...(msgObj.text ? { [`txt_${msgObj.text}`]: replyMeta } : {}),
+    };
+    setReplyMap(next);
+    try {
+      await AsyncStorage.setItem(replyStorageKey, JSON.stringify(next));
+    } catch {}
+  };
+
+  const handleStartReply = (item, overrideMediaUrl = null) => {
+    const mUrl = overrideMediaUrl || item.mediaUrl || null;
+    const mType = String(item.mediaType || '').toLowerCase();
+    const fallbackLabel =
+      mUrl && (!mType || mType === 'image' || mType.startsWith('image/'))
+        ? '📷 Photo'
+        : mUrl && (mType === 'video' || mType.startsWith('video/'))
+        ? '🎥 Video'
+        : mUrl && (mType === 'audio' || mType.startsWith('audio/'))
+        ? '🎵 Audio'
+        : mUrl
+        ? `📄 ${item.fileName || 'Document'}`
+        : item.templateTag
+        ? `Template: ${item.templateTag}`
+        : 'Message';
+    setReplyingTo({
+      id: item.id,
+      senderLabel: item.sender === 'me' ? 'You' : (chat.name || 'Customer'),
+      text: item.text?.trim() || fallbackLabel,
+      mediaUrl: mUrl,
+      mediaType: item.mediaType || (mUrl ? 'image' : null),
+    });
+  };
+
+  const scrollToQuotedMessage = (targetId) => {
+    if (!targetId) return;
+    const reversed = [...messages].reverse();
+    const idx = reversed.findIndex((m) => m.id === targetId);
+    if (idx >= 0 && flatListRef.current) {
+      try {
+        flatListRef.current.scrollToIndex({ index: idx, animated: true, viewPosition: 0.5 });
+      } catch {}
+    }
+  };
 
   useEffect(() => {
     authService
@@ -332,6 +394,7 @@ export default function ChatDetailScreen({ route, navigation }) {
     if (!inputText.trim()) return;
 
     const textToSend = inputText.trim();
+    const activeReply = replyingTo;
     const newMsg = {
       id: `msg_${Date.now()}`,
       type: 'text',
@@ -339,10 +402,14 @@ export default function ChatDetailScreen({ route, navigation }) {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       sender: 'me',
       status: 'delivered',
+      replyTo: activeReply || null,
     };
 
+    if (activeReply) saveReplyMeta(newMsg, activeReply);
     setMessages((prev) => [...prev, newMsg]);
     setInputText('');
+    setReplyingTo(null);
+    setShowAtTagMenu(false);
 
     try {
       let targetId = activeChatId || chat._id;
@@ -522,8 +589,10 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
     const caption = mediaCaption.trim();
     const mediaToSend = selectedMedia;
+    const activeReply = replyingTo;
     setShowMediaModal(false);
     setMediaCaption('');
+    setReplyingTo(null);
 
     const optimisticMsg = {
       id: `msg_media_${Date.now()}`,
@@ -535,7 +604,9 @@ export default function ChatDetailScreen({ route, navigation }) {
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       sender: 'me',
       status: 'sent',
+      replyTo: activeReply || null,
     };
+    if (activeReply) saveReplyMeta(optimisticMsg, activeReply);
     setMessages((prev) => [...prev, optimisticMsg]);
 
     try {
@@ -796,9 +867,31 @@ export default function ChatDetailScreen({ route, navigation }) {
       const effectiveMediaUrl = item.mediaUrl || tplInfo?.mediaUrl || null;
       const effectiveMediaType = item.mediaType || (tplInfo?.headerType ? String(tplInfo.headerType).toLowerCase() : null);
 
+      const tplReplyMeta = item.replyTo || replyMap[item.id] || (item.text ? replyMap[`txt_${item.text}`] : null);
       return (
         <View style={styles.templateBubbleWrapper}>
-          <View style={styles.templateBubbleCard}>
+          <TouchableOpacity
+            activeOpacity={0.95}
+            delayLongPress={250}
+            onLongPress={() => handleStartReply(item, effectiveMediaUrl)}
+            style={styles.templateBubbleCard}
+          >
+            {tplReplyMeta && (
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => scrollToQuotedMessage(tplReplyMeta.id)}
+                style={styles.quotedBoxLight}
+              >
+                <View style={styles.quotedAccentBar} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.quotedSenderLight}>{tplReplyMeta.senderLabel}</Text>
+                  <Text style={styles.quotedTextLight} numberOfLines={2}>{tplReplyMeta.text}</Text>
+                </View>
+                {tplReplyMeta.mediaUrl && (
+                  <Image source={{ uri: tplReplyMeta.mediaUrl }} style={styles.quotedThumb} resizeMode="cover" />
+                )}
+              </TouchableOpacity>
+            )}
             {effectiveMediaUrl && (!effectiveMediaType || effectiveMediaType === 'image') ? (
               <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(effectiveMediaUrl)}>
                 <Image
@@ -845,10 +938,13 @@ export default function ChatDetailScreen({ route, navigation }) {
 
             {/* Footer with Time and Status Ticks */}
             <View style={styles.bubbleFooter}>
+              <TouchableOpacity onPress={() => handleStartReply(item, effectiveMediaUrl)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginRight: 8 }}>
+                <Ionicons name="arrow-undo-outline" size={13} color="#00875A" />
+              </TouchableOpacity>
               <Text style={styles.bubbleTime}>{item.time}</Text>
               {renderStatusTicks(item.status)}
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -856,9 +952,31 @@ export default function ChatDetailScreen({ route, navigation }) {
     // 3. Regular Text & Media Bubble
     const isMe = item.sender === 'me';
     const mediaTypeLower = String(item.mediaType || '').toLowerCase();
+    const replyMeta = item.replyTo || replyMap[item.id] || (item.text ? replyMap[`txt_${item.text}`] : null);
     return (
       <View style={[styles.bubbleRow, isMe ? styles.bubbleRowMe : styles.bubbleRowThem]}>
-        <View style={[styles.bubbleBox, isMe ? styles.bubbleBoxMe : styles.bubbleBoxThem]}>
+        <TouchableOpacity
+          activeOpacity={0.95}
+          delayLongPress={250}
+          onLongPress={() => handleStartReply(item)}
+          style={[styles.bubbleBox, isMe ? styles.bubbleBoxMe : styles.bubbleBoxThem]}
+        >
+          {replyMeta && (
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={() => scrollToQuotedMessage(replyMeta.id)}
+              style={isMe ? styles.quotedBoxDark : styles.quotedBoxLight}
+            >
+              <View style={[styles.quotedAccentBar, isMe && { backgroundColor: '#A7F3D0' }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={isMe ? styles.quotedSenderDark : styles.quotedSenderLight}>{replyMeta.senderLabel}</Text>
+                <Text style={isMe ? styles.quotedTextDark : styles.quotedTextLight} numberOfLines={2}>{replyMeta.text}</Text>
+              </View>
+              {replyMeta.mediaUrl && (
+                <Image source={{ uri: replyMeta.mediaUrl }} style={styles.quotedThumb} resizeMode="cover" />
+              )}
+            </TouchableOpacity>
+          )}
           {item.mediaUrl && (!mediaTypeLower || mediaTypeLower === 'image' || mediaTypeLower.startsWith('image/')) ? (
             <TouchableOpacity activeOpacity={0.9} onPress={() => setPreviewImageUrl(item.mediaUrl)}>
               <Image
@@ -901,10 +1019,13 @@ export default function ChatDetailScreen({ route, navigation }) {
             </Text>
           )}
           <View style={styles.bubbleFooter}>
+            <TouchableOpacity onPress={() => handleStartReply(item)} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginRight: 8 }}>
+              <Ionicons name="arrow-undo-outline" size={13} color={isMe ? '#D1FAE5' : '#64748B'} />
+            </TouchableOpacity>
             <Text style={[styles.bubbleTime, isMe && { color: '#D1FAE5' }]}>{item.time}</Text>
             {isMe && renderStatusTicks(item.status)}
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -1053,6 +1174,59 @@ export default function ChatDetailScreen({ route, navigation }) {
           </View>
         )}
 
+        {/* @ Mention & Quick-Quote Menu */}
+        {showAtTagMenu && (
+          <View style={styles.atTagMenu}>
+            <Text style={styles.atTagHeader}>Tag or Quote a Message</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }}>
+              <TouchableOpacity
+                style={styles.atTagChip}
+                onPress={() => {
+                  const base = inputText.replace(/@$/, '');
+                  setInputText(`${base}@${(chat.name || 'Customer').split(' ')[0]} `);
+                  setShowAtTagMenu(false);
+                }}
+              >
+                <Ionicons name="person-outline" size={13} color="#00875A" />
+                <Text style={styles.atTagChipText}>@{chat.name || 'Customer'}</Text>
+              </TouchableOpacity>
+              {[...messages].reverse().slice(0, 5).map((m) => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={styles.atTagChip}
+                  onPress={() => {
+                    setInputText(inputText.replace(/@$/, ''));
+                    handleStartReply(m);
+                    setShowAtTagMenu(false);
+                  }}
+                >
+                  <Ionicons name={m.mediaUrl ? 'image-outline' : 'arrow-undo-outline'} size={13} color="#00875A" />
+                  <Text style={styles.atTagChipText} numberOfLines={1}>
+                    {m.mediaUrl ? '📷 Photo' : (m.text || m.templateTag || 'Message').slice(0, 22)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* WhatsApp-Style Quoted Reply Preview Bar */}
+        {replyingTo && (
+          <View style={styles.replyPreviewBar}>
+            <View style={styles.quotedAccentBar} />
+            <View style={{ flex: 1, marginLeft: 8 }}>
+              <Text style={styles.quotedSenderLight}>{replyingTo.senderLabel}</Text>
+              <Text style={styles.quotedTextLight} numberOfLines={1}>{replyingTo.text}</Text>
+            </View>
+            {replyingTo.mediaUrl && (
+              <Image source={{ uri: replyingTo.mediaUrl }} style={styles.quotedThumb} resizeMode="cover" />
+            )}
+            <TouchableOpacity onPress={() => setReplyingTo(null)} style={{ padding: 6 }}>
+              <Ionicons name="close" size={18} color="#64748B" />
+            </TouchableOpacity>
+          </View>
+        )}
+
         {/* Bottom Input Composer */}
         <View style={styles.composerBar}>
           {/* Attachment Paperclip */}
@@ -1070,7 +1244,10 @@ export default function ChatDetailScreen({ route, navigation }) {
             placeholder="Type a message..."
             placeholderTextColor="#94A3B8"
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={(val) => {
+              setInputText(val);
+              setShowAtTagMenu(val.endsWith('@'));
+            }}
             multiline
           />
 
@@ -2730,6 +2907,66 @@ const styles = StyleSheet.create({
     height: 42,
     borderRadius: 12,
   },
+  quotedBoxLight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F1F5F9',
+    borderRadius: 8,
+    padding: 7,
+    marginBottom: 6,
+    gap: 8,
+  },
+  quotedBoxDark: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.18)',
+    borderRadius: 8,
+    padding: 7,
+    marginBottom: 6,
+    gap: 8,
+  },
+  quotedAccentBar: {
+    width: 3.5,
+    alignSelf: 'stretch',
+    borderRadius: 2,
+    backgroundColor: '#00875A',
+  },
+  quotedSenderLight: { fontSize: 11, fontWeight: '800', color: '#00875A', marginBottom: 1 },
+  quotedSenderDark: { fontSize: 11, fontWeight: '800', color: '#A7F3D0', marginBottom: 1 },
+  quotedTextLight: { fontSize: 11.5, color: '#475569' },
+  quotedTextDark: { fontSize: 11.5, color: '#ECFDF5' },
+  quotedThumb: { width: 34, height: 34, borderRadius: 6, backgroundColor: '#E2E8F0' },
+  replyPreviewBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  atTagMenu: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  atTagHeader: { fontSize: 10.5, fontWeight: '700', color: '#64748B', marginBottom: 4 },
+  atTagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#A7F3D0',
+    borderRadius: 16,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    maxWidth: 170,
+  },
+  atTagChipText: { fontSize: 12, fontWeight: '600', color: '#065F46' },
   mediaSendBtnText: {
     color: '#FFFFFF',
     fontSize: 13.5,
