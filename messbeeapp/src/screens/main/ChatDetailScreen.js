@@ -20,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { io } from 'socket.io-client';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService, mediaService } from '../../services/api';
+import { chatService, quickReplyService, resolveFileUrl, getSocketUrl, templateService, mediaService, authService, commerceService } from '../../services/api';
 
 export default function ChatDetailScreen({ route, navigation }) {
   const { chat = { _id: 'chat_1', name: 'Contact', phone: '', status: 'Open', avatarText: 'WA' } } =
@@ -49,6 +49,20 @@ export default function ChatDetailScreen({ route, navigation }) {
   const [isArchived, setIsArchived] = useState(chat.archived || false);
   const [isPinned, setIsPinned] = useState(chat.pinned || false);
   const [activeChatId, setActiveChatId] = useState(chat._id || null);
+  const [isFreeQrUser, setIsFreeQrUser] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [catalogProducts, setCatalogProducts] = useState([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+
+  useEffect(() => {
+    authService
+      .getCurrentUser()
+      .then((u) => {
+        if (u?.whatsappChannelType === 'free_qr') setIsFreeQrUser(true);
+      })
+      .catch(() => {});
+  }, []);
 
   const flatListRef = useRef(null);
   const pollDisabledRef = useRef(false);
@@ -574,6 +588,99 @@ export default function ChatDetailScreen({ route, navigation }) {
     }
   };
 
+  // ==================== FREE QR TEMPLATE GUARD & CATALOG PRODUCT PICKER ====================
+  const handleTemplatePress = () => {
+    if (isFreeQrUser) {
+      Alert.alert(
+        'Meta Business Account Required',
+        'Official WhatsApp Templates require a verified Meta WABA. On Free QR mode, you can send unlimited Free Text, Media, Quick Replies, and Catalog Products!',
+        [
+          { text: 'OK', style: 'cancel' },
+          { text: 'Manage Quick Replies', onPress: () => navigation.navigate('QuickReplies') },
+        ]
+      );
+      return;
+    }
+    navigation.navigate('TemplateSelection', {
+      contact: { ...chat, _id: activeChatId || chat._id },
+    });
+  };
+
+  const openProductPicker = async () => {
+    setShowProductPicker(true);
+    setProductSearch('');
+    setLoadingProducts(true);
+    try {
+      const list = await commerceService.getProducts();
+      setCatalogProducts(Array.isArray(list) ? list : []);
+    } catch {
+      setCatalogProducts([]);
+    } finally {
+      setLoadingProducts(false);
+    }
+  };
+
+  const handleSendProduct = async (prod) => {
+    setShowProductPicker(false);
+    const price = Number(prod.sellingPrice ?? prod.price ?? 0);
+    const lines = [
+      `*${prod.name || 'Product'}*`,
+      `Price: ₹${price.toLocaleString('en-IN')}`,
+      prod.sku ? `SKU: ${prod.sku}` : '',
+      prod.description ? `\n${prod.description}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const imgUrl = resolveFileUrl(prod.productImage || prod.image);
+    const optimisticMsg = {
+      id: `msg_prod_${Date.now()}`,
+      type: 'text',
+      text: lines,
+      mediaUrl: imgUrl || null,
+      mediaType: imgUrl ? 'image' : null,
+      fileName: prod.name || 'Product',
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      sender: 'me',
+      status: 'sent',
+    };
+    setMessages((prev) => [...prev, optimisticMsg]);
+
+    try {
+      let targetId = activeChatId || chat._id;
+      if (!targetId && (chat.phone || chat.whatsappId || chat.whatsapp)) {
+        const resolved = await chatService.createChat({
+          name: chat.name,
+          phone: chat.phone || chat.whatsappId || chat.whatsapp,
+        });
+        if (resolved?._id) {
+          targetId = resolved._id;
+          setActiveChatId(resolved._id);
+        }
+      }
+      if (targetId) {
+        if (imgUrl) {
+          await chatService.sendMediaMessage({
+            chatId: targetId,
+            text: lines,
+            sender: 'me',
+            media: { url: imgUrl, name: prod.name || 'product.jpg', type: 'image' },
+            mediaType: 'image',
+          });
+        } else {
+          await chatService.sendMessage({
+            chatId: targetId,
+            text: lines,
+            sender: 'me',
+          });
+        }
+      }
+    } catch (err) {
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
+      Alert.alert('Product Not Sent', err?.response?.data?.error || err.message || 'Failed to send product.');
+    }
+  };
+
   // Toggle pin
   const handleTogglePin = async () => {
     const nextPin = !isPinned;
@@ -960,14 +1067,19 @@ export default function ChatDetailScreen({ route, navigation }) {
             multiline
           />
 
+          {/* Catalog Product Picker Icon (Web-Matching) */}
+          <TouchableOpacity
+            style={styles.composerIconBtn}
+            onPress={openProductPicker}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="bag-handle-outline" size={21} color="#4F46E5" />
+          </TouchableOpacity>
+
           {/* WhatsApp Template Document Icon */}
           <TouchableOpacity
             style={styles.composerIconBtn}
-            onPress={() =>
-              navigation.navigate('TemplateSelection', {
-                contact: { ...chat, _id: activeChatId || chat._id },
-              })
-            }
+            onPress={handleTemplatePress}
             activeOpacity={0.7}
           >
             <Ionicons name="document-text-outline" size={22} color="#00875A" />
@@ -1517,6 +1629,110 @@ export default function ChatDetailScreen({ route, navigation }) {
                 <Text style={styles.mediaSendBtnText}>Send</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ================= CATALOG PRODUCT PICKER MODAL (Web-Matching) ================= */}
+      <Modal
+        visible={showProductPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowProductPicker(false)}
+      >
+        <View style={styles.sheetBackdrop}>
+          <View style={styles.mediaModalCard}>
+            <View style={styles.sheetHandle} />
+            <View style={styles.mediaModalHeader}>
+              <View>
+                <Text style={styles.mediaModalTitle}>Send Catalog Product</Text>
+                <Text style={styles.mediaModalSubtitle}>Tap any product to share in chat</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setShowProductPicker(false)}
+                style={styles.mediaCloseBtn}
+              >
+                <Ionicons name="close" size={20} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.mediaSearchBox}>
+              <Ionicons name="search" size={16} color="#94A3B8" style={{ marginRight: 8 }} />
+              <TextInput
+                style={styles.mediaSearchInput}
+                placeholder="Search products..."
+                placeholderTextColor="#94A3B8"
+                value={productSearch}
+                onChangeText={setProductSearch}
+              />
+            </View>
+
+            {loadingProducts ? (
+              <View style={styles.mediaEmptyBox}>
+                <ActivityIndicator size="small" color="#00875A" />
+                <Text style={styles.mediaEmptyText}>Loading catalog products...</Text>
+              </View>
+            ) : (
+              <FlatList
+                data={catalogProducts.filter(
+                  (p) =>
+                    !productSearch.trim() ||
+                    (p.name || '').toLowerCase().includes(productSearch.toLowerCase()) ||
+                    (p.sku || '').toLowerCase().includes(productSearch.toLowerCase())
+                )}
+                keyExtractor={(item, idx) => String(item._id || idx)}
+                ListEmptyComponent={
+                  <View style={styles.mediaEmptyBox}>
+                    <Ionicons name="bag-outline" size={32} color="#CBD5E1" />
+                    <Text style={styles.mediaEmptyText}>No products in catalog yet.</Text>
+                  </View>
+                }
+                renderItem={({ item }) => {
+                  const pImg = resolveFileUrl(item.productImage || item.image);
+                  const price = Number(item.sellingPrice ?? item.price ?? 0);
+                  return (
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 12,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#F1F5F9',
+                        gap: 12,
+                      }}
+                      onPress={() => handleSendProduct(item)}
+                    >
+                      <View
+                        style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 12,
+                          backgroundColor: '#EEF2FF',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {pImg ? (
+                          <Image source={{ uri: pImg }} style={{ width: 48, height: 48 }} resizeMode="cover" />
+                        ) : (
+                          <Ionicons name="cube-outline" size={22} color="#4F46E5" />
+                        )}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 14, fontWeight: '700', color: '#0F172A' }} numberOfLines={1}>
+                          {item.name}
+                        </Text>
+                        <Text style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>
+                          ₹{price.toLocaleString('en-IN')} • Stock: {item.currentStock ?? 0}
+                        </Text>
+                      </View>
+                      <Ionicons name="send" size={16} color="#00875A" />
+                    </TouchableOpacity>
+                  );
+                }}
+              />
+            )}
           </View>
         </View>
       </Modal>
