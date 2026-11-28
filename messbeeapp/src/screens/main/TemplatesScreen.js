@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -13,6 +12,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -1314,7 +1314,7 @@ export default function TemplatesScreen({ navigation }) {
   const activeSimTemplate = galleryTemplates[simulatorActiveIndex] || galleryTemplates[0];
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
 
       {/* ======================================================== */}
@@ -1834,7 +1834,7 @@ export default function TemplatesScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setSelectedDetailsTemplate(null)}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'left', 'right']}>
           <StatusBar style="dark" />
           {selectedDetailsTemplate && (
             <ScrollView
@@ -2042,7 +2042,7 @@ export default function TemplatesScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setIsCreateModalVisible(false)}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'left', 'right']}>
           <StatusBar style="dark" />
 
           {/* Builder Top Bar */}
@@ -2918,7 +2918,7 @@ export default function TemplatesScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setSelectedGalleryTemplate(null)}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'left', 'right']}>
           <StatusBar style="dark" />
           {selectedGalleryTemplate && (
             <View style={{ flex: 1 }}>
@@ -3076,7 +3076,7 @@ export default function TemplatesScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setIsSimulatorVisible(false)}
       >
-        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: '#075E54' }]}>
+        <SafeAreaView style={[styles.modalSafeArea, { backgroundColor: '#075E54' }]} edges={['top', 'left', 'right']}>
           <StatusBar style="light" />
 
           {/* WhatsApp Simulator Dark Green Header */}
@@ -3238,7 +3238,7 @@ export default function TemplatesScreen({ navigation }) {
         animationType="slide"
         onRequestClose={() => setCustomizingTemplate(null)}
       >
-        <SafeAreaView style={styles.modalSafeArea}>
+        <SafeAreaView style={styles.modalSafeArea} edges={['top', 'left', 'right']}>
           <StatusBar style="dark" />
           {customizingTemplate && (
             <View style={{ flex: 1 }}>
@@ -3455,7 +3455,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    paddingTop: Platform.OS === 'android' ? 32 : 0,
+    paddingTop: 0,
   },
   topHeader: {
     backgroundColor: '#FFFFFF',

@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   ScrollView,
   TouchableOpacity,
   TextInput,
@@ -14,6 +13,7 @@ import {
   RefreshControl,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { automationService } from '../../services/api';
@@ -220,7 +220,7 @@ export default function AutomationDashboardScreen({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
 
       {/* Header */}
@@ -503,7 +503,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    paddingTop: Platform.OS === 'android' ? 36 : 0,
+    paddingTop: 0,
   },
   header: {
     flexDirection: 'row',

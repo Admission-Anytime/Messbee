@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Platform,
   ActivityIndicator,
@@ -11,6 +10,7 @@ import {
   Easing,
   Modal,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { whatsappConfigService } from '../../services/api';
@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#F8FAFC',
-    paddingTop: Platform.OS === 'android' ? 36 : 0,
+    paddingTop: 0,
   },
   header: {
     flexDirection: 'row',

@@ -8,12 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  SafeAreaView,
   Image,
   Dimensions,
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { authService, getServerEnvironment, setServerEnvironment } from '../../services/api';
@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   },
   safeHeaderArea: {
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? 24 : 10,
+    paddingTop: 10,
     height: 60,
   },
   backButton: {
