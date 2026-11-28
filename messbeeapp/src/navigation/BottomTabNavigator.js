@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import HomeScreen from '../screens/main/HomeScreen';
 import ChatsScreen from '../screens/main/ChatsScreen';
@@ -12,6 +13,10 @@ import MoreScreen from '../screens/main/MoreScreen';
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabNavigator() {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
+  const tabHeight = 56 + bottomPad;
+
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -22,8 +27,8 @@ export default function BottomTabNavigator() {
           backgroundColor: '#FFFFFF',
           borderTopWidth: 1,
           borderTopColor: '#F1F5F9',
-          height: Platform.OS === 'ios' ? 84 : 64,
-          paddingBottom: Platform.OS === 'ios' ? 24 : 8,
+          height: tabHeight,
+          paddingBottom: bottomPad,
           paddingTop: 8,
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -2 },

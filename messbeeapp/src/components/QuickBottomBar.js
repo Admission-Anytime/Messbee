@@ -1,12 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 /**
  * 3-option bottom navigation bar (Home, Notification, You)
  * used on Automation and Commerce stack screens.
  */
 export default function QuickBottomBar({ navigation, activeTab = 'Home' }) {
+  const insets = useSafeAreaInsets();
+  const bottomPad = Math.max(insets.bottom, Platform.OS === 'ios' ? 20 : 10);
   const tabs = [
     {
       key: 'Home',
@@ -29,7 +32,7 @@ export default function QuickBottomBar({ navigation, activeTab = 'Home' }) {
   ];
 
   return (
-    <View style={styles.bar}>
+    <View style={[styles.bar, { paddingBottom: bottomPad }]}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.key;
         return (
