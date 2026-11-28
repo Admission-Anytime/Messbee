@@ -4,6 +4,7 @@ import {
   Text,
   StyleSheet,
   FlatList,
+  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
@@ -12,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { notificationService } from '../../services/api';
+import { io } from 'socket.io-client';
+import { notificationService, getSocketUrl } from '../../services/api';
 
 const getTypeIcon = (type) => {
   switch (type) {
@@ -70,7 +72,33 @@ export default function NotificationsScreen({ navigation }) {
 
   useEffect(() => {
     fetchNotifications();
-  }, [fetchNotifications]);
+    const unsub = navigation.addListener('focus', fetchNotifications);
+    return unsub;
+  }, [fetchNotifications, navigation]);
+
+  // Real-time Socket.IO listener for new notifications (matching web NotificationPage)
+  useEffect(() => {
+    let socket;
+    try {
+      socket = io(getSocketUrl(), {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+      });
+      socket.on('new_notification', (notif) => {
+        if (!notif) return;
+        setNotifications((prev) => {
+          const id = notif._id || notif.id;
+          if (id && prev.some((p) => (p._id || p.id) === id)) return prev;
+          return [{ ...notif, isRead: false }, ...prev];
+        });
+      });
+    } catch (err) {
+      console.warn('Notification socket error:', err.message);
+    }
+    return () => {
+      if (socket) socket.disconnect();
+    };
+  }, []);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -126,6 +154,20 @@ export default function NotificationsScreen({ navigation }) {
     );
   };
 
+  const handleNotificationPress = async (item) => {
+    await handleMarkAsRead(item);
+    const t = String(item.type || '').toLowerCase();
+    if (t === 'chat' || t === 'mention') {
+      navigation.navigate('MainTabs', { screen: 'Chats' });
+    } else if (t === 'campaign') {
+      navigation.navigate('BroadcastCampaigns');
+    } else if (t === 'lead' || t === 'contact') {
+      navigation.navigate('MainTabs', { screen: 'Contacts' });
+    } else if (t === 'alert') {
+      navigation.navigate('Inventory');
+    }
+  };
+
   const unreadCount = useMemo(() => {
     return notifications.filter((n) => !n.isRead).length;
   }, [notifications]);
@@ -133,6 +175,15 @@ export default function NotificationsScreen({ navigation }) {
   const filteredNotifications = useMemo(() => {
     if (filter === 'unread') {
       return notifications.filter((n) => !n.isRead);
+    }
+    if (filter === 'chat') {
+      return notifications.filter((n) => ['chat', 'mention'].includes(String(n.type || '').toLowerCase()));
+    }
+    if (filter === 'campaign') {
+      return notifications.filter((n) => String(n.type || '').toLowerCase() === 'campaign');
+    }
+    if (filter === 'alert') {
+      return notifications.filter((n) => ['alert', 'system'].includes(String(n.type || '').toLowerCase()));
     }
     return notifications;
   }, [notifications, filter]);
@@ -145,7 +196,7 @@ export default function NotificationsScreen({ navigation }) {
       <TouchableOpacity
         style={[styles.itemCard, !item.isRead && styles.itemCardUnread]}
         activeOpacity={0.7}
-        onPress={() => handleMarkAsRead(item)}
+        onPress={() => handleNotificationPress(item)}
       >
         <View style={[styles.iconContainer, { backgroundColor: iconMeta.bg }]}>
           <Ionicons name={iconMeta.name} size={22} color={iconMeta.color} />
@@ -204,39 +255,48 @@ export default function NotificationsScreen({ navigation }) {
           <Ionicons name="chevron-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
-        {unreadCount > 0 ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {unreadCount > 0 && (
+            <TouchableOpacity
+              onPress={handleMarkAllRead}
+              style={styles.markAllBtn}
+              disabled={markingAll}
+            >
+              <Ionicons name="checkmark-done-outline" size={18} color="#00B67A" />
+              <Text style={styles.markAllText}>Read all</Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            onPress={handleMarkAllRead}
-            style={styles.markAllBtn}
-            disabled={markingAll}
+            onPress={() => navigation.navigate('NotificationsSettings')}
+            style={styles.backBtn}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <Ionicons name="checkmark-done-outline" size={20} color="#00B67A" />
-            <Text style={styles.markAllText}>Mark all read</Text>
+            <Ionicons name="settings-outline" size={20} color="#0F172A" />
           </TouchableOpacity>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
+        </View>
       </View>
 
       {/* Tabs */}
       <View style={styles.tabBar}>
-        <TouchableOpacity
-          style={[styles.tab, filter === 'all' && styles.tabActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Text style={[styles.tabText, filter === 'all' && styles.tabTextActive]}>
-            All ({notifications.length})
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.tab, filter === 'unread' && styles.tabActive]}
-          onPress={() => setFilter('unread')}
-        >
-          <Text style={[styles.tabText, filter === 'unread' && styles.tabTextActive]}>
-            Unread ({unreadCount})
-          </Text>
-        </TouchableOpacity>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {[
+            { id: 'all', label: `All (${notifications.length})` },
+            { id: 'unread', label: `Unread (${unreadCount})` },
+            { id: 'chat', label: 'Chats' },
+            { id: 'campaign', label: 'Campaigns' },
+            { id: 'alert', label: 'Alerts' },
+          ].map((t) => (
+            <TouchableOpacity
+              key={t.id}
+              style={[styles.tab, filter === t.id && styles.tabActive]}
+              onPress={() => setFilter(t.id)}
+            >
+              <Text style={[styles.tabText, filter === t.id && styles.tabTextActive]}>
+                {t.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
       {/* Content */}
