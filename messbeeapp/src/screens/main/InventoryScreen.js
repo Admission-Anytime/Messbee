@@ -26,7 +26,7 @@ const formatLogDate = (dateStr) => {
 };
 
 export default function InventoryScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState('low_stock'); // 'low_stock' | 'out_of_stock' | 'logs'
+  const [activeTab, setActiveTab] = useState('all'); // 'all' | 'low_stock' | 'out_of_stock' | 'logs'
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
@@ -66,7 +66,9 @@ export default function InventoryScreen({ navigation }) {
 
   useEffect(() => {
     fetchAllInventoryData();
-  }, [fetchAllInventoryData]);
+    const unsub = navigation.addListener('focus', fetchAllInventoryData);
+    return unsub;
+  }, [fetchAllInventoryData, navigation]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -115,7 +117,11 @@ export default function InventoryScreen({ navigation }) {
     const catName = typeof item.category === 'object' ? item.category?.name : item.category;
 
     return (
-      <View style={[styles.alertCard, isOut && styles.alertCardCritical]}>
+      <TouchableOpacity
+        style={[styles.alertCard, isOut && styles.alertCardCritical]}
+        activeOpacity={0.85}
+        onPress={() => navigation.navigate('InventoryDetails', { product: item })}
+      >
         <View style={styles.alertHeader}>
           <View style={[styles.iconBox, isOut ? styles.iconBoxCritical : styles.iconBoxWarning]}>
             <Ionicons
@@ -149,14 +155,14 @@ export default function InventoryScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.adjustCardBtn}
-            onPress={() => openAdjustModal(item)}
+            onPress={() => navigation.navigate('StockAdjustment', { product: item })}
             activeOpacity={0.8}
           >
             <Ionicons name="swap-vertical" size={15} color="#FFFFFF" />
             <Text style={styles.adjustCardBtnText}>Adjust</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
 
@@ -199,10 +205,18 @@ export default function InventoryScreen({ navigation }) {
   };
 
   const currentListData = useMemo(() => {
+    if (activeTab === 'all') return allProducts;
     if (activeTab === 'low_stock') return lowStockProducts;
     if (activeTab === 'out_of_stock') return outOfStockProducts;
     return logs;
-  }, [activeTab, lowStockProducts, outOfStockProducts, logs]);
+  }, [activeTab, allProducts, lowStockProducts, outOfStockProducts, logs]);
+
+  const estRevenue = useMemo(() => {
+    return allProducts.reduce(
+      (sum, p) => sum + (Number(p.sellingPrice ?? p.price ?? 0) * Number(p.currentStock ?? p.stock ?? 0)),
+      0
+    );
+  }, [allProducts]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -218,14 +232,27 @@ export default function InventoryScreen({ navigation }) {
           <Ionicons name="chevron-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Inventory Management</Text>
-        <TouchableOpacity style={styles.headerActionBtn} onPress={() => openAdjustModal()}>
+        <TouchableOpacity
+          style={styles.headerActionBtn}
+          onPress={() => navigation.navigate('StockAdjustment', { product: allProducts[0] || null })}
+        >
           <Ionicons name="swap-vertical" size={18} color="#FFFFFF" />
           <Text style={styles.headerActionText}>Adjust</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Summary KPI Strip */}
+      {/* Summary KPI Strip (Total Products, Out of Stock, Est. Revenue) */}
       <View style={styles.kpiStrip}>
+        <TouchableOpacity
+          style={[styles.kpiCard, activeTab === 'all' && styles.kpiCardActive]}
+          onPress={() => setActiveTab('all')}
+        >
+          <Text style={styles.kpiLabel}>Total Products</Text>
+          <Text style={[styles.kpiNumber, { color: '#0F172A' }]}>
+            {allProducts.length}
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={[styles.kpiCard, activeTab === 'out_of_stock' && styles.kpiCardActive]}
           onPress={() => setActiveTab('out_of_stock')}
@@ -237,22 +264,12 @@ export default function InventoryScreen({ navigation }) {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.kpiCard, activeTab === 'low_stock' && styles.kpiCardActive]}
-          onPress={() => setActiveTab('low_stock')}
-        >
-          <Text style={styles.kpiLabel}>Low Stock</Text>
-          <Text style={[styles.kpiNumber, { color: '#F59E0B' }]}>
-            {lowStockProducts.length}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[styles.kpiCard, activeTab === 'logs' && styles.kpiCardActive]}
           onPress={() => setActiveTab('logs')}
         >
-          <Text style={styles.kpiLabel}>Audit Logs</Text>
-          <Text style={[styles.kpiNumber, { color: '#0284C7' }]}>
-            {logs.length}
+          <Text style={styles.kpiLabel}>Est. Value</Text>
+          <Text style={[styles.kpiNumber, { color: '#00875A', fontSize: 16 }]}>
+            ₹{estRevenue >= 100000 ? `${(estRevenue / 100000).toFixed(1)}L` : estRevenue.toLocaleString('en-IN')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -260,11 +277,20 @@ export default function InventoryScreen({ navigation }) {
       {/* Tabs */}
       <View style={styles.tabBar}>
         <TouchableOpacity
+          style={[styles.tab, activeTab === 'all' && styles.tabActive]}
+          onPress={() => setActiveTab('all')}
+        >
+          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
+            All ({allProducts.length})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
           style={[styles.tab, activeTab === 'low_stock' && styles.tabActive]}
           onPress={() => setActiveTab('low_stock')}
         >
           <Text style={[styles.tabText, activeTab === 'low_stock' && styles.tabTextActive]}>
-            Low Stock ({lowStockProducts.length})
+            Low ({lowStockProducts.length})
           </Text>
         </TouchableOpacity>
 
@@ -273,7 +299,7 @@ export default function InventoryScreen({ navigation }) {
           onPress={() => setActiveTab('out_of_stock')}
         >
           <Text style={[styles.tabText, activeTab === 'out_of_stock' && styles.tabTextActive]}>
-            Out of Stock ({outOfStockProducts.length})
+            Out ({outOfStockProducts.length})
           </Text>
         </TouchableOpacity>
 
@@ -282,7 +308,7 @@ export default function InventoryScreen({ navigation }) {
           onPress={() => setActiveTab('logs')}
         >
           <Text style={[styles.tabText, activeTab === 'logs' && styles.tabTextActive]}>
-            Movement Logs
+            Logs
           </Text>
         </TouchableOpacity>
       </View>

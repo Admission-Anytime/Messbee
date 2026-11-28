@@ -204,7 +204,7 @@ export default function PaymentListScreen({ navigation }) {
           <Text style={styles.headerTitle}>Payment List</Text>
           <Text style={styles.headerSub}>Track transactions, amounts and order status</Text>
         </View>
-        <TouchableOpacity onPress={() => setShowReportModal(true)} style={styles.iconBtn}>
+        <TouchableOpacity onPress={() => navigation.navigate('DownloadReport')} style={styles.iconBtn}>
           <Ionicons name="download-outline" size={20} color="#00875A" />
         </TouchableOpacity>
       </View>
