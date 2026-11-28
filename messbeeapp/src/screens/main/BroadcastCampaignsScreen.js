@@ -23,6 +23,7 @@ import {
   statusService,
   templateService,
   authService,
+  qrWhatsappService,
 } from '../../services/api';
 import { validateForm } from '../../utils/validation';
 import QuickBottomBar from '../../components/QuickBottomBar';
@@ -43,6 +44,11 @@ export default function BroadcastCampaignsScreen({ navigation }) {
   const [labels, setLabels] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [templates, setTemplates] = useState([]);
+
+  // Quick Broadcast Modal State (for Free QR direct broadcast)
+  const [showQuickBroadcastModal, setShowQuickBroadcastModal] = useState(false);
+  const [quickBroadcastMsg, setQuickBroadcastMsg] = useState('');
+  const [sendingQuickBroadcast, setSendingQuickBroadcast] = useState(false);
 
   // Create Campaign Wizard State
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -313,6 +319,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
       const payload = {
         name: campaignName.trim(),
         description: campaignDesc.trim() || 'Broadcast Campaign',
+        channelType: isFreeQr ? 'FREE_QR' : 'META_CLOUD',
         messageTemplate: isFreeQr
           ? customBodyText.trim()
           : selectedTemplate?.whatsappTemplateName || selectedTemplate?.name,
@@ -364,6 +371,47 @@ export default function BroadcastCampaignsScreen({ navigation }) {
       await loadData();
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleSendQuickBroadcast = async () => {
+    const recipientPhones = contactsList
+      .map((c) => String(c.whatsapp || c.phone || '').replace(/\D/g, ''))
+      .filter((p) => p.length >= 10);
+
+    if (recipientPhones.length === 0) {
+      Alert.alert('No Recipients', 'No contacts with valid phone numbers were found.');
+      return;
+    }
+    if (!quickBroadcastMsg.trim()) {
+      Alert.alert('Message Required', 'Please enter a broadcast message.');
+      return;
+    }
+
+    setSendingQuickBroadcast(true);
+    try {
+      const res = await qrWhatsappService.sendBroadcast({
+        recipientPhones,
+        messageText: quickBroadcastMsg.trim(),
+        intervalSeconds: 5,
+      });
+      if (res?.success) {
+        setShowQuickBroadcastModal(false);
+        setQuickBroadcastMsg('');
+        Alert.alert(
+          'Broadcast Started',
+          res.message || `Sending broadcast to ${recipientPhones.length} contacts.`
+        );
+      } else {
+        Alert.alert('Broadcast Failed', res?.message || 'Failed to start broadcast.');
+      }
+    } catch (err) {
+      Alert.alert(
+        'Broadcast Error',
+        err?.response?.data?.message || err?.message || 'Failed to send broadcast message.'
+      );
+    } finally {
+      setSendingQuickBroadcast(false);
     }
   };
 
@@ -423,7 +471,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
         <View>
           <Text style={styles.headerTitle}>Campaigns</Text>
           <Text style={styles.headerSubtitle}>
-            {`${totalCampaigns} total campaigns`}
+            {`${totalCampaigns} total campaign${totalCampaigns === 1 ? '' : 's'}`}
           </Text>
         </View>
       </View>
@@ -494,15 +542,32 @@ export default function BroadcastCampaignsScreen({ navigation }) {
           </TouchableOpacity>
         </View>
 
-        {/* Create Campaign CTA Button */}
-        <TouchableOpacity
-          style={styles.createButton}
-          onPress={() => setShowCreateModal(true)}
-          activeOpacity={0.85}
-        >
-          <Ionicons name="add" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
-          <Text style={styles.createButtonText}>Create</Text>
-        </TouchableOpacity>
+        {/* Create Campaign & Send Broadcast CTA Buttons */}
+        <View style={styles.ctaRow}>
+          <TouchableOpacity
+            style={[styles.createButton, { flex: 1, marginBottom: 0 }]}
+            onPress={() => setShowCreateModal(true)}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="add" size={20} color="#FFFFFF" style={{ marginRight: 6 }} />
+            <Text style={styles.createButtonText}>Create</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.sendBroadcastBtn}
+            onPress={() => {
+              if (isFreeQr) {
+                setShowQuickBroadcastModal(true);
+              } else {
+                setShowCreateModal(true);
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="paper-plane-outline" size={18} color="#00B67A" style={{ marginRight: 6 }} />
+            <Text style={styles.sendBroadcastBtnText}>Send Broadcast Message</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Section Header */}
         <View style={styles.sectionHeaderRow}>
@@ -533,7 +598,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
             const audienceTarget =
               camp.stats?.totalTargeted ||
               camp.targetCount ||
-              (idx === 0 ? 1248 : idx === 1 ? 2840 : 956);
+              (Array.isArray(camp.targetAudience) ? camp.targetAudience.length : 0);
 
             let statusBg = '#FEF3C7';
             let statusTextColor = '#D97706';
@@ -556,7 +621,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
             const scheduleDisplay = formatScheduleText(camp);
             const createdDateText = camp.createdAt
               ? `Created ${new Date(camp.createdAt).getDate()} ${new Date(camp.createdAt).toLocaleString('default', { month: 'short' })} ${new Date(camp.createdAt).getFullYear()} by ${camp.user?.name || creatorName}`
-              : `Created 24 Sep 2024 by ${creatorName}`;
+              : `Created by ${creatorName}`;
 
             return (
               <View key={camp._id || camp.id || idx} style={styles.campaignCard}>
@@ -1033,7 +1098,7 @@ export default function BroadcastCampaignsScreen({ navigation }) {
               </View>
             )}
 
-            {/* ================= STEP 2: TEMPLATE ================= */}
+            {/* ================= STEP 2: TEMPLATE / MESSAGE ================= */}
             {currentStep === 2 && (
               <View>
                 <Text style={styles.stepSubtitleBadge}>STEP 2 OF 3</Text>
@@ -1042,19 +1107,25 @@ export default function BroadcastCampaignsScreen({ navigation }) {
                 </Text>
                 <Text style={styles.stepDescription}>
                   {isFreeQr
-                    ? 'Enter your WhatsApp broadcast message.'
+                    ? 'Write your custom WhatsApp broadcast message. Use {{name}} to personalize.'
                     : 'Choose an approved WhatsApp message template for this broadcast.'}
                 </Text>
 
                 {isFreeQr ? (
-                  <TextInput
-                    style={[styles.textInput, { height: 120, textAlignVertical: 'top', paddingTop: 12 }]}
-                    multiline
-                    placeholder="Type your broadcast message..."
-                    placeholderTextColor="#94A3B8"
-                    value={customBodyText}
-                    onChangeText={setCustomBodyText}
-                  />
+                  <View style={styles.inputSection}>
+                    <Text style={styles.inputLabel}>Broadcast Message *</Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textAreaInput]}
+                      placeholder="Hi {{name}}, we have an exciting update for you!"
+                      placeholderTextColor="#94A3B8"
+                      value={customBodyText}
+                      onChangeText={setCustomBodyText}
+                      multiline
+                      numberOfLines={5}
+                      textAlignVertical="top"
+                    />
+                    <Text style={styles.charCounter}>{customBodyText.length} characters</Text>
+                  </View>
                 ) : templates.length === 0 ? (
                   <View style={styles.emptyContainer}>
                     <Text style={styles.emptyTitle}>No approved templates found</Text>
@@ -1388,6 +1459,59 @@ export default function BroadcastCampaignsScreen({ navigation }) {
           </View>
         </TouchableOpacity>
       </Modal>
+      {/* Quick Broadcast Modal (Free QR) */}
+      <Modal
+        visible={showQuickBroadcastModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => !sendingQuickBroadcast && setShowQuickBroadcastModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.quickBroadcastSheet}>
+            <View style={styles.quickBroadcastHeader}>
+              <Text style={styles.optionsSheetTitle}>Send Broadcast Message</Text>
+              <TouchableOpacity
+                onPress={() => !sendingQuickBroadcast && setShowQuickBroadcastModal(false)}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.quickBroadcastSub}>
+              Sending to {contactsList.length} contact{contactsList.length === 1 ? '' : 's'} via connected WhatsApp Web
+            </Text>
+            <TextInput
+              style={[styles.textInput, styles.textAreaInput]}
+              placeholder="Hi {{name}}, write your broadcast message here..."
+              placeholderTextColor="#94A3B8"
+              value={quickBroadcastMsg}
+              onChangeText={setQuickBroadcastMsg}
+              multiline
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[
+                styles.createButton,
+                { marginTop: 14, marginBottom: 0 },
+                sendingQuickBroadcast && { opacity: 0.7 },
+              ]}
+              onPress={handleSendQuickBroadcast}
+              disabled={sendingQuickBroadcast}
+              activeOpacity={0.85}
+            >
+              {sendingQuickBroadcast ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <>
+                  <Ionicons name="paper-plane" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.createButtonText}>Send Broadcast Message</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       <QuickBottomBar navigation={navigation} activeTab="Home" />
     </SafeAreaView>
   );
@@ -1512,6 +1636,51 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '700',
+  },
+  ctaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 20,
+  },
+  sendBroadcastBtn: {
+    flex: 1.5,
+    backgroundColor: '#EDF9F2',
+    borderWidth: 1,
+    borderColor: '#00B67A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 48,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+  },
+  sendBroadcastBtnText: {
+    color: '#00875A',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  textAreaInput: {
+    minHeight: 110,
+    paddingTop: 12,
+  },
+  quickBroadcastSheet: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 34,
+  },
+  quickBroadcastHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickBroadcastSub: {
+    fontSize: 12,
+    color: '#64748B',
+    marginBottom: 12,
   },
   sectionHeaderRow: {
     flexDirection: 'row',
